@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aia-mvp"
+version = "0.1.0"
+description = "AIA product MVP bootstrap"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aia"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
