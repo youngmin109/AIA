@@ -45,9 +45,11 @@ _TERMINAL_STATUSES = frozenset(
 )
 
 _ALLOWED_TRANSITIONS: dict[SessionStatus, frozenset[SessionStatus]] = {
-    SessionStatus.CREATED: frozenset({SessionStatus.PREPARING}),
+    SessionStatus.CREATED: frozenset(
+        {SessionStatus.PREPARING, SessionStatus.ABORTED}
+    ),
     SessionStatus.PREPARING: frozenset(
-        {SessionStatus.READY, SessionStatus.FAILED}
+        {SessionStatus.READY, SessionStatus.ABORTED, SessionStatus.FAILED}
     ),
     SessionStatus.READY: frozenset(
         {SessionStatus.RUNNING, SessionStatus.ABORTED, SessionStatus.FAILED}
@@ -174,7 +176,7 @@ class ProtectedRunSession:
             at if at is not None else _now_utc(),
             field_name="transition time",
         )
-        if target is SessionStatus.RUNNING:
+        if target is SessionStatus.PREPARING:
             self.started_at = transition_time
         if target in _TERMINAL_STATUSES:
             self.ended_at = transition_time
