@@ -11,18 +11,73 @@ package/class를 이번 EPIC에서 생성하지 않는다. 현재 산출물은 �
 
 제품의 권위 있는 흐름은 다음과 같다.
 
-Runtime Evidence
+Raw Evidence
 → Normalization
-→ Attribution
-→ Security Asset Policy
-→ Enforcement
-→ Recovery
-→ Integrity Verification
-→ Audit
+→ Canonical Action
+├→ Policy Evaluation
+└→ Attribution
+↓
+Enforcement Gate
+↓
+Enforcement Execution
+↓
+Recovery
+↓
+Integrity
+↓
+Audit
+
+Policy Evaluation과 Attribution은 Canonical Action에서 독립적으로 분기한다. Policy는
+“관찰된 행위가 정책을 위반했는가?”를 판단하고, Attribution은 “그 행위를 Agent에게
+어느 수준까지 귀속할 수 있는가?”를 판단한다. 어느 한쪽이 다른 쪽의 결과를
+덮어쓰지 않는다.
 
 실행 session은 이 흐름 전체를 묶지만, 각 단계가 다른 단계의 책임을 대신하지
 않는다. 특히 Evidence 수집이 Enforcement 권한을 만들지 않고, Policy Violation이
 그 자체로 process termination을 의미하지 않는다.
+
+## 보호 실행 세션 (Protected Run Session)
+
+AIA 세션은 프로젝트 자체나 Agent 대화 세션이 아니라, 사용자가 하나의 Workspace에
+대해 AIA 보호 실행을 시작한 시점부터 해당 보호 실행이 종료될 때까지의 보안 책임
+단위이다.
+
+Workspace != Session
+
+동일 Workspace에서 여러 AIA Session이 반복될 수 있다. 보호 실행을 종료하지 않고
+계속 유지하는 경우 장시간 작업도 하나의 Session일 수 있다. Agent Native Session과
+AIA Session ID는 별도로 관리한다.
+
+### Session Start
+
+- AIA Protected Run 시작
+- Session ID 생성
+- Workspace 확정
+- Active Policy 고정
+- Sensor 초기화
+- Checkpoint 준비
+- Agent identity 등록
+
+### Session End
+
+- 사용자 명시적 종료
+- Agent 보호 실행 정상 종료
+- AIA 강제 종료
+- 보호 보증을 지속할 수 없는 치명적 실행 실패
+
+프로젝트 기간이나 파일 수·용량 자체는 Session 경계를 결정하지 않는다. 대규모
+Workspace의 Snapshot/Checkpoint 성능 문제는 Session 정의가 아니라 Scalability
+문제로 분리한다.
+
+## Network Observation Scope
+
+Network Security는 현재 MVP Out of Scope이다. P0에 network telemetry가 존재한다는
+사실은 Inventory에 보존하지만, Network Evidence를 새 Product Core의 Security
+Authority나 MVP 보호 범위로 정의하지 않는다.
+
+필요한 network observation은 Legacy / Optional Telemetry / Future Scope로 취급한다.
+Network Evidence만으로 제품의 보안 Claim을 만들지 않으며, Network Evidence만으로
+Policy Violation, Enforcement, Recovery 권한을 만들지 않는다.
 
 ## 핵심 구성요소와 책임
 
@@ -35,38 +90,51 @@ Runtime Evidence
 
 ### 2. 증거 수집기 (Evidence Collector)
 
-- **책임**: Hook/PreTool 요청·응답, command telemetry, process/network observation, filesystem watcher, snapshot 차이 등 관찰 가능한 사실을 원시 형태로 보존한다.
-- **주요 입력**: Agent Hook stream, Agent output/JSONL, OS process/socket observation, workspace filesystem event, snapshot manifest.
+- **책임**: Hook/PreTool 요청·응답, command telemetry, process observation, filesystem watcher, snapshot 차이 등 관찰 가능한 사실을 원시 형태로 보존한다. Network telemetry는 선택적 미래 관찰로만 보존할 수 있다.
+- **주요 입력**: Agent Hook stream, Agent output/JSONL, OS process observation, workspace filesystem event, snapshot manifest. Network telemetry는 선택적 미래 입력이다.
 - **주요 출력**: append-only raw evidence records, source metadata, capture timestamp, session/turn correlation, sensor health/error record.
 - **앞/뒤 관계**: Session Manager가 수집 범위와 ID를 제공하고, Collector는 Normalizer로 전달한다. Collector는 evidence를 저장할 뿐 policy decision이나 kill 권한을 만들지 않는다.
 
 ### 3. 행위 정규화기 (Normalizer)
 
 - **책임**: 서로 다른 센서 기록을 canonical action으로 변환한다. operation, target, path, command, session, turn, evidence source, stage, timestamp를 동일한 표현으로 맞춘다.
-- **주요 입력**: raw Hook record, FileEvent, process/network evidence, snapshot diff, command telemetry.
+- **주요 입력**: raw Hook record, FileEvent, process evidence, snapshot diff, command telemetry. Network telemetry는 MVP Security Authority 입력이 아니다.
 - **주요 출력**: NormalizedAction, canonical path, operation type, evidence source set, completeness indicator, 원시 record 참조.
-- **앞/뒤 관계**: Evidence Collector 뒤에서 동작하고 Attribution Engine과 Policy Engine 앞에 선다. 정규화는 의미론적 효과나 행위자 권한을 추론하지 않는다.
+- **앞/뒤 관계**: Evidence Collector 뒤에서 동작하고 Canonical Action을 Policy Evaluation과 Attribution에 병렬로 전달한다. 정규화는 의미론적 효과나 행위자 권한을 추론하지 않는다.
 
 ### 4. 행위 귀속 엔진 (Attribution Engine)
 
 - **책임**: action이 Agent의 어떤 session/turn/tool과 관련되는지 증거 강도에 따라 보수적으로 귀속한다.
 - **주요 입력**: normalized action, Hook supplied session/turn/tool_use ID, turn windows, process identity/lifetime, watcher event timestamp.
 - **주요 출력**: attribution grade EXACT, PROCESS, TEMPORAL, UNKNOWN, attribution reason, process identity facts, competing candidate information.
-- **앞/뒤 관계**: Normalizer 뒤에서 Policy Engine과 Enforcement Gate 앞에 선다. 정확한 Hook identifier가 있으면 EXACT 후보가 되지만, process 생존 구간이나 시간 겹침만으로 EXACT를 만들지 않는다. 여러 후보나 불일치는 UNKNOWN으로 남긴다.
+- **앞/뒤 관계**: Normalizer 뒤에서 Policy Evaluation과 병렬로 동작하고, 결과를 Enforcement Gate에 전달한다. 정확한 Hook identifier가 있으면 EXACT 후보가 되지만, process 생존 구간이나 시간 겹침만으로 EXACT를 만들지 않는다. 여러 후보나 불일치는 UNKNOWN으로 남긴다.
 
 ### 5. 정책 관리자 / 정책 판정 엔진 (Policy Manager / Policy Engine)
 
 - **책임**: validated v1 Security Asset Policy를 로드하고 asset, operation, path/command evidence, evidence completeness, stage를 기준으로 정책 적합성을 판정한다.
-- **주요 입력**: 정책 문서와 schema, NormalizedAction, attribution, evidence source/complete 상태, PreTool 또는 post-execution stage.
+- **주요 입력**: 정책 문서와 schema, Canonical Action, evidence source/complete 상태, PreTool 또는 post-execution stage.
 - **주요 출력**: policy decision COMPLIANT/VIOLATION/INDETERMINATE, matched rule IDs, asset type, operation effect, limitation, audit record flag.
-- **앞/뒤 관계**: Attribution 결과와 증거 완전성을 받아 Enforcement Gate로 전달한다. 같은 validated policy를 PreTool과 Runtime에 사용한다. 필수 evidence가 없으면 COMPLIANT를 반환하지 않는다. Intent/Risk advisory는 이 판정을 대체하지 않는다.
+- **앞/뒤 관계**: Attribution과 독립적으로 정책만 평가하고 결과를 Enforcement Gate로 전달한다. 같은 validated policy를 PreTool과 Runtime에 사용한다. 필수 evidence가 없으면 INDETERMINATE이며, Attribution 등급 때문에 이미 관찰된 VIOLATION을 COMPLIANT로 낮추지 않는다. Intent/Risk advisory는 이 판정을 대체하지 않는다.
 
 ### 6. 강제조치 안전문 (Enforcement Gate)
 
-- **책임**: Policy 결과를 실제 차단·종료 권한으로 변환하기 전에 attribution, owned process identity, session verification, sensor health, lease와 evidence stage를 독립적으로 확인한다.
+- **책임**: Policy 결과를 실제 조치 승인으로 변환하기 전에 attribution, owned process identity, session verification, sensor health, lease와 evidence stage를 독립적으로 확인한다. Gate 자체는 실제 process를 종료하지 않는다.
 - **주요 입력**: PolicyEvaluation, attribution grade, process identity, session/turn verification, sensor health, workspace lease, evidence stage, optional checkpoint availability.
-- **주요 출력**: enforcement decision CONTINUE/CONTAIN/REFUSE, enforcement action NONE/BLOCKED/TERMINATED, 실패한 gate check와 사용자 검토 사유.
-- **앞/뒤 관계**: Policy Engine 뒤에 있고 Process Manager와 PreTool response 앞에 선다. Gate가 통과한 경우에만 실행 전 BLOCKED 또는 실행 후 TERMINATED를 요청한다. Checkpoint는 containment의 필수 전제가 아니며 Recovery 가능성을 별도로 결정한다.
+- **주요 출력**: enforcement decision CONTINUE/CONTAIN/REFUSE, 실행 경로와 승인 근거, 실패한 gate check와 사용자 검토 사유. BLOCKED/TERMINATED는 실제 실행 확인 뒤에만 기록한다.
+- **앞/뒤 관계**: Policy Evaluation과 Attribution 뒤에 있고 PreTool Adapter 또는 Process Manager 앞에 선다. Gate가 승인한 뒤 실행 경로가 실제 조치를 수행한다. Checkpoint는 containment의 필수 전제가 아니며 Recovery 가능성을 별도로 결정한다.
+
+#### Gate 이후의 Enforcement Execution 책임
+
+Enforcement Execution은 Gate의 결정을 실제 adapter 또는 manager 결과로 확정하는
+책임이다. 실행 전 조치는 PreTool Adapter가 실제 deny를 확인해야 BLOCKED로 기록하고,
+실행 후 조치는 Process Manager가 managed process termination을 확인해야 TERMINATED로
+기록한다. Gate의 CONTAIN 승인만으로 어느 action도 기록하지 않는다.
+
+Process termination에는 실패할 수 있으므로 별도의 execution result를 보존한다.
+최소 결과는 NOT_ATTEMPTED, SUCCEEDED, FAILED이며, FAILED인 경우 failure reason과
+대상 process 결과를 남긴다. 예를 들어 Gate가 CONTAIN을 승인했지만 종료에 실패하면
+TERMINATED를 주장하지 않고 Enforcement Decision은 CONTAIN, Action은 NONE, Execution
+Result는 FAILED가 될 수 있다.
 
 ### 7. 프로세스 관리자 (Process Manager)
 
@@ -87,14 +155,14 @@ Runtime Evidence
 - **책임**: 성공적으로 종료된 managed process와 valid checkpoint를 기준으로 workspace 복구를 조정하고, 복구 가능·거부·실패를 분리한다.
 - **주요 입력**: Enforcement Action, KillResult, valid checkpoint, trusted manifest, workspace lease.
 - **주요 출력**: Recovery status NOT_REQUIRED/RESTORED/REFUSED/FAILED/RECOVERY_UNAVAILABLE, restored paths, recovery reason.
-- **앞/뒤 관계**: Enforcement Gate와 Process Manager 뒤에서 동작한다. Rollback이 수행된 뒤에는 반드시 Integrity Verifier를 호출하고 검증 결과 없이는 RESTORED로 확정하지 않는다.
+- **앞/뒤 관계**: Enforcement Execution과 Process Manager 뒤에서 동작한다. valid checkpoint를 이용한 복원 실행이 완료되면 RESTORED를 기록하고, Integrity Verifier 결과는 별도 Integrity 축으로 기록한다.
 
 ### 10. 무결성 검증기 (Integrity Verifier)
 
 - **책임**: checkpoint와 현재 또는 복구 후 workspace의 path set과 SHA-256을 비교해 복구 결과를 독립적으로 검증한다.
 - **주요 입력**: fixed checkpoint manifest, current workspace manifest, snapshot layout, path safety result.
 - **주요 출력**: integrity status NOT_CHECKED/VERIFIED/FAILED, missing/unexpected/changed paths, hash comparison details.
-- **앞/뒤 관계**: Checkpoint Manager의 trusted manifest와 Recovery Coordinator의 restored workspace를 받는다. 결과는 Recovery Coordinator와 Report Generator로 돌아간다. Rollback 성공 여부만으로 VERIFIED를 선언하지 않는다.
+- **앞/뒤 관계**: Checkpoint Manager의 trusted manifest와 Recovery Coordinator의 restored workspace를 받는다. 결과는 Recovery Coordinator와 Report Generator로 돌아간다. Rollback 실행 완료만으로 VERIFIED를 선언하지 않는다.
 
 ### 11. 결과 보고기 (Report Generator)
 
@@ -128,16 +196,16 @@ Runtime Evidence
 
 | 상태값 | 의미 |
 |---|---|
-| NONE | 실제 차단·종료 조치를 수행하지 않았다. |
-| BLOCKED | 실행 전에 차단했다. |
-| TERMINATED | 실행 후 승인된 owned process를 종료했다. |
+| NONE | 실제 차단·종료 조치가 확인되지 않았다. |
+| BLOCKED | PreTool Adapter의 실제 deny가 확인되었다. |
+| TERMINATED | Process Manager가 managed process termination을 실제로 확인했다. |
 
 ### 복구 상태
 
 | 상태값 | 의미 |
 |---|---|
 | NOT_REQUIRED | 조치가 없거나 복구가 필요하지 않다. |
-| RESTORED | valid checkpoint로 복구했고 이후 무결성 검증까지 통과했다. |
+| RESTORED | valid checkpoint를 이용한 복원 실행 자체가 완료되었다. Integrity 성공을 의미하지 않는다. |
 | REFUSED | 자동 복구 조건 또는 사용자 승인 조건이 부족해 복구하지 않았다. |
 | FAILED | 복구를 시도했으나 대상·파일·검증 조건 중 하나가 실패했다. |
 | RECOVERY_UNAVAILABLE | valid checkpoint가 없거나 checkpoint 자체가 신뢰되지 않아 복구할 수 없다. |
@@ -150,14 +218,22 @@ Runtime Evidence
 | VERIFIED | expected path set과 SHA-256이 일치한다. |
 | FAILED | missing, unexpected, changed path 또는 검증 오류가 있다. |
 
+Recovery와 Integrity는 독립된 상태 축이므로 다음 조합을 표현할 수 있다.
+
+| Recovery | Integrity | 의미 |
+|---|---|---|
+| RESTORED | VERIFIED | valid checkpoint 복원 실행과 expected path/existence/SHA-256 검증이 모두 성공했다. 제품 전체의 “검증된 복구 성공”은 이 조합에서만 사용한다. |
+| RESTORED | FAILED | valid checkpoint 복원 실행은 완료되었지만 복원 후 expected path/existence/SHA-256 검증에 실패했다. 검증된 복구 성공으로 보고하지 않는다. |
+
 ### 정상적인 상태 조합
 
-다음 조합은 정상적인 fail-closed 결과다.
+다음 조합은 실제 실행 결과까지 확인된 정상적인 fail-closed 결과다. Gate의 CONTAIN
+승인만으로 BLOCKED 또는 TERMINATED를 기록하지 않는다.
 
 | Policy Decision | Attribution | Enforcement Decision | Enforcement Action | 의미 |
 |---|---|---|---|---|
 | VIOLATION | PROCESS | REFUSE | NONE | 정책 위반은 확인했지만 Agent 행위라고 자동 종료할 만큼 충분히 귀속되지 않았다. 자동 통제는 수행하지 않고 evidence를 보존하며 사용자 검토를 요청한다. |
-| VIOLATION | EXACT | CONTAIN | TERMINATED | 정책 위반과 Agent 행위가 충분히 확인되었고, 실행 후 자동 통제를 승인해 owned process를 종료했다. 이후 valid checkpoint가 있으면 복구와 Integrity Verification을 별도로 진행한다. |
+| VIOLATION | EXACT | CONTAIN | TERMINATED | 정책 위반과 Agent 행위가 충분히 확인되었고, Gate 승인 후 실제 managed process termination이 확인되었다. 이후 valid checkpoint가 있으면 복구와 Integrity Verification을 별도로 진행한다. |
 
 실행 전 EXACT 위반은 VIOLATION → CONTAIN → BLOCKED가 될 수 있다. COMPLIANT이면
 CONTINUE → NONE이 정상이며, INDETERMINATE는 evidence 부족을 기록하고 자동 종료하지
@@ -165,28 +241,35 @@ CONTINUE → NONE이 정상이며, INDETERMINATE는 evidence 부족을 기록하
 
 ## Security Authority 흐름
 
-1. Agent Hook, workspace watcher, process/network observer, command telemetry는 사실을 수집한다. Raw evidence와 Agent self-report는 Security Authority가 아니다.
-2. Normalizer는 서로 다른 source를 canonical action으로 묶는다. 이 단계는 증거 표현만 통일하고 위반·종료를 결정하지 않는다.
-3. Attribution Engine은 evidence strength를 EXACT, PROCESS, TEMPORAL, UNKNOWN으로 구분한다. PID 하나나 시간 겹침 하나만으로 EXACT를 만들지 않는다.
-4. Policy Engine은 동일한 validated v1 Security Asset Policy로 PreTool과 Runtime을 판정한다. 필수 evidence가 없으면 INDETERMINATE다.
-5. Enforcement Gate는 Policy 결과를 다시 identity/session/sensor/lease/stage와 대조한다. VIOLATION만으로는 CONTAIN하지 않는다.
-6. EXACT와 필요한 verification이 모두 있으면 실행 전에는 BLOCKED, 실행 후에는 TERMINATED를 승인할 수 있다.
-7. PROCESS, TEMPORAL, UNKNOWN은 자동 termination 권한을 갖지 않는다. 위반이면 REFUSE/NONE으로 기록하고 raw evidence, 귀속 이유, 사용자 검토 사유를 보존한다.
-8. Policy Violation alone != Kill을 모든 구현과 보고서에 적용한다.
-9. Checkpoint는 Containment의 필수 전제조건이 아니다. valid checkpoint가 있을 때만 Rollback을 수행한다.
-10. Rollback 이후 Integrity Verification은 필수다. 검증 전에는 Recovery를 RESTORED로 보고하지 않는다.
+1. Agent Hook, workspace watcher, process observer, command telemetry는 사실을 수집한다. Network telemetry는 선택적 미래 관찰이며 MVP Security Authority가 아니다. Raw evidence와 Agent self-report는 Security Authority가 아니다.
+2. Normalizer는 서로 다른 source를 Canonical Action으로 묶는다. 이 단계는 증거 표현만 통일하고 위반·종료를 결정하지 않는다.
+3. Canonical Action에서 Policy Evaluation과 Attribution이 독립적으로 분기한다.
+4. Policy Evaluation은 “관찰된 행위가 정책을 위반했는가?”를 판단한다. 필수 Evidence가 부족한 경우에만 INDETERMINATE이며, 충분히 관찰된 VIOLATION을 Attribution 등급 때문에 COMPLIANT로 낮추지 않는다.
+5. Attribution은 “그 행위를 Agent에게 어느 수준까지 귀속할 수 있는가?”를 EXACT, PROCESS, TEMPORAL, UNKNOWN으로 판단한다. PID 하나나 시간 겹침 하나만으로 EXACT를 만들지 않는다.
+6. Enforcement Gate는 Policy 결과와 Attribution 결과를 함께 받아 identity/session/sensor/lease/stage를 대조한다. VIOLATION만으로는 CONTAIN하지 않는다.
+7. Gate가 CONTAIN을 승인해도 실제 Action은 기록하지 않는다. PreTool Adapter의 실제 deny가 확인될 때 BLOCKED, Process Manager의 실제 managed process termination이 확인될 때 TERMINATED를 기록한다.
+8. PROCESS, TEMPORAL, UNKNOWN은 자동 termination 권한을 갖지 않는다. 위반이면 REFUSE/NONE으로 기록하고 raw evidence, 귀속 이유, 사용자 검토 사유를 보존한다.
+9. Policy Violation alone != Kill을 모든 구현과 보고서에 적용한다.
+10. Checkpoint는 Containment의 필수 전제조건이 아니다. valid checkpoint가 있을 때만 Rollback을 수행한다.
+11. Rollback 이후 Integrity Verification은 필수다. 복원 실행 완료는 RESTORED로 기록할 수 있지만, 제품 전체의 검증된 복구 성공은 RESTORED + VERIFIED일 때만 보고한다.
 
 이를 상태 흐름으로 쓰면 다음과 같다.
 
-Evidence source
-→ canonical action
-→ attribution grade
-→ Policy Decision
-→ Enforcement Gate
-→ Enforcement Decision/Action
-→ Recovery Status
-→ Integrity Status
-→ Audit Report
+Raw Evidence
+→ Normalization
+→ Canonical Action
+├→ Policy Evaluation
+└→ Attribution
+↓
+Enforcement Gate
+↓
+Enforcement Execution
+↓
+Recovery
+↓
+Integrity
+↓
+Audit
 
 여기서 Recovery Status와 Integrity Status는 Enforcement Action과 별도 축이다. 예를
 들어 TERMINATED + RECOVERY_UNAVAILABLE + NOT_CHECKED는 유효한 상태이며, checkpoint가
