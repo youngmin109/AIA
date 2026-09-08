@@ -87,9 +87,23 @@ P0 소스는 새 Repository로 복사하지 않는다. 아래의 재사용 표�
 P0는 기능이 부족해서가 아니라 서로 다른 목적의 코드가 한 package와 한 Repository에
 함께 있어 책임 경계가 흐려진다. 새 MVP는 다음 순서를 제품 권위의 기준으로 삼아야 한다.
 
-Runtime/Hook/Workspace Evidence → canonical Normalization → conservative Attribution
-→ validated v1 Security Asset Policy → Enforcement Gate → Process/Recovery
-→ Integrity Verification → Audit/Report
+Raw Evidence
+→ Normalization
+→ Canonical Action
+├→ Policy Evaluation
+└→ Attribution
+↓
+Enforcement Gate
+↓
+Enforcement Execution
+↓
+Recovery
+↓
+Integrity
+↓
+Audit
+
+Policy Evaluation과 Attribution은 Canonical Action에서 독립적으로 분기한다.
 
 Intent/Risk는 이 흐름의 보조 설명과 사용자 검토 신호로 둘 수 있지만, v1 Security
 Asset Policy의 판정이나 Enforcement Gate의 권한을 대체하지 않는다.

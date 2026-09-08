@@ -200,6 +200,23 @@ Result는 FAILED가 될 수 있다.
 | BLOCKED | PreTool Adapter의 실제 deny가 확인되었다. |
 | TERMINATED | Process Manager가 managed process termination을 실제로 확인했다. |
 
+### 강제조치 실행 결과 (Enforcement Execution Result)
+
+Enforcement Execution Result는 Gate Decision과 Enforcement Action에서 독립된 상태
+축이다. Gate 승인만으로 실제 Action을 기록하지 않는다.
+
+| 상태값 | 의미 |
+|---|---|
+| NOT_ATTEMPTED | 승인된 실행 경로가 아직 실제 조치를 시도하지 않았다. |
+| SUCCEEDED | 승인된 실행 경로가 요청된 조치를 성공적으로 수행했다. 이때 실행 유형에 따라 BLOCKED 또는 TERMINATED를 기록할 수 있다. |
+| FAILED | 승인된 실행 경로가 조치를 시도했지만 실패했다. failure reason과 대상 결과를 보존한다. |
+
+예를 들어 다음 조합은 유효하다.
+
+Enforcement Decision = CONTAIN
+Execution Result = FAILED
+Enforcement Action = NONE
+
 ### 복구 상태
 
 | 상태값 | 의미 |
@@ -207,7 +224,7 @@ Result는 FAILED가 될 수 있다.
 | NOT_REQUIRED | 조치가 없거나 복구가 필요하지 않다. |
 | RESTORED | valid checkpoint를 이용한 복원 실행 자체가 완료되었다. Integrity 성공을 의미하지 않는다. |
 | REFUSED | 자동 복구 조건 또는 사용자 승인 조건이 부족해 복구하지 않았다. |
-| FAILED | 복구를 시도했으나 대상·파일·검증 조건 중 하나가 실패했다. |
+| FAILED | 복원 작업 자체를 시도했으나 완료하지 못했다. 예: 파일 복사 실패, 경로 복원 실패, 권한 오류, 복원 작업 실행 오류. |
 | RECOVERY_UNAVAILABLE | valid checkpoint가 없거나 checkpoint 자체가 신뢰되지 않아 복구할 수 없다. |
 
 ### 무결성 상태
