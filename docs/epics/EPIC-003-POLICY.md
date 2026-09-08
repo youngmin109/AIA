@@ -55,6 +55,11 @@ Engine은 한국어 문자열을 직접 비교하지 않으며, 공식 Vocabular
 Validation Error로 거부한다. 예를 들어 `차단`, `위험`, `막기`는 자동으로 `DENY`로
 추론하지 않는다.
 
+Loader는 최상위 정책 Object, Rule Object, `행위효과` Object 각각의 허용 Key를
+검사한다. 공식 Schema에 없는 Key는 값이 사용되지 않더라도 Validation Error로
+거부한다. 따라서 `정책버젼`, `자산종류`, `우선도`, `행위효과오타` 같은 입력은
+조용히 무시되지 않는다.
+
 지원하는 자산 유형은 다음 7개다.
 
 | 한국어 | 내부 코드 |
@@ -83,6 +88,11 @@ Validation Error로 거부한다. 예를 들어 `차단`, `위험`, `막기`는 
 `PolicySubject`, `PolicyEvaluation`, `ResolvedPolicy`로 구성된다. Rule은 ID,
 priority, asset type, path/command pattern, operation별 effect를 가진다. 모델은
 가능한 범위에서 불변으로 유지하며, 중복 Rule ID와 잘못된 값은 거부한다.
+
+하나의 Rule은 정확히 하나의 target만 가진다. File Rule은 `path_patterns`와 파일
+Operation을 사용하고, Command Rule은 `command_patterns`와 `EXECUTE`만 사용한다.
+두 target이 동시에 있거나 어느 target도 없으면 거부한다. 사용자가 일부 Operation만
+정의하는 것은 허용한다.
 
 ## 프로필별 기본 정책
 
@@ -153,6 +163,9 @@ case-insensitive 비교를 수행한다. 따라서 `SRC\\AUTH\\LOGIN.PY`와
 `src/auth/login.py`는 같은 입력으로 처리된다. Rule에 등록되지 않은 다른 경로는
 해당 Rule과 match하지 않으며 기본 효과를 사용한다.
 
+Target이 일치해도 현재 Operation의 Effect가 Rule에 없으면 그 Rule은 현재 Action의
+매칭 Rule에서 제외한다. 다른 적용 Rule이 없으면 `default_effect`를 사용한다.
+
 파일 행위에 path evidence가 없으면 정책 효과를 추측하지 않고
 `INDETERMINATE`를 반환한다.
 
@@ -168,6 +181,10 @@ Evaluation은 다음 네 사실만 사용한다.
 상태가 어떻게 됐는지는 주장하지 않는다. `python reset_db.py`를 보고 DB 삭제나
 초기화를 추론하지 않는다. EXECUTE에 raw command evidence가 없으면
 `INDETERMINATE`다.
+
+프로필 JSON은 Resolver가 한 번 검증·변환해 immutable `ResolvedPolicy`를 만든 뒤
+평가에 사용한다. Evaluation 단계에서 원본 JSON을 다시 읽지 않는다. Session Active
+Policy Freeze와 외부 Trusted Storage는 후속 EPIC의 책임이다.
 
 ## Priority와 Conflict
 

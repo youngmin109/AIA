@@ -301,6 +301,26 @@ class PolicyRule:
             raise PolicyValidationError(
                 "a command rule must define an EXECUTE effect"
             )
+        if bool(normalized_paths) == bool(normalized_commands):
+            raise PolicyValidationError(
+                "a rule must define exactly one non-empty target: "
+                "path_patterns or command_patterns"
+            )
+        if normalized_commands and any(
+            operation is not Operation.EXECUTE for operation in effects
+        ):
+            raise PolicyValidationError(
+                "a command rule may define only an EXECUTE effect"
+            )
+        if normalized_paths:
+            if not effects:
+                raise PolicyValidationError(
+                    "a file rule must define at least one file operation effect"
+                )
+            if any(operation not in _FILE_OPERATIONS for operation in effects):
+                raise PolicyValidationError(
+                    "a file rule may define only file operation effects"
+                )
         object.__setattr__(self, "operation_effects", MappingProxyType(effects))
 
     def matches(self, subject: PolicySubject) -> bool:
@@ -423,6 +443,27 @@ class ResolvedPolicy:
     @property
     def resolved_policy(self) -> SecurityAssetPolicy:
         return self.policy
+
+    def evaluate(
+        self,
+        subject: PolicySubject | None = None,
+        *,
+        asset_type: SecurityAssetType | str | None = None,
+        operation: Operation | str | None = None,
+        path: str | None = None,
+        raw_command: str | None = None,
+        command: str | None = None,
+    ) -> PolicyEvaluation:
+        """Evaluate the already resolved immutable policy object."""
+
+        return self.policy.evaluate(
+            subject,
+            asset_type=asset_type,
+            operation=operation,
+            path=path,
+            raw_command=raw_command,
+            command=command,
+        )
 
 
 class PolicyEngine:
@@ -569,6 +610,64 @@ _SCHEMA_VERSION_FIELD = "스키마버전"
 _DEFAULT_EFFECT_FIELD = "기본효과"
 _RULES_FIELD = "규칙"
 
+_TOP_LEVEL_KEYS = frozenset(
+    {
+        "프로필",
+        "정책명",
+        "정책ID",
+        "정책버전",
+        "스키마버전",
+        "기본효과",
+        "규칙",
+        "profile",
+        "policy_name",
+        "policy_id",
+        "policy_version",
+        "schema_version",
+        "default_effect",
+        "rules",
+    }
+)
+_RULE_KEYS = frozenset(
+    {
+        "규칙ID",
+        "우선순위",
+        "자산유형",
+        "경로패턴",
+        "명령패턴",
+        "행위효과",
+        "rule_id",
+        "priority",
+        "asset_type",
+        "path_patterns",
+        "command_patterns",
+        "operation_effects",
+    }
+)
+_EFFECT_KEYS = frozenset(KOREAN_OPERATIONS) | frozenset(
+    operation.value for operation in Operation
+)
+
+
+def _validate_object_keys(
+    document: Mapping[str, Any],
+    *,
+    label: str,
+    allowed: frozenset[str],
+    alias_groups: tuple[tuple[str, ...], ...] = (),
+) -> None:
+    unknown = [key for key in document if key not in allowed]
+    if unknown:
+        raise PolicyValidationError(
+            f"unknown {label} key(s): {', '.join(map(repr, unknown))}"
+        )
+    for aliases in alias_groups:
+        present = [key for key in aliases if key in document]
+        if len(present) > 1:
+            raise PolicyValidationError(
+                f"duplicate {label} field aliases: {', '.join(present)}"
+            )
+
 
 def _document_value(
     document: Mapping[str, Any],
@@ -603,6 +702,28 @@ def _map_korean_or_internal(
 def _load_rule(raw_rule: Mapping[str, Any]) -> PolicyRule:
     if not isinstance(raw_rule, Mapping):
         raise PolicyValidationError("each rule must be an object")
+    _validate_object_keys(
+        raw_rule,
+        label="rule",
+        allowed=_RULE_KEYS,
+        alias_groups=(
+            ("규칙ID", "rule_id"),
+            ("우선순위", "priority"),
+            ("자산유형", "asset_type"),
+            ("경로패턴", "path_patterns"),
+            ("명령패턴", "command_patterns"),
+            ("행위효과", "operation_effects"),
+        ),
+    )
+    path_keys = ("경로패턴", "path_patterns")
+    command_keys = ("명령패턴", "command_patterns")
+    has_path_key = any(key in raw_rule for key in path_keys)
+    has_command_key = any(key in raw_rule for key in command_keys)
+    if has_path_key == has_command_key:
+        raise PolicyValidationError(
+            "a rule must declare exactly one target key: "
+            "경로패턴 or 명령패턴"
+        )
     raw_effects = _document_value(
         raw_rule,
         "행위효과",
@@ -610,6 +731,11 @@ def _load_rule(raw_rule: Mapping[str, Any]) -> PolicyRule:
     )
     if not isinstance(raw_effects, Mapping):
         raise PolicyValidationError("행위효과 must be an object")
+    _validate_object_keys(
+        raw_effects,
+        label="operation effect",
+        allowed=_EFFECT_KEYS,
+    )
     operation_effects: dict[Operation, PolicyEffect] = {}
     for raw_operation, raw_effect in raw_effects.items():
         operation = _map_korean_or_internal(
@@ -667,6 +793,20 @@ def load_policy_document(
 
     if not isinstance(document, Mapping):
         raise PolicyValidationError("policy document must be an object")
+    _validate_object_keys(
+        document,
+        label="policy",
+        allowed=_TOP_LEVEL_KEYS,
+        alias_groups=(
+            ("프로필", "profile"),
+            ("정책명", "policy_name"),
+            ("정책ID", "policy_id"),
+            ("정책버전", "policy_version"),
+            ("스키마버전", "schema_version"),
+            ("기본효과", "default_effect"),
+            ("규칙", "rules"),
+        ),
+    )
     raw_profile = _document_value(
         document,
         _PROFILE_FIELD,

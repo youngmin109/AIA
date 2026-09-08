@@ -292,7 +292,6 @@ def custom_document(default_effect="금지"):
                 "규칙ID": "custom-drop-table",
                 "우선순위": 100,
                 "자산유형": "데이터베이스 관련 자산",
-                "경로패턴": [],
                 "명령패턴": ["DROP TABLE"],
                 "행위효과": {"실행": "허용"},
             },
@@ -301,14 +300,12 @@ def custom_document(default_effect="금지"):
                 "우선순위": 100,
                 "자산유형": "비밀정보",
                 "경로패턴": [".env"],
-                "명령패턴": [],
                 "행위효과": {"삭제": "허용"},
             },
             {
                 "규칙ID": "custom-git-reset",
                 "우선순위": 100,
                 "자산유형": "저장소 관련 자산",
-                "경로패턴": [],
                 "명령패턴": ["git reset --hard"],
                 "행위효과": {"실행": "금지"},
             },
@@ -421,6 +418,123 @@ def test_command_rule_requires_execute_effect() -> None:
 
     with pytest.raises(PolicyValidationError):
         load_policy_document(document)
+
+
+def test_unknown_top_level_key_is_rejected() -> None:
+    document = custom_document()
+    document["정책버젼"] = "typo"
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_unknown_rule_key_is_rejected() -> None:
+    document = custom_document()
+    document["규칙"][0]["우선도"] = 100
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_unknown_operation_effect_key_is_rejected() -> None:
+    document = custom_document()
+    document["규칙"][0]["행위효과"]["행위효과오타"] = "허용"
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_path_and_command_targets_on_one_rule_are_rejected() -> None:
+    document = custom_document()
+    document["규칙"][0]["경로패턴"] = [".env"]
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_empty_opposite_target_key_is_also_rejected() -> None:
+    document = custom_document()
+    document["규칙"][0]["경로패턴"] = []
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_rule_without_path_or_command_target_is_rejected() -> None:
+    document = custom_document()
+    del document["규칙"][0]["명령패턴"]
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_file_rule_cannot_define_execute_effect() -> None:
+    document = custom_document()
+    rule = document["규칙"][0]
+    del rule["명령패턴"]
+    rule["경로패턴"] = [".env"]
+    rule["자산유형"] = "비밀정보"
+    rule["행위효과"] = {"실행": "금지"}
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_command_rule_cannot_define_non_execute_effect() -> None:
+    document = custom_document()
+    document["규칙"][0]["행위효과"] = {"읽기": "허용"}
+
+    with pytest.raises(PolicyValidationError):
+        load_policy_document(document)
+
+
+def test_missing_operation_effect_uses_policy_default() -> None:
+    policy = load_policy_document(custom_document(default_effect="기록"))
+
+    result = evaluate(
+        policy,
+        SecurityAssetType.SECRET,
+        Operation.READ,
+        path=".env",
+    )
+
+    assert result.matched_rule_ids == ()
+    assert result.operation_effect is PolicyEffect.AUDIT
+    assert result.policy_decision is PolicyDecision.COMPLIANT
+    assert result.audit_record
+
+
+def test_partial_file_operation_rule_is_valid() -> None:
+    policy = load_policy_document(custom_document(default_effect="기록"))
+
+    delete_result = evaluate(
+        policy,
+        SecurityAssetType.SECRET,
+        Operation.DELETE,
+        path=".env",
+    )
+    read_result = evaluate(
+        policy,
+        SecurityAssetType.SECRET,
+        Operation.READ,
+        path=".env",
+    )
+
+    assert delete_result.operation_effect is PolicyEffect.ALLOW
+    assert read_result.operation_effect is PolicyEffect.AUDIT
+
+
+def test_resolved_policy_evaluates_its_immutable_policy_object() -> None:
+    resolved = resolve_profile(PolicyProfile.BASIC_DEVELOPMENT)
+
+    result = resolved.evaluate(
+        asset_type=SecurityAssetType.SECRET,
+        operation=Operation.DELETE,
+        path=".env",
+    )
+
+    assert resolved.resolved_policy is resolved.policy
+    assert result.policy_decision is PolicyDecision.VIOLATION
 
 
 def test_path_matching_is_case_insensitive_and_separator_stable() -> None:
