@@ -105,7 +105,10 @@ class ProtectedRunSession:
     mode: SessionMode | str
     policy_id: str
     policy_version: str
-    session_id: str = field(default_factory=lambda: str(uuid4()))
+    session_id: str = field(
+        default_factory=lambda: str(uuid4()),
+        init=False,
+    )
     agent_native_session_id: str | None = None
     created_at: datetime = field(default_factory=_now_utc)
     started_at: datetime | None = field(default=None, init=False)
@@ -123,7 +126,6 @@ class ProtectedRunSession:
             self.policy_version,
             field_name="policy_version",
         )
-        self.session_id = _required_text(self.session_id, field_name="session_id")
         self.mode = SessionMode(self.mode)
         if self.agent_native_session_id == "":
             raise SessionValidationError(

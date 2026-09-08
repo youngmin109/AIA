@@ -165,3 +165,4 @@ def test_audit_and_enforce_modes_are_represented(tmp_path) -> None:
 
     assert audit.mode is SessionMode.AUDIT
     assert enforce.mode is SessionMode.ENFORCE
+    assert "TERMINATED" not in SessionStatus.__members__
