@@ -1,0 +1,252 @@
+{
+  "environment": {
+    "windows": "Windows 11 Pro 10.0.26200",
+    "python": "3.13.5",
+    "cpu_logical_count": 16,
+    "storage": "NVMe SSD (1 TB class)",
+    "sla": "Measured, no frozen SLA"
+  },
+  "standard": {
+    "file_count": 10,
+    "warmup_runs": 1,
+    "repetitions": 30,
+    "statistics": {
+      "startup_readiness_ms": {
+        "n": 30,
+        "min_ms": 19.726400001673028,
+        "median_ms": 21.916349985986017,
+        "mean_ms": 27.193146670470014,
+        "p95_ms": 57.58849999983795,
+        "max_ms": 76.63190001039766
+      },
+      "checkpoint_ms": {
+        "n": 30,
+        "min_ms": 49.42210001172498,
+        "median_ms": 58.03500000911299,
+        "mean_ms": 72.87502000205374,
+        "p95_ms": 147.43270000326447,
+        "max_ms": 173.28979997546412
+      },
+      "pretool_decision_ms": {
+        "n": 30,
+        "min_ms": 0.000100000761449337,
+        "median_ms": 0.000200001522898674,
+        "mean_ms": 0.00018333181894073883,
+        "p95_ms": 0.000300002284348011,
+        "max_ms": 0.000400003045797348
+      },
+      "detection_to_decision_ms": {
+        "n": 30,
+        "min_ms": 0.000100000761449337,
+        "median_ms": 0.000200001522898674,
+        "mean_ms": 0.00018333181894073883,
+        "p95_ms": 0.000300002284348011,
+        "max_ms": 0.000400003045797348
+      },
+      "process_termination_ms": {
+        "n": 30,
+        "min_ms": 0.0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "p95_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "recovery_ms": {
+        "n": 30,
+        "min_ms": 6.496,
+        "median_ms": 8.607499999999998,
+        "mean_ms": 9.518433333333334,
+        "p95_ms": 15.603,
+        "max_ms": 16.330000000000002
+      },
+      "integrity_ms": {
+        "n": 30,
+        "min_ms": 18.928,
+        "median_ms": 21.8785,
+        "mean_ms": 25.606666666666666,
+        "p95_ms": 51.541999999999994,
+        "max_ms": 52.085
+      },
+      "recovery_integrity_ms": {
+        "n": 30,
+        "min_ms": 48.33129997132346,
+        "median_ms": 54.276300012134016,
+        "mean_ms": 62.189120000887975,
+        "p95_ms": 96.9242999854032,
+        "max_ms": 130.5393000075128
+      },
+      "finalization_bundle_ms": {
+        "n": 30,
+        "min_ms": 26.706600008765236,
+        "median_ms": 41.393699997570366,
+        "mean_ms": 45.75781999834968,
+        "p95_ms": 74.08349998877384,
+        "max_ms": 100.01640001428314
+      }
+    },
+    "p95_method": "nearest-rank, rank=ceil(0.95*n)",
+    "file_size_bytes": 128
+  },
+  "workspace_100": {
+    "file_count": 100,
+    "warmup_runs": 1,
+    "repetitions": 30,
+    "statistics": {
+      "startup_readiness_ms": {
+        "n": 30,
+        "min_ms": 136.10169998719357,
+        "median_ms": 151.4665499998955,
+        "mean_ms": 164.65892333556744,
+        "p95_ms": 241.56299998867325,
+        "max_ms": 259.11169999744743
+      },
+      "checkpoint_ms": {
+        "n": 30,
+        "min_ms": 447.50399998156354,
+        "median_ms": 475.89414998947177,
+        "mean_ms": 479.866739998882,
+        "p95_ms": 510.85849999799393,
+        "max_ms": 541.6488000191748
+      },
+      "pretool_decision_ms": {
+        "n": 30,
+        "min_ms": 0.000100000761449337,
+        "median_ms": 0.000200001522898674,
+        "mean_ms": 0.00019333383534103632,
+        "p95_ms": 0.000300002284348011,
+        "max_ms": 0.000600004568696022
+      },
+      "detection_to_decision_ms": {
+        "n": 30,
+        "min_ms": 0.000100000761449337,
+        "median_ms": 0.000200001522898674,
+        "mean_ms": 0.00019333383534103632,
+        "p95_ms": 0.000300002284348011,
+        "max_ms": 0.000600004568696022
+      },
+      "process_termination_ms": {
+        "n": 30,
+        "min_ms": 0.0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "p95_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "recovery_ms": {
+        "n": 30,
+        "min_ms": 8.978,
+        "median_ms": 12.538499999999999,
+        "mean_ms": 12.6924,
+        "p95_ms": 16.598000000000003,
+        "max_ms": 17.069000000000003
+      },
+      "integrity_ms": {
+        "n": 30,
+        "min_ms": 187.816,
+        "median_ms": 212.48250000000002,
+        "mean_ms": 222.75703333333334,
+        "p95_ms": 311.915,
+        "max_ms": 317.521
+      },
+      "recovery_integrity_ms": {
+        "n": 30,
+        "min_ms": 410.20390001358464,
+        "median_ms": 467.59704999567475,
+        "mean_ms": 477.6836666676293,
+        "p95_ms": 570.1580999884754,
+        "max_ms": 579.3827000015881
+      },
+      "finalization_bundle_ms": {
+        "n": 30,
+        "min_ms": 34.9114999989979,
+        "median_ms": 76.86784998804796,
+        "mean_ms": 81.56668999775623,
+        "p95_ms": 120.90320000424981,
+        "max_ms": 141.54769998276606
+      }
+    },
+    "p95_method": "nearest-rank, rank=ceil(0.95*n)",
+    "file_size_bytes": 128
+  },
+  "workspace_1000": {
+    "file_count": 1000,
+    "warmup_runs": 1,
+    "repetitions": 30,
+    "statistics": {
+      "startup_readiness_ms": {
+        "n": 30,
+        "min_ms": 1322.510500001954,
+        "median_ms": 1431.105049981852,
+        "mean_ms": 1425.955383326315,
+        "p95_ms": 1531.8237000028603,
+        "max_ms": 1543.8752999762073
+      },
+      "checkpoint_ms": {
+        "n": 30,
+        "min_ms": 4408.4628999989945,
+        "median_ms": 4666.157650004607,
+        "mean_ms": 4670.520233331869,
+        "p95_ms": 4822.375699994154,
+        "max_ms": 4825.173300021561
+      },
+      "pretool_decision_ms": {
+        "n": 30,
+        "min_ms": 0.0,
+        "median_ms": 0.000200001522898674,
+        "mean_ms": 0.00025666765092561644,
+        "p95_ms": 0.000400003045797348,
+        "max_ms": 0.001900014467537403
+      },
+      "detection_to_decision_ms": {
+        "n": 30,
+        "min_ms": 0.0,
+        "median_ms": 0.000200001522898674,
+        "mean_ms": 0.00025666765092561644,
+        "p95_ms": 0.000400003045797348,
+        "max_ms": 0.001900014467537403
+      },
+      "process_termination_ms": {
+        "n": 30,
+        "min_ms": 0.0,
+        "median_ms": 0.0,
+        "mean_ms": 0.0,
+        "p95_ms": 0.0,
+        "max_ms": 0.0
+      },
+      "recovery_ms": {
+        "n": 30,
+        "min_ms": 9.843,
+        "median_ms": 12.6125,
+        "mean_ms": 12.676133333333334,
+        "p95_ms": 17.42,
+        "max_ms": 24.509
+      },
+      "integrity_ms": {
+        "n": 30,
+        "min_ms": 1919.143,
+        "median_ms": 2100.3594999999996,
+        "mean_ms": 2094.0421,
+        "p95_ms": 2322.2999999999997,
+        "max_ms": 2336.389
+      },
+      "recovery_integrity_ms": {
+        "n": 30,
+        "min_ms": 4046.450099995127,
+        "median_ms": 4282.227799994871,
+        "mean_ms": 4265.527363336878,
+        "p95_ms": 4463.310999999521,
+        "max_ms": 4533.956600003876
+      },
+      "finalization_bundle_ms": {
+        "n": 30,
+        "min_ms": 41.187800001353025,
+        "median_ms": 71.96810000459664,
+        "mean_ms": 74.20766666958419,
+        "p95_ms": 102.03290000208654,
+        "max_ms": 112.65930000809021
+      }
+    },
+    "p95_method": "nearest-rank, rank=ceil(0.95*n)",
+    "file_size_bytes": 128
+  }
+}

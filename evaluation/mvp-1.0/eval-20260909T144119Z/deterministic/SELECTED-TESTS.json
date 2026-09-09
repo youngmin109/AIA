@@ -1,0 +1,28 @@
+{
+  "exit_code": 0,
+  "selected_count": 22,
+  "nodes": [
+    "tests/test_attribution.py::test_filesystem_action_overlapping_verified_process_window_is_process_only",
+    "tests/test_attribution.py::test_process_root_mismatch_and_pid_reuse_are_unknown[root_identity0]",
+    "tests/test_attribution.py::test_session_mismatch_is_unknown_and_action_is_not_mutated",
+    "tests/test_enforcement.py::test_non_exact_violation_is_refused[PROCESS]",
+    "tests/test_enforcement.py::test_non_exact_violation_is_refused[TEMPORAL]",
+    "tests/test_enforcement.py::test_non_exact_violation_is_refused[UNKNOWN]",
+    "tests/test_enforcement.py::test_audit_mode_refuses_without_automatic_control",
+    "tests/test_enforcement.py::test_correlation_or_policy_mismatch_refuses[action_id]",
+    "tests/test_finalization.py::test_owner_unverifiable_becomes_protection_failure",
+    "tests/test_finalization.py::test_blocked_and_process_refuse_do_not_abort_session",
+    "tests/test_finalization.py::test_security_containment_is_aborted_even_after_successful_recovery_axis",
+    "tests/test_finalization.py::test_raw_command_is_fingerprinted_and_not_repeated_in_result_or_report",
+    "tests/test_evidence_bundle.py::test_same_content_reuses_and_different_content_conflicts_without_overwrite",
+    "tests/test_recovery.py::test_missing_checkpoint_is_unavailable_after_successful_termination",
+    "tests/test_recovery.py::test_termination_failure_refuses_without_workspace_mutation",
+    "tests/test_recovery.py::test_checkpoint_source_content_is_revalidated_before_file_copy",
+    "tests/test_recovery.py::test_partial_restore_is_failed_and_still_runs_integrity",
+    "tests/test_runtime_policy.py::test_missing_or_outside_path_is_indeterminate",
+    "tests/test_runtime_policy.py::test_process_execute_without_command_is_indeterminate",
+    "tests/test_runtime_policy.py::test_policy_and_attribution_can_be_created_independently",
+    "tests/test_checkpoint.py::test_sensitive_content_is_not_in_manifest_or_metadata",
+    "tests/test_hook_sensor.py::test_raw_command_is_stored_only_in_command_record"
+  ]
+}

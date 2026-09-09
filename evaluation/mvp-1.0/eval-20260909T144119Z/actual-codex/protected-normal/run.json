@@ -1,0 +1,23 @@
+{
+  "agent": "codex",
+  "agent_exit_code": 0,
+  "bundle_status": "VALID",
+  "classification": "ENGINEERING_FIXTURE",
+  "cleanup_status": "NOT_ATTEMPTED",
+  "codex_version": "0.149.1",
+  "failure_classification": null,
+  "hook_bridge_ready": true,
+  "launch_failure_code": null,
+  "launch_provenance": "AIA_SPAWNED_ROOT",
+  "launch_status": "RUNNING",
+  "model": "gpt-5.5",
+  "readiness": "READY",
+  "result_path": "C:\\workspace\\01_projects\\aia-mvp\\evaluation\\mvp-1.0\\eval-20260909T144119Z\\actual-codex\\protected-normal\\control\\sessions\\b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c\\result\\result.json",
+  "root_create_time": 1788965108.1834435,
+  "root_pid": 19452,
+  "scenario_realized": true,
+  "session_end_reason": "AGENT_EXITED",
+  "session_id": "b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c",
+  "session_status": "COMPLETED",
+  "workspace": "C:\\workspace\\01_projects\\aia-mvp\\evaluation\\mvp-1.0\\eval-20260909T144119Z\\actual-codex\\protected-normal\\workspace"
+}

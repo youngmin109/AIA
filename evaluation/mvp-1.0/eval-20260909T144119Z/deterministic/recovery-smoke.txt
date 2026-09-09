@@ -1,0 +1,2 @@
+recovery_result={"attempted_operation_count": 8, "changed_paths": [], "failed_paths": [], "integrity": "VERIFIED", "integrity_duration_ms": 11.102, "missing_paths": [], "planned_operation_count": 8, "recovery": "RESTORED", "recovery_duration_ms": 44.615, "unexpected_paths": [], "verified_recovery_success": true}
+PASS: EPIC-016 Recovery + Integrity smoke

@@ -1,0 +1,19 @@
+{
+  "aia_session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+  "entries": {
+    "evidence-017": {
+      "captured_at": "2026-09-09T12:00:00+00:00",
+      "line_number": 1,
+      "record_type": "FILESYSTEM_EVENT",
+      "source": "FILESYSTEM_WATCHER"
+    },
+    "secret-command-evidence": {
+      "captured_at": "2026-09-09T12:00:00+00:00",
+      "line_number": 2,
+      "record_type": "COMMAND_OBSERVED",
+      "source": "AGENT_HOOK"
+    }
+  },
+  "raw_evidence_relative_path": "evidence/raw-evidence.jsonl",
+  "schema_version": "aia-evidence-index-1"
+}

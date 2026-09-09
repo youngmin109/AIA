@@ -1,0 +1,11 @@
+....................................s................................... [ 19%]
+........................................................................ [ 39%]
+........................................................................ [ 59%]
+............................s........................................... [ 79%]
+......................s................................................. [ 99%]
+...                                                                      [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_checkpoint.py:321: symlink creation unavailable: [WinError 1314] Ŭ���̾�Ʈ�� �ʿ��� ������ ������ ���� �ʽ��ϴ�: 'C:\\Users\\jinhy\\AppData\\Local\\Temp\\pytest-of-jinhy\\pytest-343\\test_unsupported_symlink_is_no0\\outside.txt' -> 'C:\\Users\\jinhy\\AppData\\Local\\Temp\\pytest-of-jinhy\\pytest-343\\test_unsupported_symlink_is_no0\\workspace\\link.txt'
+SKIPPED [1] tests\test_process_manager.py:508: Windows test-runner Job Object may terminate the protected root with descendants
+SKIPPED [1] tests\test_recovery.py:439: symlink creation unavailable: [WinError 1314] Ŭ���̾�Ʈ�� �ʿ��� ������ ������ ���� �ʽ��ϴ�: 'C:\\Users\\jinhy\\AppData\\Local\\Temp\\pytest-of-jinhy\\pytest-343\\test_current_symlink_is_refuse0\\outside-secret.txt' -> 'C:\\Users\\jinhy\\AppData\\Local\\Temp\\pytest-of-jinhy\\pytest-343\\test_current_symlink_is_refuse0\\workspace\\external-link'
+360 passed, 3 skipped in 10.19s

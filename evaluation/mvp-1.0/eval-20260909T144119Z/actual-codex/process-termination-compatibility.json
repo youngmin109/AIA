@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "classification": "ENGINEERING_FIXTURE",
+  "actual_codex_tree": false,
+  "note": "Existing EPIC-015 standalone smoke uses disposable Python tree; this is not an Actual Codex tree."
+}

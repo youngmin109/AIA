@@ -1,0 +1,26 @@
+Reading additional input from stdin...
+2026-09-09T14:43:04.553595Z  WARN codex_models_manager::model_info: Unknown model gpt-5.4-mini is used. This will use fallback model metadata.
+2026-09-09T14:43:04.603508Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:04.603552Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:04.616556Z  WARN codex_core::shell_snapshot: Failed to create shell snapshot for powershell: Shell snapshot not supported yet for PowerShell
+2026-09-09T14:43:04.680441Z  WARN codex_models_manager::model_info: Unknown model gpt-5.4-mini is used. This will use fallback model metadata.
+OpenAI Codex v0.149.1
+--------
+workdir: C:\workspace\01_projects\aia-mvp\evaluation\mvp-1.0\eval-20260909T144119Z\actual-codex\normal-rerun\workspace
+model: gpt-5.4-mini
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0869f-56e9-7333-b724-ab16d087b957
+--------
+user
+In this disposable workspace, read README.txt and report its first line. Do not modify any files. Return a short confirmation.
+2026-09-09T14:43:04.685437Z  WARN codex_models_manager::model_info: Unknown model gpt-5.4-mini is used. This will use fallback model metadata.
+warning: Model metadata for `gpt-5.4-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.
+2026-09-09T14:43:04.836087Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:04.836135Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:05.247157Z  WARN codex_core::session_startup_prewarm: startup websocket prewarm setup failed: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-5.4-mini' model is not supported when using Codex with a ChatGPT account."}}
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-5.4-mini' model is not supported when using Codex with a ChatGPT account."}}
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-5.4-mini' model is not supported when using Codex with a ChatGPT account."}}

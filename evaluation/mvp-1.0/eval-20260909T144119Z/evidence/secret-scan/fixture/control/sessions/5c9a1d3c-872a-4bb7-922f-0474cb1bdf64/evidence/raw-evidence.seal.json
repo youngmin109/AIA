@@ -1,0 +1,10 @@
+{
+  "aia_session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+  "byte_size": 579,
+  "last_evidence_id": "secret-command-evidence",
+  "line_count": 2,
+  "raw_evidence_relative_path": "evidence/raw-evidence.jsonl",
+  "schema_version": "aia-evidence-seal-1",
+  "sealed_at": "2026-09-09T14:58:16.321097+00:00",
+  "sha256": "74286e1eea72206a6a6c3e81a39d73e504ece4e94817e5df8b3d63e26909dfdb"
+}

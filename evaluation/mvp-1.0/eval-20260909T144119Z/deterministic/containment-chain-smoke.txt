@@ -1,0 +1,8 @@
+Session: ABORTED / SECURITY_CONTAINMENT
+Policy: VIOLATION
+Attribution: EXACT
+Enforcement: CONTAIN / TERMINATED / SUCCEEDED
+Recovery: RESTORED
+Integrity: VERIFIED
+Bundle: VALID
+Report: C:\Users\jinhy\AppData\Local\Temp\aia-epic017-smoke-wg_7f9q2\control\sessions\9f5114cb-14fc-468d-a211-6c5e0b654bb0\result\security-report.md

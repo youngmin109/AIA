@@ -1,0 +1,14 @@
+{
+  "marker": "FAKE_AIA_SECRET_018=unique-marker-018",
+  "product_artifact_counts": {
+    "result.json": 0,
+    "audit.jsonl": 0,
+    "security-report.md": 0,
+    "evidence-manifest.json": 0,
+    "commit.json": 0,
+    "evidence-index.json": 0
+  },
+  "raw_evidence_count": 1,
+  "secret_free_product_artifacts": true,
+  "raw_evidence_path": "C:\\workspace\\01_projects\\aia-mvp\\evaluation\\mvp-1.0\\eval-20260909T144119Z\\evidence\\secret-scan\\fixture\\control\\sessions\\5c9a1d3c-872a-4bb7-922f-0474cb1bdf64\\evidence\\raw-evidence.jsonl"
+}

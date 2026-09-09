@@ -1,0 +1,9 @@
+{
+  "bundle_fingerprint": "9c2f10857be13e06e689215fee3e6ab135e3ef38c21842a48cae182d273f9679",
+  "committed_at": "2026-09-09T14:45:43.687141+00:00",
+  "content_fingerprint": "92daf1ccb36486c4860f3e391181bc63f2929876e46578e70b5787b7c7a09d78",
+  "evidence_manifest_sha256": "9c2f10857be13e06e689215fee3e6ab135e3ef38c21842a48cae182d273f9679",
+  "result_id": "5bf4cc53-988c-59e4-93fa-68236b3f612b",
+  "schema_version": "aia-commit-1",
+  "session_id": "b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c"
+}

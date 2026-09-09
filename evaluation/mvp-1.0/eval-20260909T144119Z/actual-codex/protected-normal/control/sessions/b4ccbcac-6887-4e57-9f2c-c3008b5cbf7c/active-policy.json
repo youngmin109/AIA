@@ -1,0 +1,146 @@
+{
+  "default_effect": "ALLOW",
+  "frozen_at": "2026-09-09T14:45:04.557117+00:00",
+  "policy_content_sha256": "d716986625f306aa18cbd11067f48476bfc5073479a03004e99fc12a045ada64",
+  "policy_id": "aia-basic-development",
+  "policy_version": "1.0",
+  "profile": "BASIC_DEVELOPMENT",
+  "rules": [
+    {
+      "asset_type": "DATABASE_RELATED",
+      "command_patterns": [
+        "alembic downgrade"
+      ],
+      "operation_effects": {
+        "EXECUTE": "AUDIT"
+      },
+      "priority": 200,
+      "rule_id": "basic-alembic-downgrade"
+    },
+    {
+      "asset_type": "DEPENDENCY",
+      "operation_effects": {
+        "CREATE": "AUDIT",
+        "DELETE": "DENY",
+        "MODIFY": "AUDIT",
+        "MOVE": "AUDIT",
+        "READ": "ALLOW",
+        "RENAME": "AUDIT"
+      },
+      "path_patterns": [
+        "pyproject.toml",
+        "uv.lock",
+        "requirements*.txt",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock"
+      ],
+      "priority": 100,
+      "rule_id": "basic-dependency-files"
+    },
+    {
+      "asset_type": "DATABASE_RELATED",
+      "command_patterns": [
+        "DROP DATABASE"
+      ],
+      "operation_effects": {
+        "EXECUTE": "DENY"
+      },
+      "priority": 200,
+      "rule_id": "basic-drop-database"
+    },
+    {
+      "asset_type": "DATABASE_RELATED",
+      "command_patterns": [
+        "DROP TABLE"
+      ],
+      "operation_effects": {
+        "EXECUTE": "DENY"
+      },
+      "priority": 200,
+      "rule_id": "basic-drop-table"
+    },
+    {
+      "asset_type": "REPOSITORY",
+      "command_patterns": [
+        "git clean -fd"
+      ],
+      "operation_effects": {
+        "EXECUTE": "AUDIT"
+      },
+      "priority": 200,
+      "rule_id": "basic-git-clean-fd"
+    },
+    {
+      "asset_type": "REPOSITORY",
+      "command_patterns": [
+        "git clean -fdx"
+      ],
+      "operation_effects": {
+        "EXECUTE": "DENY"
+      },
+      "priority": 210,
+      "rule_id": "basic-git-clean-fdx"
+    },
+    {
+      "asset_type": "REPOSITORY",
+      "command_patterns": [
+        "git reset --hard"
+      ],
+      "operation_effects": {
+        "EXECUTE": "AUDIT"
+      },
+      "priority": 200,
+      "rule_id": "basic-git-reset-hard"
+    },
+    {
+      "asset_type": "INFRASTRUCTURE",
+      "operation_effects": {
+        "CREATE": "AUDIT",
+        "DELETE": "DENY",
+        "MODIFY": "AUDIT",
+        "MOVE": "AUDIT",
+        "READ": "ALLOW",
+        "RENAME": "AUDIT"
+      },
+      "path_patterns": [
+        "Dockerfile",
+        "docker-compose*.yml",
+        "docker-compose*.yaml",
+        "*.tf"
+      ],
+      "priority": 100,
+      "rule_id": "basic-infrastructure-files"
+    },
+    {
+      "asset_type": "SECRET",
+      "operation_effects": {
+        "CREATE": "AUDIT",
+        "DELETE": "DENY",
+        "MODIFY": "AUDIT",
+        "MOVE": "AUDIT",
+        "READ": "ALLOW",
+        "RENAME": "AUDIT"
+      },
+      "path_patterns": [
+        ".env"
+      ],
+      "priority": 100,
+      "rule_id": "basic-secret-env"
+    },
+    {
+      "asset_type": "DATABASE_RELATED",
+      "command_patterns": [
+        "TRUNCATE"
+      ],
+      "operation_effects": {
+        "EXECUTE": "DENY"
+      },
+      "priority": 200,
+      "rule_id": "basic-truncate"
+    }
+  ],
+  "schema_version": "1",
+  "session_id": "b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c"
+}

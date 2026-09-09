@@ -1,0 +1,2 @@
+{"captured_at":"2026-09-09T12:00:00+00:00","evidence_id":"evidence-017","observation_stage":"POST_ACTION","payload":{"event_type":"modified","src_path":"protected/main.py"},"record_type":"FILESYSTEM_EVENT","session_id":"5c9a1d3c-872a-4bb7-922f-0474cb1bdf64","source":"FILESYSTEM_WATCHER"}
+{"captured_at":"2026-09-09T12:00:00+00:00","evidence_id":"secret-command-evidence","observation_stage":"PRE_ACTION","payload":{"raw_command":"FAKE_AIA_SECRET_018=unique-marker-018"},"record_type":"COMMAND_OBSERVED","session_id":"5c9a1d3c-872a-4bb7-922f-0474cb1bdf64","source":"AGENT_HOOK"}

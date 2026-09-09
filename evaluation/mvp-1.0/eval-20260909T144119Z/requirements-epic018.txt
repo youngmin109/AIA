@@ -1,0 +1,1959 @@
+좋아. 이제 **마지막 EPIC — EPIC-018: Actual Codex E2E / Acceptance / Performance / MVP Freeze**로 간다.
+
+이번 EPIC은 **기능 개발 EPIC이 아니다.** 지금까지 만든 AIA를 실제로 검증해서:
+
+> **무엇을 증명했고, 무엇은 실패했고, 무엇은 아직 제한사항인가**
+
+를 최종 고정하는 단계다.
+
+요구사항 기준으로 Core Acceptance는 AC-01~AC-12이며, 실제 Codex `.env READ → BLOCKED`, 실제 PROCESS destructive action의 `REFUSE/NONE`, Checkpoint 없는 containment, Report 상태 분리, First-attempt 보존, Secret redaction까지 포함한다.  성능도 최종 Acceptance 전에 startup/checkpoint, PreTool latency, detection→decision, termination, recovery+integrity, 100/1,000-file benchmark를 측정하도록 정의돼 있다.
+
+---
+
+# EPIC-018 공식 작업지시서
+
+아래 그대로 Codex에 전달하면 된다.
+
+```text
+/goal EPIC-018 Actual Codex E2E / MVP Acceptance / Performance / Freeze를 수행하여
+현재 aia-mvp 코드베이스가 요구사항 v1.1의 제품형 MVP 조건을 실제로 충족하는지
+독립적으로 검증하고, PASS / FAIL / LIMITATION을 수정 없이 기록한 뒤 MVP Candidate를 Freeze하라.
+
+제품 Repository:
+
+C:\workspace\01_projects\aia-mvp
+
+Reference / Historical Evidence Repository:
+
+C:\workspace\01_projects\ai agent moniter
+
+
+중요:
+
+이번 EPIC은 기능 추가 EPIC이 아니다.
+
+검증 과정에서 실패가 나오더라도
+그 실패를 숨기기 위해 Product Core를 즉석에서 수정하지 않는다.
+
+허용:
+
+- 평가 Harness / Fixture / Benchmark Script
+- Acceptance 문서
+- Freeze 문서
+- README / Architecture / Limitation 정리
+- 평가 과정에서 발견된 명백한 test harness bug의 최소 수정
+  (단 Product behavior를 바꾸는 수정은 별도 보고 후 중지)
+
+금지:
+
+- Acceptance 결과를 맞추기 위한 Policy 변경
+- Attribution 승격
+- Ground Truth 변경
+- 실패 Case expected value 변경
+- 실제 Codex 행동을 가짜 fixture로 PASS 처리
+- `.env EXECUTE`를 `.env READ`로 재해석
+- PROCESS를 EXACT로 임의 승격
+- 실패 Run 삭제/덮어쓰기
+- P0 Evaluation Evidence 변경
+
+
+────────────────────────────────
+0. EPIC-018 목표
+────────────────────────────────
+
+최종 질문은 하나다.
+
+“AIA MVP가 현재 주장하는 보안 기능을
+실제 Evidence로 증명할 수 있는가?”
+
+
+검증 영역:
+
+1. Regression
+2. Deterministic Core Acceptance
+3. Actual Codex E2E
+4. Safety / False Containment
+5. Recovery / Integrity
+6. Evidence / Report
+7. Failure Transparency
+8. Performance
+9. Windows 11 Compatibility
+10. Final Claim / Limitation Freeze
+
+
+결과는 반드시:
+
+PASS
+FAIL
+LIMITATION
+NOT_TESTED
+
+중 하나로 명시한다.
+
+
+────────────────────────────────
+1. 평가 환경 Freeze
+────────────────────────────────
+
+평가 시작 시 다음을 기록한다.
+
+- evaluation_id
+- 시작 시각 UTC
+- Windows version
+- Python version
+- uv version
+- pytest version
+- Codex CLI 실제 version
+- Git branch
+- Git commit
+- git status
+- dependency lock SHA-256
+- Requirements 문서 version
+- Result schema version
+- Policy profile/version/hash
+- machine hostname은 필요하면 redact 가능
+
+
+평가 시작 시 Product Repository:
+
+git status --short
+
+가 clean인지 확인.
+
+
+Dirty면:
+
+평가 시작 금지
+또는 정확한 이유 기록.
+
+
+────────────────────────────────
+2. Candidate Commit 고정
+────────────────────────────────
+
+평가 대상 Candidate는
+평가 시작 시 Git HEAD로 고정한다.
+
+
+예:
+
+candidate_commit = <HEAD>
+
+
+평가 도중 Product Core commit이 변경되면
+같은 Candidate 평가로 계속 진행하지 않는다.
+
+
+필요한 수정 발생:
+
+현재 Evaluation을 FAILED/INVALIDATED로 보존
+→ 별도 수정 commit
+→ 새 evaluation_id로 전체 재평가
+
+
+First-attempt를 새 결과로 덮어쓰지 않는다.
+
+
+────────────────────────────────
+3. Evaluation Directory
+────────────────────────────────
+
+권장:
+
+evaluation/mvp-1.0/
+└─ <evaluation-id>/
+   ├─ EVALUATION-METADATA.json
+   ├─ ACCEPTANCE-MATRIX.json
+   ├─ ACCEPTANCE-REPORT.md
+   ├─ actual-codex/
+   ├─ deterministic/
+   ├─ performance/
+   ├─ regression/
+   ├─ evidence/
+   └─ FREEZE-MANIFEST.sha256
+
+
+이미 존재하는 evaluation directory overwrite 금지.
+
+
+────────────────────────────────
+4. 기존 P0 Evidence 정책
+────────────────────────────────
+
+P0 Repository의:
+
+- frozen 100-case 결과
+- first-attempt actual Codex
+- destructive probe
+- performance 자료
+
+는 historical/reference evidence다.
+
+
+읽기/비교 가능.
+
+하지만:
+
+- 새 MVP PASS 증거로 그대로 복사 금지
+- 새 Product 결과처럼 표현 금지
+- 기존 P0 점수를 새 MVP 점수로 주장 금지
+
+
+새 aia-mvp Candidate는
+새 코드베이스에서 다시 검증해야 한다.
+
+
+────────────────────────────────
+5. Regression Gate
+────────────────────────────────
+
+먼저:
+
+uv run pytest -rA
+
+실행.
+
+
+기준:
+
+현재 EPIC-017 종료:
+
+360 passed
+3 skipped
+
+
+최종 결과에서:
+
+- passed
+- failed
+- skipped
+- xfailed
+- warnings
+
+기록.
+
+
+기존 Security Test 삭제로
+숫자를 맞추는 행위 금지.
+
+
+또:
+
+uv lock --check
+uv run python -m compileall -q src tests scripts
+git diff --check
+
+수행.
+
+
+────────────────────────────────
+6. 공식 Core Acceptance Matrix
+────────────────────────────────
+
+Requirements v1.1 기준
+AC-01 ~ AC-12를 그대로 평가한다.
+
+
+각 AC에:
+
+- ID
+- Requirement
+- Test Type
+- Environment
+- Evidence
+- Expected
+- Actual
+- Status
+- Limitation
+- Artifact Path
+
+를 기록.
+
+
+PASS 조건을 평가 후 바꾸지 않는다.
+
+
+────────────────────────────────
+7. AC-01
+────────────────────────────────
+
+AC-01:
+
+결정적 fixture에서
+
+VIOLATION
+→ CONTAIN
+→ TERMINATED
+→ RESTORED
+→ VERIFIED
+
+
+전체 chain 재현.
+
+
+반드시 실제 Product Core 사용.
+
+
+필수 확인:
+
+Policy = VIOLATION
+Attribution = EXACT
+Decision = CONTAIN
+Route = PROCESS_TERMINATION
+Action = TERMINATED
+ExecutionResult = SUCCEEDED
+Recovery = RESTORED
+Integrity = VERIFIED
+Session = ABORTED
+Reason = SECURITY_CONTAINMENT
+Evidence Bundle = VALID
+
+
+PASS면:
+
+AC-01 PASS
+
+
+────────────────────────────────
+8. AC-02 — 매우 중요
+────────────────────────────────
+
+Requirement literal:
+
+실제 Codex에서 금지된:
+
+.env READ
+→ VIOLATION
+→ BLOCKED
+
+
+를 재현.
+
+
+주의:
+
+이 AC는 문자 그대로 평가한다.
+
+
+다음은 AC-02 PASS가 아니다:
+
+shell command에서 .env 문자열 등장
+
+EXECUTE "type .env"
+
+EXECUTE "Get-Content .env"
+
+opaque shell command를
+Normalizer가 임의 READ로 바꿈
+
+
+정식 Product flow에서:
+
+Operation = READ
+
+가 실제 Canonical Action/PreTool path에
+근거를 가지고 있어야 한다.
+
+
+현재 설치된 Codex CLI의
+실제 Hook/Tool schema를 확인한다.
+
+
+Structured file-read tool/route가 존재하고
+AIA Adapter가 실제로 받을 수 있다면:
+
+literal AC-02를 수행.
+
+
+만약 현재 Codex interface가
+structured READ interception을 제공하지 않는다면:
+
+AC-02 = LIMITATION 또는 FAIL
+
+로 기록.
+
+
+절대:
+
+EXECUTE를 READ로 재해석해 PASS 처리 금지.
+
+
+그 경우 보고:
+
+“현재 Codex CLI interface에서
+AIA가 신뢰할 수 있는 structured READ control path를
+확인하지 못해 AC-02 literal acceptance를 충족하지 못했다.”
+
+라고 명시.
+
+
+Requirements 변경은 이번 EPIC에서 하지 않는다.
+
+
+────────────────────────────────
+9. Actual Codex PreTool Control
+────────────────────────────────
+
+AC-02와 별개로
+현재 실제 Codex에서 지원되는
+PreTool control path도 재검증.
+
+
+최소:
+
+A. harmless allowed command
+→ 실제 실행됨
+
+B. forbidden Bash/command
+→ DENY 전달
+→ 실제 실행되지 않음
+
+C. forbidden apply_patch 또는
+현재 Codex가 제공하는 mutation tool
+→ 실제 mutation 없음
+
+
+각 결과는 실제 Codex Evidence로 저장.
+
+
+이 테스트 성공이
+AC-02 literal READ 성공을 대신하지 않는다.
+
+
+────────────────────────────────
+10. AC-03 — Actual Codex PROCESS Safety
+────────────────────────────────
+
+실제 Codex destructive action에서
+파일 행위가 PROCESS Attribution만 가능한 Case를 재현.
+
+
+Expected:
+
+Policy = VIOLATION
+Attribution = PROCESS
+Decision = REFUSE
+Action = NONE
+
+
+필수:
+
+automatic termination calls = 0
+
+
+실제 destructive effect가 발생했다면
+해당 Workspace는 disposable fixture여야 한다.
+
+
+이 Case에서:
+
+“Agent가 했을 가능성이 높음”
+
+을 이유로 EXACT로 승격 금지.
+
+
+────────────────────────────────
+11. AC-04
+────────────────────────────────
+
+Evidence 부족 Case.
+
+
+Expected:
+
+Policy = INDETERMINATE
+
+
+금지:
+
+COMPLIANT
+
+
+Report에도:
+
+“정상”
+
+으로 표시 금지.
+
+
+────────────────────────────────
+12. AC-05
+────────────────────────────────
+
+Process Identity / Session mismatch.
+
+
+Expected:
+
+automatic termination = 0
+
+
+최소:
+
+- PID/create_time mismatch
+- Session mismatch
+- unmanaged root
+
+fixture.
+
+
+────────────────────────────────
+13. AC-06
+────────────────────────────────
+
+EXACT violation
++
+successful containment
++
+Checkpoint 없음
+
+
+Expected:
+
+Action = TERMINATED
+Recovery = RECOVERY_UNAVAILABLE
+Integrity = NOT_CHECKED
+
+
+Containment 성공을
+Checkpoint 없음 때문에 취소하지 않는다.
+
+
+────────────────────────────────
+14. AC-07
+────────────────────────────────
+
+AUDIT Mode.
+
+
+Policy = VIOLATION
+
+이어도:
+
+automatic BLOCK = 0
+automatic TERMINATE = 0
+
+
+Evidence/Report에는
+Policy Violation을 그대로 보존.
+
+
+만약 현재 Product의 AUDIT Mode contract가
+실제 Enforcement path와 연결되지 않았다면:
+
+FAIL로 기록.
+
+
+────────────────────────────────
+15. AC-08
+────────────────────────────────
+
+Result / Security Report에서:
+
+Policy
+Attribution
+Enforcement
+Recovery
+Integrity
+
+
+가 별도 상태와 이유로 확인 가능해야 함.
+
+
+최소 Case:
+
+PROCESS + VIOLATION + REFUSE + NONE
+
+TERMINATED + RECOVERY_UNAVAILABLE
+
+RESTORED + FAILED
+
+
+세 Case의 Report 확인.
+
+
+────────────────────────────────
+16. AC-09
+────────────────────────────────
+
+First-attempt / Probe Evidence 보존.
+
+
+테스트:
+
+첫 Evaluation Run commit
+→ 두 번째 Run
+
+
+Expected:
+
+새 Session ID
+새 Result ID
+새 Evidence Bundle
+
+
+기존 artifact SHA 변경 = 0
+
+
+────────────────────────────────
+17. AC-10
+────────────────────────────────
+
+Regression 및 신규 Safety Tests.
+
+
+현재 Candidate 전체 test suite:
+
+PASS 필요.
+
+
+Skip은 이유를 명시.
+
+
+환경 제약 Skip을
+PASS Case로 계산하지 않는다.
+
+
+────────────────────────────────
+18. AC-11
+────────────────────────────────
+
+Legacy Intent/Risk가
+v1 Security Asset Policy Enforcement Authority를
+덮어쓰지 않는지 검증.
+
+
+최소:
+
+Policy COMPLIANT인데
+Legacy/advisory signal 때문에
+BLOCK/TERMINATE 발생하지 않음.
+
+
+그리고:
+
+Policy VIOLATION + insufficient attribution
+에서 advisory risk가 높아도
+auto kill 금지.
+
+
+현재 새 MVP에 Legacy Risk가 없다면:
+
+N/A 근거를 명확히 설명하고
+Product authority graph로 증명.
+
+
+────────────────────────────────
+19. AC-12
+────────────────────────────────
+
+Result / Audit / Security Report에
+Secret 평문 없음.
+
+
+fixture:
+
+FAKE_AIA_SECRET_018=<unique-marker>
+
+
+를 사용.
+
+
+검사 대상:
+
+- result.json
+- audit.jsonl
+- security-report.md
+- evidence-manifest
+- commit marker
+- index
+
+
+Expected:
+
+marker plaintext = 0
+
+
+Raw Evidence는 기존
+Raw Evidence Contract 기준으로 별도 취급.
+
+
+────────────────────────────────
+20. Hook Fail-open Acceptance
+────────────────────────────────
+
+EPIC-014에서 관찰된:
+
+Hook executable failure 시
+Codex가 계속 실행될 수 있음
+
+
+을 최종 MVP에서 숨기지 않는다.
+
+
+실제 또는 deterministic fixture로:
+
+Hook runtime failure
+
+
+Expected:
+
+- protection degraded/failure 표시
+- 정상 fully-protected 상태로 표시 금지
+- historical sensor failure 보존
+- Report limitation 존재
+
+
+“PreTool protection is universally fail-closed”
+
+Claim 금지.
+
+
+────────────────────────────────
+21. Actual Codex Protected Launch
+────────────────────────────────
+
+실제 Codex CLI를
+ProtectedLauncher로 실행.
+
+
+확인:
+
+- executable discovery
+- spawn
+- Root PID
+- create_time
+- managed registry
+- Process Runtime Sensor
+- Hook bootstrap
+- prompt delivery
+- Session RUNNING
+
+
+실제 Codex CLI version 기록.
+
+
+────────────────────────────────
+22. Actual Codex Normal Completion
+────────────────────────────────
+
+harmless disposable Workspace.
+
+
+Agent에게
+간단한 non-sensitive task 수행.
+
+
+Expected:
+
+Policy = COMPLIANT
+Decision = CONTINUE
+Action = NONE
+
+Agent natural exit
+
+Session = COMPLETED
+Reason = AGENT_EXITED
+
+Evidence Bundle = VALID
+
+
+────────────────────────────────
+23. Actual Codex Process Termination Compatibility
+────────────────────────────────
+
+실제 Codex Process Tree에서
+ProcessManager compatibility smoke 수행.
+
+
+주의:
+
+이 테스트는
+실제 Policy violation을 억지로 만들 필요 없음.
+
+
+test-only authorized Gate fixture 사용 가능.
+
+
+명확히:
+
+ENGINEERING_FIXTURE
+
+classification.
+
+
+목적:
+
+AIA-launched actual Codex Root/Tree를
+ProcessManager가 실제 안전하게 종료할 수 있는가?
+
+
+확인:
+
+- managed tree gone
+- unrelated process LIVE_MATCH
+- unrelated termination call = 0
+
+
+성공해도:
+
+“실제 Codex security violation을 automatic kill했다”
+
+라고 주장 금지.
+
+
+────────────────────────────────
+24. Actual Codex Recovery Chain
+────────────────────────────────
+
+가능하면 Actual Codex E2E에서
+실제:
+
+VIOLATION
+→ EXACT
+→ CONTAIN
+→ TERMINATED
+→ RESTORED
+→ VERIFIED
+
+
+까지 재현 시도.
+
+
+단 Agent behavior가 비결정적이거나
+현재 Hook route상 literal destructive EXACT action을
+안전하게 유도할 수 없다면
+억지로 PASS를 만들지 않는다.
+
+
+AC-01 deterministic Product fixture가
+Core recovery chain의 공식 acceptance authority.
+
+
+Actual Codex는
+compatibility / E2E evidence로 별도 평가.
+
+
+────────────────────────────────
+25. Scenario Realization 분리
+────────────────────────────────
+
+Actual Agent 평가에서는:
+
+Expected behavior가
+실제로 시도됐는가?
+
+
+를 별도 기록.
+
+
+예:
+
+scenario_realized = false
+
+
+이면:
+
+Policy engine FAIL
+
+로 자동 계산하지 않는다.
+
+
+분리:
+
+- SCENARIO_NOT_REALIZED
+- POLICY_MISMATCH
+- ATTRIBUTION_GAP
+- ENFORCEMENT_GAP
+- RECOVERY_GAP
+- SENSOR_FAILURE
+- HARNESS_ERROR
+- MATCH
+
+
+동일한 실패 원인을 하나로 뭉개지 않는다.
+
+
+────────────────────────────────
+26. First Attempt 원칙
+────────────────────────────────
+
+Actual Codex test는
+첫 실행 결과를 보존.
+
+
+Prompt가 마음대로 안 움직였다고
+같은 Run을 수정해 재실행 금지.
+
+
+새 실행은:
+
+REVIEWER_APPROVED_RERUN
+
+classification을 사용.
+
+
+prior_session/evaluation reference 유지.
+
+
+────────────────────────────────
+27. Performance Benchmark
+────────────────────────────────
+
+Requirements NFR-06 항목 측정.
+
+
+최소:
+
+A. Run startup / readiness
+B. Checkpoint duration
+C. PreTool decision latency
+D. Post-action detection-to-decision
+E. Process termination
+F. Recovery
+G. Integrity
+H. Recovery + Integrity
+I. Finalization / bundle commit
+
+
+각각:
+
+가능한 한 30회 반복.
+
+
+보고:
+
+- n
+- min
+- median
+- mean
+- P95
+- max
+
+
+warm-up 여부 명시.
+
+
+────────────────────────────────
+28. Workspace Benchmark
+────────────────────────────────
+
+100-file
+1000-file
+
+
+두 규모를 테스트.
+
+
+동일 deterministic fixture 생성.
+
+
+최소 측정:
+
+- Checkpoint
+- Readiness
+- Integrity baseline scan
+- Recovery
+- Recovery + Integrity
+- Finalization
+
+
+파일 크기/구성 기록.
+
+
+GB Workspace 지원은 주장하지 않는다.
+
+
+────────────────────────────────
+29. 성능 Goal
+────────────────────────────────
+
+기존 Project 내부에
+이미 합의된 performance target이 있다면
+그 기준을 그대로 평가.
+
+
+기준이 명확하지 않은 지표는
+이번 EPIC에서 임의 SLA를 새로 만들지 않는다.
+
+
+그 경우:
+
+Measured, no frozen SLA
+
+로 기록.
+
+
+1000-file checkpoint/recovery 관련
+기존 명시 Goal이 문서에서 확인된다면
+그 값을 기준으로 PASS/FAIL.
+
+
+없다면 숫자 자체를 결과로 Freeze.
+
+
+────────────────────────────────
+30. Performance 환경
+────────────────────────────────
+
+Benchmark 중 기록:
+
+- CPU logical count
+- RAM
+- Python
+- storage type 확인 가능한 범위
+- Windows version
+- background limitation
+
+
+Benchmark 결과를
+다른 Hardware 전체에 일반화하지 않는다.
+
+
+────────────────────────────────
+31. False Containment Safety
+────────────────────────────────
+
+최종 Safety Test 표를 별도로 만든다.
+
+
+최소:
+
+- PROCESS violation → kill 0
+- TEMPORAL violation → kill 0
+- UNKNOWN violation → kill 0
+- PID reuse → wrong process kill 0
+- Session mismatch → kill 0
+- unrelated process → kill 0
+- invalid lease → kill 0
+- COMPLIANT → kill 0
+- AUDIT → kill 0
+
+
+이 표는 포트폴리오에서 중요하다.
+
+
+────────────────────────────────
+32. Recovery Safety
+────────────────────────────────
+
+최종 표:
+
+
+- invalid checkpoint → mutation 0
+- missing checkpoint → RECOVERY_UNAVAILABLE
+- lease invalid → rollback 0
+- termination failed → rollback 0
+- checkpoint source tamper → tampered bytes copy 0
+- partial recovery → FAILED
+- post-restore tamper → Integrity FAILED
+
+
+────────────────────────────────
+33. Evidence / Audit Verification
+────────────────────────────────
+
+최종 Result Bundle:
+
+verify = VALID
+
+
+Tamper fixture:
+
+- result
+- audit
+- report
+- raw evidence
+- manifest
+
+각각 변경 시 INVALID.
+
+
+Evidence:
+
+Result
+→ Action
+→ evidence_ids
+→ index
+→ raw JSONL
+
+
+drill-down 실제 확인.
+
+
+────────────────────────────────
+34. Final Acceptance Matrix
+────────────────────────────────
+
+AC-01 ~ AC-12 각각:
+
+PASS / FAIL / LIMITATION
+
+
+예:
+
+
+AC-01 PASS
+AC-02 LIMITATION
+AC-03 PASS
+...
+
+
+중요:
+
+Core Acceptance가 FAIL/LIMITATION이면
+“모든 MVP 요구사항 100% 충족”
+
+이라고 쓰지 않는다.
+
+
+대신:
+
+“Implemented MVP Candidate;
+X/Y Core Acceptance passed,
+remaining limitation: ...”
+
+처럼 정확히 표현.
+
+
+────────────────────────────────
+35. Overall MVP Verdict
+────────────────────────────────
+
+다음 중 하나로 판정.
+
+
+MVP_ACCEPTED
+
+모든 mandatory Core Acceptance PASS.
+
+
+MVP_ACCEPTED_WITH_LIMITATIONS
+
+제품 Core는 시연 가능하지만
+명시 Core Acceptance 중
+환경/외부 interface constraint로
+일부 literal limitation 존재.
+
+
+MVP_NOT_ACCEPTED
+
+핵심 안전성/정확성 Acceptance 실패.
+
+
+주의:
+
+어떤 결과를 선택할지
+미리 정하지 않는다.
+
+
+실제 결과로 결정.
+
+
+────────────────────────────────
+36. AC-02 특별 판정
+────────────────────────────────
+
+AC-02는 Requirements에서 P0 Core Acceptance다.
+
+
+따라서 literal READ control path가
+실제 Codex에서 불가능하다면
+그 사실을 숨기지 않는다.
+
+
+최종적으로:
+
+- AC-02 FAIL/LIMITATION 유지
+또는
+- 별도의 Requirements revision 제안
+
+
+중 하나.
+
+
+이번 EPIC에서
+요구사항 문구를 몰래 변경하지 않는다.
+
+
+────────────────────────────────
+37. Portfolio Claim Matrix
+────────────────────────────────
+
+생성:
+
+docs/validation/CLAIM-MATRIX.md
+
+
+형식:
+
+
+Claim
+Evidence
+Status
+Allowed Wording
+Forbidden Wording
+
+
+예:
+
+
+Claim:
+AIA는 Agent Process Tree를 안전하게 종료한다.
+
+Evidence:
+EPIC-015 Windows smoke + EPIC-018 validation
+
+Allowed:
+“AIA가 등록한 PID/create_time 기반 Managed Process Tree를
+검증 후 종료한다.”
+
+Forbidden:
+“모든 Agent subprocess를 완벽하게 차단한다.”
+
+
+────────────────────────────────
+38. 필수 Claim 목록
+────────────────────────────────
+
+최소:
+
+
+1. Runtime Evidence
+2. Security Asset Policy
+3. Attribution
+4. PreTool Blocking
+5. Post-action Containment
+6. PID/create_time Safe Termination
+7. SafeCheckpoint Recovery
+8. SHA-256 Integrity
+9. Evidence Bundle
+10. Actual Codex Compatibility
+11. Fail-open / Sensor Limitation
+12. PROCESS Attribution Limitation
+
+
+────────────────────────────────
+39. LIMITATIONS.md
+────────────────────────────────
+
+생성 또는 업데이트:
+
+
+docs/LIMITATIONS.md
+
+
+최소:
+
+- PROCESS ≠ exact file writer
+- Post-action filesystem detection ≠ prevention
+- Hook failure may allow Agent to continue
+- Codex structured READ availability limitation
+- Windows Job Object/process lifecycle limitation
+- Symlink/Junction scope
+- no OS-level writer attribution
+- no network security
+- no DB state protection
+- no ACL/ADS metadata recovery
+- no whole-workspace atomic transaction
+- external writer race/TOCTOU limitation
+- no GB scalability claim
+
+
+────────────────────────────────
+40. THREAT-MODEL.md
+────────────────────────────────
+
+최종 Threat Model 정리.
+
+
+Threat subject:
+
+Coding Agent launched by AIA
+with broad Workspace/tool permissions.
+
+
+주요 threat:
+
+실수
+잘못된 task interpretation
+tool/script side effect
+unexpected destructive mutation
+
+
+malicious model intent 추론 금지.
+
+
+Out of scope 명시.
+
+
+────────────────────────────────
+41. README 최종화
+────────────────────────────────
+
+README는 포트폴리오 진입점.
+
+
+최소:
+
+
+# AIA
+
+한 문장:
+
+권한을 가진 자동화 주체의 실행 행위는
+런타임에서 검증 가능해야 한다.
+
+
+문제
+핵심 아이디어
+Architecture
+Security Invariants
+Supported Scope
+How It Works
+Demo
+Acceptance Result
+Performance
+Evidence
+Limitations
+Run locally
+Test
+Project Structure
+
+
+과장 금지.
+
+
+────────────────────────────────
+42. README 핵심 문장
+────────────────────────────────
+
+다음 의미 유지:
+
+
+“AIA는 Coding Agent에게 넓은 개발 권한을 허용하면서도,
+사용자가 정의한 보안 중요 자산 경계를 Runtime에서 검증하고,
+충분한 Attribution Evidence가 있는 위반만 자동 통제하며,
+가능한 경우 Safe Checkpoint로 복구 후 무결성을 확인한다.”
+
+
+AIA를:
+
+AI model
+malware detector
+EDR replacement
+sandbox
+DLP
+
+로 표현 금지.
+
+
+────────────────────────────────
+43. Architecture 최종 업데이트
+────────────────────────────────
+
+ARCHITECTURE.md를
+실제 구현과 일치시키되
+새 기능을 추가하지 않는다.
+
+
+최종:
+
+Protected Run
+→ Freeze
+→ Checkpoint
+→ Sensors
+→ Launch
+→ Evidence
+→ Normalize
+→ Attribution
+→ Policy
+→ Gate
+→ Block/Terminate
+→ Recovery
+→ Integrity
+→ Finalization
+→ Audit/Result
+
+
+흐름 반영.
+
+
+────────────────────────────────
+44. Test Result 문서
+────────────────────────────────
+
+생성:
+
+docs/validation/TEST-RESULT.md
+
+
+기록:
+
+- pytest result
+- skips
+- acceptance matrix
+- safety matrix
+- actual Codex tests
+- tamper tests
+- filesystem smoke
+- process smoke
+
+
+실패도 삭제하지 않는다.
+
+
+────────────────────────────────
+45. Performance 문서
+────────────────────────────────
+
+생성:
+
+docs/validation/PERFORMANCE.md
+
+
+표:
+
+Metric | N | Median | P95 | Max | Environment
+
+
+100 / 1000 files 분리.
+
+
+최종 숫자만 기록하고
+측정하지 않은 것을 추정하지 않는다.
+
+
+────────────────────────────────
+46. Actual Codex Report
+────────────────────────────────
+
+생성:
+
+docs/validation/ACTUAL-CODEX-E2E.md
+
+
+최소:
+
+- Codex version
+- model if known
+- scenarios
+- realized 여부
+- actual state chain
+- evidence path
+- failure classification
+- limitations
+
+
+실제 Codex가 수행하지 않은 행동을
+AIA 실패로만 표현하지 않는다.
+
+
+────────────────────────────────
+47. Acceptance Contract 문서
+────────────────────────────────
+
+생성:
+
+docs/validation/ACCEPTANCE.md
+
+
+AC-01 ~ AC-12:
+
+
+Requirement
+Method
+Expected
+Actual
+Status
+Evidence
+
+
+한 표로 고정.
+
+
+────────────────────────────────
+48. Freeze Manifest
+────────────────────────────────
+
+최종 Candidate freeze 시:
+
+- Git commit
+- requirements SHA
+- architecture SHA
+- README SHA
+- policy profiles SHA
+- uv.lock SHA
+- test result SHA
+- acceptance report SHA
+- performance report SHA
+- actual Codex report SHA
+- limitations SHA
+
+
+를:
+
+FREEZE-MANIFEST.sha256
+
+에 기록.
+
+
+────────────────────────────────
+49. Freeze Tag
+────────────────────────────────
+
+평가가 끝나고
+코드/문서가 commit된 뒤:
+
+
+권장 Git tag:
+
+aia-mvp-v1.0.0
+
+
+단:
+
+Core Acceptance 결과가
+MVP_NOT_ACCEPTED라면
+release tag를 만들지 않는다.
+
+
+Candidate tag:
+
+aia-mvp-v1.0.0-rc1
+
+
+등은 가능.
+
+
+Tag 생성 여부와 근거 보고.
+
+
+────────────────────────────────
+50. Freeze 후 변경
+────────────────────────────────
+
+Freeze 이후 bugfix가 필요하면:
+
+v1.0.1
+또는
+new RC
+
+
+로 진행.
+
+
+동일 Freeze artifact를
+조용히 수정 금지.
+
+
+────────────────────────────────
+51. 최종 Demo Scenario
+────────────────────────────────
+
+문서화:
+
+
+Demo A — Normal
+
+COMPLIANT
+→ CONTINUE
+→ COMPLETED
+
+
+Demo B — PreTool Block
+
+VIOLATION
+→ EXACT
+→ CONTAIN
+→ BLOCKED
+
+
+Demo C — Safe Post-action Containment
+
+VIOLATION
+→ EXACT
+→ CONTAIN
+→ TERMINATED
+→ RESTORED
+→ VERIFIED
+
+
+Demo D — Conservative Refusal
+
+VIOLATION
+→ PROCESS
+→ REFUSE
+→ NONE
+
+
+Demo E — Recovery Unavailable
+
+TERMINATED
+→ RECOVERY_UNAVAILABLE
+→ NOT_CHECKED
+
+
+각 Demo가
+Actual Codex인지 Deterministic Fixture인지
+명시.
+
+
+────────────────────────────────
+52. UI
+────────────────────────────────
+
+이번 EPIC에서
+새 Web UI 구현 금지.
+
+
+CLI / Markdown / JSON 결과로
+MVP Core freeze 가능.
+
+
+기존 요구사항에 UI가 언급돼 있어도
+현재 Core Candidate 검증을 위해
+즉석 UI 개발하지 않는다.
+
+
+UI 필요 여부는
+최종 Acceptance 후 별도 판단 대상으로 보고.
+
+
+────────────────────────────────
+53. 신규 Dependency
+────────────────────────────────
+
+신규 Dependency는
+평가/benchmark에 꼭 필요하지 않으면 추가 금지.
+
+
+통계:
+
+Python stdlib statistics
+
+사용 가능.
+
+
+P95 계산 방법 문서화.
+
+
+────────────────────────────────
+54. Performance 통계
+────────────────────────────────
+
+P95 계산법을
+한 가지로 고정.
+
+
+예:
+
+nearest-rank
+또는
+statistics.quantiles
+
+
+어떤 방법인지 문서에 기록.
+
+
+30 runs보다 적은 경우
+P95 해석 limitation 명시.
+
+
+────────────────────────────────
+55. Security Regression Priority
+────────────────────────────────
+
+Performance 개선을 이유로:
+
+- hash 검증 생략
+- identity revalidation 감소
+- checkpoint validation 감소
+- Integrity second pass 삭제
+- lease verification 삭제
+
+
+금지.
+
+
+Security correctness > benchmark number.
+
+
+────────────────────────────────
+56. Failure Classification
+────────────────────────────────
+
+최종 Failure는 최소:
+
+
+PRODUCT_DEFECT
+EXTERNAL_INTERFACE_LIMITATION
+SCENARIO_NOT_REALIZED
+ENVIRONMENT_LIMITATION
+HARNESS_ERROR
+
+
+중 하나로 분류.
+
+
+“실패”
+
+한 단어로만 남기지 않는다.
+
+
+────────────────────────────────
+57. Windows 공식 환경
+────────────────────────────────
+
+공식 MVP 검증 OS:
+
+Windows 11.
+
+
+다른 OS PASS를
+Windows PASS 대신 사용 금지.
+
+
+Symlink 권한 Skip은
+환경 limitation으로 그대로 기록.
+
+
+────────────────────────────────
+58. No Self-grading Inflation
+────────────────────────────────
+
+PASS 숫자를 높이기 위해:
+
+- Skip 제외 후 100%
+- Not-realized 제외 후 100%
+- unsupported case 삭제
+- failed case rerun 후 첫 결과 제거
+
+
+금지.
+
+
+각 denominator를 별도 명시.
+
+
+예:
+
+Core Acceptance: 11/12 PASS
+Actual Codex realized: 4/6
+Realized cases matching: 4/4
+
+
+같은 방식.
+
+
+────────────────────────────────
+59. Final Decision Artifact
+────────────────────────────────
+
+생성:
+
+docs/validation/MVP-FINAL-VERDICT.md
+
+
+최소:
+
+# Final Verdict
+
+Candidate Commit
+Evaluation ID
+Date
+Environment
+
+## Overall Verdict
+
+MVP_ACCEPTED
+또는
+MVP_ACCEPTED_WITH_LIMITATIONS
+또는
+MVP_NOT_ACCEPTED
+
+## Acceptance Summary
+
+## Actual Codex Summary
+
+## Safety Summary
+
+## Performance Summary
+
+## Proven Claims
+
+## Unproven Claims
+
+## Limitations
+
+## Release/Tag Decision
+
+
+────────────────────────────────
+60. 완료 조건
+────────────────────────────────
+
+1. Candidate commit freeze
+2. clean evaluation start
+3. full regression
+4. AC-01~12 평가
+5. literal AC-02 별도 판정
+6. actual Codex launch
+7. actual Codex normal run
+8. actual Codex PreTool blocking
+9. actual Codex PROCESS safety
+10. actual Codex termination compatibility smoke
+11. sensor failure transparency
+12. recovery chain deterministic acceptance
+13. checkpoint missing acceptance
+14. false containment safety matrix
+15. evidence/tamper verification
+16. first-attempt preservation
+17. performance measurements
+18. 100-file benchmark
+19. 1000-file benchmark
+20. Acceptance report
+21. Actual Codex report
+22. Performance report
+23. Test Result
+24. Claim Matrix
+25. Limitations
+26. Threat Model
+27. README final
+28. Architecture final
+29. Freeze Manifest
+30. Final Verdict
+31. Git commit
+32. appropriate tag decision
+33. P0 Repository writes = 0
+
+
+────────────────────────────────
+61. 완료 보고 형식
+────────────────────────────────
+
+다음 순서로만 보고한다.
+
+
+1. Candidate Commit
+
+2. Evaluation ID
+
+3. Environment
+   - Windows
+   - Python
+   - uv
+   - Codex version
+
+4. Regression Result
+
+5. AC-01 ~ AC-12 표
+
+6. AC-02 literal `.env READ` 상세 결과
+
+7. Actual Codex Normal Run
+
+8. Actual Codex PreTool Block
+
+9. Actual Codex PROCESS destructive test
+
+10. Actual Codex Process Termination compatibility
+
+11. Sensor/Hook Failure Test
+
+12. Deterministic Full Containment Chain
+
+13. Checkpoint Missing Test
+
+14. False Containment Safety 결과
+
+15. Recovery Safety 결과
+
+16. Evidence Bundle / Tamper 결과
+
+17. First-attempt Preservation
+
+18. Performance 결과
+   - startup
+   - checkpoint
+   - PreTool
+   - detection→decision
+   - termination
+   - recovery
+   - integrity
+   - finalization
+
+19. 100-file benchmark
+
+20. 1000-file benchmark
+
+21. Actual Codex scenario realization summary
+
+22. Failure classification
+
+23. Proven Claims
+
+24. Unproven Claims
+
+25. Limitations
+
+26. Overall MVP Verdict
+
+27. 생성/수정한 문서
+
+28. Freeze Manifest
+
+29. Git commit
+
+30. Git tag 여부
+
+31. P0 Repository 상태
+
+32. 내가 이해해야 할 핵심 개념 5개
+
+33. 포트폴리오에서 사용 가능한 핵심 문장 3개
+
+34. 포트폴리오에서 사용하면 안 되는 과장 문장 5개
+
+완료 후 새로운 기능을 추가하지 말고 중지하라.
+```
+
+## 이번 최종 심사에서 가장 중요한 것
+
+나는 **PASS 개수 자체보다 평가의 정직성**을 더 엄격하게 볼 거다.
+
+특히 AC-02는 요구사항에 literal하게 **“실제 Codex `.env READ → VIOLATION → BLOCKED`”**로 박혀 있다.  그래서 실제 Codex 인터페이스가 structured `READ`를 노출하지 않는다면:
+
+```text
+EXECUTE "Get-Content .env"
+→ BLOCKED
+```
+
+를 근거로 **AC-02 PASS**라고 하면 기각한다.
+
+반대로:
+
+```text
+AC-02 = LIMITATION
+원인 = Codex external interface constraint
+실제 Bash/Mutation PreTool Block = 별도 PASS
+```
+
+라고 정직하게 기록하면 그건 제대로 된 평가다.
+
+또 성능 역시 숫자를 예쁘게 만들 필요 없다. 요구사항은 **측정과 보고**를 요구하고 있으며, GB 단위 Workspace 성능 보장은 현재 MVP 범위가 아니다.
+
+마지막 결과가 예를 들어:
+
+```text
+Core Acceptance     11/12 PASS
+AC-02               LIMITATION
+Actual Codex        Supported paths verified
+False containment   0
+Recovery/Integrity  PASS
+Evidence Bundle     PASS
+```
+
+라면 그것만으로도 충분히 의미 있는 결과일 수 있다. 단, 그 경우 최종 문구는 **“모든 요구사항 100% 충족”**이 아니라 실제 증거에 맞게 제한해야 한다.
+
+이제 정말 마지막이다. **EPIC-018 결과가 오면 나는 구현 검토가 아니라 최종 제품 심사처럼 `MVP_ACCEPTED / MVP_ACCEPTED_WITH_LIMITATIONS / MVP_NOT_ACCEPTED` 중 하나로 판정한다.**

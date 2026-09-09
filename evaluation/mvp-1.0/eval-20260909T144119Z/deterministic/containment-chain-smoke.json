@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "classification": "ENGINEERING_FIXTURE",
+  "expected_chain": "VIOLATION/EXACT/CONTAIN/TERMINATED/SUCCEEDED/RESTORED/VERIFIED/ABORTED/VALID"
+}

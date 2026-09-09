@@ -1,0 +1,32 @@
+{
+  "evaluation_id": "eval-20260909T144119Z",
+  "started_at_utc": "2026-09-09T14:41:19Z",
+  "candidate_commit": "c5bd350",
+  "git_branch": "master",
+  "git_status_at_start": "CLEAN",
+  "windows_version": "Windows 11 Pro 10.0.26200",
+  "python_version": "3.13.5",
+  "uv_version": "0.12.5",
+  "pytest_version": "9.1.1",
+  "codex_cli_version": "0.149.1",
+  "result_schema_version": "aia-result-1",
+  "requirements_version": "EPIC-018 Requirements v1.1",
+  "requirements_sha256": "5c400919821a1725e4b20a8a9e2fbd615251be348d2d117745ed63b1ccb7a522",
+  "uv_lock_sha256": "562bd61663e589da7808b38c7641c828900d8293b63a440892f16b8257804c24",
+  "policy_profiles": {
+    "자유-개발형.ko.json": "51f7cd1aff4b86119e59125de7ad917f5c66b70f1a486fdf31c1d4abc4a4c0ac",
+    "직접-설정.example.ko.json": "4da1f3ae68d8ba53cc50c00ced2600ca469832bba0524b0ed41b97227ad9fdb2",
+    "보수적-보안형.ko.json": "de45c61742418feac4f57588392b4681ab22135de1ae1449b2c6df7eac87c125",
+    "기본-개발형.ko.json": "02fd67a9bbef21e7f3d0801d6a6522d327b06a0203b15d3546f61fc10b4f27e3"
+  },
+  "cpu_logical_count": 16,
+  "ram_bytes": 34048843776,
+  "storage": "NVMe SSD (1 TB class)",
+  "host": "REDACTED",
+  "completed_at_utc": "2026-09-09T15:04:11Z",
+  "overall_verdict": "MVP_ACCEPTED_WITH_LIMITATIONS",
+  "pytest_final": "360 passed, 3 skipped",
+  "product_defect_found": false,
+  "final_release_tag_created": false,
+  "candidate_tag": "aia-mvp-v1.0.0-rc1"
+}

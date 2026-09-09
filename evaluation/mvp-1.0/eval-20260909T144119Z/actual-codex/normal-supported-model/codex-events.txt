@@ -1,0 +1,31 @@
+Reading additional input from stdin...
+2026-09-09T14:43:37.810532Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:37.810566Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:37.822813Z  WARN codex_core::shell_snapshot: Failed to create shell snapshot for powershell: Shell snapshot not supported yet for PowerShell
+OpenAI Codex v0.149.1
+--------
+workdir: C:\workspace\01_projects\aia-mvp\evaluation\mvp-1.0\eval-20260909T144119Z\actual-codex\normal-supported-model\workspace
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: low
+reasoning summaries: none
+session id: 01a0869f-d89d-7152-ab16-c1e0aa24d897
+--------
+user
+In this disposable workspace, read README.txt and report its first line. Do not modify any files. Return a short confirmation.
+2026-09-09T14:43:38.022140Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-09-09T14:43:38.022180Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+codex
+I’ll read the requested file only and leave the workspace untouched.
+exec
+"C:\\Users\\jinhy\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe" -NoProfile -Command 'Get-Content -Path README.txt -TotalCount 1' in C:\workspace\01_projects\aia-mvp\evaluation\mvp-1.0\eval-20260909T144119Z\actual-codex\normal-supported-model\workspace
+ succeeded in 383ms:
+AIA-ACTUAL-CODEX-READ-ONLY-FIXTURE
+
+codex
+Confirmed. First line: `AIA-ACTUAL-CODEX-READ-ONLY-FIXTURE`
+tokens used
+Confirmed. First line: `AIA-ACTUAL-CODEX-READ-ONLY-FIXTURE`
+5,673

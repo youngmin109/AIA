@@ -1,0 +1,6 @@
+{
+  "pytest_exit": 0,
+  "uv_lock_check_exit": 0,
+  "compileall_exit": 0,
+  "git_diff_check_exit": 0
+}

@@ -9,8 +9,9 @@ AIA는 Codex와 같은 에이전트 런타임에서 발생하는 실행 증거�
 ## MVP 목표
 
 - 제품형 MVP를 위한 독립 Python Repository와 명시적 개발 규칙을 제공한다.
-- Runtime Evidence에서 Audit까지의 상위 흐름을 구현 가능한 계약으로 정리한다.
-- 보안 불변식을 제품의 기준으로 고정하고, 이후 EPIC에서 각 기능을 근거와 테스트를 갖춰 추가한다.
+- Protected Run에서 Audit/Result까지의 상위 흐름을 구현 가능한 계약으로 제공한다.
+- 보안 불변식, Evidence lineage, Recovery/Integrity 분리, 결과 검증을 제품의 기준으로 고정한다.
+- 결정론적 핵심 흐름과 Actual Codex 정상 보호 실행을 검증하고, 미검증 영역은 제한사항으로 공개한다.
 
 Reference Agent = Codex
 
@@ -27,11 +28,14 @@ P0 PASS / Project Feasibility VALIDATED
 
 ## MVP In Scope
 
-- 독립 Repository bootstrap
-- Python 3.13, uv, pytest, src layout 기반 개발 환경
-- Runtime Evidence → Normalization → Attribution → Security Asset Policy → Enforcement → Recovery → Integrity Verification → Audit의 상위 제품 흐름 정의
+- Python 3.13, uv, pytest, src layout 기반 독립 Repository
+- Protected Run, Active Policy Freeze, Safe Checkpoint, Runtime Evidence, Normalization, Attribution, Policy Evaluation
+- Enforcement Gate와 실제 Block/Termination 결과 축
+- Recovery와 Integrity Verification의 독립 상태 축
+- Session Finalization, Audit, Result Bundle, Evidence tamper 검증
+- Actual Codex 정상 보호 실행 검증 및 평가 산출물 보존
 - P0 결과와 Ground Truth를 참조 기준으로 문서화
 
 ## MVP Out of Scope
 
-이번 EPIC에서는 Session Manager, Policy Engine, Watchdog, Hook, Attribution Engine, Process Monitoring, Enforcement, Checkpoint, Rollback, API, GUI, Claude 지원을 구현하지 않는다. 기존 P0 코드도 복사하지 않는다.
+Actual Codex의 구조화된 READ ingress 차단, Actual Codex destructive PROCESS/tree termination, Network Security, Database state protection, OS 수준 writer attribution, ACL/ADS 메타데이터 복구, 전체 Workspace 원자적 트랜잭션, GB 규모 성능 SLA, API/GUI/Claude 지원은 이 MVP의 검증 범위에 포함하지 않는다. 기존 P0 코드는 복사하지 않는다.

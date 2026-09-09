@@ -1,0 +1,49 @@
+{
+  "aia_session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+  "artifacts": [
+    {
+      "artifact_type": "EVIDENCE_INDEX",
+      "byte_size": 554,
+      "relative_path": "evidence/evidence-index.json",
+      "session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+      "sha256": "b6729937df45a747ea0f0331017961b7147ef5ad0ca4eaa1443bd8c284cf4db0"
+    },
+    {
+      "artifact_type": "RAW_EVIDENCE",
+      "byte_size": 579,
+      "relative_path": "evidence/raw-evidence.jsonl",
+      "session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+      "sha256": "74286e1eea72206a6a6c3e81a39d73e504ece4e94817e5df8b3d63e26909dfdb"
+    },
+    {
+      "artifact_type": "EVIDENCE_SEAL",
+      "byte_size": 388,
+      "relative_path": "evidence/raw-evidence.seal.json",
+      "session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+      "sha256": "3d4fa0e696bf94c63afee52ff760f41a413b7bf2e788739c4d5cd694ad950f3d"
+    },
+    {
+      "artifact_type": "AUDIT_TRAIL",
+      "byte_size": 1278,
+      "relative_path": "result/audit.jsonl",
+      "session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+      "sha256": "6ca7b0dd02347ebfb4a08240207673af9b9f7d59ce629a66dbbf363bc3afdc8c"
+    },
+    {
+      "artifact_type": "RESULT",
+      "byte_size": 2817,
+      "relative_path": "result/result.json",
+      "session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+      "sha256": "7225b966d492cd02bef2d6e49d5f4d9e7545cd7b8b4247a4d16f197e85be302a"
+    },
+    {
+      "artifact_type": "SECURITY_REPORT",
+      "byte_size": 1780,
+      "relative_path": "result/security-report.md",
+      "session_id": "5c9a1d3c-872a-4bb7-922f-0474cb1bdf64",
+      "sha256": "2fd572201733a31662855feb8e6efb5020982a09a6baecabcfd04badb803ac0c"
+    }
+  ],
+  "result_id": "bbf02500-6dde-5ae7-9c62-56b0e6e1735d",
+  "schema_version": "aia-evidence-manifest-1"
+}

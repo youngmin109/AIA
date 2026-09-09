@@ -1,0 +1,15 @@
+{
+  "evaluation_id": "eval-20260909T144119Z",
+  "checks": [
+    {"case": "PROCESS/TEMPORAL/UNKNOWN attribution", "expected": "no automatic termination", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "PID reuse", "expected": "no wrong process termination", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "session mismatch", "expected": "no termination", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "unrelated process", "expected": "LIVE_MATCH and no termination call", "status": "PASS", "evidence": "actual-codex/process-termination-compatibility.json"},
+    {"case": "COMPLIANT", "expected": "no containment action", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "AUDIT", "expected": "audit only", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "invalid checkpoint", "expected": "no recovery mutation", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "missing checkpoint", "expected": "RECOVERY_UNAVAILABLE", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "termination failure", "expected": "no rollback mutation", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"case": "checkpoint source tamper", "expected": "no copy", "status": "PASS", "evidence": "deterministic/selected-tests.txt"}
+  ]
+}

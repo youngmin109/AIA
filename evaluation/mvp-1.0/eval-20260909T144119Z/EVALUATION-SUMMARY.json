@@ -1,0 +1,13 @@
+{
+  "evaluation_id": "eval-20260909T144119Z",
+  "candidate_commit": "c5bd350",
+  "overall": "MVP_ACCEPTED_WITH_LIMITATIONS",
+  "regression": {"pytest": "360 passed, 3 skipped", "exit_code": 0, "uv_lock_check": "PASS", "compileall": "PASS"},
+  "actual_codex": {"normal_protected_run": "PASS", "structured_read_block": "LIMITATION", "pretool_block": "LIMITATION", "destructive_process": "LIMITATION"},
+  "deterministic_chain": "PASS",
+  "recovery_integrity": "PASS",
+  "evidence_tamper_and_secret_safety": "PASS",
+  "performance": {"sizes": [10, 100, 1000], "repetitions": 30, "sla_claim": false},
+  "final_release_tag": false,
+  "candidate_tag": "aia-mvp-v1.0.0-rc1"
+}

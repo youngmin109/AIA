@@ -1,0 +1,10 @@
+.......                                                                  [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/test_evidence_bundle.py::test_committed_bundle_detects_each_artifact_tamper[result/result.json]
+PASSED tests/test_evidence_bundle.py::test_committed_bundle_detects_each_artifact_tamper[result/audit.jsonl]
+PASSED tests/test_evidence_bundle.py::test_committed_bundle_detects_each_artifact_tamper[result/security-report.md]
+PASSED tests/test_evidence_bundle.py::test_committed_bundle_detects_each_artifact_tamper[evidence/raw-evidence.jsonl]
+PASSED tests/test_evidence_bundle.py::test_committed_bundle_detects_each_artifact_tamper[result/evidence-manifest.json]
+PASSED tests/test_evidence_bundle.py::test_bundle_verifier_accepts_session_directory_and_result_lineage_index
+PASSED tests/test_evidence_bundle.py::test_same_content_reuses_and_different_content_conflicts_without_overwrite

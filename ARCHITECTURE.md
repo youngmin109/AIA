@@ -1,16 +1,31 @@
 # AIA 상위 아키텍처
 
-이번 Bootstrap EPIC에서는 제품의 확정된 상위 흐름만 기록한다.
+AIA MVP의 보호 실행 상위 흐름은 다음과 같다.
 
 ```text
-Runtime Evidence
+Protected Run
+        → Active Policy Freeze
+        → Safe Checkpoint
+        → Sensor Readiness
+        → Protected Agent Launch
+        → Raw Runtime Evidence
         → Normalization
-        → Attribution
-        → Security Asset Policy
-        → Enforcement
+        → Canonical Action
+        ├→ Policy Evaluation
+        └→ Attribution
+        ↓
+Enforcement Gate
+        → Enforcement Execution
         → Recovery
         → Integrity Verification
-        → Audit
+        → Session Finalization
+        → Audit / Result
 ```
 
-각 단계는 앞 단계의 실행 사실과 판단 근거를 보존하면서 다음 단계로 전달하는 제품 경계다. 상세 모듈 구조, 인터페이스, 저장 형식, 런타임 배치 방식은 향후 EPIC에서 요구사항과 테스트를 확인한 뒤 확정한다.
+Policy Evaluation은 관찰된 행위가 정책을 위반했는지 판단하고, Attribution은 그 행위를 Agent에 어느 수준까지 귀속할 수 있는지 독립적으로 판단한다. `PROCESS`, `TEMPORAL`, `UNKNOWN`은 충분한 증거가 없는 자동 종료 권한을 만들지 않는다. `Policy Violation`만으로 Kill을 수행하지 않는다.
+
+Recovery와 Integrity는 별도 상태 축이다. `RESTORED`는 복원 작업 자체의 완료이고, `VERIFIED`는 복원 후 expected path/existence/SHA-256 검증 성공이다. 검증된 복구 성공은 `RESTORED + VERIFIED`일 때만 사용한다.
+
+Enforcement Gate는 `CONTINUE / CONTAIN / REFUSE`를 결정한다. Gate 승인만으로 `BLOCKED` 또는 `TERMINATED`를 기록하지 않으며, 실제 PreTool deny 또는 managed process termination이 확인되어야 한다. Enforcement Execution Result는 `NOT_ATTEMPTED / SUCCEEDED / FAILED` 독립 축이다.
+
+상세 모듈 구조와 배치 방식은 각 EPIC의 계약과 테스트에 따라 확정한다. 이 문서는 제품 흐름과 검증된 책임 경계만 정의한다.

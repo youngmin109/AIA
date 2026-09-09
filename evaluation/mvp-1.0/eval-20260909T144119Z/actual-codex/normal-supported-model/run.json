@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "workspace": "evaluation\\mvp-1.0\\eval-20260909T144119Z\\actual-codex\\normal-supported-model\\workspace",
+  "model": "gpt-5.5",
+  "prior_attempts": [
+    "normal-direct",
+    "normal-rerun"
+  ]
+}

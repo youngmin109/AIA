@@ -1,0 +1,7 @@
+{
+  "exit_code": 1,
+  "workspace": "evaluation\\mvp-1.0\\eval-20260909T144119Z\\actual-codex\\normal-rerun\\workspace",
+  "model": "gpt-5.4-mini",
+  "prior_attempt": "normal-direct",
+  "output_file": "evaluation\\mvp-1.0\\eval-20260909T144119Z\\actual-codex\\normal-rerun\\last-message.txt"
+}

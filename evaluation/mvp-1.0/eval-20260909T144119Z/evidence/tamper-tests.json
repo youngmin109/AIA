@@ -1,0 +1,11 @@
+{
+  "exit_code": 0,
+  "tamper_targets": [
+    "result.json",
+    "audit.jsonl",
+    "security-report.md",
+    "raw-evidence.jsonl",
+    "evidence-manifest.json"
+  ],
+  "verification": "INVALID"
+}

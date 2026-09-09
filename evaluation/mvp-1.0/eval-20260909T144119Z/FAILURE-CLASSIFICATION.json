@@ -1,0 +1,10 @@
+{
+  "evaluation_id": "eval-20260909T144119Z",
+  "classifications": [
+    {"classification": "EXTERNAL_INTERFACE_LIMITATION", "cases": ["AC-02", "Actual Codex PreTool deny"], "status": "LIMITATION"},
+    {"classification": "SCENARIO_NOT_REALIZED", "cases": ["Actual Codex destructive PROCESS", "Actual Codex process-tree termination"], "status": "LIMITATION"},
+    {"classification": "ENVIRONMENT_LIMITATION", "cases": ["Symlink permission skip", "Windows Job Object skip"], "status": "LIMITATION"},
+    {"classification": "PRODUCT_DEFECT", "cases": [], "status": "NONE_FOUND"},
+    {"classification": "HARNESS_ERROR", "cases": [], "status": "NONE_FOUND"}
+  ]
+}

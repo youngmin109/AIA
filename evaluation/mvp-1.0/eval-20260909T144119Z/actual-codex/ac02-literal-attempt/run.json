@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "model": "gpt-5.5",
+  "operation_requested": "READ",
+  "actual_native_path": "inspect codex-events.txt",
+  "actual_product_blocked": false,
+  "classification": "EXTERNAL_INTERFACE_LIMITATION"
+}

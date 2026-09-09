@@ -1,0 +1,10 @@
+{
+  "aia_session_id": "b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c",
+  "byte_size": 3938,
+  "last_evidence_id": "33e00583-3b60-402a-a1a2-82f3321cdc8e",
+  "line_count": 10,
+  "raw_evidence_relative_path": "evidence/raw-evidence.jsonl",
+  "schema_version": "aia-evidence-seal-1",
+  "sealed_at": "2026-09-09T14:45:43.687141+00:00",
+  "sha256": "f80e4bf1c4887a9c939da1ec586f99237717b062e8b8e483e307a59ad55a45c4"
+}

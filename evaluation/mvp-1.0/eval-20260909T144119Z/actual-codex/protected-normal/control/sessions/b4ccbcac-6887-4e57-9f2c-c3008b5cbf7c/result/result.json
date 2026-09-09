@@ -1,0 +1,104 @@
+{
+  "action_outcomes": [],
+  "agent": "codex",
+  "agent_execution": {
+    "agent_end_observed_at": "2026-09-09T14:45:43.650621+00:00",
+    "agent_end_verification": "PROCESS_GONE",
+    "agent_exit_code": 0
+  },
+  "agent_native_session_id": null,
+  "aia_session_id": "b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c",
+  "attribution_results": [],
+  "created_at": "2026-09-09T14:45:04.553935+00:00",
+  "ended_at": "2026-09-09T14:45:43.687141+00:00",
+  "enforcement_results": [],
+  "evidence_references": [
+    {
+      "artifact_type": "RAW_EVIDENCE",
+      "byte_size": 3938,
+      "relative_path": "evidence/raw-evidence.jsonl",
+      "sha256": "f80e4bf1c4887a9c939da1ec586f99237717b062e8b8e483e307a59ad55a45c4"
+    },
+    {
+      "artifact_type": "EVIDENCE_SEAL",
+      "byte_size": 403,
+      "relative_path": "evidence/raw-evidence.seal.json",
+      "sha256": "3593161b7db95eec8cec0da455984bbbd20c2cec09d4382ac6a8252fa6f5367e"
+    },
+    {
+      "artifact_type": "EVIDENCE_INDEX",
+      "byte_size": 2247,
+      "relative_path": "evidence/evidence-index.json",
+      "sha256": "37258717762c0a06091cac50929b165ad89e14805fdd005e4b03117eec6f9492"
+    },
+    {
+      "artifact_type": "ACTIVE_POLICY",
+      "byte_size": 3344,
+      "relative_path": "active-policy.json",
+      "sha256": "48350c64aafbbf98b21d5905ffb9e6baff032268ba3ea67fce9d23ca47ecdd2d"
+    },
+    {
+      "artifact_type": "CHECKPOINT_MANIFEST",
+      "byte_size": 173,
+      "relative_path": "checkpoints/144d07d8b3314859b9f91ec6955a8c32/manifest.json",
+      "sha256": "0b49557afa60e28f245a8237dacaed07a1968da9122dad40df655039539b2210"
+    },
+    {
+      "artifact_type": "CHECKPOINT_METADATA",
+      "byte_size": 1048,
+      "relative_path": "checkpoints/144d07d8b3314859b9f91ec6955a8c32/metadata.json",
+      "sha256": "25e7bd0fb9d1bdc90a46e5f0daf8830d5e5ab02f407a82564ba0ca489f11de4e"
+    }
+  ],
+  "finalization_completed_at": "2026-09-09T14:45:43.708258+00:00",
+  "finalization_duration_ms": 0.08600000000000001,
+  "finalization_started_at": "2026-09-09T14:45:43.708173+00:00",
+  "generated_at": "2026-09-09T14:45:43.687141+00:00",
+  "integrity_result": null,
+  "limitations": [
+    "SENSOR_RUNTIME_FAILED:PROCESS_RUNTIME"
+  ],
+  "mode": "ENFORCE",
+  "policy": {
+    "fingerprint": "d716986625f306aa18cbd11067f48476bfc5073479a03004e99fc12a045ada64",
+    "policy_id": "aia-basic-development",
+    "policy_version": "1.0",
+    "profile": "BASIC_DEVELOPMENT"
+  },
+  "policy_evaluations": [],
+  "prior_session_id": null,
+  "process_termination_result": null,
+  "recovery_result": null,
+  "result_id": "5bf4cc53-988c-59e4-93fa-68236b3f612b",
+  "review_required": true,
+  "run_classification": "ENGINEERING_FIXTURE",
+  "schema_version": "aia-result-1",
+  "sensor_summary": [
+    {
+      "final_checked_at": "2026-09-09T14:45:43.673311+00:00",
+      "final_sensor_state": "STOPPED",
+      "reason": "STARTED",
+      "runtime_health_before_stop": "HEALTHY",
+      "sensor": "FILESYSTEM_WATCHER"
+    },
+    {
+      "final_checked_at": "2026-09-09T14:45:43.679987+00:00",
+      "final_sensor_state": "STOPPED",
+      "reason": "STARTED",
+      "runtime_health_before_stop": "HEALTHY",
+      "sensor": "AGENT_HOOK"
+    },
+    {
+      "failed_at": "2026-09-09T14:45:09.318249+00:00",
+      "final_checked_at": "2026-09-09T14:45:09.318249+00:00",
+      "final_sensor_state": "FAILED",
+      "reason": "OBSERVER_FAILURE",
+      "runtime_health_before_stop": "FAILED",
+      "sensor": "PROCESS_RUNTIME"
+    }
+  ],
+  "session_end_reason": "AGENT_EXITED",
+  "session_status": "COMPLETED",
+  "started_at": "2026-09-09T14:45:04.553935+00:00",
+  "workspace": "C:\\workspace\\01_projects\\aia-mvp\\evaluation\\mvp-1.0\\eval-20260909T144119Z\\actual-codex\\protected-normal\\workspace"
+}

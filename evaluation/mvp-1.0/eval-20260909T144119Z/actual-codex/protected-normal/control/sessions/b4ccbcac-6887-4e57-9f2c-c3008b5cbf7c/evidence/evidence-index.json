@@ -1,0 +1,67 @@
+{
+  "aia_session_id": "b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c",
+  "entries": {
+    "01bbd61e-4f70-43c4-900b-ec83c553c4e8": {
+      "captured_at": "2026-09-09T14:45:09.040491+00:00",
+      "line_number": 7,
+      "record_type": "SENSOR_HEALTH",
+      "source": "PROCESS_RUNTIME"
+    },
+    "10cb8db4-976f-4186-a673-16cb75263e4e": {
+      "captured_at": "2026-09-09T14:45:04.606748+00:00",
+      "line_number": 3,
+      "record_type": "SENSOR_HEALTH",
+      "source": "AGENT_HOOK"
+    },
+    "10e009c7-9c27-43b7-bddb-131505738e33": {
+      "captured_at": "2026-09-09T14:45:04.600147+00:00",
+      "line_number": 2,
+      "record_type": "SENSOR_HEALTH",
+      "source": "FILESYSTEM_WATCHER"
+    },
+    "13d1e2a0-db73-42aa-883d-db52b2bbf87c": {
+      "captured_at": "2026-09-09T14:45:04.580283+00:00",
+      "line_number": 1,
+      "record_type": "SENSOR_HEALTH",
+      "source": "FILESYSTEM_WATCHER"
+    },
+    "13fd4083-9e3a-49eb-b5d8-451365510d1d": {
+      "captured_at": "2026-09-09T14:45:09.007553+00:00",
+      "line_number": 5,
+      "record_type": "SENSOR_HEALTH",
+      "source": "PROCESS_RUNTIME"
+    },
+    "33e00583-3b60-402a-a1a2-82f3321cdc8e": {
+      "captured_at": "2026-09-09T14:45:43.679987+00:00",
+      "line_number": 10,
+      "record_type": "SENSOR_HEALTH",
+      "source": "AGENT_HOOK"
+    },
+    "519132fd-8078-45a8-9109-cc907e568940": {
+      "captured_at": "2026-09-09T14:45:09.318249+00:00",
+      "line_number": 8,
+      "record_type": "SENSOR_HEALTH",
+      "source": "PROCESS_RUNTIME"
+    },
+    "8aa4569e-00ce-4af2-907c-9f6256d13395": {
+      "captured_at": "2026-09-09T14:45:04.618479+00:00",
+      "line_number": 4,
+      "record_type": "SENSOR_HEALTH",
+      "source": "AGENT_HOOK"
+    },
+    "8ee4564d-359a-41dd-baea-f1643b202ab5": {
+      "captured_at": "2026-09-09T14:45:09.026874+00:00",
+      "line_number": 6,
+      "record_type": "PROCESS_OBSERVED",
+      "source": "PROCESS_RUNTIME"
+    },
+    "c9f3be80-993f-465a-9e7f-cd62b122cac6": {
+      "captured_at": "2026-09-09T14:45:43.673311+00:00",
+      "line_number": 9,
+      "record_type": "SENSOR_HEALTH",
+      "source": "FILESYSTEM_WATCHER"
+    }
+  },
+  "raw_evidence_relative_path": "evidence/raw-evidence.jsonl",
+  "schema_version": "aia-evidence-index-1"
+}
