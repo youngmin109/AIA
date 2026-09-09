@@ -1,0 +1,75 @@
+# AIA MVP-1.0 evaluation freeze manifest
+# Evaluation ID: eval-20260909T144119Z
+# Candidate code commit: c5bd350
+# Verdict: MVP_ACCEPTED_WITH_LIMITATIONS
+# Scope: evaluation files excluding both freeze manifests
+# Format: SHA256  path
+
+910e20cf15043b2bea3ee2835574aa21ff0f9f84b340cb1efef06c270cecf8e2  evaluation/mvp-1.0/eval-20260909T144119Z/ACCEPTANCE-MATRIX.json
+40a7e127ac554da135f26a823752256446c404f28b9d0003d6d78c1f1f306241  evaluation/mvp-1.0/eval-20260909T144119Z/ACCEPTANCE-REPORT.md
+ee862f828307af8482bc6afb4bfd351b1ed69018bfd2d6fbde0124d386b9cf6c  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/ac02-literal-attempt/codex-events.txt
+5cefec4f1beba04911fb885e60dfcef9211a035da6b7fe45c4232febfb069708  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/ac02-literal-attempt/last-message.txt
+5623725cce89b6fcd60d3a501eff61d0a5f6615cf4e4f5f3158ab47b226a65f6  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/ac02-literal-attempt/run.json
+f6d8f74cbfe628536c60b2db4f2a82fbb1b70d25ca4925f009a850f79cc487c8  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/ac02-literal-attempt/workspace/.env
+8e5a53df3db9ca06bf48eb8dbe92a200ecb6c843e1836fb78b6f1a4bee82f2bc  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-direct/codex-events.txt
+1e19f1302342f61b6d62c09832e75826ff773e529aa28d51c658b99fea572987  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-direct/run.json
+69582e6150204d7395546ca6b4b151d6cf32e8e4b655c1c9666d7be756dcd05c  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-direct/workspace/README.txt
+d7828b8080e220f7253b3be627a8528355af55169872ffd89737b69eb257d0ae  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-rerun/codex-events.txt
+2cd0b25507efcf41d742817417834d9bcf3d402f0c465fa5f70b6c5bc38629b7  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-rerun/run.json
+69582e6150204d7395546ca6b4b151d6cf32e8e4b655c1c9666d7be756dcd05c  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-rerun/workspace/README.txt
+415541d776b1e5ca7cef1168dd06bf43a44475453dde589f0f665dc108c1524a  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-supported-model/codex-events.txt
+3d34b723a10e7cb5e296dfccf8cf2c4ba308a9689f1cc0c14d3f8fa2a0199d7b  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-supported-model/last-message.txt
+da92499b9e8054ff99c91279649ce2fd5520db98b06c9884eac16b574f06275f  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-supported-model/run.json
+69582e6150204d7395546ca6b4b151d6cf32e8e4b655c1c9666d7be756dcd05c  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/normal-supported-model/workspace/README.txt
+4a4671cd7127f1966d4dc77c68d3ece3c451ba83abd6b2a274742dbd1d3e906a  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/process-termination-compatibility.json
+ba559d15327ee587bdeb4d35fd769d7de32cdfba0b8ac260a4e7148be5504d38  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/process-termination-compatibility.txt
+48350c64aafbbf98b21d5905ffb9e6baff032268ba3ea67fce9d23ca47ecdd2d  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/active-policy.json
+5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/checkpoints/.checkpoint.lock
+0b49557afa60e28f245a8237dacaed07a1968da9122dad40df655039539b2210  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/checkpoints/144d07d8b3314859b9f91ec6955a8c32/manifest.json
+25e7bd0fb9d1bdc90a46e5f0daf8830d5e5ab02f407a82564ba0ca489f11de4e  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/checkpoints/144d07d8b3314859b9f91ec6955a8c32/metadata.json
+f70dbf1c813915a5cdd9b346ab8258015732c6ceae52614cc21e344e341aff54  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/checkpoints/144d07d8b3314859b9f91ec6955a8c32/workspace/README.txt
+37258717762c0a06091cac50929b165ad89e14805fdd005e4b03117eec6f9492  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/evidence/evidence-index.json
+f80e4bf1c4887a9c939da1ec586f99237717b062e8b8e483e307a59ad55a45c4  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/evidence/raw-evidence.jsonl
+3593161b7db95eec8cec0da455984bbbd20c2cec09d4382ac6a8252fa6f5367e  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/evidence/raw-evidence.seal.json
+3d02b5ed23b6c6538acf37ec37c3a0bd883fd810100bcbf927f6928a870d25ad  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/hook-capability.bin
+48d81cfc0b0b7409b970646fa3a2f47c27b69545c44f44669b7e92d9e39feed3  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/result/audit.jsonl
+c676755efd4c73e32773aa81e2597b9b4b9866a11a0d408cdef1077256067e6c  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/result/commit.json
+9c2f10857be13e06e689215fee3e6ab135e3ef38c21842a48cae182d273f9679  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/result/evidence-manifest.json
+a69219d1705c2e5e8b66f1074313eea135e94d41fa67b0f9f5e359f148e44a32  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/result/result.json
+17727f375ad1641baa882f2ad0bc96c73fecb23506f5531c3828494f4b42b20f  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/sessions/b4ccbcac-6887-4e57-9f2c-c3008b5cbf7c/result/security-report.md
+5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/control/workspaces/f8b20799397fd14691401eac284ed83e5b34cfb66258ebe4bc8f7bbbe1c9cb11/.lease.lock
+63ffbeb62ed0276067a1c597619836d7189a0e5f11897d9079a55498d96cd85c  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/run.json
+f70dbf1c813915a5cdd9b346ab8258015732c6ceae52614cc21e344e341aff54  evaluation/mvp-1.0/eval-20260909T144119Z/actual-codex/protected-normal/workspace/README.txt
+875f85d96a30590a35ee6a2945834839b6a3596dd9af5ee477c8078e42c3eeda  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/containment-chain-smoke.json
+310166ae2fda655d8767143b7b9e39adb4e5da7ce2c23a7080db4068eb6a640e  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/containment-chain-smoke.txt
+fb13ad7a8126a15ec5f50db829d7ea77ae9c6f2c8c66d5a57842333867ef29e2  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/recovery-smoke.json
+64c0e6540b91525f0b6f1f40fe0bdaa5fd00e246c2f954b406292a8357492665  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/recovery-smoke.txt
+2b000b28622f7234f82bba753d073c9f643891b305e4a9ae4447171bdb8770c4  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/SELECTED-TESTS.json
+de2ed594505c624dab92977f97c1c20f901e8fa308fc545b45c2b86fed57cc68  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/selected-tests.txt
+13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/sensor-hook-failure-exit-code.txt
+228c9ff85c16dea40f8b8dcc7d6fee868a933ed1083bdf992ad16b7561933ccb  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/SENSOR-HOOK-FAILURE.json
+9d5a2646cfea101970d3c6e3eb8c2650770734a095b2562b4c25cf9f554c913c  evaluation/mvp-1.0/eval-20260909T144119Z/deterministic/sensor-hook-failure.txt
+d91d6de0db1207fcfa5e28b3c738c3b931d5bd94435424b717adbbce5bbe1d68  evaluation/mvp-1.0/eval-20260909T144119Z/EVALUATION-METADATA.json
+afd4d00ceadae35a314d556d1a45a916f61272b1192e89689361804c85fa5c2e  evaluation/mvp-1.0/eval-20260909T144119Z/EVALUATION-SUMMARY.json
+b6729937df45a747ea0f0331017961b7147ef5ad0ca4eaa1443bd8c284cf4db0  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/evidence/evidence-index.json
+74286e1eea72206a6a6c3e81a39d73e504ece4e94817e5df8b3d63e26909dfdb  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/evidence/raw-evidence.jsonl
+3d4fa0e696bf94c63afee52ff760f41a413b7bf2e788739c4d5cd694ad950f3d  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/evidence/raw-evidence.seal.json
+6ca7b0dd02347ebfb4a08240207673af9b9f7d59ce629a66dbbf363bc3afdc8c  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/result/audit.jsonl
+427c587a5c1021905a846a21af79d45c010209c248fc4623a1fa9673408d4ea6  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/result/commit.json
+7133a2bd6adaad329ee07e6fec6d690e9acff65c22355a919d9962880e73be3a  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/result/evidence-manifest.json
+7225b966d492cd02bef2d6e49d5f4d9e7545cd7b8b4247a4d16f197e85be302a  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/result/result.json
+2fd572201733a31662855feb8e6efb5020982a09a6baecabcfd04badb803ac0c  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/fixture/control/sessions/5c9a1d3c-872a-4bb7-922f-0474cb1bdf64/result/security-report.md
+545efde98d5deab91a4dedfd165cb97de14855a93b719bb935adbdc82fdd31ef  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/secret-scan/result.json
+80fe3e75123bfd70b38dcfce0bf680cf3fc1f2e56da253d826dc6d38f92c7002  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/tamper-tests.json
+b5876db0e056ee75ffe190d38522a3c56d77a7d65a65b15994ec5284bb022a32  evaluation/mvp-1.0/eval-20260909T144119Z/evidence/tamper-tests.txt
+36019e18b2c6f9298a9f5d5a42cf545829b0261b1e863c5004edd0c4797d3d19  evaluation/mvp-1.0/eval-20260909T144119Z/FAILURE-CLASSIFICATION.json
+47fa1843f62a596a6c9e22666076f6e6d30d9f0dba005530c0e97d52d20a7a14  evaluation/mvp-1.0/eval-20260909T144119Z/performance/benchmark.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evaluation/mvp-1.0/eval-20260909T144119Z/regression/compileall.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evaluation/mvp-1.0/eval-20260909T144119Z/regression/git-diff-check.txt
+13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354  evaluation/mvp-1.0/eval-20260909T144119Z/regression/pytest-final-exit-code.txt
+d918c3921ba56f6485ba2158674500136336e98d0d6f1e2e093e5ad9b7c146fe  evaluation/mvp-1.0/eval-20260909T144119Z/regression/pytest-final.txt
+3ba6b7a89fccf4ee1402d284680d08d8f8fb895f58c58b1ba9a14602f0cf96c6  evaluation/mvp-1.0/eval-20260909T144119Z/regression/pytest-rA.txt
+c4b4cceb797f6523eddb3b556562a8b8392f24d12e28ceb6309b47fc62cd1b87  evaluation/mvp-1.0/eval-20260909T144119Z/regression/REGRESSION-STATUS.json
+b42b755a29c501bd7c3d08cc464d146299993c42aa26e3b17800f539c04a13dc  evaluation/mvp-1.0/eval-20260909T144119Z/regression/uv-lock-check.txt
+9c2f7e2ca86b8da11b1b2b1c9b6138773689019f4bfece0fd8292a3faae2d362  evaluation/mvp-1.0/eval-20260909T144119Z/requirements-epic018.txt
+46a2c8235db7573a7483ffe622d2f5229380e06a5d7096bd5a68c5008135b721  evaluation/mvp-1.0/eval-20260909T144119Z/SAFETY-MATRIX.json

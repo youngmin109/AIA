@@ -1,0 +1,13 @@
+{
+  "evaluation_id": "eval-20260909T144119Z",
+  "status": "PASS",
+  "tests": 4,
+  "expected": [
+    "Hook evidence store failure marks Sensor FAILED",
+    "Command append failure preserves PRETOOL_REQUEST append-only",
+    "Failed deny execution is not reported as BLOCKED",
+    "Protection failure is retained as failure state"
+  ],
+  "artifact": "deterministic/sensor-hook-failure.txt",
+  "limitation": "Actual Codex ingress fail-open behavior was not exercised; this is a Product Core deterministic failure contract test."
+}

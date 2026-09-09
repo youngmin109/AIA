@@ -9,17 +9,17 @@
   },
   "overall": "MVP_ACCEPTED_WITH_LIMITATIONS",
   "items": [
-    {"id": "AC-01", "status": "PASS", "evidence": "actual-codex/protected-normal/run.json"},
+    {"id": "AC-01", "status": "PASS", "evidence": "deterministic/containment-chain-smoke.json"},
     {"id": "AC-02", "status": "LIMITATION", "evidence": "actual-codex/ac02-literal-attempt/run.json", "reason": "Actual Codex used shell EXECUTE; structured READ ingress was not available."},
     {"id": "AC-03", "status": "LIMITATION", "evidence": "actual-codex/process-termination-compatibility.json", "reason": "Actual Codex destructive scenario was not realized; disposable process tree passed."},
-    {"id": "AC-04", "status": "PASS", "evidence": "docs/REFERENCE-P0.md"},
+    {"id": "AC-04", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
     {"id": "AC-05", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
     {"id": "AC-06", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
-    {"id": "AC-07", "status": "PASS", "evidence": "deterministic/containment-chain-smoke.json"},
-    {"id": "AC-08", "status": "PASS", "evidence": "deterministic/recovery-smoke.json"},
-    {"id": "AC-09", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"id": "AC-07", "status": "PASS", "evidence": "deterministic/selected-tests.txt"},
+    {"id": "AC-08", "status": "PASS", "evidence": "deterministic/selected-tests.txt; deterministic/recovery-smoke.json"},
+    {"id": "AC-09", "status": "PASS", "evidence": "actual-codex/normal-direct/; actual-codex/normal-rerun/; actual-codex/normal-supported-model/"},
     {"id": "AC-10", "status": "PASS", "evidence": "regression/REGRESSION-STATUS.json"},
-    {"id": "AC-11", "status": "PASS", "evidence": "docs/REFERENCE-P0.md"},
+    {"id": "AC-11", "status": "PASS", "evidence": "docs/REFERENCE-P0.md; deterministic/selected-tests.txt"},
     {"id": "AC-12", "status": "PASS", "evidence": "evidence/tamper-tests.json; evidence/secret-scan/result.json"}
   ]
 }
