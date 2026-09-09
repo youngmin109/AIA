@@ -241,6 +241,8 @@ def _validate_preparation(
     context: ProtectionPreparationContext,
     checkpoint: SafeCheckpoint,
     registration: RootProcessRegistration,
+    *,
+    allow_ready: bool = False,
 ) -> None:
     if not isinstance(session, ProtectedRunSession):
         raise SensorStartError("session must be a ProtectedRunSession")
@@ -252,8 +254,13 @@ def _validate_preparation(
         raise SensorStartError("checkpoint must be a SafeCheckpoint")
     if not isinstance(registration, RootProcessRegistration):
         raise SensorStartError("registration must be a RootProcessRegistration")
-    if session.status is not SessionStatus.PREPARING:
-        raise SensorStartError("Process Runtime Sensor requires PREPARING Session")
+    allowed_statuses = {SessionStatus.PREPARING}
+    if allow_ready:
+        allowed_statuses.add(SessionStatus.READY)
+    if session.status not in allowed_statuses:
+        raise SensorStartError(
+            "Process Runtime Sensor requires PREPARING or launch-authorized READY Session"
+        )
     if context.session_id != session.session_id:
         raise SensorStartError("Protection context Session ID does not match")
     if context.workspace != session.workspace:
@@ -293,12 +300,15 @@ class ProcessRuntimeSensor:
         evidence_store: RawEvidenceStore | None = None,
         poll_interval: float = 0.25,
         process_factory: ProcessFactory = psutil.Process,
+        allow_ready: bool = False,
     ) -> None:
         if not isinstance(poll_interval, (int, float)) or isinstance(
             poll_interval,
             bool,
         ) or not math.isfinite(float(poll_interval)) or poll_interval <= 0:
             raise ProcessRuntimeError("poll_interval must be a positive finite number")
+        if not isinstance(allow_ready, bool):
+            raise ProcessRuntimeError("allow_ready must be a bool")
         self.session = session
         self.preparation_context = context
         self.checkpoint = checkpoint
@@ -306,6 +316,7 @@ class ProcessRuntimeSensor:
         self.lease_manager = lease_manager
         self.poll_interval = float(poll_interval)
         self.process_factory = process_factory
+        self.allow_ready = allow_ready
         self._control_root: ControlRoot | None = None
         if evidence_store is None:
             try:
@@ -396,6 +407,7 @@ class ProcessRuntimeSensor:
                     self.preparation_context,
                     self.checkpoint,
                     self.registration,
+                    allow_ready=self.allow_ready,
                 )
                 self._control_root = _control_root_for_context(
                     self.session,

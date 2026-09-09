@@ -75,6 +75,7 @@ class ProtectionReadinessResult:
     hook_sensor_status: SensorStatus | None
     hook_ingress_verified: bool | None
     process_observer_capability_status: str
+    filesystem_observation_sequence: int | None = None
     readiness_context: ProtectionReadinessContext | None = None
 
     def __post_init__(self) -> None:
@@ -115,6 +116,17 @@ class ProtectionReadinessResult:
         return self.readiness_context
 
 
+@dataclass(frozen=True, slots=True)
+class ReadinessRevalidationResult:
+    """Launch-time revalidation result for an already READY Session."""
+
+    passed: bool
+    checked_at: datetime
+    checks: tuple[ReadinessCheck, ...]
+    current_observation_sequence: int | None
+    current_workspace_content_sha256: str | None
+
+
 _READINESS_CONTEXT_TOKEN = object()
 
 
@@ -137,6 +149,7 @@ class ProtectionReadinessContext:
     filesystem_sensor_status: SensorStatus
     hook_sensor_status: SensorStatus
     hook_ingress_verified: bool
+    filesystem_observation_sequence_at_ready: int
     process_observer_capability: ProcessObserverCapability
     readiness_checks: tuple[ReadinessCheck, ...]
 
@@ -155,6 +168,7 @@ class ProtectionReadinessContext:
         filesystem_sensor_status: SensorStatus,
         hook_sensor_status: SensorStatus,
         hook_ingress_verified: bool,
+        filesystem_observation_sequence_at_ready: int,
         process_observer_capability: ProcessObserverCapability,
         readiness_checks: tuple[ReadinessCheck, ...],
     ) -> None:
@@ -176,6 +190,9 @@ class ProtectionReadinessContext:
             "filesystem_sensor_status": SensorStatus(filesystem_sensor_status),
             "hook_sensor_status": SensorStatus(hook_sensor_status),
             "hook_ingress_verified": hook_ingress_verified,
+            "filesystem_observation_sequence_at_ready": (
+                filesystem_observation_sequence_at_ready
+            ),
             "process_observer_capability": process_observer_capability,
             "readiness_checks": tuple(readiness_checks),
         }
@@ -299,6 +316,7 @@ class ProtectionReadinessBarrier:
         )
 
         current_workspace_fingerprint: str | None = None
+        filesystem_sequence_at_ready: int | None = None
         baseline_ok = False
         stability_ok = False
         if checkpoint_ok and checkpoint_binding_ok and filesystem_ok:
@@ -322,6 +340,7 @@ class ProtectionReadinessBarrier:
             except Exception:
                 baseline_reason = "WORKSPACE_DRIFTED_AFTER_CHECKPOINT"
             sequence_after = self._filesystem_sequence(filesystem_context)
+            filesystem_sequence_at_ready = sequence_after
             checks.append(
                 _check(
                     "WORKSPACE_BASELINE",
@@ -363,6 +382,7 @@ class ProtectionReadinessBarrier:
                     checks=checks,
                     active_policy=active_policy,
                     current_workspace_fingerprint=current_workspace_fingerprint,
+                    filesystem_sequence_at_ready=filesystem_sequence_at_ready,
                     filesystem_status=filesystem_status,
                     hook_status=hook_status,
                     hook_ingress_verified=hook_ingress_verified,
@@ -377,6 +397,7 @@ class ProtectionReadinessBarrier:
                     checks=checks,
                     active_policy=active_policy,
                     current_workspace_fingerprint=current_workspace_fingerprint,
+                    filesystem_sequence_at_ready=filesystem_sequence_at_ready,
                     filesystem_status=filesystem_status,
                     hook_status=hook_status,
                     hook_ingress_verified=hook_ingress_verified,
@@ -388,6 +409,7 @@ class ProtectionReadinessBarrier:
                 checks=checks,
                 active_policy=active_policy,
                 current_workspace_fingerprint=current_workspace_fingerprint,
+                filesystem_sequence_at_ready=filesystem_sequence_at_ready,
                 filesystem_status=filesystem_status,
                 hook_status=hook_status,
                 hook_ingress_verified=hook_ingress_verified,
@@ -402,6 +424,7 @@ class ProtectionReadinessBarrier:
             checks=checks,
             active_policy=active_policy,
             current_workspace_fingerprint=current_workspace_fingerprint,
+            filesystem_sequence_at_ready=filesystem_sequence_at_ready,
             filesystem_status=filesystem_status,
             hook_status=hook_status,
             hook_ingress_verified=hook_ingress_verified,
@@ -412,6 +435,136 @@ class ProtectionReadinessBarrier:
     check = evaluate
     run = evaluate
 
+    def revalidate_ready_context(
+        self,
+        readiness_context: ProtectionReadinessContext,
+    ) -> ReadinessRevalidationResult:
+        """Revalidate a successful Readiness Context immediately before spawn."""
+
+        checked_at = _now_utc()
+        checks: list[ReadinessCheck] = [
+            _check(
+                "SESSION_STATUS",
+                self.session.status is SessionStatus.READY,
+                "SESSION_NOT_READY",
+            ),
+            _check(
+                "READINESS_CONTEXT_BINDING",
+                isinstance(readiness_context, ProtectionReadinessContext)
+                and readiness_context.aia_session_id == self.session.session_id
+                and _same_workspace(
+                    readiness_context.workspace,
+                    self.session.workspace,
+                ),
+                "CONTEXT_MISMATCH",
+            ),
+        ]
+        binding_ok = self._check_bindings()
+        checks.append(_check("SESSION_WORKSPACE_BINDING", binding_ok, "CONTEXT_MISMATCH"))
+        active_policy = getattr(self.preparation_context, "active_policy", None)
+        policy_ok = self._validate_active_policy(active_policy)
+        checks.append(_check("ACTIVE_POLICY", policy_ok, "ACTIVE_POLICY_INVALID"))
+        lease_ok, _ = self._validate_lease()
+        checks.append(_check("WORKSPACE_LEASE", lease_ok, "WORKSPACE_LEASE_INVALID"))
+        checkpoint_ok, _ = self._validate_checkpoint()
+        checks.append(_check("SAFE_CHECKPOINT", checkpoint_ok, "CHECKPOINT_INVALID"))
+        checkpoint_binding_ok = self._checkpoint_binding_ok()
+        checks.append(
+            _check("CHECKPOINT_BINDING", checkpoint_binding_ok, "CONTEXT_MISMATCH")
+        )
+        filesystem_status, filesystem_context, filesystem_ok = (
+            self._validate_filesystem_sensor()
+        )
+        checks.append(
+            _check("FILESYSTEM_SENSOR", filesystem_ok, "FILESYSTEM_SENSOR_UNHEALTHY")
+        )
+        hook_status, hook_context, hook_ok = self._validate_hook_sensor()
+        checks.append(_check("HOOK_SENSOR", hook_ok, "HOOK_SENSOR_UNHEALTHY"))
+        checks.append(
+            _check(
+                "HOOK_INGRESS_TRUST",
+                isinstance(hook_context, HookSensorContext)
+                and isinstance(hook_context.ingress_verified, bool),
+                "HOOK_TRUST_STATUS_UNAVAILABLE",
+            )
+        )
+        capability_ok = self._validate_process_capability(
+            self.process_observer_capability
+        )
+        checks.append(
+            _check(
+                "PROCESS_OBSERVER_CAPABILITY",
+                capability_ok,
+                "PROCESS_CAPABILITY_UNAVAILABLE",
+            )
+        )
+
+        current_fingerprint: str | None = None
+        current_sequence: int | None = None
+        baseline_ok = False
+        stability_ok = False
+        if (
+            isinstance(readiness_context, ProtectionReadinessContext)
+            and checkpoint_ok
+            and checkpoint_binding_ok
+            and filesystem_ok
+        ):
+            sequence_before = self._filesystem_sequence(filesystem_context)
+            try:
+                comparison = compare_workspace_to_checkpoint(
+                    self.checkpoint,
+                    self.session.workspace,
+                )
+                current_fingerprint = comparison.current_workspace_content_sha256
+                baseline_ok = comparison.matches and (
+                    current_fingerprint
+                    == readiness_context.current_workspace_content_sha256
+                )
+                baseline_reason = (
+                    None
+                    if baseline_ok
+                    else "WORKSPACE_CHANGED_AFTER_READY"
+                )
+            except UnsupportedFilesystemEntryError as error:
+                baseline_reason = getattr(
+                    error,
+                    "code",
+                    "UNSUPPORTED_FILESYSTEM_ENTRY",
+                )
+            except Exception:
+                baseline_reason = "WORKSPACE_CHANGED_AFTER_READY"
+            current_sequence = self._filesystem_sequence(filesystem_context)
+            checks.append(
+                _check("WORKSPACE_BASELINE", baseline_ok, baseline_reason)
+            )
+            stability_ok = (
+                isinstance(sequence_before, int)
+                and isinstance(current_sequence, int)
+                and sequence_before == current_sequence
+                and current_sequence
+                == readiness_context.filesystem_observation_sequence_at_ready
+            )
+            checks.append(
+                _check(
+                    "WORKSPACE_STABILITY",
+                    stability_ok,
+                    "WORKSPACE_CHANGED_AFTER_READY"
+                    if not stability_ok
+                    else None,
+                )
+            )
+        else:
+            checks.append(_check("WORKSPACE_BASELINE", False, "DEPENDENCY_NOT_READY"))
+            checks.append(_check("WORKSPACE_STABILITY", False, "DEPENDENCY_NOT_READY"))
+
+        return ReadinessRevalidationResult(
+            passed=all(check.passed for check in checks),
+            checked_at=checked_at,
+            checks=tuple(checks),
+            current_observation_sequence=current_sequence,
+            current_workspace_content_sha256=current_fingerprint,
+        )
+
     def _result(
         self,
         *,
@@ -419,6 +572,7 @@ class ProtectionReadinessBarrier:
         checks: list[ReadinessCheck],
         active_policy: Any,
         current_workspace_fingerprint: str | None,
+        filesystem_sequence_at_ready: int | None,
         filesystem_status: SensorStatus | None,
         hook_status: SensorStatus | None,
         hook_ingress_verified: bool | None,
@@ -450,6 +604,9 @@ class ProtectionReadinessBarrier:
                     filesystem_sensor_status=filesystem_status,
                     hook_sensor_status=hook_status,
                     hook_ingress_verified=hook_ingress_verified,
+                    filesystem_observation_sequence_at_ready=(
+                        filesystem_sequence_at_ready
+                    ),
                     process_observer_capability=capability,
                     readiness_checks=tuple(checks),
                 )
@@ -485,6 +642,7 @@ class ProtectionReadinessBarrier:
                 if isinstance(capability, ProcessObserverCapability)
                 else ProcessObserverCapabilityStatus.UNAVAILABLE.value
             ),
+            filesystem_observation_sequence=filesystem_sequence_at_ready,
             readiness_context=context,
         )
         if result.is_ready and context is None:
@@ -502,6 +660,7 @@ class ProtectionReadinessBarrier:
                 hook_sensor_status=result.hook_sensor_status,
                 hook_ingress_verified=result.hook_ingress_verified,
                 process_observer_capability_status=result.process_observer_capability_status,
+                filesystem_observation_sequence=result.filesystem_observation_sequence,
                 readiness_context=None,
             )
         return result
@@ -810,6 +969,7 @@ __all__ = [
     "ProtectionReadinessContext",
     "ProtectionReadinessBarrier",
     "ProtectionReadinessResult",
+    "ReadinessRevalidationResult",
     "ReadinessBarrier",
     "ReadinessCheck",
     "ReadinessError",
