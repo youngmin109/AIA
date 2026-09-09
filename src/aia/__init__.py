@@ -1,5 +1,13 @@
 """AIA product MVP package."""
 
+from .action import (
+    ActionTargetKind,
+    NonActionEvidence,
+    NormalizationCompleteness,
+    NormalizationIssue,
+    NormalizationResult,
+    NormalizedAction,
+)
 from .checkpoint import (
     CheckpointArtifactError,
     CheckpointCreationError,
@@ -134,6 +142,14 @@ from .launcher import (
     ProtectedLauncher,
 )
 from .adapters import CodexAdapter
+from .normalizer import (
+    HOOK_TOOL_SEMANTICS,
+    NORMALIZER_VERSION,
+    NormalizationError,
+    Normalizer,
+    canonicalize_workspace_path,
+    normalize_evidence,
+)
 from .policy import (
     KOREAN_ASSET_TYPES,
     KOREAN_EFFECTS,
@@ -175,6 +191,7 @@ from .session import (
 )
 
 __all__ = [
+    "ActionTargetKind",
     "ActivePolicyAlreadyFrozen",
     "ActivePolicyArtifactError",
     "ActivePolicyConflict",
@@ -196,6 +213,15 @@ __all__ = [
     "EvidenceRecordType",
     "EvidenceSource",
     "EvidenceStoreError",
+    "NonActionEvidence",
+    "NormalizationCompleteness",
+    "NormalizationError",
+    "NormalizationIssue",
+    "NormalizationResult",
+    "NormalizedAction",
+    "Normalizer",
+    "NORMALIZER_VERSION",
+    "HOOK_TOOL_SEMANTICS",
     "ObservationStage",
     "RawEvidenceRecord",
     "RawEvidenceStore",
@@ -277,11 +303,13 @@ __all__ = [
     "WorkspaceValidationError",
     "__version__",
     "canonicalize_workspace",
+    "canonicalize_workspace_path",
     "evaluate_policy",
     "load_korean_policy",
     "load_policy",
     "load_policy_document",
     "normalize_command",
+    "normalize_evidence",
     "normalize_path",
     "resolve_profile",
     "SecurityAssetPolicy",
