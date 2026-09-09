@@ -25,14 +25,18 @@ class EvidenceStoreError(EvidenceError):
 
 class EvidenceSource(StrEnum):
     FILESYSTEM_WATCHER = "FILESYSTEM_WATCHER"
+    AGENT_HOOK = "AGENT_HOOK"
 
 
 class EvidenceRecordType(StrEnum):
     FILESYSTEM_EVENT = "FILESYSTEM_EVENT"
+    PRETOOL_REQUEST = "PRETOOL_REQUEST"
+    COMMAND_OBSERVED = "COMMAND_OBSERVED"
     SENSOR_HEALTH = "SENSOR_HEALTH"
 
 
 class ObservationStage(StrEnum):
+    PRE_ACTION = "PRE_ACTION"
     POST_ACTION = "POST_ACTION"
 
 
