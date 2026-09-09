@@ -36,6 +36,13 @@ class SessionStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class SessionEndReason(StrEnum):
+    AGENT_EXITED = "AGENT_EXITED"
+    SECURITY_CONTAINMENT = "SECURITY_CONTAINMENT"
+    USER_ABORT = "USER_ABORT"
+    PROTECTION_FAILURE = "PROTECTION_FAILURE"
+
+
 _TERMINAL_STATUSES = frozenset(
     {
         SessionStatus.COMPLETED,
@@ -115,6 +122,7 @@ class ProtectedRunSession:
     created_at: datetime = field(default_factory=_now_utc)
     started_at: datetime | None = field(default=None, init=False)
     ended_at: datetime | None = field(default=None, init=False)
+    end_reason: SessionEndReason | None = field(default=None, init=False)
     status: SessionStatus = field(
         default=SessionStatus.CREATED,
         init=False,
@@ -156,6 +164,7 @@ class ProtectedRunSession:
         new_status: SessionStatus | str,
         *,
         at: datetime | None = None,
+        end_reason: SessionEndReason | str | None = None,
     ) -> SessionStatus:
         """Apply one validated state transition and its lifecycle timestamp."""
 
@@ -180,6 +189,8 @@ class ProtectedRunSession:
             self.started_at = transition_time
         if target in _TERMINAL_STATUSES:
             self.ended_at = transition_time
+            if end_reason is not None:
+                self.end_reason = SessionEndReason(end_reason)
         self.status = target
         return self.status
 
@@ -188,10 +199,11 @@ class ProtectedRunSession:
         new_status: SessionStatus | str,
         *,
         at: datetime | None = None,
+        end_reason: SessionEndReason | str | None = None,
     ) -> SessionStatus:
         """Explicitly named alias for callers that prefer transition_to."""
 
-        return self.transition(new_status, at=at)
+        return self.transition(new_status, at=at, end_reason=end_reason)
 
 
 Session = ProtectedRunSession
@@ -202,6 +214,7 @@ __all__ = [
     "ProtectedRunSession",
     "Session",
     "SessionMode",
+    "SessionEndReason",
     "SessionStatus",
     "SessionValidationError",
     "WorkspaceValidationError",
