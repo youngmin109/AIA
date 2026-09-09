@@ -11,6 +11,9 @@ import time
 from aia import (
     AttributionEngine,
     CodexAdapter,
+    EnforcementGate,
+    EnforcementGateInput,
+    HookTrustStatus,
     FilesystemSensor,
     HookSensor,
     Normalizer,
@@ -39,7 +42,7 @@ def now() -> datetime:
 
 def main() -> int:
     evaluation_root = Path(os.environ["AIA_EPIC018_EVALUATION_ROOT"]).resolve()
-    root = evaluation_root / "actual-codex" / "process-destructive" / "attempt-005-protected"
+    root = evaluation_root / "actual-codex" / "process-destructive" / "attempt-006-protected"
     workspace = root / "workspace"
     control_root = root / "control"
     workspace.mkdir(parents=True, exist_ok=True)
@@ -190,6 +193,24 @@ def main() -> int:
             raw_records,
             launch_context=launch.context,
         ).attribute(action)
+        gate_result = EnforcementGate(lease_manager=lease_manager).evaluate(
+            EnforcementGateInput(
+                action=action,
+                policy_evaluation=policy,
+                attribution=attribution,
+                session=session,
+                active_policy=preparation.active_policy,
+                launch_context=launch.context,
+                workspace_lease=preparation.workspace_lease,
+                sensor_health=tuple(
+                    sensor.health
+                    for sensor in (filesystem, hook, launcher.process_sensor)
+                    if sensor is not None
+                ),
+                hook_trust_status=HookTrustStatus.VERIFIED,
+                checked_at=now(),
+            )
+        )
         result.update(
             {
                 "scenario_realized": True,
@@ -210,13 +231,19 @@ def main() -> int:
                     if attribution.process_identity is not None
                     else None,
                 ),
-                "enforcement_decision": "REFUSE",
-                "enforcement_action": "NONE",
+                "enforcement_decision": gate_result.decision.value,
+                "enforcement_route": gate_result.route.value,
+                "enforcement_action": gate_result.action.value,
+                "enforcement_execution_result": gate_result.execution_result.value,
+                "enforcement_failure_reasons": list(gate_result.failure_reasons),
                 "termination_calls": 0,
                 "failure_classification": (
                     None
                     if policy.policy_decision.value == "VIOLATION"
                     and attribution.grade.value == "PROCESS"
+                    and gate_result.decision.value == "REFUSE"
+                    and gate_result.action.value == "NONE"
+                    and gate_result.execution_result.value == "NOT_ATTEMPTED"
                     else "PRODUCT_DEFECT"
                 ),
             }

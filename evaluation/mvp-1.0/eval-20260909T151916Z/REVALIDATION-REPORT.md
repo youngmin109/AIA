@@ -33,13 +33,13 @@ Action          = NONE
 Termination     = 0 calls
 ```
 
-The first protected attempts that did not realize the scenario or had harness errors are retained. The successful attempt is `attempt-005-protected`.
+The first protected attempts that did not realize the scenario or had harness errors are retained. The successful Gate-backed attempt is `attempt-006-protected`.
 
 ## Actual Codex ProcessManager compatibility
 
 ProtectedLauncher started Actual Codex, registered its root identity, and reported a healthy process sensor. A test-only authorized Gate fixture then called ProcessManager. The Actual Codex root and observed descendant ended with `TERMINATED / SUCCEEDED`. An unrelated Python process remained `LIVE_MATCH` and received no termination calls.
 
-This is classified as `ENGINEERING_FIXTURE`: the Gate authorization is a test fixture, while the launched process tree and identity checks are actual Windows processes.
+This is classified as `ENGINEERING_FIXTURE`: the Gate authorization used for termination is a test fixture, while the launched process tree and identity checks are actual Windows processes.
 
 ## Performance boundary
 

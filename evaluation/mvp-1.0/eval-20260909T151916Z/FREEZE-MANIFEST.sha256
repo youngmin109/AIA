@@ -5,8 +5,8 @@
 # Scope: evaluation files excluding this freeze manifest
 # Format: SHA256  path
 
-f77fb9bb390d5bff5e94d12a143b409bfd7b6c2d30a04e9c9d31f64551f0b1d3  evaluation/mvp-1.0/eval-20260909T151916Z/ACCEPTANCE-MATRIX.json
-403422681380f3674724d56bdcc5cfe1d28ff993d958279563a4ca2a6d77942b  evaluation/mvp-1.0/eval-20260909T151916Z/ACCEPTANCE-REPORT.md
+41f21a37e31cb7e6a38488eb43d6b952a2ffea95771ccc40ae0a5066dbdd45ea  evaluation/mvp-1.0/eval-20260909T151916Z/ACCEPTANCE-MATRIX.json
+3f0e85a7e152ff9a84d79d700ba10f071e595819c7fa3c4f7a684f5b0e2db65e  evaluation/mvp-1.0/eval-20260909T151916Z/ACCEPTANCE-REPORT.md
 06cc272d919a94b7441f41e57362271ee52af163b0a7f0cdc737df492a95df82  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/pretool-probe/attempt-001-cli-argument-error/codex-error.txt
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/pretool-probe/attempt-001-cli-argument-error/codex-output.txt
 df4e26a04a444901b95afef44e4a96cfae34690fff2ad2c66389c70079cdff2b  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/pretool-probe/attempt-001-cli-argument-error/exit-code.txt
@@ -117,7 +117,19 @@ facd94d5e81e27344a510123d11ec3ca73f986fedb704071aaf094f3ef9c358f  evaluation/mvp
 5a606adb816dfa997aa746b7bf2e030fc675afa3039d0aabd101a8bbf91850d6  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-005-protected/control/workspaces/c06d125242bdea296b1f86aa64ab129d90b9dcc763f6eb8ffaf86d4b5890e8be/lease.json
 d0c0d855e017bff46527ef69d3040cf71ece7960d0f1a44a51507e33d7495201  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-005-protected/run.json
 6e097019a46fec75ad91b32a4281314671a0057494f5b5bab9ba4b1b563e974f  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-005-protected/workspace/README.txt
-4ed744239d813c0435e367424fe3c7d4cd590229dba94e912a861b5ee1d64dfa  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/run_protected_process.py
+e9960b7dbcbae72b4794c41da95695d7daff5add902b61d1eebf070d7691306f  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/active-policy.json
+5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/checkpoints/.checkpoint.lock
+b14cb98ac59bca4d360430b468171470e30b7ac6752bf64f9c996cc5d6d2b796  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/checkpoints/f8e0edcf921947d092e826cab8748732/manifest.json
+c19c0c5a07dc074f4e361914ddc9cc8400029a2c48584e1c366e150ef4cd6c74  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/checkpoints/f8e0edcf921947d092e826cab8748732/metadata.json
+2dcc8bb27dfe3870f3e558a5f97c9e5869b6adeeb27f568a0eb9a5d722968bee  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/checkpoints/f8e0edcf921947d092e826cab8748732/workspace/.env
+6e097019a46fec75ad91b32a4281314671a0057494f5b5bab9ba4b1b563e974f  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/checkpoints/f8e0edcf921947d092e826cab8748732/workspace/README.txt
+ecaac12adb9a959a8b7d275184372145bf1d163f83b733902a0c255c300bf174  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/evidence/raw-evidence.jsonl
+520909927c4846153f1b840afeac40d340eba7922be9b4dd0d937824a7509c4c  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/sessions/c0551acd-d04a-4338-8b95-c5ba2df1108c/hook-capability.bin
+5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/workspaces/ab93cf3f9f12ea0e3970000b4c1831c7955d93e1051ff39ffe409ed41ffd52b9/.lease.lock
+203e890113f0757c18e53b4d150b0196465a53c56b4f99bd23d6a6ce94d7e39a  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/control/workspaces/ab93cf3f9f12ea0e3970000b4c1831c7955d93e1051ff39ffe409ed41ffd52b9/lease.json
+0ac7984683a930f8bdfd46d232cd893392a5acd8a43bef9b7e97a6315d8b429b  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/run.json
+6e097019a46fec75ad91b32a4281314671a0057494f5b5bab9ba4b1b563e974f  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/attempt-006-protected/workspace/README.txt
+e615cd5d9c42f857e9f028b16daa3a7f3eb69b43c4d4b62c74d1e713fcc4aa75  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-destructive/run_protected_process.py
 eb05541c822734bc2d5ec07d2ef86314f0d4ab4bcc50583987fb087c3d85a085  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-termination/attempt-001/control/sessions/b7900724-ff63-4d5b-ac05-aad6c7aaeba9/active-policy.json
 5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-termination/attempt-001/control/sessions/b7900724-ff63-4d5b-ac05-aad6c7aaeba9/checkpoints/.checkpoint.lock
 9602326c903ce41ce8c90d3757090cb50415fdaeffe9efe44ee6c1e9873d7255  evaluation/mvp-1.0/eval-20260909T151916Z/actual-codex/process-termination/attempt-001/control/sessions/b7900724-ff63-4d5b-ac05-aad6c7aaeba9/checkpoints/33e20332329546ee916a3988e616c996/manifest.json
@@ -134,4 +146,4 @@ c8b1674363ffa0ae5e939ba1367e8d437f4e2c9b97d3737e92c025fb197fb1b7  evaluation/mvp
 88bb10477a80d610da90bab12b3d20da787464c092f09c566be7483e2562976b  evaluation/mvp-1.0/eval-20260909T151916Z/PERFORMANCE-BOUNDARY.md
 13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354  evaluation/mvp-1.0/eval-20260909T151916Z/regression/pytest-final-exit-code.txt
 c86bd6486c9f6dd5bfa0b2f54a9abb79a97d1ed0d2cfa47644182bb6c96278b2  evaluation/mvp-1.0/eval-20260909T151916Z/regression/pytest-final.txt
-25a61fd3383a415d66262c3386f30e6dda61eb21cd3228fcb18869ad1b6c98e2  evaluation/mvp-1.0/eval-20260909T151916Z/REVALIDATION-REPORT.md
+aeab00905de1e730f9c6e5f8fe6cc0e0725c8ef499c2cf93d1fcf75859466a04  evaluation/mvp-1.0/eval-20260909T151916Z/REVALIDATION-REPORT.md
