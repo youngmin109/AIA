@@ -12,6 +12,7 @@ from aia import (
     CodexAdapter,
     LaunchCleanupStatus,
     LaunchStatus,
+    ManagedRootConflictError,
     ProtectedLaunchRequest,
     ProtectedLauncher,
     SessionStatus,
@@ -247,6 +248,39 @@ def test_hook_failure_refuses_launch_without_spawn(readiness_inputs: dict) -> No
     assert result.failure_code == "LAUNCH_REFUSED"
     assert launcher.process_handle is None
     assert values["session"].status is SessionStatus.FAILED
+
+
+def test_managed_registry_failure_cleans_up_before_running(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+
+    class FailingRegistry:
+        def register(self, managed_process):
+            raise ManagedRootConflictError("test registry failure")
+
+    readiness = make_barrier(values).evaluate()
+    assert readiness.readiness_context is not None
+    launcher = ProtectedLauncher(
+        values["session"],
+        readiness.readiness_context,
+        values["context"],
+        values["checkpoint"],
+        values["filesystem"],
+        values["hook"],
+        adapter=PythonTestAdapter(),
+        lease_manager=values["lease_manager"],
+        managed_process_registry=FailingRegistry(),
+    )
+
+    result = launcher.launch(launch_request(values))
+
+    assert result.status is LaunchStatus.FAILED
+    assert result.failure_code == "MANAGED_ROOT_CONFLICT"
+    assert result.cleanup_status is LaunchCleanupStatus.SUCCEEDED
+    assert values["session"].status is SessionStatus.FAILED
+    assert launcher.process_handle is not None
+    assert launcher.process_handle.poll() is not None
 
 
 def test_codex_adapter_uses_verified_cli_contract_without_prompt_in_argv(

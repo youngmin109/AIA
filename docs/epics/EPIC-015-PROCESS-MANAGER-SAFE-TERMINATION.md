@@ -26,6 +26,10 @@ Registration happens before the Hook Bridge, Session `RUNNING`, and Prompt
 release. A later launch cannot overwrite a different root for the same
 Session or Launch.
 
+If registry registration fails, the Launcher returns a named launch failure,
+does not enter `RUNNING`, does not write the Prompt, and uses the existing
+startup cleanup path to terminate the spawned root safely.
+
 ## Gate, lease, and binding checks
 
 Before the first process lookup, the manager verifies:
@@ -98,6 +102,24 @@ test runner does not place the process tree in a Windows Job Object. On the
 current Windows runner it is skipped because the runner may terminate the
 protected root while terminating a child; the identity-safe tree behavior is
 still covered by the deterministic process graph tests.
+
+The standalone Windows runner is
+`scripts/epic015_process_manager_smoke.py`. Run it from an ordinary PowerShell
+session with:
+
+```powershell
+uv run python scripts/epic015_process_manager_smoke.py
+```
+
+It creates real Root→Child→Grandchild and unrelated Python processes,
+registers only the managed root, prints PID/create-time identities and the
+termination order, and exits successfully only for
+`TERMINATED / SUCCEEDED` with the unrelated process still
+`LIVE_MATCH`. The runner is separate from product code and does not add Job
+Object or process-group escape logic to `ProcessManager`. In the current
+Codex host it returned `PARTIAL / FAILED` because the host Job Object removed
+the Root while descendants were being terminated; this is reported as a
+failure rather than converted into a false success.
 
 No Policy Engine, Attribution, Checkpoint, Recovery, Rollback, Integrity,
 Hook, Watcher, GUI, API, or new dependency is introduced here.
