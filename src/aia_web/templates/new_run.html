@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}New Protected Run · AIA{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">PROTECTED EXECUTION</p>
+  <h1>Start a protected run</h1>
+  <p class="lede">Choose a workspace and policy before Codex starts. AIA keeps the active policy fixed for this run and records an auditable result bundle.</p>
+</section>
+
+<section class="panel form-panel">
+  <form id="new-run-form">
+    <div class="form-grid">
+      <label class="field field-wide">Workspace path
+        <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <span class="hint">The directory that the protected run may access.</span>
+        <span id="workspace-status" class="hint">Path validation runs before start.</span>
+      </label>
+      <label class="field">Agent
+        <input name="agent" value="Codex" readonly>
+      </label>
+      <label class="field">Model (optional)
+        <input name="model" placeholder="Configured default">
+      </label>
+      <label class="field">Policy profile
+        <select name="policy_profile" id="policy-profile">
+          {% for profile in profiles %}<option value="{{ profile.value }}">{{ profile.label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field" id="custom-policy-field" hidden>Custom policy JSON path
+        <input name="custom_policy_path" placeholder="C:\\policies\\policy.json">
+      </label>
+      <label class="field">Mode
+        <select name="mode"><option value="ENFORCE">ENFORCE</option><option value="AUDIT">AUDIT</option></select>
+      </label>
+      <label class="field field-wide">Task prompt
+        <textarea name="task" rows="6" required placeholder="Describe the bounded task for Codex"></textarea>
+        <span class="hint">The prompt is passed to the Codex adapter after readiness succeeds.</span>
+      </label>
+    </div>
+    <div class="notice warning"><strong>Local-only:</strong> this console binds to 127.0.0.1 by default. Use a disposable workspace and never place secrets in the task prompt.</div>
+    <div id="form-error" class="error" hidden></div>
+    <div class="form-actions"><button class="button primary" type="submit">Prepare protected run</button></div>
+  </form>
+</section>
+<script>
+const form = document.getElementById('new-run-form');
+const profile = document.getElementById('policy-profile');
+const customField = document.getElementById('custom-policy-field');
+const errorBox = document.getElementById('form-error');
+const workspaceInput = form.elements.workspace;
+const workspaceStatus = document.getElementById('workspace-status');
+profile.addEventListener('change', () => { customField.hidden = profile.value !== 'custom'; });
+workspaceInput.addEventListener('blur', async () => {
+  if (!workspaceInput.value.trim()) return;
+  workspaceStatus.textContent = 'Checking workspace…';
+  const response = await fetch(`/api/workspaces/validate?path=${encodeURIComponent(workspaceInput.value)}`);
+  const payload = await response.json();
+  workspaceStatus.textContent = response.ok ? `Valid directory: ${payload.canonical_path}` : (payload.error || 'Workspace is invalid');
+  workspaceStatus.className = response.ok ? 'hint success-text' : 'hint error-text';
+});
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  errorBox.hidden = true;
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.agent = data.agent.toLowerCase();
+  if (!data.model) delete data.model;
+  if (!data.custom_policy_path) delete data.custom_policy_path;
+  try {
+    const response = await fetch('/api/runs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Unable to create run');
+    window.location.href = payload.redirect_url;
+  } catch (error) {
+    errorBox.textContent = error.message;
+    errorBox.hidden = false;
+  }
+});
+</script>
+{% endblock %}

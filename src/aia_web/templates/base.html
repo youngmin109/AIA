@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AIA Local Security Console{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>Local Security Console</small></div>
+    <nav>
+      <a href="/">New Protected Run</a>
+      {% if session_id %}<a href="/runs/{{ session_id }}">Current Run</a>{% endif %}
+    </nav>
+  </header>
+  <main class="page-shell">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">Local-only console · Core security authority remains in AIA</footer>
+</body>
+</html>
