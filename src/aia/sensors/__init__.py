@@ -24,6 +24,18 @@ from .hook import (
     validate_hook_input,
     validate_hook_payload,
 )
+from .process import (
+    ProcessEvidenceStoreError,
+    ProcessMetadataStatus,
+    ProcessObservation,
+    ProcessRole,
+    ProcessRuntimeError,
+    ProcessRuntimeSensor,
+    ProcessRuntimeSensorContext,
+    RootProcessGoneError,
+    RootProcessReusedError,
+    RootProcessUnverifiableError,
+)
 
 __all__ = [
     "FilesystemSensor",
@@ -34,6 +46,16 @@ __all__ = [
     "HookPayloadTooLargeError",
     "HookSensor",
     "HookSensorContext",
+    "ProcessEvidenceStoreError",
+    "ProcessMetadataStatus",
+    "ProcessObservation",
+    "ProcessRole",
+    "ProcessRuntimeError",
+    "ProcessRuntimeSensor",
+    "ProcessRuntimeSensorContext",
+    "RootProcessGoneError",
+    "RootProcessReusedError",
+    "RootProcessUnverifiableError",
     "SensorAlreadyRunningError",
     "SensorError",
     "SensorHealth",
