@@ -231,6 +231,9 @@ class _FakeProcess:
     calls: list[str] | None = None
     alive: bool = True
     children_processes: list["_FakeProcess"] | None = None
+    parent_exits_on_termination: bool = False
+    gone_on_create_time_call: int | None = None
+    create_time_calls: int = 0
 
     def __post_init__(self):
         if self.calls is None:
@@ -239,6 +242,12 @@ class _FakeProcess:
             self.children_processes = []
 
     def create_time(self):
+        self.create_time_calls += 1
+        if (
+            self.gone_on_create_time_call is not None
+            and self.create_time_calls >= self.gone_on_create_time_call
+        ):
+            self.alive = False
         if not self.alive:
             raise psutil.NoSuchProcess(self.pid)
         return self.created
@@ -262,6 +271,8 @@ class _FakeProcess:
         self.calls.append(f"terminate:{self.pid}")
         if not self.fail_termination:
             self.alive = False
+            if self.parent_exits_on_termination and self.parent_process is not None:
+                self.parent_process.alive = False
 
     def kill(self):
         self.calls.append(f"kill:{self.pid}")
@@ -307,9 +318,84 @@ def test_children_first_tree_termination_excludes_unrelated_process(tmp_path: Pa
     assert result.outcome is ProcessTerminationOutcome.TERMINATED
     assert result.action is EnforcementAction.TERMINATED
     assert result.execution_result is EnforcementExecutionResult.SUCCEEDED
+    assert result.termination_attempt_count == 3
     assert calls[:3] == ["terminate:1002", "terminate:1001", "terminate:1000"]
     assert unrelated.alive
-    assert all(entry.final_verification is not ProcessIdentityStatus.LIVE_MATCH for entry in result.entries)
+    assert all(
+        entry.final_verification is not ProcessIdentityStatus.LIVE_MATCH
+        for entry in result.entries
+    )
+
+
+def test_root_exit_during_descendant_containment_is_success(tmp_path: Path):
+    root, child, grandchild, unrelated, processes, calls = _fake_tree()
+    child.parent_exits_on_termination = True
+    identity = ProcessIdentity(root.pid, root.created)
+    session, launch, lease, gate, registry, _ = _environment(
+        tmp_path,
+        identity,
+        process_factory=processes.__getitem__,
+    )
+    manager = ProcessManager(
+        registry,
+        _LeaseManager(lease),
+        process_factory=processes.__getitem__,
+        terminate_wait_seconds=0,
+        force_kill_wait_seconds=0,
+        sleeper=lambda _: None,
+    )
+
+    result = manager.execute(
+        gate,
+        session=session,
+        launch_context=launch,
+        workspace_lease=lease,
+    )
+
+    assert result.outcome is ProcessTerminationOutcome.TERMINATED
+    assert result.action is EnforcementAction.TERMINATED
+    assert result.execution_result is EnforcementExecutionResult.SUCCEEDED
+    assert result.termination_attempt_count == 2
+    assert calls == ["terminate:1002", "terminate:1001"]
+    root_entry = next(entry for entry in result.entries if entry.process_role == "ROOT")
+    assert root_entry.outcome is ProcessTerminationOutcome.EXITED_DURING_CONTAINMENT
+    assert root_entry.final_verification is ProcessIdentityStatus.PROCESS_GONE
+    assert unrelated.alive
+
+
+def test_root_exit_without_intervention_is_not_attempted(tmp_path: Path):
+    root, child, grandchild, unrelated, processes, calls = _fake_tree()
+    root.gone_on_create_time_call = 2
+    identity = ProcessIdentity(root.pid, root.created)
+    session, launch, lease, gate, registry, _ = _environment(
+        tmp_path,
+        identity,
+        process_factory=processes.__getitem__,
+    )
+    manager = ProcessManager(
+        registry,
+        _LeaseManager(lease),
+        process_factory=processes.__getitem__,
+        terminate_wait_seconds=0,
+        force_kill_wait_seconds=0,
+        sleeper=lambda _: None,
+    )
+
+    result = manager.execute(
+        gate,
+        session=session,
+        launch_context=launch,
+        workspace_lease=lease,
+    )
+
+    assert result.outcome is ProcessTerminationOutcome.ALREADY_EXITED
+    assert result.action is EnforcementAction.NONE
+    assert result.execution_result is EnforcementExecutionResult.NOT_ATTEMPTED
+    assert result.termination_attempt_count == 0
+    assert calls == []
+    assert child.alive
+    assert grandchild.alive
+    assert unrelated.alive
 
 
 def test_partial_tree_failure_does_not_claim_termination(tmp_path: Path):

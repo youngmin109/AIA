@@ -71,14 +71,22 @@ Each process result records its identity, role, depth, initial and final
 verification, graceful and force attempts/results, outcome, and reason. The
 official Process Manager result includes:
 
-- `TERMINATED` + `SUCCEEDED` only when the Gate-authorized root termination
-  API was called and all known managed identities are no longer live without a
-  fatal verification failure;
+- `TERMINATED` + `SUCCEEDED` when the Gate-authorized containment execution made
+  at least one termination intervention on a verified managed identity, every
+  known managed identity is finally no longer `LIVE_MATCH`, no unrelated or
+  reused identity was touched, and there is no fatal verification failure. The
+  root may be recorded as `EXITED_DURING_CONTAINMENT` when it disappears while
+  verified descendants are being terminated; a direct root termination call is
+  not required;
 - `ALREADY_EXITED` + `NONE` + `NOT_ATTEMPTED` when the root was gone before
-  the termination API;
+  any termination intervention;
 - `PARTIAL` or `FAILED` + `NONE` + `FAILED` for an incomplete or failed tree;
 - `REFUSED` + `NONE` + `NOT_ATTEMPTED` for invalid Gate, binding, Session, or
   Lease context.
+
+`termination_attempt_count` records the number of graceful and force
+termination API interventions. Natural exit without an intervention never
+produces overall `TERMINATED`.
 
 Repeated execution for a completed `(AIA Session, Launch)` returns the stored
 result without another PID lookup or termination call. Checkpoint, Recovery,
@@ -95,8 +103,10 @@ result.
 ## Verification
 
 The deterministic tests cover registry conflict protection, Gate refusal,
-children-first ordering, unrelated-process exclusion, partial failure, PID
-reuse, root-already-gone handling, and replay idempotency. A real
+children-first ordering, direct termination success, root exit during
+descendant containment, no-intervention natural exit, unrelated-process
+exclusion, partial failure, PID reuse, root-already-gone handling, and replay
+idempotency. A real
 Root→Child→Grandchild integration test is included for environments where the
 test runner does not place the process tree in a Windows Job Object. On the
 current Windows runner it is skipped because the runner may terminate the
@@ -115,11 +125,11 @@ It creates real Root→Child→Grandchild and unrelated Python processes,
 registers only the managed root, prints PID/create-time identities and the
 termination order, and exits successfully only for
 `TERMINATED / SUCCEEDED` with the unrelated process still
-`LIVE_MATCH`. The runner is separate from product code and does not add Job
-Object or process-group escape logic to `ProcessManager`. In the current
-Codex host it returned `PARTIAL / FAILED` because the host Job Object removed
-the Root while descendants were being terminated; this is reported as a
-failure rather than converted into a false success.
+`LIVE_MATCH`. A Root that exits during verified descendant containment is
+accepted when the managed identities are all gone and
+`termination_attempt_count` is positive. The runner is separate from product
+code and does not add Job Object or process-group escape logic to
+`ProcessManager`.
 
 No Policy Engine, Attribution, Checkpoint, Recovery, Rollback, Integrity,
 Hook, Watcher, GUI, API, or new dependency is introduced here.

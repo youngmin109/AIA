@@ -54,6 +54,7 @@ class ProcessTerminationOutcome(StrEnum):
 
     TERMINATED = "TERMINATED"
     ALREADY_EXITED = "ALREADY_EXITED"
+    EXITED_DURING_CONTAINMENT = "EXITED_DURING_CONTAINMENT"
     IDENTITY_REUSED = "IDENTITY_REUSED"
     REFUSED = "REFUSED"
     FAILED = "FAILED"
@@ -214,6 +215,7 @@ class ProcessTerminationResult:
     route: EnforcementRoute
     action: EnforcementAction
     execution_result: EnforcementExecutionResult
+    termination_attempt_count: int
     outcome: ProcessTerminationOutcome
     process_results: tuple[ProcessTerminationEntry, ...]
     termination_requested_at: datetime
@@ -233,6 +235,14 @@ class ProcessTerminationResult:
             EnforcementExecutionResult(self.execution_result),
         )
         object.__setattr__(self, "outcome", ProcessTerminationOutcome(self.outcome))
+        if (
+            not isinstance(self.termination_attempt_count, int)
+            or isinstance(self.termination_attempt_count, bool)
+            or self.termination_attempt_count < 0
+        ):
+            raise ProcessManagerError(
+                "termination_attempt_count must be a non-negative integer"
+            )
         object.__setattr__(self, "process_results", tuple(self.process_results))
         for field_name in (
             "termination_requested_at",
@@ -491,8 +501,57 @@ class ProcessManager:
             status, root_process = self._inspect(root_identity)
             root_entry.final = status
             if status is not ProcessIdentityStatus.LIVE_MATCH or root_process is None:
+                termination_attempt_count = self._termination_attempt_count(entries)
+                if termination_attempt_count > 0 and status in {
+                    ProcessIdentityStatus.PROCESS_GONE,
+                    ProcessIdentityStatus.PID_REUSED,
+                }:
+                    root_entry.outcome = (
+                        ProcessTerminationOutcome.EXITED_DURING_CONTAINMENT
+                        if status is ProcessIdentityStatus.PROCESS_GONE
+                        else ProcessTerminationOutcome.IDENTITY_REUSED
+                    )
+                    root_entry.reason = (
+                        "ROOT_EXITED_DURING_CONTAINMENT"
+                        if status is ProcessIdentityStatus.PROCESS_GONE
+                        else "ROOT_PID_REUSED_DURING_CONTAINMENT"
+                    )
+                    break
+                if status is ProcessIdentityStatus.PROCESS_GONE:
+                    root_entry.outcome = ProcessTerminationOutcome.ALREADY_EXITED
+                    root_entry.reason = "ROOT_GONE_BEFORE_TERMINATION_API"
+                    return self._finish(
+                        gate_result,
+                        session_id,
+                        launch_id,
+                        ProcessTerminationOutcome.ALREADY_EXITED,
+                        entries,
+                        requested_at,
+                        None,
+                        self.clock(),
+                        reason="ROOT_GONE_BEFORE_TERMINATION_API",
+                    )
+                if status is ProcessIdentityStatus.PID_REUSED:
+                    root_entry.outcome = ProcessTerminationOutcome.IDENTITY_REUSED
+                    root_entry.reason = "ROOT_PID_REUSED_BEFORE_TERMINATION_API"
+                    return self._finish(
+                        gate_result,
+                        session_id,
+                        launch_id,
+                        ProcessTerminationOutcome.IDENTITY_REUSED,
+                        entries,
+                        requested_at,
+                        None,
+                        self.clock(),
+                        reason="ROOT_PID_REUSED_BEFORE_TERMINATION_API",
+                    )
                 fatal_verification_failure = True
-                root_entry.reason = "ROOT_NOT_LIVE_BEFORE_TREE_SNAPSHOT"
+                root_entry.outcome = (
+                    ProcessTerminationOutcome.IDENTITY_REUSED
+                    if status is ProcessIdentityStatus.PID_REUSED
+                    else ProcessTerminationOutcome.REFUSED
+                )
+                root_entry.reason = f"ROOT_{status.value}"
                 break
             discovered_new, discovery_failure = self._discover_descendants(
                 root_process,
@@ -513,6 +572,50 @@ class ProcessManager:
             root_status, root_process = self._inspect(root_identity)
             root_entry.final = root_status
             if root_status is not ProcessIdentityStatus.LIVE_MATCH or root_process is None:
+                termination_attempt_count = self._termination_attempt_count(entries)
+                if termination_attempt_count > 0 and root_status in {
+                    ProcessIdentityStatus.PROCESS_GONE,
+                    ProcessIdentityStatus.PID_REUSED,
+                }:
+                    root_entry.outcome = (
+                        ProcessTerminationOutcome.EXITED_DURING_CONTAINMENT
+                        if root_status is ProcessIdentityStatus.PROCESS_GONE
+                        else ProcessTerminationOutcome.IDENTITY_REUSED
+                    )
+                    root_entry.reason = (
+                        "ROOT_EXITED_DURING_CONTAINMENT"
+                        if root_status is ProcessIdentityStatus.PROCESS_GONE
+                        else "ROOT_PID_REUSED_DURING_CONTAINMENT"
+                    )
+                    break
+                if root_status is ProcessIdentityStatus.PROCESS_GONE:
+                    root_entry.outcome = ProcessTerminationOutcome.ALREADY_EXITED
+                    root_entry.reason = "ROOT_GONE_BEFORE_TERMINATION_API"
+                    return self._finish(
+                        gate_result,
+                        session_id,
+                        launch_id,
+                        ProcessTerminationOutcome.ALREADY_EXITED,
+                        entries,
+                        requested_at,
+                        None,
+                        self.clock(),
+                        reason="ROOT_GONE_BEFORE_TERMINATION_API",
+                    )
+                if root_status is ProcessIdentityStatus.PID_REUSED:
+                    root_entry.outcome = ProcessTerminationOutcome.IDENTITY_REUSED
+                    root_entry.reason = "ROOT_PID_REUSED_BEFORE_TERMINATION_API"
+                    return self._finish(
+                        gate_result,
+                        session_id,
+                        launch_id,
+                        ProcessTerminationOutcome.IDENTITY_REUSED,
+                        entries,
+                        requested_at,
+                        None,
+                        self.clock(),
+                        reason="ROOT_PID_REUSED_BEFORE_TERMINATION_API",
+                    )
                 fatal_verification_failure = True
                 root_entry.reason = "ROOT_NOT_LIVE_AFTER_DESCENDANT_TERMINATION"
                 break
@@ -530,29 +633,68 @@ class ProcessManager:
             root_entry.final = root_status
             if root_status is ProcessIdentityStatus.LIVE_MATCH and root_process is not None:
                 self._terminate_entry(root_entry)
+            elif root_status is ProcessIdentityStatus.PROCESS_GONE:
+                if self._termination_attempt_count(entries) > 0:
+                    root_entry.outcome = ProcessTerminationOutcome.EXITED_DURING_CONTAINMENT
+                    root_entry.reason = "ROOT_EXITED_DURING_CONTAINMENT"
+                else:
+                    root_entry.outcome = ProcessTerminationOutcome.ALREADY_EXITED
+                    root_entry.reason = "ROOT_GONE_BEFORE_TERMINATION_API"
+                    return self._finish(
+                        gate_result,
+                        session_id,
+                        launch_id,
+                        ProcessTerminationOutcome.ALREADY_EXITED,
+                        entries,
+                        requested_at,
+                        None,
+                        self.clock(),
+                        reason="ROOT_GONE_BEFORE_TERMINATION_API",
+                    )
+            elif root_status is ProcessIdentityStatus.PID_REUSED:
+                if self._termination_attempt_count(entries) > 0:
+                    root_entry.outcome = ProcessTerminationOutcome.IDENTITY_REUSED
+                    root_entry.reason = "ROOT_PID_REUSED_DURING_CONTAINMENT"
+                else:
+                    root_entry.outcome = ProcessTerminationOutcome.IDENTITY_REUSED
+                    root_entry.reason = "ROOT_PID_REUSED_BEFORE_TERMINATION_API"
+                    return self._finish(
+                        gate_result,
+                        session_id,
+                        launch_id,
+                        ProcessTerminationOutcome.IDENTITY_REUSED,
+                        entries,
+                        requested_at,
+                        None,
+                        self.clock(),
+                        reason="ROOT_PID_REUSED_BEFORE_TERMINATION_API",
+                    )
             else:
                 root_entry.reason = "ROOT_NOT_LIVE_BEFORE_TERMINATION_API"
                 fatal_verification_failure = True
 
         completed_at = self.clock()
         for entry in entries.values():
-            if entry.terminate_attempted or entry.force_kill_attempted:
-                final_status, _ = self._inspect(entry.identity)
-                entry.final = final_status
-                if final_status is ProcessIdentityStatus.LIVE_MATCH:
-                    if entry.outcome is ProcessTerminationOutcome.FAILED:
-                        entry.reason = entry.reason or "PROCESS_REMAINS_LIVE"
-                elif (
+            final_status, _ = self._inspect(entry.identity)
+            entry.final = final_status
+            if final_status is ProcessIdentityStatus.LIVE_MATCH:
+                if entry.outcome is ProcessTerminationOutcome.FAILED:
+                    entry.reason = entry.reason or "PROCESS_REMAINS_LIVE"
+            elif final_status is ProcessIdentityStatus.PROCESS_GONE:
+                if (
                     entry.outcome is ProcessTerminationOutcome.FAILED
-                    and final_status is ProcessIdentityStatus.PROCESS_GONE
+                    and (entry.terminate_attempted or entry.force_kill_attempted)
                 ):
                     entry.outcome = ProcessTerminationOutcome.TERMINATED
+            elif final_status is ProcessIdentityStatus.PID_REUSED:
+                entry.outcome = ProcessTerminationOutcome.IDENTITY_REUSED
+                entry.reason = entry.reason or "PID_REUSED_DURING_FINAL_VERIFICATION"
 
+        termination_attempt_count = self._termination_attempt_count(entries)
         success = (
             not fatal_verification_failure
-            and root_entry.terminate_attempted
+            and termination_attempt_count > 0
             and root_entry.final is not ProcessIdentityStatus.LIVE_MATCH
-            and root_entry.final is not ProcessIdentityStatus.PID_REUSED
             and all(
                 entry.final is not ProcessIdentityStatus.LIVE_MATCH
                 for entry in entries.values()
@@ -562,6 +704,8 @@ class ProcessManager:
                 in {
                     ProcessTerminationOutcome.TERMINATED,
                     ProcessTerminationOutcome.ALREADY_EXITED,
+                    ProcessTerminationOutcome.EXITED_DURING_CONTAINMENT,
+                    ProcessTerminationOutcome.IDENTITY_REUSED,
                 }
                 for entry in entries.values()
             )
@@ -572,10 +716,7 @@ class ProcessManager:
             execution = EnforcementExecutionResult.SUCCEEDED
             reason = None
         else:
-            any_progress = any(
-                entry.terminate_attempted or entry.force_kill_attempted
-                for entry in entries.values()
-            )
+            any_progress = termination_attempt_count > 0
             outcome = (
                 ProcessTerminationOutcome.PARTIAL
                 if any_progress and any(
@@ -866,6 +1007,17 @@ class ProcessManager:
                 return status
             self.sleeper(min(0.02, max(0.0, deadline - time.monotonic())))
 
+    @staticmethod
+    def _termination_attempt_count(
+        entries: dict[tuple[int, float], _WorkEntry],
+    ) -> int:
+        """Count real termination API interventions on verified identities."""
+
+        return sum(
+            int(entry.terminate_attempted) + int(entry.force_kill_attempted)
+            for entry in entries.values()
+        )
+
     def _refused_result(
         self,
         reason: str,
@@ -882,6 +1034,7 @@ class ProcessManager:
             route=EnforcementRoute.NONE,
             action=EnforcementAction.NONE,
             execution_result=EnforcementExecutionResult.NOT_ATTEMPTED,
+            termination_attempt_count=0,
             outcome=ProcessTerminationOutcome.REFUSED,
             process_results=(),
             termination_requested_at=requested_at,
@@ -943,6 +1096,7 @@ class ProcessManager:
             ),
             action=action,
             execution_result=execution_result,
+            termination_attempt_count=self._termination_attempt_count(entries),
             outcome=outcome,
             process_results=process_results,
             termination_requested_at=requested_at,

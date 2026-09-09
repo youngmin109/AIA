@@ -291,6 +291,7 @@ def main() -> int:
                             }
                             for entry in result.entries
                         ],
+                        "termination_attempt_count": result.termination_attempt_count,
                         "termination_api_order": managed_calls,
                         "unrelated_termination_calls": unrelated_calls,
                         "unrelated_status": unrelated_status.value,
