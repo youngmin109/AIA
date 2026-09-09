@@ -23,6 +23,11 @@ from .process_identity import (
     RootProcessRegistration,
     inspect_process_identity,
 )
+from .process_manager import (
+    ManagedProcess,
+    ManagedProcessRegistry,
+    ManagedRootConflictError,
+)
 from .protection import ProtectionPreparationContext, WorkspaceLeaseManager
 from .readiness import (
     ProtectionReadinessBarrier,
@@ -263,6 +268,7 @@ class ProtectedLauncher:
         adapter: AgentAdapter | None = None,
         lease_manager: WorkspaceLeaseManager | None = None,
         hook_bridge: HookEnforcementBridge | None = None,
+        managed_process_registry: ManagedProcessRegistry | None = None,
         process_factory: Callable[[int], Any] = psutil.Process,
         process_sensor_factory: Callable[..., ProcessRuntimeSensor] = ProcessRuntimeSensor,
         popen_factory: Callable[..., Any] = subprocess.Popen,
@@ -276,6 +282,9 @@ class ProtectedLauncher:
         self.adapter = adapter
         self.lease_manager = lease_manager
         self.hook_bridge = hook_bridge or HookEnforcementBridge()
+        self.managed_process_registry = (
+            managed_process_registry or ManagedProcessRegistry()
+        )
         self.process_factory = process_factory
         self.process_sensor_factory = process_sensor_factory
         self.popen_factory = popen_factory
@@ -357,6 +366,20 @@ class ProtectedLauncher:
             if sensor.check_health().status is not SensorStatus.HEALTHY:
                 raise _LaunchStepError("PROCESS_SENSOR_UNHEALTHY")
             self._require_root_evidence(sensor, identity)
+            try:
+                self.managed_process_registry.register(
+                    ManagedProcess(
+                        aia_session_id=self.session.session_id,
+                        launch_id=launch_id,
+                        workspace=self.session.workspace,
+                        root_process_identity=identity,
+                        launch_provenance="AIA_SPAWNED_ROOT",
+                        registered_at=identity_registered_at,
+                        executable=spec.executable,
+                    )
+                )
+            except ManagedRootConflictError as error:
+                raise _LaunchStepError("MANAGED_ROOT_CONFLICT") from error
 
             hook_enforcement_ready_at = self.hook_bridge.prepare(
                 aia_session_id=self.session.session_id,
