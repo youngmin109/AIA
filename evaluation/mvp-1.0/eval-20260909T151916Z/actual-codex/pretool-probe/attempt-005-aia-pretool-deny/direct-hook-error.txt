@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "C:\workspace\01_projects\aia-mvp\evaluation\mvp-1.0\eval-20260909T151916Z\actual-codex\pretool-probe\attempt-005-aia-pretool-deny\workspace\hook.py", line 8, in <module>
+    from aia import EnforcementGate, PreToolEnforcementAdapter
+  File "C:\workspace\01_projects\aia-mvp\src\aia\__init__.py", line 3, in <module>
+    from .action import (
+    ...<6 lines>...
+    )
+  File "C:\workspace\01_projects\aia-mvp\src\aia\action.py", line 11, in <module>
+    from .process_identity import ProcessIdentity
+  File "C:\workspace\01_projects\aia-mvp\src\aia\process_identity.py", line 12, in <module>
+    import psutil
+ModuleNotFoundError: No module named 'psutil'

@@ -1,0 +1,33 @@
+{
+  "evaluation_id": "eval-20260909T151916Z",
+  "evaluation_kind": "EPIC-018-REVALIDATION",
+  "started_at_utc": "2026-09-09T15:19:16Z",
+  "completed_at_utc": "2026-09-09T15:38:02Z",
+  "candidate_commit": "c5bd350fa92c24dd6ce084ceb6621b1bdfbd23b5",
+  "product_core_unchanged_since_candidate": true,
+  "prior_evaluation_id": "eval-20260909T144119Z",
+  "prior_evaluation_commit": "7cf9941b578560bf76d7d1a6cb4ad3aa24f0ac71",
+  "prior_evaluation_tag": "aia-mvp-v1.0.0-rc1",
+  "prior_evaluation_manifest_sha256": "afa2369b69636dac33b219ba529ef70a6932f58641bb4ab0f6011d031f5c6060",
+  "prior_evaluation_immutability_check": "PASS",
+  "environment": {
+    "windows": "Windows 11 Pro 10.0.26200",
+    "python": "3.13.5",
+    "uv": "0.12.5",
+    "pytest": "9.1.1",
+    "codex_cli": "0.149.1",
+    "model": "gpt-5.5"
+  },
+  "pytest_final": "360 passed, 3 skipped in 39.94s",
+  "overall_verdict": "MVP_ACCEPTED_WITH_LIMITATIONS",
+  "limitations": [
+    "AC-02 structured READ ingress remains unavailable through the verified Actual Codex route; native command PreTool deny passed.",
+    "Performance benchmark values remain fixture or evaluator measurements where the source path did not measure end-to-end Agent latency."
+  ],
+  "revalidation_results": {
+    "actual_codex_pretool_deny": "PASS",
+    "actual_codex_destructive_process": "PASS",
+    "actual_codex_process_manager_compatibility": "PASS",
+    "actual_os_termination_latency": "NOT_MEASURED"
+  }
+}

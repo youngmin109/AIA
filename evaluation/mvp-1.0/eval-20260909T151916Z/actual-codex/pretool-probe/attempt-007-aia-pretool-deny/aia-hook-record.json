@@ -1,0 +1,19 @@
+{
+  "native_tool_name": "Bash",
+  "native_tool_use_id": "call_luqR6sy4JEF8fJv1wubjHGhw",
+  "product_policy_decision": "VIOLATION",
+  "product_attribution_grade": "EXACT",
+  "product_gate_decision": "CONTAIN",
+  "product_route": "PRETOOL_BLOCK",
+  "product_action_before_confirmation": "NONE",
+  "product_execution_result_before_confirmation": "NOT_ATTEMPTED",
+  "response": {
+    "decision": "block",
+    "reason": "AIA policy violation; rule_ids=rule-1; asset_type=CRITICAL_CODE; operation=DELETE",
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "AIA policy violation; rule_ids=rule-1; asset_type=CRITICAL_CODE; operation=DELETE"
+    }
+  }
+}

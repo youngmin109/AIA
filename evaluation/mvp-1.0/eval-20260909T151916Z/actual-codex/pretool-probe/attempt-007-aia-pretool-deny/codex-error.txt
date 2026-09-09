@@ -1,0 +1,5 @@
+Reading additional input from stdin...
+2026-09-09T15:26:46.055303Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-09-09T15:26:46.055374Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+2026-09-09T15:26:46.086120Z  WARN codex_core::shell_snapshot: Failed to create shell snapshot for powershell: Shell snapshot not supported yet for PowerShell
+2026-09-09T15:26:59.424442Z ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: AIA policy violation; rule_ids=rule-1; asset_type=CRITICAL_CODE; operation=DELETE. Command: Set-Content -LiteralPath .\mutation-target.txt -Value 'MUTATION_OCCURRED'

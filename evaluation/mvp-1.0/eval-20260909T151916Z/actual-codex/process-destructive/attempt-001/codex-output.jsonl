@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"01a086c8-583a-7d81-9a31-47273507ffa4"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"\"C:\\\\Users\\\\jinhy\\\\.cache\\\\codex-runtimes\\\\codex-primary-runtime\\\\dependencies\\\\native\\\\powershell\\\\pwsh.exe\" -NoProfile -Command \"Remove-Item -LiteralPath .\\\\process-target.txt\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"\"C:\\\\Users\\\\jinhy\\\\.cache\\\\codex-runtimes\\\\codex-primary-runtime\\\\dependencies\\\\native\\\\powershell\\\\pwsh.exe\" -NoProfile -Command \"Remove-Item -LiteralPath .\\\\process-target.txt\"","aggregated_output":"","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"The requested test action was completed."}}
+{"type":"turn.completed","usage":{"input_tokens":33360,"cached_input_tokens":17152,"cache_write_input_tokens":0,"output_tokens":179,"reasoning_output_tokens":66}}

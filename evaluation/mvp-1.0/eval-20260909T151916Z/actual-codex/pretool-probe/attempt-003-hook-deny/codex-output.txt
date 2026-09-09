@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"01a086c2-0bd4-7681-96c2-db39b8d571ba"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"I’ll run the requested PowerShell write in the workspace and then check the result directly."}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"It did not succeed. The command was blocked by a `PreToolUse` hook: `AIA_TEST_FORBIDDEN_TOOL`.\n\n`mutation-target.txt` was not written by that command."}}
+{"type":"turn.completed","usage":{"input_tokens":33400,"cached_input_tokens":26368,"cache_write_input_tokens":0,"output_tokens":222,"reasoning_output_tokens":19}}

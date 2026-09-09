@@ -1,0 +1,59 @@
+{
+  "action": "TERMINATED",
+  "aia_session_id": "b7900724-ff63-4d5b-ac05-aad6c7aaeba9",
+  "classification": "ENGINEERING_FIXTURE",
+  "codex_version": "0.149.1",
+  "entries": [
+    {
+      "final": "PROCESS_GONE",
+      "initial": "LIVE_MATCH",
+      "outcome": "TERMINATED",
+      "pid": 6656,
+      "role": "ROOT"
+    },
+    {
+      "final": "PROCESS_GONE",
+      "initial": "LIVE_MATCH",
+      "outcome": "TERMINATED",
+      "pid": 24612,
+      "role": "DESCENDANT"
+    }
+  ],
+  "execution_result": "SUCCEEDED",
+  "failure_classification": null,
+  "launch_failure_code": null,
+  "launch_id": "a50d6efc-3bdd-4a00-a124-104cf5dccf7c",
+  "launch_status": "RUNNING",
+  "managed_registry_registered": true,
+  "model": "gpt-5.5",
+  "outcome": "TERMINATED",
+  "process_sensor_status": "HEALTHY",
+  "readiness": "READY",
+  "root_create_time": 1788968046.336058,
+  "root_pid": 6656,
+  "scenario_realized": true,
+  "termination_attempt_count": 3,
+  "termination_calls": [
+    {
+      "method": "terminate",
+      "pid": 24612
+    },
+    {
+      "method": "kill",
+      "pid": 24612
+    },
+    {
+      "method": "terminate",
+      "pid": 24612
+    },
+    {
+      "method": "terminate",
+      "pid": 6656
+    }
+  ],
+  "unrelated_create_time": 1788968045.8684506,
+  "unrelated_pid": 25956,
+  "unrelated_status": "LIVE_MATCH",
+  "unrelated_termination_calls": [],
+  "workspace": "C:\\workspace\\01_projects\\aia-mvp\\evaluation\\mvp-1.0\\eval-20260909T151916Z\\actual-codex\\process-termination\\attempt-001\\workspace"
+}

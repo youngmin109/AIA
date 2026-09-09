@@ -1,0 +1,5 @@
+Reading additional input from stdin...
+2026-09-09T15:20:59.249302Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-09-09T15:20:59.249356Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+2026-09-09T15:20:59.260130Z  WARN codex_core::shell_snapshot: Failed to create shell snapshot for powershell: Shell snapshot not supported yet for PowerShell
+2026-09-09T15:21:09.193090Z ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: AIA_TEST_FORBIDDEN_TOOL. Command: Set-Content -LiteralPath .\mutation-target.txt -Value 'MUTATION_OCCURRED'; if ((Get-Content -LiteralPath .\mutation-target.txt -Raw) -eq "MUTATION_OCCURRED`r`n") { 'SUCCESS' } else { 'FAILED' }

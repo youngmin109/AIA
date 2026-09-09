@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "C:\workspace\01_projects\aia-mvp\evaluation\mvp-1.0\eval-20260909T151916Z\actual-codex\pretool-probe\attempt-004-aia-pretool-deny\workspace\hook.py", line 8, in <module>
+    from aia import EnforcementGate, PreToolEnforcementAdapter
+ModuleNotFoundError: No module named 'aia'

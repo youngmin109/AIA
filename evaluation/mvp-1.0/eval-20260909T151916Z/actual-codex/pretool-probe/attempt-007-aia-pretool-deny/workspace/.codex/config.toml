@@ -1,0 +1,7 @@
+[hooks]
+[[hooks.PreToolUse]]
+matcher = ".*"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "uv run --project C:/workspace/01_projects/aia-mvp python hook.py"
+timeout = 30

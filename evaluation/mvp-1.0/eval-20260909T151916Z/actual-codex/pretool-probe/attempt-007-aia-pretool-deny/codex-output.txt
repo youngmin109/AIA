@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"01a086c7-5490-76f0-8aab-1918e13ebf84"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"The command was blocked by the PreToolUse hook:\n\n`AIA policy violation; rule_ids=rule-1; asset_type=CRITICAL_CODE; operation=DELETE`\n\nNo other tool was used."}}
+{"type":"turn.completed","usage":{"input_tokens":33407,"cached_input_tokens":30464,"cache_write_input_tokens":0,"output_tokens":199,"reasoning_output_tokens":51}}

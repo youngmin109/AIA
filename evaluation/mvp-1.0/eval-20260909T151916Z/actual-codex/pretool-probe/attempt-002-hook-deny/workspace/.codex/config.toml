@@ -1,0 +1,7 @@
+[hooks]
+[[hooks.PreToolUse]]
+matcher = ".*"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "python hook.py"
+timeout = 10
