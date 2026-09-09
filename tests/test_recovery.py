@@ -28,6 +28,7 @@ from aia import (
     prepare_protection,
     resolve_profile,
 )
+from aia.checkpoint import validate_checkpoint
 from aia.integrity import IntegrityVerifier
 from aia.process_identity import ProcessIdentity
 from aia.evidence import ObservationStage
@@ -346,6 +347,85 @@ def test_file_directory_type_conflicts_are_restored(tmp_path: Path):
     assert result.integrity_status is IntegrityStatus.VERIFIED
     assert (workspace / "protected" / "deleted.txt").is_file()
     assert (workspace / "empty-dir").is_dir()
+
+
+def test_checkpoint_source_content_is_revalidated_before_file_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    workspace, session, lease, lease_manager, checkpoint, gate, termination = _fixture(tmp_path)
+    target = workspace / "protected" / "modified.txt"
+    target.write_text("changed", encoding="utf-8")
+    source = checkpoint.checkpoint_path / "workspace" / "protected" / "modified.txt"
+    original_read_source = recovery_module._read_source
+    source_reads = 0
+
+    assert validate_checkpoint(checkpoint).is_valid
+    assert any(
+        operation.relative_path == "protected/modified.txt"
+        for operation in _coordinator(lease_manager).build_plan(checkpoint, workspace=workspace).operations
+    )
+
+    def tamper_before_copy(checkpoint_arg, entry):
+        nonlocal source_reads
+        if entry.relative_path == "protected/modified.txt":
+            source_reads += 1
+            if source_reads == 2:
+                source.write_text("tampered", encoding="utf-8")
+        return original_read_source(checkpoint_arg, entry)
+
+    monkeypatch.setattr(recovery_module, "_read_source", tamper_before_copy)
+    result = _coordinator(lease_manager).recover(
+        gate,
+        termination,
+        session=session,
+        checkpoint=checkpoint,
+        workspace_lease=lease,
+    )
+
+    assert source_reads == 2
+    assert result.recovery_status is RecoveryStatus.FAILED
+    assert result.integrity_status is IntegrityStatus.FAILED
+    assert result.recovery.failed_paths == ("protected/modified.txt",)
+    assert target.read_text(encoding="utf-8") == "changed"
+
+
+def test_checkpoint_source_type_is_revalidated_before_file_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    workspace, session, lease, lease_manager, checkpoint, gate, termination = _fixture(tmp_path)
+    target = workspace / "protected" / "modified.txt"
+    target.write_text("changed", encoding="utf-8")
+    source = checkpoint.checkpoint_path / "workspace" / "protected" / "modified.txt"
+    original_read_source = recovery_module._read_source
+    source_reads = 0
+
+    assert validate_checkpoint(checkpoint).is_valid
+
+    def replace_with_directory_before_copy(checkpoint_arg, entry):
+        nonlocal source_reads
+        if entry.relative_path == "protected/modified.txt":
+            source_reads += 1
+            if source_reads == 2:
+                source.unlink()
+                source.mkdir()
+        return original_read_source(checkpoint_arg, entry)
+
+    monkeypatch.setattr(recovery_module, "_read_source", replace_with_directory_before_copy)
+    result = _coordinator(lease_manager).recover(
+        gate,
+        termination,
+        session=session,
+        checkpoint=checkpoint,
+        workspace_lease=lease,
+    )
+
+    assert source_reads == 2
+    assert result.recovery_status is RecoveryStatus.FAILED
+    assert result.integrity_status is IntegrityStatus.FAILED
+    assert result.recovery.failed_paths == ("protected/modified.txt",)
+    assert target.read_text(encoding="utf-8") == "changed"
 
 
 def test_current_symlink_is_refused_without_following_external_target(tmp_path: Path):

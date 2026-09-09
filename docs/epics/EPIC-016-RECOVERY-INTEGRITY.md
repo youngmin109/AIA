@@ -70,9 +70,14 @@ size, SHA-256, snapshot layout을 확인한다. 검증 실패 시 Workspace muta
 0이고 `RECOVERY_UNAVAILABLE + NOT_CHECKED`다.
 
 validation에 성공하면 해당 실행의 manifest tuple을 Trusted Baseline으로 고정한다.
-각 checkpoint source file은 실제 복사 직전에 다시 regular file, expected path,
-size, SHA-256을 확인한다. snapshot root 자체도 link-like entry가 아닌 directory인지
-확인한다.
+최초 validation/preflight 성공만으로 source를 계속 신뢰하지 않는다. 각 `FILE`
+restore operation은 실제 Workspace 복사 직전에 source를 다시 `lstat`해 regular
+file인지, expected relative path인지, expected size와 SHA-256인지 확인한다.
+불일치하면 해당 bytes는 Workspace에 쓰지 않고 operation을 실패시킨다. 이 검사가
+복사 operation 시도 중 발견되면 `Recovery = FAILED`이며 mutation attempt 이후
+Integrity를 실행한다. preflight 단계에서 mutation 전에 발견되면
+`RECOVERY_UNAVAILABLE + NOT_CHECKED`로 종료한다. snapshot root 자체도 link-like
+entry가 아닌 directory인지 확인한다.
 
 ## Binding과 Lease
 
