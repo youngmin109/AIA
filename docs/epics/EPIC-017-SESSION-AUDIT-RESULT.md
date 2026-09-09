@@ -30,11 +30,17 @@ PreTool `BLOCKED`는 하나의 실행 전 Tool Action을 차단한 결과일 뿐
 2. 활성 Sensor를 stop하고 stop 전 health와 최종 lifecycle state를 별도로 기록한다.
 3. 마지막 Sensor event append가 끝난 뒤 Raw Evidence Index와 Seal을 생성한다.
 4. Session을 terminal state로 전이하고 `ended_at`과 `SessionEndReason`을 고정한다.
-5. Lease를 Recovery/Integrity 이후 release하고 실패하면 `LEASE_RELEASE_FAILED` limitation을
+5. Recovery/Integrity 이후 현재 Session, canonical Workspace, owner identity가 일치하는
+   Workspace Lease를 release하고 실패하면 `LEASE_RELEASE_FAILED` limitation을
    남긴다.
 6. Canonical Result, Audit Trail, Security Report를 생성한다.
 7. staging directory에서 Evidence Manifest와 Commit Marker를 생성한 뒤 `result/`를
    atomic rename으로 publish한다.
+
+Lease release는 과거의 Policy, Enforcement, Recovery, Integrity 결과를 다시 판정하지
+않는다. Release 실패는 operational limitation으로만 Result/Report에 보존한다. Release가
+완료되면 lease artifact는 더 이상 active ownership을 주장하지 않으며 같은 Workspace의
+다음 Session이 새 Lease를 획득할 수 있다.
 
 정상 종료에서 Managed Root가 `LIVE_MATCH`이면 `COMPLETED` 전이를 거부한다.
 `OWNER_UNVERIFIABLE`은 정상 완료 Claim을 만들지 않고 `FAILED /
@@ -131,7 +137,9 @@ Session binding만 가진다.
 `UNCOMMITTED`이며 partial result는 유효한 Finalized Result가 아니다.
 
 이미 committed Bundle이 있으면 같은 Result ID는 idempotent reuse하고 다른 내용은
-`RESULT_ALREADY_COMMITTED_CONFLICT`로 거부한다. Commit 실패 후에는 terminal Session과
+비휘발성 canonical Result content fingerprint가 다르면
+`RESULT_ALREADY_COMMITTED_CONFLICT`로 거부한다. 같은 Result ID와 같은 content fingerprint일
+때만 idempotent reuse한다. Commit 실패 후에는 terminal Session과
 `ended_at`을 다시 RUNNING으로 되돌리지 않고 같은 Result ID로 retry한다.
 
 Bundle Verifier는 result, audit, report, raw evidence, manifest를 변경하면 `INVALID`를

@@ -18,6 +18,7 @@ from .evidence_bundle import (
     BundleVerificationResult,
     EvidenceBundleCommitter,
     EvidenceBundleVerifier,
+    ResultAlreadyCommittedConflict,
 )
 from .enforcement import (
     EnforcementAction,
@@ -205,6 +206,7 @@ class SessionFinalizer:
         enforcement_items = tuple(item for item in _items(enforcement_results, "results"))
         if not enforcement_items:
             enforcement_items = gates
+        limitations = tuple(limitations)
         store = evidence_store or self.evidence_store
         sensors_to_stop = tuple(self.sensors if sensors is None else sensors)
         lease = workspace_lease or self.workspace_lease
@@ -223,10 +225,26 @@ class SessionFinalizer:
 
         session_directory = self._session_directory(session, store, self.bundle_committer, self.control_root)
         committer = self.bundle_committer or EvidenceBundleCommitter(session_directory)
-        existing = self._reuse_committed(session, committer)
-        if existing is not None:
-            self._outcomes[session.session_id] = existing
-            return existing
+        if not self._has_result_inputs(
+            end_reason=end_reason,
+            termination_result=termination_result,
+            gate_results=gates,
+            actions=action_items,
+            policy_evaluations=policy_items,
+            attribution_results=attribution_items,
+            enforcement_results=enforcement_items,
+            recovery_result=recovery_result,
+            integrity_result=integrity_result,
+            active_policy=active_policy,
+            checkpoint=checkpoint,
+            limitations=limitations,
+            run_classification=run_classification,
+            prior_session_id=prior_session_id,
+        ):
+            existing = self._reuse_committed(session, committer)
+            if existing is not None:
+                self._outcomes[session.session_id] = existing
+                return existing
 
         sensor_summaries, sensor_limits = self._stop_sensors(sensors_to_stop)
         all_limitations.extend(sensor_limits)
@@ -363,9 +381,17 @@ class SessionFinalizer:
                 extra_artifacts=extra_artifacts,
                 committed_at=terminal_at,
             )
+        except ResultAlreadyCommittedConflict:
+            raise
         except Exception as error:
             raise FinalizationError("Evidence Bundle commit failed") from error
         verification = EvidenceBundleVerifier().verify(bundle.result_directory)
+        if bundle.reused:
+            existing = self._reuse_committed(session, committer)
+            if existing is None:
+                raise FinalizationError("reused Evidence Bundle cannot be loaded")
+            self._outcomes[session.session_id] = existing
+            return existing
         final = SessionFinalizationResult(
             result=result,
             audit_records=order_audit_records(audit_records),
@@ -376,6 +402,43 @@ class SessionFinalizer:
         )
         self._outcomes[session.session_id] = final
         return final
+
+    @staticmethod
+    def _has_result_inputs(
+        *,
+        end_reason: SessionEndReason | str | None,
+        termination_result: ProcessTerminationResult | None,
+        gate_results: tuple[EnforcementGateResult, ...],
+        actions: tuple[Any, ...],
+        policy_evaluations: tuple[Any, ...],
+        attribution_results: tuple[AttributionResult, ...],
+        enforcement_results: tuple[Any, ...],
+        recovery_result: RecoveryVerificationResult | RecoveryResult | None,
+        integrity_result: IntegrityVerificationResult | None,
+        active_policy: Any | None,
+        checkpoint: Any | None,
+        limitations: Iterable[str],
+        run_classification: RunClassification | str | None,
+        prior_session_id: str | None,
+    ) -> bool:
+        return any(
+            (
+                end_reason is not None,
+                termination_result is not None,
+                bool(gate_results),
+                bool(actions),
+                bool(policy_evaluations),
+                bool(attribution_results),
+                bool(enforcement_results),
+                recovery_result is not None,
+                integrity_result is not None,
+                active_policy is not None,
+                checkpoint is not None,
+                bool(tuple(limitations)),
+                run_classification is not None,
+                prior_session_id is not None,
+            )
+        )
 
     def _resolve_terminal_outcome(
         self,
@@ -537,6 +600,8 @@ class SessionFinalizer:
         try:
             if lease.session_id != session.session_id or lease.workspace != session.workspace:
                 return ("LEASE_RELEASE_FAILED",)
+            if not lease.artifact_path.exists():
+                return ()
             manager.release(lease)
             return ()
         except Exception:

@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+from typing import Any
 from uuid import uuid4
 
 from .result import SessionResult
@@ -54,6 +55,7 @@ class BundleCommitResult:
     manifest_path: Path
     fingerprint: str
     reused: bool = False
+    content_fingerprint: str | None = None
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -80,6 +82,30 @@ def _safe_relative(value: str) -> str:
     ):
         raise EvidenceBundleError("artifact path escapes Session directory")
     return normalized
+
+
+_VOLATILE_RESULT_FIELDS = frozenset(
+    {
+        "finalization_completed_at",
+        "finalization_duration_ms",
+        "finalization_started_at",
+    }
+)
+
+
+def canonical_result_fingerprint(result: SessionResult) -> str:
+    """Hash semantic Result content while excluding retry timing metadata."""
+
+    mapping = result.to_mapping()
+    for field_name in _VOLATILE_RESULT_FIELDS:
+        mapping.pop(field_name, None)
+    canonical = json.dumps(
+        mapping,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return _sha256_bytes(canonical)
 
 
 class EvidenceBundleVerifier:
@@ -141,6 +167,9 @@ class EvidenceBundleVerifier:
             result_value = json.loads((result_path / "result.json").read_text(encoding="utf-8"))
             if result_value.get("aia_session_id") != session_id or result_value.get("result_id") != result_id:
                 raise EvidenceBundleError("RESULT_BINDING_MISMATCH")
+            result = SessionResult.from_mapping(result_value)
+            if commit.get("content_fingerprint") != canonical_result_fingerprint(result):
+                raise EvidenceBundleError("RESULT_CONTENT_FINGERPRINT_MISMATCH")
         except (EvidenceBundleError, OSError, json.JSONDecodeError, KeyError, TypeError) as error:
             return BundleVerificationResult(
                 BundleVerificationStatus.INVALID,
@@ -182,10 +211,22 @@ class EvidenceBundleCommitter:
     ) -> BundleCommitResult:
         if not isinstance(result, SessionResult):
             raise EvidenceBundleError("result must be a SessionResult")
+        content_fingerprint = canonical_result_fingerprint(result)
         self.session_directory.mkdir(parents=True, exist_ok=True)
         if self.result_directory.exists():
             existing = self.verifier.verify(self.result_directory)
             if existing.status is BundleVerificationStatus.VALID:
+                try:
+                    existing_commit = json.loads(
+                        (self.result_directory / "commit.json").read_text(encoding="utf-8")
+                    )
+                    existing_content_fingerprint = existing_commit.get("content_fingerprint")
+                    if existing_content_fingerprint != content_fingerprint:
+                        raise ResultAlreadyCommittedConflict(ResultAlreadyCommittedConflict.code)
+                except ResultAlreadyCommittedConflict:
+                    raise
+                except (OSError, json.JSONDecodeError) as error:
+                    raise EvidenceBundleError("committed bundle marker is invalid") from error
                 if existing.result_id == result.result_id:
                     return BundleCommitResult(
                         result.aia_session_id,
@@ -195,6 +236,7 @@ class EvidenceBundleCommitter:
                         self.result_directory / "evidence-manifest.json",
                         self._read_fingerprint(),
                         reused=True,
+                        content_fingerprint=content_fingerprint,
                     )
                 raise ResultAlreadyCommittedConflict(ResultAlreadyCommittedConflict.code)
             if (self.result_directory / "commit.json").exists():
@@ -237,6 +279,7 @@ class EvidenceBundleCommitter:
             commit = {
                 "bundle_fingerprint": fingerprint,
                 "committed_at": (committed_at or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(),
+                "content_fingerprint": content_fingerprint,
                 "evidence_manifest_sha256": fingerprint,
                 "result_id": result.result_id,
                 "schema_version": "aia-commit-1",
@@ -261,6 +304,7 @@ class EvidenceBundleCommitter:
             self.result_directory / "commit.json",
             self.result_directory / "evidence-manifest.json",
             fingerprint,
+            content_fingerprint=content_fingerprint,
         )
 
     def _write(self, path: Path, value: bytes) -> None:
@@ -296,6 +340,7 @@ __all__ = [
     "EvidenceBundleCommitter",
     "EvidenceBundleError",
     "EvidenceBundleVerifier",
+    "canonical_result_fingerprint",
     "ResultAlreadyCommittedConflict",
     "verify_evidence_bundle",
 ]

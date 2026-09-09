@@ -76,6 +76,7 @@ from .evidence_bundle import (
     EvidenceBundleError,
     EvidenceBundleVerifier,
     ResultAlreadyCommittedConflict,
+    canonical_result_fingerprint,
     verify_evidence_bundle,
 )
 from .finalization import (
@@ -393,6 +394,7 @@ __all__ = [
     "EvidenceBundleError",
     "EvidenceBundleVerifier",
     "ResultAlreadyCommittedConflict",
+    "canonical_result_fingerprint",
     "verify_evidence_bundle",
     "FinalizationError",
     "FinalizationRefused",

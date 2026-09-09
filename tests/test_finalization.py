@@ -22,6 +22,7 @@ from aia import (
     FinalizationError,
     FinalizationRefused,
     IntegrityStatus,
+    IntegrityVerificationResult,
     NormalizedAction,
     NormalizationCompleteness,
     ObservationStage,
@@ -35,6 +36,9 @@ from aia import (
     ProtectedRunSession,
     RawEvidenceRecord,
     RawEvidenceStore,
+    RecoveryResult,
+    RecoveryStatus,
+    RecoveryVerificationResult,
     RuntimePolicyEvaluation,
     SessionEndReason,
     SessionFinalizer,
@@ -42,6 +46,7 @@ from aia import (
     SessionStatus,
     SensorHealth,
     SensorStatus,
+    WorkspaceLeaseManager,
     verify_evidence_bundle,
 )
 
@@ -274,6 +279,144 @@ def test_sensor_stop_and_seal_precede_terminal_transition(tmp_path: Path):
     assert observations == [SessionStatus.RUNNING]
     assert result.result.session_status is SessionStatus.COMPLETED
     assert store.sealed
+
+
+def _restored_verified(session: ProtectedRunSession) -> RecoveryVerificationResult:
+    recovery = RecoveryResult(
+        recovery_id="recovery-017",
+        aia_session_id=session.session_id,
+        action_id="action-017",
+        termination_id="termination-017",
+        checkpoint_id="checkpoint-017",
+        recovery_status=RecoveryStatus.RESTORED,
+        started_at=NOW,
+        ended_at=NOW,
+        duration_ms=1,
+        planned_operation_count=0,
+        attempted_operation_count=0,
+        succeeded_operation_count=0,
+        failed_operation_count=0,
+    )
+    integrity = IntegrityVerificationResult(
+        aia_session_id=session.session_id,
+        checkpoint_id="checkpoint-017",
+        integrity_status=IntegrityStatus.VERIFIED,
+        integrity_started_at=NOW,
+        integrity_ended_at=NOW,
+        integrity_duration_ms=1,
+        verified_at=NOW,
+        checkpoint_fingerprint="checkpoint-fingerprint",
+        expected_entry_count=0,
+        actual_entry_count=0,
+    )
+    return RecoveryVerificationResult(recovery, integrity)
+
+
+def test_finalization_releases_lease_and_next_session_can_acquire(tmp_path: Path):
+    session, store, _ = _session(tmp_path)
+    identities = {701: 70.1}
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=lambda pid: identities[pid],
+    )
+    lease = manager.acquire(
+        session.workspace,
+        session.session_id,
+        owner_pid=701,
+        owner_process_create_time=70.1,
+        acquired_at=NOW,
+    )
+    result = SessionFinalizer(
+        evidence_store=store,
+        lease_manager=manager,
+        workspace_lease=lease,
+    ).finalize(session, process_end_status=ProcessIdentityStatus.PROCESS_GONE)
+
+    assert result.result.session_status is SessionStatus.COMPLETED
+    assert not lease.artifact_path.exists()
+    next_session = ProtectedRunSession(
+        workspace=session.workspace,
+        agent="codex",
+        mode=SessionMode.ENFORCE,
+        policy_id="policy-018",
+        policy_version="1.0.0",
+        created_at=NOW,
+    )
+    next_lease = manager.acquire(
+        next_session.workspace,
+        next_session.session_id,
+        owner_pid=701,
+        owner_process_create_time=70.1,
+        acquired_at=NOW,
+    )
+    assert next_lease.session_id == next_session.session_id
+    manager.release(next_lease)
+
+
+def test_containment_releases_lease_after_terminal_and_sealed_evidence(tmp_path: Path):
+    session, store, _ = _session(tmp_path)
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=lambda pid: 70.1,
+    )
+    lease = manager.acquire(
+        session.workspace,
+        session.session_id,
+        owner_pid=701,
+        owner_process_create_time=70.1,
+        acquired_at=NOW,
+    )
+    observed: list[tuple[bool, SessionStatus]] = []
+
+    class _ObservingManager:
+        def release(self, value):
+            observed.append((store.sealed, session.status))
+            manager.release(value)
+
+    result = SessionFinalizer(
+        evidence_store=store,
+        lease_manager=_ObservingManager(),
+        workspace_lease=lease,
+    ).finalize(
+        session,
+        termination_result=_termination(session),
+        recovery_result=_restored_verified(session),
+    )
+
+    assert observed == [(True, SessionStatus.ABORTED)]
+    assert result.result.session_status is SessionStatus.ABORTED
+    assert result.result.recovery_result["recovery_status"] == "RESTORED"
+    assert result.result.integrity_result["integrity_status"] == "VERIFIED"
+
+
+def test_lease_release_failure_is_an_operational_limitation(tmp_path: Path):
+    session, store, _ = _session(tmp_path)
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=lambda pid: 70.1,
+    )
+    lease = manager.acquire(
+        session.workspace,
+        session.session_id,
+        owner_pid=701,
+        owner_process_create_time=70.1,
+        acquired_at=NOW,
+    )
+
+    class _FailingManager:
+        def release(self, value):
+            raise RuntimeError("simulated lease release failure")
+
+    result = SessionFinalizer(
+        evidence_store=store,
+        lease_manager=_FailingManager(),
+        workspace_lease=lease,
+    ).finalize(session, process_end_status=ProcessIdentityStatus.PROCESS_GONE)
+
+    assert result.result.session_status is SessionStatus.COMPLETED
+    assert "LEASE_RELEASE_FAILED" in result.result.limitations
+    assert "LEASE_RELEASE_FAILED" in result.report_text
+    assert lease.artifact_path.exists()
 
 
 def test_evidence_seal_rejects_append_and_index_has_lineage_lookup(tmp_path: Path):
