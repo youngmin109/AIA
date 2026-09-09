@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import json
+import multiprocessing
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,7 @@ from aia import (
     SessionStatus,
     WorkspaceBusyError,
     WorkspaceLeaseManager,
+    WorkspaceOwnerUnverifiableError,
     freeze_active_policy,
     load_policy,
     policy_content_sha256,
@@ -65,6 +67,27 @@ class FakeProcessIdentity:
         if pid not in self.values:
             raise ProcessLookupError(pid)
         return self.values[pid]
+
+
+def _concurrent_acquire_worker(
+    control_root: str,
+    workspace: str,
+    session_id: str,
+    barrier: object,
+    release_event: object,
+    result_queue: object,
+) -> None:
+    manager = WorkspaceLeaseManager(control_root)
+    barrier.wait(timeout=15)
+    try:
+        lease = manager.acquire(workspace, session_id)
+    except WorkspaceBusyError:
+        result_queue.put(("busy", session_id))
+    except Exception as error:  # pragma: no cover - diagnostic across process
+        result_queue.put(("error", session_id, type(error).__name__, str(error)))
+    else:
+        result_queue.put(("acquired", session_id, lease.owner_pid))
+    release_event.wait(timeout=15)
 
 
 def test_control_root_outside_workspace_is_created(tmp_path: Path) -> None:
@@ -349,6 +372,101 @@ def test_live_matching_owner_makes_workspace_busy(tmp_path: Path) -> None:
     assert error.value.existing_lease.session_id == "session-a"
 
 
+def test_concurrent_acquire_has_one_owner(tmp_path: Path) -> None:
+    workspace = make_workspace(tmp_path)
+    context = multiprocessing.get_context("spawn")
+    barrier = context.Barrier(2)
+    release_event = context.Event()
+    result_queue = context.Queue()
+    processes = [
+        context.Process(
+            target=_concurrent_acquire_worker,
+            args=(
+                str(tmp_path / "control"),
+                str(workspace),
+                f"session-{index}",
+                barrier,
+                release_event,
+                result_queue,
+            ),
+        )
+        for index in (1, 2)
+    ]
+    for process in processes:
+        process.start()
+
+    results = [result_queue.get(timeout=20) for _ in processes]
+    release_event.set()
+    for process in processes:
+        process.join(timeout=20)
+        if process.is_alive():
+            process.terminate()
+        assert process.exitcode == 0
+
+    assert sorted(result[0] for result in results) == ["acquired", "busy"]
+    assert all(result[0] != "error" for result in results)
+
+
+def test_same_session_same_owner_reuses_existing_lease(tmp_path: Path) -> None:
+    workspace = make_workspace(tmp_path)
+    identities = FakeProcessIdentity({101: 10.5})
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=identities,
+    )
+    first = manager.acquire(
+        workspace,
+        "same-session",
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+    original = first.artifact_path.read_bytes()
+
+    second = manager.acquire(
+        workspace,
+        "same-session",
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+
+    assert second == first
+    assert second.reused
+    assert second.artifact_path.read_bytes() == original
+
+
+def test_owner_query_error_is_unverifiable_and_cannot_takeover(
+    tmp_path: Path,
+) -> None:
+    workspace = make_workspace(tmp_path)
+
+    def unavailable(_: int) -> float:
+        raise PermissionError("access denied")
+
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=unavailable,
+    )
+    old = manager.acquire(
+        workspace,
+        "old-session",
+        owner_pid=201,
+        owner_process_create_time=30.5,
+    )
+
+    with pytest.raises(WorkspaceOwnerUnverifiableError) as error:
+        manager.acquire(
+            workspace,
+            "new-session",
+            owner_pid=202,
+            owner_process_create_time=40.5,
+        )
+
+    assert error.value.code == "OWNER_UNVERIFIABLE"
+    assert error.value.existing_lease.session_id == old.session_id
+    assert old.artifact_path.exists()
+    assert not list(old.artifact_path.parent.glob("stale-lease-*.json"))
+
+
 def test_different_workspaces_can_have_concurrent_leases(tmp_path: Path) -> None:
     first_workspace = make_workspace(tmp_path, "first")
     second_workspace = make_workspace(tmp_path, "second")
@@ -422,7 +540,7 @@ def test_dead_pid_is_preserved_as_stale_evidence(tmp_path: Path) -> None:
     )
 
     assert new.stale_record is not None
-    assert new.stale_record.reason == "OWNER_PROCESS_NOT_FOUND"
+    assert new.stale_record.reason == "STALE_PROCESS_GONE"
     assert new.stale_record.previous_session_id == old.session_id
     assert new.stale_record.artifact_path.is_file()
 
@@ -450,9 +568,48 @@ def test_pid_reuse_create_time_mismatch_is_stale(tmp_path: Path) -> None:
     )
 
     assert new.stale_record is not None
-    assert new.stale_record.reason == "OWNER_PROCESS_CREATE_TIME_MISMATCH"
+    assert new.stale_record.reason == "STALE_PID_REUSED"
     assert new.stale_record.previous_owner_pid == 201
     assert new.stale_record.previous_owner_process_create_time == 30.5
+
+
+def test_stale_takeover_keeps_one_current_owner(tmp_path: Path) -> None:
+    workspace = make_workspace(tmp_path)
+    identities = FakeProcessIdentity({202: 40.5})
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=identities,
+    )
+    manager.acquire(
+        workspace,
+        "old-session",
+        owner_pid=201,
+        owner_process_create_time=30.5,
+    )
+
+    current = manager.acquire(
+        workspace,
+        "new-session",
+        owner_pid=202,
+        owner_process_create_time=40.5,
+    )
+    reused = manager.acquire(
+        workspace,
+        "new-session",
+        owner_pid=202,
+        owner_process_create_time=40.5,
+    )
+
+    assert current.stale_record is not None
+    assert current.stale_record.reason == "STALE_PROCESS_GONE"
+    assert reused.reused
+    with pytest.raises(WorkspaceBusyError):
+        manager.acquire(
+            workspace,
+            "third-session",
+            owner_pid=203,
+            owner_process_create_time=50.5,
+        )
 
 
 def test_other_session_cannot_release_lease(tmp_path: Path) -> None:
@@ -525,6 +682,163 @@ def test_preparation_context_keeps_session_preparing(tmp_path: Path) -> None:
     assert context.workspace_lease.session_id == session.session_id
     assert context.control_directory.is_dir()
     assert context.is_static_preparation_complete
+    assert session.status is SessionStatus.PREPARING
+
+
+def test_preparation_retry_reuses_frozen_policy_and_lease(
+    tmp_path: Path,
+) -> None:
+    workspace = make_workspace(tmp_path)
+    resolved = basic_policy()
+    session = make_session(workspace, resolved)
+    identities = FakeProcessIdentity({101: 10.5})
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=identities,
+    )
+
+    first = prepare_protection(
+        session,
+        resolved,
+        tmp_path / "control",
+        lease_manager=manager,
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+    artifact = first.active_policy.artifact_path.read_bytes()
+    second = prepare_protection(
+        session,
+        resolved,
+        tmp_path / "control",
+        lease_manager=manager,
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+
+    assert second.active_policy.artifact_path == first.active_policy.artifact_path
+    assert second.active_policy.sha256 == first.active_policy.sha256
+    assert second.workspace_lease.reused
+    assert second.active_policy.artifact_path.read_bytes() == artifact
+
+
+def test_policy_freeze_then_lease_failure_can_retry(tmp_path: Path) -> None:
+    workspace = make_workspace(tmp_path)
+    resolved = basic_policy()
+    session = make_session(workspace, resolved)
+    identities = FakeProcessIdentity({101: 10.5, 102: 20.5})
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=identities,
+    )
+    blocker = manager.acquire(
+        workspace,
+        "blocker-session",
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+
+    with pytest.raises(WorkspaceBusyError):
+        prepare_protection(
+            session,
+            resolved,
+            tmp_path / "control",
+            lease_manager=manager,
+            owner_pid=102,
+            owner_process_create_time=20.5,
+        )
+
+    active_policy_path = (
+        tmp_path / "control" / "sessions" / session.session_id / "active-policy.json"
+    )
+    assert active_policy_path.is_file()
+    manager.release(blocker)
+
+    context = prepare_protection(
+        session,
+        resolved,
+        tmp_path / "control",
+        lease_manager=manager,
+        owner_pid=102,
+        owner_process_create_time=20.5,
+    )
+
+    assert context.active_policy.artifact_path == active_policy_path.resolve()
+    assert context.workspace_lease.session_id == session.session_id
+
+
+def test_retry_with_different_policy_is_conflict(tmp_path: Path) -> None:
+    workspace = make_workspace(tmp_path)
+    resolved = basic_policy()
+    changed_policy = SecurityAssetPolicy(
+        schema_version=resolved.policy.schema_version,
+        policy_id=resolved.policy.policy_id,
+        policy_version=resolved.policy.policy_version,
+        default_effect=PolicyEffect.DENY,
+        rules=resolved.policy.rules,
+        profile=resolved.profile,
+    )
+    changed = ResolvedPolicy(
+        profile=resolved.profile,
+        policy_id=resolved.policy_id,
+        policy_version=resolved.policy_version,
+        source="changed",
+        policy=changed_policy,
+    )
+    session = make_session(workspace, resolved)
+    identities = FakeProcessIdentity({101: 10.5})
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=identities,
+    )
+    prepare_protection(
+        session,
+        resolved,
+        tmp_path / "control",
+        lease_manager=manager,
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+
+    with pytest.raises(ActivePolicyConflict):
+        prepare_protection(
+            session,
+            changed,
+            tmp_path / "control",
+            lease_manager=manager,
+            owner_pid=101,
+            owner_process_create_time=10.5,
+        )
+
+
+def test_busy_preparation_does_not_delete_other_session_lease(
+    tmp_path: Path,
+) -> None:
+    workspace = make_workspace(tmp_path)
+    resolved = basic_policy()
+    session = make_session(workspace, resolved)
+    identities = FakeProcessIdentity({101: 10.5, 102: 20.5})
+    manager = WorkspaceLeaseManager(
+        tmp_path / "control",
+        process_identity_provider=identities,
+    )
+    blocker = manager.acquire(
+        workspace,
+        "blocker-session",
+        owner_pid=101,
+        owner_process_create_time=10.5,
+    )
+
+    with pytest.raises(WorkspaceBusyError):
+        prepare_protection(
+            session,
+            resolved,
+            tmp_path / "control",
+            lease_manager=manager,
+            owner_pid=102,
+            owner_process_create_time=20.5,
+        )
+
+    assert blocker.artifact_path.exists()
     assert session.status is SessionStatus.PREPARING
 
 

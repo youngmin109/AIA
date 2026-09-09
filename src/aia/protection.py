@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import ctypes
 import hashlib
@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import time
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
@@ -80,6 +81,18 @@ class WorkspaceBusyError(WorkspaceLeaseError):
         )
 
 
+class WorkspaceOwnerUnverifiableError(WorkspaceLeaseError):
+    """Raised when an existing lease owner cannot be verified safely."""
+
+    code = "OWNER_UNVERIFIABLE"
+
+    def __init__(self, existing_lease: "WorkspaceLease") -> None:
+        self.existing_lease = existing_lease
+        super().__init__(
+            "workspace lease owner cannot be verified; takeover is refused"
+        )
+
+
 class LeaseOwnershipError(WorkspaceLeaseError):
     """Raised when a caller cannot prove current lease ownership."""
 
@@ -93,6 +106,19 @@ class ProtectionPreparationError(ProtectionError):
 
 
 ProcessIdentityProvider = Callable[[int], float]
+
+
+class LeaseOwnerStatus(StrEnum):
+    """Result of verifying the process that owns an existing lease."""
+
+    LIVE_MATCH = "LIVE_MATCH"
+    STALE_PROCESS_GONE = "STALE_PROCESS_GONE"
+    STALE_PID_REUSED = "STALE_PID_REUSED"
+    OWNER_UNVERIFIABLE = "OWNER_UNVERIFIABLE"
+
+
+OwnerVerificationStatus = LeaseOwnerStatus
+OwnerUnverifiableError = WorkspaceOwnerUnverifiableError
 
 
 def _now_utc() -> datetime:
@@ -441,6 +467,92 @@ class ActivePolicyFreezer:
             policy=resolved_policy.policy,
         )
 
+    def freeze_or_reuse(
+        self,
+        session: ProtectedRunSession,
+        resolved_policy: ResolvedPolicy,
+        control_root: ControlRoot | str | Path,
+        *,
+        frozen_at: datetime | None = None,
+    ) -> ActivePolicySnapshot:
+        """Freeze once, or reuse the matching immutable artifact on retry."""
+
+        try:
+            return self.freeze(
+                session,
+                resolved_policy,
+                control_root,
+                frozen_at=frozen_at,
+            )
+        except ActivePolicyAlreadyFrozen:
+            return self.load_existing(
+                session,
+                resolved_policy,
+                control_root,
+            )
+
+    def load_existing(
+        self,
+        session: ProtectedRunSession,
+        resolved_policy: ResolvedPolicy,
+        control_root: ControlRoot | str | Path,
+    ) -> ActivePolicySnapshot:
+        """Load an existing artifact only when it matches the resolved policy."""
+
+        self.validate_inputs(session, resolved_policy)
+        root = _coerce_control_root(session.workspace, control_root)
+        artifact_path = root.session_directory(session.session_id) / "active-policy.json"
+        if not artifact_path.exists() or not artifact_path.is_file():
+            raise ActivePolicyArtifactError(
+                f"active policy artifact does not exist: {artifact_path}"
+            )
+        try:
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ActivePolicyArtifactError(
+                f"existing active policy artifact is unreadable: {artifact_path}"
+            ) from error
+        if not isinstance(artifact, dict):
+            raise ActivePolicyArtifactError(
+                f"existing active policy artifact must be an object: {artifact_path}"
+            )
+
+        expected_content = policy_content_mapping(resolved_policy)
+        if artifact.get("policy_content_sha256") != policy_content_sha256(
+            resolved_policy
+        ):
+            raise ActivePolicyConflict(
+                f"active policy artifact has different content: {artifact_path}"
+            )
+        if any(artifact.get(key) != value for key, value in expected_content.items()):
+            raise ActivePolicyArtifactError(
+                f"active policy artifact content does not match its fingerprint: "
+                f"{artifact_path}"
+            )
+        if artifact.get("session_id") != session.session_id:
+            raise ActivePolicyArtifactError(
+                f"active policy artifact belongs to another session: {artifact_path}"
+            )
+        try:
+            frozen_at = _aware_utc(
+                datetime.fromisoformat(artifact["frozen_at"]),
+                field_name="frozen_at",
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise ActivePolicyArtifactError(
+                f"active policy artifact has invalid frozen_at: {artifact_path}"
+            ) from error
+        return ActivePolicySnapshot(
+            session_id=session.session_id,
+            policy_id=resolved_policy.policy_id,
+            policy_version=resolved_policy.policy_version,
+            profile=resolved_policy.profile,
+            frozen_at=frozen_at,
+            artifact_path=artifact_path.resolve(strict=True),
+            sha256=policy_content_sha256(resolved_policy),
+            policy=resolved_policy.policy,
+        )
+
     @staticmethod
     def _raise_existing_artifact(
         artifact_path: Path,
@@ -489,6 +601,9 @@ def _windows_process_create_time(pid: int) -> float:
         pid,
     )
     if not handle:
+        error_code = ctypes.get_last_error()
+        if error_code == 5:  # ERROR_ACCESS_DENIED
+            raise PermissionError(error_code, "process access denied", pid)
         raise ProcessLookupError(pid)
 
     class FileTime(ctypes.Structure):
@@ -507,7 +622,10 @@ def _windows_process_create_time(pid: int) -> float:
             ctypes.byref(user_time),
         )
         if not success:
-            raise ProcessLookupError(pid)
+            error_code = ctypes.get_last_error()
+            if error_code == 5:  # ERROR_ACCESS_DENIED
+                raise PermissionError(error_code, "process access denied", pid)
+            raise OSError(error_code, "GetProcessTimes failed", pid)
     finally:
         kernel32.CloseHandle(handle)
     windows_ticks = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
@@ -521,8 +639,12 @@ def _proc_process_create_time(pid: int) -> float:
         start_ticks = int(fields[21])
         clock_ticks = os.sysconf("SC_CLK_TCK")
         boot_time = float(Path("/proc/stat").read_text().split("btime ", 1)[1].splitlines()[0])
-    except (OSError, IndexError, ValueError, AttributeError) as error:
+    except PermissionError:
+        raise
+    except FileNotFoundError as error:
         raise ProcessLookupError(pid) from error
+    except (OSError, IndexError, ValueError, AttributeError):
+        raise
     return boot_time + start_ticks / clock_ticks
 
 
@@ -577,6 +699,7 @@ class WorkspaceLease:
     acquired_at: datetime
     artifact_path: Path
     stale_record: StaleLeaseRecord | None = None
+    reused: bool = field(default=False, compare=False, repr=False)
 
     def release(self, manager: "WorkspaceLeaseManager") -> None:
         manager.release(self)
@@ -622,51 +745,126 @@ class WorkspaceLeaseManager:
         if not isinstance(create_time, (float, int)) or isinstance(create_time, bool):
             raise LeaseOwnershipError("owner process create time must be numeric")
 
+        lease = WorkspaceLease(
+            workspace=workspace_path,
+            session_id=safe_session_id,
+            owner_pid=pid,
+            owner_process_create_time=float(create_time),
+            acquired_at=_aware_utc(
+                acquired_at if acquired_at is not None else _now_utc(),
+                field_name="acquired_at",
+            ),
+            artifact_path=artifact_path.resolve(strict=False),
+        )
         with _exclusive_file_lock(lease_directory / ".lease.lock"):
-            stale_record: StaleLeaseRecord | None = None
-            if artifact_path.exists():
-                existing = self._read_lease(artifact_path)
-                stale_reason = self._stale_reason(existing)
-                if stale_reason is None:
-                    raise WorkspaceBusyError(
-                        self._lease_from_mapping(existing, artifact_path)
-                    )
-                stale_record = self._preserve_stale(
-                    artifact_path,
-                    existing,
-                    stale_reason,
-                )
-            lease = WorkspaceLease(
-                workspace=workspace_path,
-                session_id=safe_session_id,
-                owner_pid=pid,
-                owner_process_create_time=float(create_time),
-                acquired_at=_aware_utc(
-                    acquired_at if acquired_at is not None else _now_utc(),
-                    field_name="acquired_at",
-                ),
-                artifact_path=artifact_path.resolve(strict=False),
-                stale_record=stale_record,
-            )
             try:
-                with artifact_path.open(
-                    "w",
-                    encoding="utf-8",
-                    newline="\n",
-                ) as stream:
-                    json.dump(
-                        _lease_metadata(lease),
-                        stream,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        indent=2,
-                    )
-                    stream.write("\n")
-            except OSError as error:
-                raise LeaseArtifactError(
-                    f"workspace lease artifact cannot be written: {artifact_path}"
-                ) from error
-            return lease
+                self._write_lease_exclusive(artifact_path, lease)
+                return lease
+            except FileExistsError:
+                # The exclusive create is the first ownership decision. From
+                # here on, all contenders inspect the same existing artifact
+                # while holding the workspace lock.
+                existing = self._read_lease(artifact_path)
+
+            existing_lease = self._lease_from_mapping(existing, artifact_path)
+            owner_status = self._owner_status(existing)
+            if owner_status is LeaseOwnerStatus.LIVE_MATCH:
+                if (
+                    existing_lease.session_id == safe_session_id
+                    and existing_lease.owner_pid == pid
+                    and existing_lease.owner_process_create_time
+                    == float(create_time)
+                ):
+                    return replace(existing_lease, reused=True)
+                raise WorkspaceBusyError(existing_lease)
+            if owner_status is LeaseOwnerStatus.OWNER_UNVERIFIABLE:
+                raise WorkspaceOwnerUnverifiableError(existing_lease)
+
+            stale_record = self._preserve_stale(
+                artifact_path,
+                existing,
+                owner_status.value,
+            )
+            replacement = replace(lease, stale_record=stale_record)
+            self._replace_lease_atomically(artifact_path, replacement)
+            return replacement
+
+    @staticmethod
+    def _write_lease_exclusive(
+        artifact_path: Path,
+        lease: WorkspaceLease,
+    ) -> None:
+        try:
+            with artifact_path.open("x", encoding="utf-8", newline="\n") as stream:
+                json.dump(
+                    _lease_metadata(lease),
+                    stream,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                )
+                stream.write("\n")
+        except FileExistsError:
+            raise
+        except OSError as error:
+            raise LeaseArtifactError(
+                f"workspace lease artifact cannot be written: {artifact_path}"
+            ) from error
+
+    @classmethod
+    def _replace_lease_atomically(
+        cls,
+        artifact_path: Path,
+        lease: WorkspaceLease,
+    ) -> None:
+        temporary_path = artifact_path.parent / f".lease-{uuid4().hex}.tmp"
+        try:
+            cls._write_lease_exclusive(temporary_path, lease)
+            os.replace(temporary_path, artifact_path)
+        except (OSError, LeaseArtifactError) as error:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise LeaseArtifactError(
+                f"workspace lease artifact cannot be replaced atomically: "
+                f"{artifact_path}"
+            ) from error
+
+    def _owner_status(
+        self,
+        existing: Mapping[str, Any],
+    ) -> LeaseOwnerStatus:
+        try:
+            pid = existing["owner_pid"]
+            stored_create_time = existing["owner_process_create_time"]
+        except KeyError as error:
+            raise LeaseArtifactError(
+                "workspace lease artifact has no owner identity"
+            ) from error
+        if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+            raise LeaseArtifactError("lease owner PID must be a positive integer")
+        if not isinstance(stored_create_time, (int, float)) or isinstance(
+            stored_create_time,
+            bool,
+        ):
+            raise LeaseArtifactError("lease owner create time must be numeric")
+        try:
+            current_create_time = self.process_identity_provider(pid)
+        except ProcessLookupError:
+            return LeaseOwnerStatus.STALE_PROCESS_GONE
+        except Exception:
+            # Permission errors and other OS/provider failures are evidence
+            # gaps. They are never evidence that the owner is stale.
+            return LeaseOwnerStatus.OWNER_UNVERIFIABLE
+        if not isinstance(current_create_time, (int, float)) or isinstance(
+            current_create_time,
+            bool,
+        ):
+            return LeaseOwnerStatus.OWNER_UNVERIFIABLE
+        if float(current_create_time) != float(stored_create_time):
+            return LeaseOwnerStatus.STALE_PID_REUSED
+        return LeaseOwnerStatus.LIVE_MATCH
 
     def release(
         self,
@@ -746,22 +944,8 @@ class WorkspaceLeaseManager:
         return value
 
     def _stale_reason(self, existing: Mapping[str, Any]) -> str | None:
-        try:
-            pid = existing["owner_pid"]
-            create_time = existing["owner_process_create_time"]
-            if not isinstance(pid, int) or isinstance(pid, bool):
-                return "INVALID_OWNER_PID"
-            if not isinstance(create_time, (int, float)) or isinstance(
-                create_time,
-                bool,
-            ):
-                return "INVALID_OWNER_CREATE_TIME"
-            current_create_time = self.process_identity_provider(pid)
-        except (KeyError, OSError, ProcessLookupError, ValueError, TypeError):
-            return "OWNER_PROCESS_NOT_FOUND"
-        if current_create_time != existing["owner_process_create_time"]:
-            return "OWNER_PROCESS_CREATE_TIME_MISMATCH"
-        return None
+        status = self._owner_status(existing)
+        return None if status is LeaseOwnerStatus.LIVE_MATCH else status.value
 
     def _preserve_stale(
         self,
@@ -820,6 +1004,8 @@ class WorkspaceLeaseManager:
         self,
         value: Mapping[str, Any],
         artifact_path: Path,
+        *,
+        reused: bool = False,
     ) -> WorkspaceLease:
         try:
             workspace = canonicalize_workspace(value["workspace"])
@@ -842,6 +1028,7 @@ class WorkspaceLeaseManager:
             owner_process_create_time=float(create_time),
             acquired_at=_aware_utc(acquired_at, field_name="acquired_at"),
             artifact_path=artifact_path,
+            reused=reused,
         )
 
 
@@ -879,8 +1066,19 @@ def prepare_protection(
     """Freeze policy and acquire workspace ownership while staying PREPARING."""
 
     ActivePolicyFreezer.validate_inputs(session, resolved_policy)
+    prepared_time = _aware_utc(
+        prepared_at if prepared_at is not None else _now_utc(),
+        field_name="prepared_at",
+    )
 
     manager = lease_manager or WorkspaceLeaseManager(control_root)
+    freezer = ActivePolicyFreezer()
+    snapshot = freezer.freeze_or_reuse(
+        session,
+        resolved_policy,
+        control_root,
+        frozen_at=frozen_at,
+    )
     lease: WorkspaceLease | None = None
     try:
         lease = manager.acquire(
@@ -890,35 +1088,31 @@ def prepare_protection(
             owner_process_create_time=owner_process_create_time,
             acquired_at=acquired_at,
         )
-        snapshot = freeze_active_policy(
-            session,
-            resolved_policy,
-            control_root,
-            frozen_at=frozen_at,
+    except (ProtectionError, OSError, ValueError):
+        # The immutable policy artifact is intentionally retained. A later
+        # call can reuse it after the competing Workspace Lease is released.
+        raise
+
+    try:
+        if session.status is not SessionStatus.PREPARING:
+            raise ProtectionPreparationError(
+                "preparation context cannot change session lifecycle"
+            )
+        return ProtectionPreparationContext(
+            session_id=session.session_id,
+            workspace=session.workspace,
+            active_policy=snapshot,
+            workspace_lease=lease,
+            control_directory=snapshot.artifact_path.parent,
+            prepared_at=prepared_time,
         )
     except (ProtectionError, OSError, ValueError):
-        if lease is not None:
+        if lease is not None and not lease.reused:
             try:
                 manager.release(lease)
             except ProtectionError:
                 pass
         raise
-
-    if session.status is not SessionStatus.PREPARING:
-        raise ProtectionPreparationError(
-            "preparation context cannot change session lifecycle"
-        )
-    return ProtectionPreparationContext(
-        session_id=session.session_id,
-        workspace=session.workspace,
-        active_policy=snapshot,
-        workspace_lease=lease,
-        control_directory=snapshot.artifact_path.parent,
-        prepared_at=_aware_utc(
-            prepared_at if prepared_at is not None else _now_utc(),
-            field_name="prepared_at",
-        ),
-    )
 
 
 __all__ = [
@@ -932,8 +1126,11 @@ __all__ = [
     "ControlRoot",
     "ControlRootValidationError",
     "LeaseArtifactError",
+    "LeaseOwnerStatus",
     "LeaseManager",
     "LeaseOwnershipError",
+    "OwnerUnverifiableError",
+    "OwnerVerificationStatus",
     "ProcessIdentityProvider",
     "ProtectionError",
     "ProtectionPreparationContext",
@@ -943,6 +1140,7 @@ __all__ = [
     "WorkspaceLease",
     "WorkspaceLeaseError",
     "WorkspaceLeaseManager",
+    "WorkspaceOwnerUnverifiableError",
     "freeze_active_policy",
     "policy_content_mapping",
     "policy_content_sha256",

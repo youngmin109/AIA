@@ -88,7 +88,8 @@ Policy Content Fingerprint != Session Artifact Metadata
 ```
 
 하나의 Session에 Artifact가 이미 존재하면 조용히 덮어쓰지 않는다. 동일 내용의
-재요청은 `ALREADY_FROZEN`, 다른 내용은 `ACTIVE_POLICY_CONFLICT`로 거부한다.
+직접 Freeze 재요청은 `ALREADY_FROZEN`, 다른 내용은 `ACTIVE_POLICY_CONFLICT`로
+거부한다. `prepare_protection()`은 동일 내용의 기존 Artifact를 재사용할 수 있다.
 
 ## Workspace Lease
 
@@ -104,9 +105,15 @@ Lease에는 다음을 기록한다.
 - `owner_process_create_time`
 - `acquired_at`
 
-Lease Artifact는 Workspace가 아니라 Control Root 아래에 저장한다. 동일 Workspace의
-두 번째 활성 Lease 요청은 `WORKSPACE_BUSY`로 거부한다. 서로 다른 Workspace는
-동시에 Lease를 가질 수 있다.
+Lease Artifact는 Workspace가 아니라 Control Root 아래에 저장한다. 최초 생성은
+OS/filesystem exclusive create로 수행하며, 이미 존재하면 덮어쓰지 않고 기존 Lease
+검증 경로로 이동한다. Stale Lease 교체는 Workspace별 파일 잠금 아래에서 stale
+evidence를 남긴 뒤 같은 파일 시스템 내 원자적 replace로 수행한다. 따라서 동시에
+여러 Session이 acquire를 시도해도 하나의 Owner만 유지된다.
+
+동일 Workspace의 두 번째 활성 Lease 요청은 `WORKSPACE_BUSY`로 거부한다. 단, 동일
+Session이 같은 PID와 Process Create Time으로 재시도하면 기존 Lease를 재사용한다.
+서로 다른 Workspace는 동시에 Lease를 가질 수 있다.
 
 ## PID와 Process Create Time
 
@@ -128,11 +135,16 @@ Stale Lease를 처리할 때 기존 `lease.json`을 증거 없이 조용히 삭�
 stale 판단 이유, 이전 `session_id`, 이전 PID, 이전 Process Create Time, 발견 시각과
 기존 Lease 내용이 포함된다.
 
-현재 stale 판단 이유는 다음과 같다.
+Owner 검증 결과는 다음 네 가지 의미를 구분한다.
 
-- `OWNER_PROCESS_NOT_FOUND`
-- `OWNER_PROCESS_CREATE_TIME_MISMATCH`
-- 잘못된 Owner Identity 값
+- `LIVE_MATCH`: PID와 Process Create Time이 일치하므로 `WORKSPACE_BUSY`
+- `STALE_PROCESS_GONE`: PID가 더 이상 존재하지 않아 stale takeover 가능
+- `STALE_PID_REUSED`: PID는 존재하지만 Process Create Time이 달라 stale takeover 가능
+- `OWNER_UNVERIFIABLE`: 권한 또는 OS 조회 실패로 확인할 수 없어 takeover 금지
+
+`OWNER_UNVERIFIABLE`은 stale로 기록하지 않고 fail-closed 오류를 반환한다. 소유자가
+살아 있지 않다는 증거와 소유자 상태를 확인하지 못한 상황을 같은 것으로 취급하지
+않는다.
 
 Stale evidence는 이전 소유권 기록을 보존하는 결과이며, 파일 변경의 원인이나
 Agent Attribution을 증명하지 않는다.
@@ -149,6 +161,21 @@ Lease는 다음을 증명하지 않는다.
 
 따라서 `Workspace Lease != File Writer Attribution`이며, Lease가 존재한다고
 Attribution이 `EXACT`가 되지 않는다. Attribution과 Enforcement는 후속 책임이다.
+
+## Preparation Retry와 부분 실패
+
+`prepare_protection()`은 동일 Session의 정상적인 재시도를 지원한다. 이미 같은
+정책 내용으로 Freeze된 Artifact가 있으면 immutable `ActivePolicySnapshot`을 다시
+읽어 재사용한다. 다른 정책 내용이면 `ACTIVE_POLICY_CONFLICT`를 반환한다.
+
+동일 Session이 같은 Workspace에 대해 동일한 PID와 Process Create Time으로 다시
+요청하면 기존 Lease를 재사용한다. 다른 Session이 보유한 Lease는 계속
+`WORKSPACE_BUSY`다.
+
+정책 Freeze 후 Lease 획득이 실패해도 Frozen Artifact는 삭제하지 않는다. 이후
+경쟁 Lease가 해제되면 같은 Session이 Snapshot을 재사용해 다시 준비할 수 있다.
+이번 호출에서 새로 획득한 Lease 뒤의 후속 준비 단계가 실패하면 그 호출이 획득한
+Lease만 Release를 시도하며, 기존부터 존재한 동일 Session Lease는 삭제하지 않는다.
 
 ## Lease Release
 
