@@ -15,7 +15,6 @@ from .policy import (
     PolicyEffect,
     PolicyEvaluation,
     PolicyProfile,
-    PolicySubject,
     ResolvedPolicy,
     SecurityAssetType,
 )
@@ -81,14 +80,6 @@ def _aware_utc(value: datetime, *, field_name: str) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise RuntimePolicyError(f"{field_name} must be timezone-aware")
     return value.astimezone(timezone.utc)
-
-
-def _as_asset_type(value: SecurityAssetType | str | None) -> SecurityAssetType:
-    return (
-        SecurityAssetType.WORKSPACE
-        if value is None
-        else SecurityAssetType(value)
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,10 +201,10 @@ class RuntimePolicyBatchResult:
 class RuntimePolicyEvaluator:
     """Adapt Canonical Actions to the existing deterministic Policy Engine.
 
-    ``asset_type`` is an explicit adapter input because NormalizedAction contains
-    mechanical target facts, not semantic asset classification. If omitted,
-    WORKSPACE is used as the neutral default. No attribution, sensor health, or
-    enforcement state is read here.
+    NormalizedAction contains mechanical target facts, not semantic asset
+    classification. The frozen policy's rules therefore supply candidate asset
+    types during matching. No caller supplied asset type or fallback is used.
+    No attribution, sensor health, or enforcement state is read here.
     """
 
     def __init__(
@@ -221,7 +212,6 @@ class RuntimePolicyEvaluator:
         active_policy: ActivePolicySnapshot | ProtectionPreparationContext,
         *,
         session_id: str | None = None,
-        asset_type: SecurityAssetType | str | None = None,
     ) -> None:
         if isinstance(active_policy, ProtectionPreparationContext):
             active_policy = active_policy.active_policy
@@ -249,7 +239,6 @@ class RuntimePolicyEvaluator:
             raise RuntimePolicyError("active policy fingerprint does not match frozen policy")
         self._active_policy = active_policy
         self._session_id = expected_session
-        self._asset_type = _as_asset_type(asset_type)
 
     @property
     def session_id(self) -> str:
@@ -263,21 +252,16 @@ class RuntimePolicyEvaluator:
         self,
         action: NormalizedAction,
         *,
-        asset_type: SecurityAssetType | str | None = None,
         evaluated_at: datetime | None = None,
     ) -> RuntimePolicyEvaluation:
         """Evaluate one action, retaining structural failures as INDETERMINATE."""
 
         if not isinstance(action, NormalizedAction):
             raise RuntimePolicyError("action must be a NormalizedAction")
-        selected_asset = _as_asset_type(
-            self._asset_type if asset_type is None else asset_type
-        )
         timestamp = evaluated_at if evaluated_at is not None else _now_utc()
         if action.aia_session_id != self._session_id:
             return self._result(
                 action,
-                selected_asset,
                 timestamp,
                 policy_decision=PolicyDecision.INDETERMINATE,
                 operation_effect=None,
@@ -287,11 +271,10 @@ class RuntimePolicyEvaluator:
                 limitation="action belongs to a different AIA Session",
             )
         try:
-            return self._evaluate_action(action, selected_asset, timestamp)
+            return self._evaluate_action(action, timestamp)
         except Exception:
             return self._result(
                 action,
-                selected_asset,
                 timestamp,
                 policy_decision=PolicyDecision.INDETERMINATE,
                 operation_effect=None,
@@ -305,7 +288,6 @@ class RuntimePolicyEvaluator:
         self,
         actions: Iterable[NormalizedAction],
         *,
-        asset_type: SecurityAssetType | str | None = None,
         evaluated_at: datetime | None = None,
     ) -> RuntimePolicyBatchResult:
         """Evaluate actions in input order without discarding other results."""
@@ -316,19 +298,14 @@ class RuntimePolicyEvaluator:
                 results.append(
                     self.evaluate(
                         action,
-                        asset_type=asset_type,
                         evaluated_at=evaluated_at,
                     )
                 )
             except Exception:
                 if isinstance(action, NormalizedAction):
-                    selected_asset = _as_asset_type(
-                        self._asset_type if asset_type is None else asset_type
-                    )
                     results.append(
                         self._result(
                             action,
-                            selected_asset,
                             evaluated_at if evaluated_at is not None else _now_utc(),
                             policy_decision=PolicyDecision.INDETERMINATE,
                             operation_effect=None,
@@ -364,23 +341,20 @@ class RuntimePolicyEvaluator:
     def _evaluate_action(
         self,
         action: NormalizedAction,
-        asset_type: SecurityAssetType,
         evaluated_at: datetime,
     ) -> RuntimePolicyEvaluation:
         if action.operation in _FILE_OPERATIONS:
             if action.operation in {Operation.MOVE, Operation.RENAME}:
-                return self._evaluate_move_or_rename(action, asset_type, evaluated_at)
+                return self._evaluate_move_or_rename(action, evaluated_at)
             if action.target_kind not in {ActionTargetKind.FILE, ActionTargetKind.DIRECTORY}:
-                return self._unsupported_target(action, asset_type, evaluated_at)
+                return self._unsupported_target(action, evaluated_at)
             path_result = self._evaluate_path(
                 action,
-                asset_type,
                 action.canonical_path,
                 role=None,
             )
             return self._result_from_policy(
                 action,
-                asset_type,
                 evaluated_at,
                 path_result.policy_evaluation,
                 path=action.canonical_path,
@@ -388,11 +362,10 @@ class RuntimePolicyEvaluator:
             )
         if action.operation is Operation.EXECUTE:
             if action.target_kind not in {ActionTargetKind.COMMAND, ActionTargetKind.PROCESS}:
-                return self._unsupported_target(action, asset_type, evaluated_at)
+                return self._unsupported_target(action, evaluated_at)
             if action.raw_command is None or not action.raw_command.strip():
                 return self._result(
                     action,
-                    asset_type,
                     evaluated_at,
                     policy_decision=PolicyDecision.INDETERMINATE,
                     operation_effect=None,
@@ -401,32 +374,26 @@ class RuntimePolicyEvaluator:
                     reason=RuntimePolicyReason.COMMAND_EVIDENCE_INSUFFICIENT,
                     limitation="raw command evidence is required for EXECUTE",
                 )
-            evaluation = self._active_policy.policy.evaluate(
-                PolicySubject(
-                    asset_type=asset_type,
-                    operation=Operation.EXECUTE,
-                    raw_command=action.raw_command,
-                )
+            evaluation = self._active_policy.policy.evaluate_target(
+                operation=Operation.EXECUTE,
+                raw_command=action.raw_command,
             )
             return self._result_from_policy(
                 action,
-                asset_type,
                 evaluated_at,
                 evaluation,
                 path=action.canonical_path,
             )
-        return self._unsupported_target(action, asset_type, evaluated_at)
+        return self._unsupported_target(action, evaluated_at)
 
     def _evaluate_move_or_rename(
         self,
         action: NormalizedAction,
-        asset_type: SecurityAssetType,
         evaluated_at: datetime,
     ) -> RuntimePolicyEvaluation:
-        source = self._evaluate_path(action, asset_type, action.source_path, RuntimePathRole.SOURCE)
+        source = self._evaluate_path(action, action.source_path, RuntimePathRole.SOURCE)
         destination = self._evaluate_path(
             action,
-            asset_type,
             action.destination_path,
             RuntimePathRole.DESTINATION,
         )
@@ -448,9 +415,13 @@ class RuntimePolicyEvaluator:
             for rule_id in item.matched_rule_ids:
                 if rule_id not in unique_matched:
                     unique_matched.append(rule_id)
+        matched_asset_types = {
+            item.policy_evaluation.asset_type
+            for item in path_results
+            if item.policy_evaluation.asset_type is not None
+        }
         return self._result(
             action,
-            asset_type,
             evaluated_at,
             policy_decision=decision,
             operation_effect=effect,
@@ -461,31 +432,31 @@ class RuntimePolicyEvaluator:
                 if PolicyDecision.INDETERMINATE in decisions
                 else None
             ),
+            asset_type=(
+                next(iter(matched_asset_types))
+                if len(matched_asset_types) == 1
+                else None
+            ),
             path_evaluations=path_results,
         )
 
     def _evaluate_path(
         self,
         action: NormalizedAction,
-        asset_type: SecurityAssetType,
         path: str | None,
         role: RuntimePathRole | None,
     ) -> RuntimePathEvaluation:
         if not self._path_is_policy_safe(action, path):
             evaluation = self._indeterminate_policy(
-                asset_type=asset_type,
                 operation=action.operation,
                 path=path,
                 reason=RuntimePolicyReason.POLICY_PATH_EVIDENCE_INSUFFICIENT,
                 limitation="canonical Workspace path evidence is required",
             )
         else:
-            evaluation = self._active_policy.policy.evaluate(
-                PolicySubject(
-                    asset_type=asset_type,
-                    operation=action.operation,
-                    path=path,
-                )
+            evaluation = self._active_policy.policy.evaluate_target(
+                operation=action.operation,
+                path=path,
             )
         return RuntimePathEvaluation(role or RuntimePathRole.SOURCE, path, evaluation)
 
@@ -503,12 +474,10 @@ class RuntimePolicyEvaluator:
     def _unsupported_target(
         self,
         action: NormalizedAction,
-        asset_type: SecurityAssetType,
         evaluated_at: datetime,
     ) -> RuntimePolicyEvaluation:
         return self._result(
             action,
-            asset_type,
             evaluated_at,
             policy_decision=PolicyDecision.INDETERMINATE,
             operation_effect=None,
@@ -521,7 +490,6 @@ class RuntimePolicyEvaluator:
     def _result_from_policy(
         self,
         action: NormalizedAction,
-        asset_type: SecurityAssetType,
         evaluated_at: datetime,
         evaluation: PolicyEvaluation,
         *,
@@ -530,7 +498,6 @@ class RuntimePolicyEvaluator:
     ) -> RuntimePolicyEvaluation:
         return self._result(
             action,
-            asset_type,
             evaluated_at,
             policy_decision=evaluation.policy_decision,
             operation_effect=evaluation.operation_effect,
@@ -549,7 +516,6 @@ class RuntimePolicyEvaluator:
     def _result(
         self,
         action: NormalizedAction,
-        asset_type: SecurityAssetType,
         evaluated_at: datetime,
         *,
         policy_decision: PolicyDecision,
@@ -562,6 +528,7 @@ class RuntimePolicyEvaluator:
         raw_command: str | None = None,
         normalized_command: str | None = None,
         policy_evaluation: PolicyEvaluation | None = None,
+        asset_type: SecurityAssetType | None = None,
         path_evaluations: tuple[RuntimePathEvaluation, ...] = (),
         command_pattern_ids: tuple[str, ...] = (),
     ) -> RuntimePolicyEvaluation:
@@ -576,7 +543,15 @@ class RuntimePolicyEvaluator:
             active_policy_fingerprint=self._active_policy.sha256,
             policy_decision=policy_decision,
             operation_effect=operation_effect,
-            asset_type=asset_type,
+            asset_type=(
+                asset_type
+                if asset_type is not None
+                else (
+                    policy_evaluation.asset_type
+                    if policy_evaluation is not None
+                    else None
+                )
+            ),
             matched_rule_ids=matched_rule_ids,
             audit_record=audit_record,
             evaluated_at=evaluated_at,
@@ -593,7 +568,6 @@ class RuntimePolicyEvaluator:
     @staticmethod
     def _indeterminate_policy(
         *,
-        asset_type: SecurityAssetType,
         operation: Operation,
         path: str | None = None,
         reason: str,
@@ -602,7 +576,7 @@ class RuntimePolicyEvaluator:
         return PolicyEvaluation(
             policy_decision=PolicyDecision.INDETERMINATE,
             matched_rule_ids=(),
-            asset_type=asset_type,
+            asset_type=None,
             operation=operation,
             operation_effect=None,
             audit_record=False,
@@ -616,7 +590,6 @@ def evaluate_runtime_policy(
     action: NormalizedAction,
     active_policy: ActivePolicySnapshot | ProtectionPreparationContext,
     *,
-    asset_type: SecurityAssetType | str | None = None,
     session_id: str | None = None,
     evaluated_at: datetime | None = None,
 ) -> RuntimePolicyEvaluation:
@@ -625,7 +598,6 @@ def evaluate_runtime_policy(
     return RuntimePolicyEvaluator(
         active_policy,
         session_id=session_id,
-        asset_type=asset_type,
     ).evaluate(action, evaluated_at=evaluated_at)
 
 
@@ -633,7 +605,6 @@ def evaluate_runtime_policy_batch(
     actions: Iterable[NormalizedAction],
     active_policy: ActivePolicySnapshot | ProtectionPreparationContext,
     *,
-    asset_type: SecurityAssetType | str | None = None,
     session_id: str | None = None,
     evaluated_at: datetime | None = None,
 ) -> RuntimePolicyBatchResult:
@@ -642,7 +613,6 @@ def evaluate_runtime_policy_batch(
     return RuntimePolicyEvaluator(
         active_policy,
         session_id=session_id,
-        asset_type=asset_type,
     ).evaluate_batch(actions, evaluated_at=evaluated_at)
 
 

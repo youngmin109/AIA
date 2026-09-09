@@ -351,7 +351,7 @@ class PolicyRule:
 class PolicyEvaluation:
     policy_decision: PolicyDecision
     matched_rule_ids: tuple[str, ...]
-    asset_type: SecurityAssetType
+    asset_type: SecurityAssetType | None
     operation: Operation
     operation_effect: PolicyEffect | None
     audit_record: bool
@@ -431,6 +431,21 @@ class SecurityAssetPolicy:
             command=command,
         )
 
+    def evaluate_target(
+        self,
+        *,
+        operation: Operation | str,
+        path: str | None = None,
+        raw_command: str | None = None,
+    ) -> PolicyEvaluation:
+        """Evaluate a mechanical target and derive asset type from matching rules."""
+
+        return PolicyEngine(self).evaluate_target(
+            operation=operation,
+            path=path,
+            raw_command=raw_command,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class ResolvedPolicy:
@@ -463,6 +478,21 @@ class ResolvedPolicy:
             path=path,
             raw_command=raw_command,
             command=command,
+        )
+
+    def evaluate_target(
+        self,
+        *,
+        operation: Operation | str,
+        path: str | None = None,
+        raw_command: str | None = None,
+    ) -> PolicyEvaluation:
+        """Evaluate a target against this already resolved policy."""
+
+        return self.policy.evaluate_target(
+            operation=operation,
+            path=path,
+            raw_command=raw_command,
         )
 
 
@@ -589,6 +619,131 @@ class PolicyEngine:
             audit_record=effect is PolicyEffect.AUDIT,
             path=subject.path,
             raw_command=subject.raw_command,
+            normalized_command=normalized_command,
+        )
+
+    def evaluate_target(
+        self,
+        *,
+        operation: Operation | str,
+        path: str | None = None,
+        raw_command: str | None = None,
+    ) -> PolicyEvaluation:
+        """Evaluate operation/path/command without caller-supplied asset type.
+
+        Runtime Actions carry mechanical target facts. This adapter checks each
+        frozen rule with its declared asset type, applies the same priority and
+        conflict rules, and derives the result asset type only when the winning
+        rules identify one unambiguously. A no-match result uses the policy
+        default effect and has no invented asset type.
+        """
+
+        normalized_operation = _enum_value(
+            operation,
+            Operation,
+            label="operation",
+        )
+        normalized_command: str | None = None
+        if raw_command is not None and raw_command.strip():
+            normalized_command = normalize_command(raw_command)
+        if normalized_operation in _FILE_OPERATIONS and (
+            path is None or not path.strip()
+        ):
+            return PolicyEvaluation(
+                policy_decision=PolicyDecision.INDETERMINATE,
+                matched_rule_ids=(),
+                asset_type=None,
+                operation=normalized_operation,
+                operation_effect=None,
+                audit_record=False,
+                reason="MISSING_PATH_EVIDENCE",
+                limitation="path evidence is required for file operations",
+                path=path,
+                raw_command=raw_command,
+                normalized_command=normalized_command,
+            )
+        if normalized_operation is Operation.EXECUTE and (
+            raw_command is None or not raw_command.strip()
+        ):
+            return PolicyEvaluation(
+                policy_decision=PolicyDecision.INDETERMINATE,
+                matched_rule_ids=(),
+                asset_type=None,
+                operation=normalized_operation,
+                operation_effect=None,
+                audit_record=False,
+                reason="MISSING_COMMAND_EVIDENCE",
+                limitation="raw command evidence is required for EXECUTE",
+                path=path,
+                raw_command=raw_command,
+                normalized_command=normalized_command,
+            )
+
+        matches = [
+            rule
+            for rule in self.policy.rules
+            if rule.matches(
+                PolicySubject(
+                    asset_type=rule.asset_type,
+                    operation=normalized_operation,
+                    path=path,
+                    raw_command=raw_command,
+                )
+            )
+        ]
+        if matches:
+            highest_priority = max(rule.priority for rule in matches)
+            highest = [
+                rule for rule in matches if rule.priority == highest_priority
+            ]
+            matched_rule_ids = tuple(rule.rule_id for rule in highest)
+            effects = {
+                rule.operation_effects[normalized_operation]
+                for rule in highest
+            }
+            winning_asset_types = {
+                rule.asset_type
+                for rule in highest
+            }
+            asset_type = (
+                next(iter(winning_asset_types))
+                if len(winning_asset_types) == 1
+                else None
+            )
+            if len(effects) > 1:
+                return PolicyEvaluation(
+                    policy_decision=PolicyDecision.INDETERMINATE,
+                    matched_rule_ids=matched_rule_ids,
+                    asset_type=asset_type,
+                    operation=normalized_operation,
+                    operation_effect=None,
+                    audit_record=False,
+                    reason="POLICY_CONFLICT",
+                    limitation="same-priority rules have conflicting effects",
+                    path=path,
+                    raw_command=raw_command,
+                    normalized_command=normalized_command,
+                )
+            effect = next(iter(effects))
+        else:
+            matched_rule_ids = ()
+            asset_type = None
+            effect = self.policy.default_effect
+
+        decision = (
+            PolicyDecision.VIOLATION
+            if effect is PolicyEffect.DENY
+            else PolicyDecision.COMPLIANT
+        )
+        return PolicyEvaluation(
+            policy_decision=decision,
+            matched_rule_ids=matched_rule_ids,
+            asset_type=asset_type,
+            operation=normalized_operation,
+            operation_effect=effect,
+            audit_record=effect is PolicyEffect.AUDIT,
+            path=path,
+            raw_command=raw_command,
             normalized_command=normalized_command,
         )
 

@@ -55,11 +55,13 @@ fingerprint가 snapshot 내부의 동결 정책과 일치하는지 확인한다.
 Session ID가 다르면 다른 Session의 정책으로 평가하지 않고
 `INDETERMINATE / POLICY_SESSION_MISMATCH`를 반환한다.
 
-자산 유형은 현재 `NormalizedAction`에 포함된 기계적 사실이 아니다. 따라서
-Runtime adapter는 `asset_type`을 선택 입력으로 받으며, 생략하면
-`WORKSPACE`를 사용한다. `.env` 같은 자산별 Rule을 적용할 때는 상위 분류
-계층이 `SECRET`과 같이 명시적인 자산 유형을 전달한다. Runtime Policy가
-경로 이름만 보고 자산 유형을 추론하지 않는다.
+자산 유형은 현재 `NormalizedAction`에 포함된 기계적 사실이 아니다. Runtime
+caller가 자산 유형을 지정하거나 기본값을 주입하지 않는다. Adapter가 Frozen
+Policy의 각 Rule이 선언한 asset type으로 후보 Subject를 기계적으로 만들고
+`operation + canonical path/raw command`를 Rule에 적용한다. 최종 결과의
+`asset_type`은 우선순위가 결정된 matched Rule에서만 나온다. 매칭 Rule이
+없으면 Policy의 `default_effect`를 사용하고 결과 asset type은 `None`으로
+남긴다.
 
 ## Action → PolicySubject
 
@@ -72,19 +74,20 @@ NormalizedAction
   operation = DELETE
   canonical_path = ".env"
         ↓
-PolicySubject(asset_type=..., operation=DELETE, path=".env")
+Frozen Rule asset_type + operation=DELETE + path=".env"
 ```
 
 Command와 Process의 `EXECUTE`는 `raw_command`가 있을 때만 다음 Subject가
 된다.
 
 ```text
-PolicySubject(asset_type=..., operation=EXECUTE, raw_command=raw_command)
+Frozen Rule asset_type + operation=EXECUTE + raw_command=raw_command
 ```
 
 Action에 들어온 `normalized_command`만으로 판정하지 않는다. 기존 Policy
-Engine이 권위 있는 raw command를 `normalize_command`로 정규화하고 명령
-패턴을 비교한다.
+Engine의 target adapter가 각 Frozen Rule의 asset type을 사용해 권위 있는 raw
+command를 `normalize_command`로 정규화하고 명령 패턴을 비교한다. Runtime public
+API에는 caller가 `asset_type`을 override할 수 있는 경로가 없다.
 
 ## File Operation과 Evidence Sufficiency
 

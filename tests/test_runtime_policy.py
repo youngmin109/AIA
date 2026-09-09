@@ -203,6 +203,86 @@ def test_allow_audit_deny_mapping(
     assert result.policy_decision is decision
     assert result.audit_record is audit
     assert result.operation_effect is effect
+    assert result.asset_type is SecurityAssetType.WORKSPACE
+
+
+def test_no_matching_rule_uses_default_without_inventing_asset_type(
+    tmp_path: Path,
+) -> None:
+    policy = resolved_policy(default_effect=PolicyEffect.ALLOW)
+    session, snapshot = make_snapshot(tmp_path, policy)
+    result = RuntimePolicyEvaluator(snapshot).evaluate(
+        action(session.session_id, Operation.DELETE, canonical_path="unclassified.txt")
+    )
+    assert result.policy_decision is PolicyDecision.COMPLIANT
+    assert result.operation_effect is PolicyEffect.ALLOW
+    assert result.matched_rule_ids == ()
+    assert result.asset_type is None
+
+
+@pytest.mark.parametrize(
+    ("asset_type", "pattern"),
+    [
+        (SecurityAssetType.CRITICAL_CODE, "protected/**"),
+        (SecurityAssetType.SECRET, ".env"),
+        (SecurityAssetType.DATABASE_RELATED, "database/**"),
+        (SecurityAssetType.INFRASTRUCTURE, "infra/**"),
+        (SecurityAssetType.DEPENDENCY, "dependency/**"),
+        (SecurityAssetType.REPOSITORY, "repository/**"),
+    ],
+)
+def test_asset_type_is_derived_from_the_matching_frozen_rule(
+    tmp_path: Path,
+    asset_type: SecurityAssetType,
+    pattern: str,
+) -> None:
+    policy = resolved_policy(
+        rules=(
+            file_rule(
+                f"deny-{asset_type.value.lower()}",
+                pattern,
+                PolicyEffect.DENY,
+                asset_type=asset_type,
+            ),
+        )
+    )
+    session, snapshot = make_snapshot(tmp_path, policy)
+    result = RuntimePolicyEvaluator(snapshot).evaluate(
+        action(session.session_id, Operation.DELETE, canonical_path=pattern.replace("**", "main.py")),
+    )
+    assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.asset_type is asset_type
+
+
+def test_secret_read_rule_matches_without_caller_asset_type(tmp_path: Path) -> None:
+    policy = resolved_policy(
+        rules=(
+            file_rule(
+                "deny-secret-read",
+                ".env",
+                PolicyEffect.DENY,
+                asset_type=SecurityAssetType.SECRET,
+                operation=Operation.READ,
+            ),
+        )
+    )
+    session, snapshot = make_snapshot(tmp_path, policy)
+    result = RuntimePolicyEvaluator(snapshot).evaluate(
+        action(session.session_id, Operation.READ, canonical_path=".env")
+    )
+    assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.asset_type is SecurityAssetType.SECRET
+
+
+def test_runtime_has_no_caller_asset_type_override_path(tmp_path: Path) -> None:
+    session, snapshot = make_snapshot(tmp_path, resolved_policy())
+    with pytest.raises(TypeError):
+        RuntimePolicyEvaluator(snapshot, asset_type=SecurityAssetType.WORKSPACE)  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        RuntimePolicyEvaluator(snapshot).evaluate(  # type: ignore[call-arg]
+            action(session.session_id, Operation.READ),
+            asset_type=SecurityAssetType.WORKSPACE,
+        )
 
 
 @pytest.mark.parametrize("operation", [Operation.READ, Operation.CREATE, Operation.MODIFY, Operation.DELETE])
@@ -264,7 +344,14 @@ def test_process_execute_without_command_is_indeterminate(tmp_path: Path) -> Non
 
 def test_command_uses_raw_command_and_existing_lexical_normalization(tmp_path: Path) -> None:
     policy = resolved_policy(
-        rules=(command_rule("drop", "DROP TABLE", PolicyEffect.DENY),)
+        rules=(
+            command_rule(
+                "drop",
+                "DROP TABLE",
+                PolicyEffect.DENY,
+                asset_type=SecurityAssetType.DATABASE_RELATED,
+            ),
+        )
     )
     session, snapshot = make_snapshot(tmp_path, policy)
     result = RuntimePolicyEvaluator(snapshot).evaluate(
@@ -278,6 +365,7 @@ def test_command_uses_raw_command_and_existing_lexical_normalization(tmp_path: P
         )
     )
     assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.asset_type is SecurityAssetType.DATABASE_RELATED
     assert result.normalized_command == "drop table users"
     assert result.command_pattern_ids == ("drop",)
 
@@ -461,10 +549,9 @@ def test_real_raw_to_normalize_to_policy_pipeline(tmp_path: Path) -> None:
     normalized = normalize_evidence(
         [record], aia_session_id=session.session_id, workspace=session.workspace
     )
-    result = RuntimePolicyEvaluator(snapshot, asset_type=SecurityAssetType.SECRET).evaluate(
-        normalized.actions[0]
-    )
+    result = RuntimePolicyEvaluator(snapshot).evaluate(normalized.actions[0])
     assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.asset_type is SecurityAssetType.SECRET
     assert result.action_id == normalized.actions[0].action_id
 
 
