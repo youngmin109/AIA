@@ -497,6 +497,12 @@ def _validate_artifact(
     manifest_bytes = manifest_path.read_bytes()
     manifest = _parse_manifest(_read_json(manifest_path))
 
+    # The snapshot root itself is part of the trust boundary.  Checking only
+    # its children would allow a tampered checkpoint to replace the root with
+    # a link-like entry and make the manifest scan follow an external target.
+    if _entry_kind(workspace_path) is not ManifestEntryType.DIRECTORY:
+        raise CheckpointArtifactError("Checkpoint snapshot root is not a directory")
+
     required_metadata = {
         "checkpoint_content_sha256",
         "checkpoint_id",
