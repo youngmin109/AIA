@@ -103,6 +103,40 @@ def test_deterministic_python_protected_launch_reaches_running(
         cleanup_running_launcher(values, launcher)
 
 
+def test_prompt_is_dispatched_only_after_running_and_hook_bridge_ready(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+    observations: list[tuple[SessionStatus, bool]] = []
+    launcher: ProtectedLauncher
+
+    def recording_popen(argv, **kwargs):
+        process = subprocess.Popen(argv, **kwargs)
+        stream = process.stdin
+        assert stream is not None
+
+        class ObservedStdin:
+            def write(self, value: bytes):
+                observations.append((values["session"].status, launcher.hook_bridge.ready))
+                return stream.write(value)
+
+            def close(self):
+                return stream.close()
+
+        process.stdin = ObservedStdin()
+        return process
+
+    launcher = make_ready_launcher(values, popen_factory=recording_popen)
+    result = launcher.launch(launch_request(values))
+    try:
+        assert result.status is LaunchStatus.RUNNING
+        assert observations == [(SessionStatus.RUNNING, True)]
+        assert result.context is not None
+        assert result.context.hook_bridge_ready
+    finally:
+        cleanup_running_launcher(values, launcher)
+
+
 def test_launcher_uses_shell_false_and_canonical_workspace(
     readiness_inputs: dict,
 ) -> None:

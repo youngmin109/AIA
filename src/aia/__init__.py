@@ -141,7 +141,36 @@ from .launcher import (
     ProtectedLaunchResult,
     ProtectedLauncher,
 )
-from .adapters import CodexAdapter
+from .enforcement import (
+    EnforcementAction,
+    EnforcementDecision,
+    EnforcementExecutionResult,
+    EnforcementGate,
+    EnforcementGateInput,
+    EnforcementGateResult,
+    EnforcementReason,
+    EnforcementRoute,
+    GateCheck,
+    HookTrustStatus,
+)
+from .pretool_enforcement import (
+    CodexPreToolResponse,
+    HookCapability,
+    HookEnforcementBridge,
+    PreToolDecision,
+    PreToolEnforcementAdapter,
+    PreToolEnforcementError,
+    PreToolExecutionConfirmation,
+    PreToolExecutionResult,
+    TrustedHookIngress,
+    evaluate_pretool,
+)
+from .adapters import (
+    CodexAdapter,
+    CodexHookAdapter,
+    CodexHookPayloadError,
+    CodexPreToolPayload,
+)
 from .attribution import (
     AttributionBatchResult,
     AttributionEngine,
@@ -400,6 +429,9 @@ __all__ = [
     "AgentLaunchSpec",
     "AgentRuntimeMetadata",
     "CodexAdapter",
+    "CodexHookAdapter",
+    "CodexHookPayloadError",
+    "CodexPreToolPayload",
     "LaunchCleanupStatus",
     "LaunchStatus",
     "LauncherError",
@@ -407,5 +439,25 @@ __all__ = [
     "ProtectedLaunchRequest",
     "ProtectedLaunchResult",
     "ProtectedLauncher",
+    "EnforcementAction",
+    "EnforcementDecision",
+    "EnforcementExecutionResult",
+    "EnforcementGate",
+    "EnforcementGateInput",
+    "EnforcementGateResult",
+    "EnforcementReason",
+    "EnforcementRoute",
+    "GateCheck",
+    "HookTrustStatus",
+    "CodexPreToolResponse",
+    "HookCapability",
+    "HookEnforcementBridge",
+    "PreToolDecision",
+    "PreToolEnforcementAdapter",
+    "PreToolEnforcementError",
+    "PreToolExecutionConfirmation",
+    "PreToolExecutionResult",
+    "TrustedHookIngress",
+    "evaluate_pretool",
 ]
 __version__ = "0.1.0"

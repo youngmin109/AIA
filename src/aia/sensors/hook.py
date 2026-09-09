@@ -265,7 +265,7 @@ class ValidatedHookRequest:
             "aia_session_id": self.aia_session_id,
             "command_observed": self.raw_command is not None,
             "hook_event_name": self.hook_event_name,
-            "ingress_status": "UNVERIFIED",
+            "ingress_status": "VERIFIED" if self.ingress_verified else "UNVERIFIED",
             "ingress_verified": self.ingress_verified,
             "source_metadata": dict(self.source_metadata),
             "tool_input": dict(self.tool_input),

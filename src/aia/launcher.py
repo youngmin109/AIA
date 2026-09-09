@@ -33,6 +33,7 @@ from .sensors.base import SensorStatus
 from .sensors.filesystem import FilesystemSensor
 from .sensors.hook import HookSensor
 from .sensors.process import ProcessRuntimeSensor, ProcessRuntimeSensorContext
+from .pretool_enforcement import HookEnforcementBridge
 
 
 class LauncherError(ValueError):
@@ -186,6 +187,7 @@ class ProtectedLaunchContext:
     agent_native_session_id: str | None = None
     spawn_to_identity_ms: float = 0.0
     spawn_to_process_sensor_healthy_ms: float = 0.0
+    hook_enforcement_ready_at: datetime | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "workspace", canonicalize_workspace(self.workspace))
@@ -199,6 +201,17 @@ class ProtectedLaunchContext:
             if value.tzinfo is None or value.utcoffset() is None:
                 raise LauncherError(f"{field_name} must be timezone-aware")
             object.__setattr__(self, field_name, value.astimezone(timezone.utc))
+        if self.hook_enforcement_ready_at is not None:
+            if (
+                self.hook_enforcement_ready_at.tzinfo is None
+                or self.hook_enforcement_ready_at.utcoffset() is None
+            ):
+                raise LauncherError("hook_enforcement_ready_at must be timezone-aware")
+            object.__setattr__(
+                self,
+                "hook_enforcement_ready_at",
+                self.hook_enforcement_ready_at.astimezone(timezone.utc),
+            )
         for field_name in (
             "spawn_to_identity_ms",
             "spawn_to_process_sensor_healthy_ms",
@@ -206,6 +219,10 @@ class ProtectedLaunchContext:
             value = getattr(self, field_name)
             if value < 0:
                 raise LauncherError(f"{field_name} must be non-negative")
+
+    @property
+    def hook_bridge_ready(self) -> bool:
+        return self.hook_enforcement_ready_at is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +262,7 @@ class ProtectedLauncher:
         *,
         adapter: AgentAdapter | None = None,
         lease_manager: WorkspaceLeaseManager | None = None,
+        hook_bridge: HookEnforcementBridge | None = None,
         process_factory: Callable[[int], Any] = psutil.Process,
         process_sensor_factory: Callable[..., ProcessRuntimeSensor] = ProcessRuntimeSensor,
         popen_factory: Callable[..., Any] = subprocess.Popen,
@@ -257,6 +275,7 @@ class ProtectedLauncher:
         self.hook_sensor = hook_sensor
         self.adapter = adapter
         self.lease_manager = lease_manager
+        self.hook_bridge = hook_bridge or HookEnforcementBridge()
         self.process_factory = process_factory
         self.process_sensor_factory = process_sensor_factory
         self.popen_factory = popen_factory
@@ -314,7 +333,6 @@ class ProtectedLauncher:
                 stderr=subprocess.DEVNULL,
             )
             self._process_handle = process
-            self._write_stdin(process, spec.stdin_bytes)
 
             identity, identity_registered_at = self._capture_identity(process)
             registration = RootProcessRegistration(
@@ -339,6 +357,13 @@ class ProtectedLauncher:
             if sensor.check_health().status is not SensorStatus.HEALTHY:
                 raise _LaunchStepError("PROCESS_SENSOR_UNHEALTHY")
             self._require_root_evidence(sensor, identity)
+
+            hook_enforcement_ready_at = self.hook_bridge.prepare(
+                aia_session_id=self.session.session_id,
+                launch_id=launch_id,
+                workspace=self.session.workspace,
+                control_directory=self.preparation_context.control_directory,
+            )
 
             final_revalidation = self._readiness_barrier().revalidate_ready_context(
                 self.readiness_context
@@ -378,6 +403,7 @@ class ProtectedLauncher:
                 process_sensor_healthy_at=process_sensor_healthy_at,
                 running_at=running_at,
                 launch_provenance="AIA_SPAWNED_ROOT",
+                hook_enforcement_ready_at=hook_enforcement_ready_at,
                 spawn_to_identity_ms=max(
                     0.0,
                     (identity_registered_at - spawned_at).total_seconds() * 1000,
@@ -388,6 +414,10 @@ class ProtectedLauncher:
                 ),
             )
             self._status = LaunchStatus.RUNNING
+            # A spawned process is not an activated protected task.  The task
+            # prompt is released only after identity, sensors, bridge, and
+            # Session RUNNING have all been established.
+            self._write_stdin(process, spec.stdin_bytes)
             result = ProtectedLaunchResult(
                 launch_id=launch_id,
                 status=LaunchStatus.RUNNING,
@@ -428,7 +458,7 @@ class ProtectedLauncher:
                     cleanup_status=cleanup_status,
                 )
             if (
-                self.session.status is SessionStatus.READY
+                self.session.status in {SessionStatus.READY, SessionStatus.RUNNING}
                 and self._process_handle is not None
             ):
                 self._mark_session_failed()
@@ -583,14 +613,14 @@ class ProtectedLauncher:
             return LaunchCleanupStatus.FAILED
 
     def _mark_session_failed(self) -> None:
-        if self.session.status is SessionStatus.READY:
+        if self.session.status in {SessionStatus.READY, SessionStatus.RUNNING}:
             try:
                 self.session.transition_to(SessionStatus.FAILED)
             except Exception:
                 pass
 
     def _should_fail_session(self, failure_code: str) -> bool:
-        return self.session.status is SessionStatus.READY and (
+        return self.session.status in {SessionStatus.READY, SessionStatus.RUNNING} and (
             self._process_handle is not None
             or failure_code
             in {
