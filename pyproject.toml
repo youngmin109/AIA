@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "AIA product MVP bootstrap"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = [
+    "watchdog>=6.0.0",
+]
 
 [dependency-groups]
 dev = [

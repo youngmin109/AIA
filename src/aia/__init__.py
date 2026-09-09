@@ -21,6 +21,15 @@ from .checkpoint import (
     validate_checkpoint,
     validate_safe_checkpoint,
 )
+from .evidence import (
+    EvidenceError,
+    EvidenceRecordType,
+    EvidenceSource,
+    EvidenceStoreError,
+    ObservationStage,
+    RawEvidenceRecord,
+    RawEvidenceStore,
+)
 from .protection import (
     ActivePolicyAlreadyFrozen,
     ActivePolicyArtifactError,
@@ -54,6 +63,16 @@ from .protection import (
     process_create_time,
     serialize_policy_content,
     workspace_identity,
+)
+from .sensors import (
+    FilesystemSensor,
+    FilesystemSensorContext,
+    SensorAlreadyRunningError,
+    SensorError,
+    SensorHealth,
+    SensorStartError,
+    SensorStopError,
+    SensorStatus,
 )
 from .policy import (
     KOREAN_ASSET_TYPES,
@@ -112,6 +131,21 @@ __all__ = [
     "CheckpointSnapshot",
     "CheckpointValidity",
     "CheckpointValidationResult",
+    "EvidenceError",
+    "EvidenceRecordType",
+    "EvidenceSource",
+    "EvidenceStoreError",
+    "ObservationStage",
+    "RawEvidenceRecord",
+    "RawEvidenceStore",
+    "FilesystemSensor",
+    "FilesystemSensorContext",
+    "SensorAlreadyRunningError",
+    "SensorError",
+    "SensorHealth",
+    "SensorStartError",
+    "SensorStopError",
+    "SensorStatus",
     "KOREAN_ASSET_TYPES",
     "KOREAN_EFFECTS",
     "KOREAN_OPERATIONS",
