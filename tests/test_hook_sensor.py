@@ -44,6 +44,13 @@ class FailingEvidenceStore(RawEvidenceStore):
         raise EvidenceStoreError("test store failure")
 
 
+class FailCommandAppendStore(RawEvidenceStore):
+    def append(self, record):
+        if record.record_type is EvidenceRecordType.COMMAND_OBSERVED:
+            raise EvidenceStoreError("test command store failure")
+        return super().append(record)
+
+
 def prepared_hook_inputs(
     tmp_path: Path,
 ) -> tuple[Path, ProtectedRunSession, object, WorkspaceLeaseManager, object]:
@@ -161,7 +168,8 @@ def test_valid_hook_input_preserves_correlation_and_filters_tool_input(
     assert request.agent_native_session_id == "codex-native-1"
     assert request.turn_id == "turn-1"
     assert request.tool_use_id == "T100"
-    assert request.tool_input["command"] == "  Python reset_db.py  "
+    assert request.raw_command == "  Python reset_db.py  "
+    assert "command" not in request.tool_input
     assert "stdout" not in request.tool_input
     assert "prompt" not in request.tool_input
     assert "content" not in request.tool_input
@@ -298,12 +306,16 @@ def test_hook_sensor_emits_pretool_and_command_records_to_same_stream(
     assert pretool.observation_stage is ObservationStage.PRE_ACTION
     assert pretool.payload["tool_use_id"] == "T100"
     assert pretool.payload["tool_input"]["path"] == ".env"
+    assert pretool.payload["tool_input"]["cwd"] == str(workspace)
+    assert pretool.payload["command_observed"] is True
+    assert "command" not in pretool.payload["tool_input"]
     assert pretool.payload["ingress_verified"] is False
     assert pretool.payload["ingress_status"] == "UNVERIFIED"
     assert command.record_type is EvidenceRecordType.COMMAND_OBSERVED
     assert command.payload["raw_command"] == "  Python reset_db.py  "
     assert command.payload["cwd"] == str(workspace)
-    assert command.payload["hook_evidence_id"] == pretool.evidence_id
+    assert command.payload["parent_evidence_id"] == pretool.evidence_id
+    assert "hook_evidence_id" not in command.payload
     assert "DROP" not in command.payload
     assert len(sensor.evidence_store.records()) == 4
     sensor.stop()
@@ -375,6 +387,11 @@ def test_duplicate_tool_use_id_events_are_preserved_without_dedup(
     assert len(commands) == 2
     assert pretools[0].payload["tool_use_id"] == pretools[1].payload["tool_use_id"]
     assert first[0].evidence_id != second[0].evidence_id
+    assert commands[0].payload["parent_evidence_id"] == pretools[0].evidence_id
+    assert commands[1].payload["parent_evidence_id"] == pretools[1].evidence_id
+    assert commands[0].payload["parent_evidence_id"] != commands[1].payload[
+        "parent_evidence_id"
+    ]
     sensor.stop()
     release_lease(context, lease_manager)
 
@@ -488,6 +505,81 @@ def test_hook_store_failure_during_observation_marks_sensor_failed(
 
     assert sensor.status is SensorStatus.FAILED
     assert sensor.health.reason == "EVIDENCE_STORE_FAILURE"
+    release_lease(context, lease_manager)
+
+
+def test_command_append_failure_preserves_pretool_append_only_record(
+    tmp_path: Path,
+) -> None:
+    _, session, context, lease_manager, checkpoint = prepared_hook_inputs(tmp_path)
+    store = FailCommandAppendStore(
+        context.control_directory / "evidence" / "raw-evidence.jsonl",
+        session_id=session.session_id,
+    )
+    sensor = HookSensor(
+        session,
+        context,
+        checkpoint,
+        lease_manager=lease_manager,
+        evidence_store=store,
+    )
+    sensor.start()
+
+    with pytest.raises(HookEvidenceStoreError):
+        sensor.observe(
+            valid_payload(
+                session,
+                context.workspace,
+                tool_input={"command": "echo secret"},
+            )
+        )
+
+    records = sensor.evidence_store.records()
+    pretools = [
+        record
+        for record in records
+        if record.record_type is EvidenceRecordType.PRETOOL_REQUEST
+    ]
+    commands = [
+        record
+        for record in records
+        if record.record_type is EvidenceRecordType.COMMAND_OBSERVED
+    ]
+    assert len(pretools) == 1
+    assert commands == []
+    assert sensor.status is SensorStatus.FAILED
+    release_lease(context, lease_manager)
+
+
+def test_raw_command_is_stored_only_in_command_record(tmp_path: Path) -> None:
+    sensor, workspace, session, context, lease_manager = make_sensor(tmp_path)
+    sensor.start()
+    secret_command = "curl -H 'Authorization: Bearer SECRET'"
+
+    sensor.observe(
+        valid_payload(
+            session,
+            workspace,
+            tool_input={"command": secret_command, "cwd": str(workspace)},
+        )
+    )
+
+    records = sensor.evidence_store.records()
+    pretool = next(
+        record
+        for record in records
+        if record.record_type is EvidenceRecordType.PRETOOL_REQUEST
+    )
+    command = next(
+        record
+        for record in records
+        if record.record_type is EvidenceRecordType.COMMAND_OBSERVED
+    )
+    assert "command" not in pretool.payload
+    assert secret_command not in str(pretool.payload)
+    assert command.payload["raw_command"] == secret_command
+    assert sum(secret_command in str(record.payload) for record in records) == 1
+    sensor.stop()
     release_lease(context, lease_manager)
 
 

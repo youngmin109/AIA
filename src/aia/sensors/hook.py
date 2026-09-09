@@ -222,18 +222,23 @@ def _select_tool_input(value: Any) -> tuple[dict[str, Any], str | None, str | No
     if not isinstance(value, Mapping):
         raise HookInputError("tool_input must be an object")
     selected: dict[str, Any] = {}
-    for key in _SELECTED_TOOL_INPUT_KEYS:
+    for key in _SELECTED_TOOL_INPUT_KEYS - {"command"}:
         if key not in value:
             continue
         item = value[key]
-        if key in {"path", "command", "cwd"} and not isinstance(item, str):
+        if key in {"path", "cwd"} and not isinstance(item, str):
             raise HookInputError(f"tool_input.{key} must be a string")
         if key == "target" and not isinstance(item, (str, Mapping)):
             raise HookInputError("tool_input.target must be a string or object")
         if _json_size(item) > _MAX_PAYLOAD_BYTES:
             raise HookPayloadTooLargeError("tool_input field exceeds size limit")
         selected[key] = item
-    raw_command = selected.get("command")
+    raw_command = value.get("command")
+    if raw_command is not None:
+        if not isinstance(raw_command, str) or not raw_command:
+            raise HookInputError("tool_input.command must be a non-empty string")
+        if _json_size(raw_command) > _MAX_PAYLOAD_BYTES:
+            raise HookPayloadTooLargeError("tool_input.command exceeds size limit")
     cwd = selected.get("cwd")
     return selected, raw_command, cwd
 
@@ -249,6 +254,7 @@ class ValidatedHookRequest:
     tool_use_id: str
     tool_name: str
     tool_input: Mapping[str, Any]
+    raw_command: str | None
     hook_event_name: str
     source_metadata: Mapping[str, str | int | float | bool]
     ingress_verified: bool = False
@@ -257,6 +263,7 @@ class ValidatedHookRequest:
         result: dict[str, Any] = {
             "agent": self.agent,
             "aia_session_id": self.aia_session_id,
+            "command_observed": self.raw_command is not None,
             "hook_event_name": self.hook_event_name,
             "ingress_status": "UNVERIFIED",
             "ingress_verified": self.ingress_verified,
@@ -320,7 +327,7 @@ def validate_hook_input(
     turn_id = value.get("turn_id")
     if turn_id is not None:
         turn_id = _required_text(turn_id, field_name="turn_id")
-    tool_input, _, _ = _select_tool_input(value["tool_input"])
+    tool_input, raw_command, _ = _select_tool_input(value["tool_input"])
     source_metadata = _select_source_metadata(value.get("source_metadata"))
     return ValidatedHookRequest(
         aia_session_id=aia_session_id,
@@ -330,6 +337,7 @@ def validate_hook_input(
         tool_use_id=tool_use_id,
         tool_name=tool_name,
         tool_input=tool_input,
+        raw_command=raw_command,
         hook_event_name=event_name,
         source_metadata=source_metadata,
     )
@@ -520,12 +528,12 @@ class HookSensor:
             try:
                 self.evidence_store.append(pretool_record)
                 records = [pretool_record]
-                raw_command = request.tool_input.get("command")
+                raw_command = request.raw_command
                 if isinstance(raw_command, str):
                     command_payload: dict[str, Any] = {
-                        "hook_evidence_id": pretool_record.evidence_id,
                         "ingress_status": "UNVERIFIED",
                         "ingress_verified": False,
+                        "parent_evidence_id": pretool_record.evidence_id,
                         "raw_command": raw_command,
                         "tool_use_id": request.tool_use_id,
                     }

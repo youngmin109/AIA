@@ -91,11 +91,11 @@ Hook input 전체를 JSONL에 복사하지 않는다. 현재 선택 저장하는
 
 ## Command Raw Evidence
 
-선택된 `tool_input.command`가 있으면 같은 Hook Source와 `PRE_ACTION` stage로 `COMMAND_OBSERVED` 레코드를 추가한다.
+선택된 `tool_input.command`가 있으면 같은 Hook Source와 `PRE_ACTION` stage로 `COMMAND_OBSERVED` 레코드를 추가한다. `PRETOOL_REQUEST`에는 command 원문을 저장하지 않고 `command_observed` 여부만 남긴다. Raw Command의 authoritative copy는 `COMMAND_OBSERVED` 하나다.
 
 ```json
 {
-  "hook_evidence_id": "pretool-evidence-id",
+  "parent_evidence_id": "pretool-evidence-id",
   "ingress_status": "UNVERIFIED",
   "ingress_verified": false,
   "raw_command": "python reset_db.py",
@@ -104,9 +104,9 @@ Hook input 전체를 JSONL에 복사하지 않는다. 현재 선택 저장하는
 }
 ```
 
-`raw_command`는 대소문자·공백을 포함해 원문 그대로 저장한다. lower/case normalization, whitespace normalization, shell parsing, SQL parsing, script effect inference를 수행하지 않는다. `python reset_db.py`를 보고 내부에서 `DROP TABLE`이 실행됐다고 추론하지 않으며, `psql -c "DROP TABLE users"`를 보고 DB 상태가 실제로 변경됐다고 주장하지 않는다.
+`parent_evidence_id`는 이 Command Record를 발생시킨 정확한 `PRETOOL_REQUEST.evidence_id`다. `tool_use_id`만으로 부모를 추정하지 않으므로 동일한 `tool_use_id`의 중복 Hook Event도 각 Command Record의 계보를 결정적으로 추적할 수 있다. `raw_command`는 대소문자·공백을 포함해 원문 그대로 저장한다. lower/case normalization, whitespace normalization, shell parsing, SQL parsing, script effect inference를 수행하지 않는다. `python reset_db.py`를 보고 내부에서 `DROP TABLE`이 실행됐다고 추론하지 않으며, `psql -c "DROP TABLE users"`를 보고 DB 상태가 실제로 변경됐다고 주장하지 않는다.
 
-Raw Command는 민감정보를 포함할 수 있다. 예를 들어 Authorization header나 token이 command 문자열에 들어 있을 수 있다. 현재 Control Root에는 암호화와 ACL hardening이 없으며, 이번 EPIC에는 Redaction Engine을 추가하지 않는다. 대신 command를 Error message, Sensor Health, 사용자 요약, 다른 metadata에 중복 평문으로 복사하지 않는다.
+Raw Command는 민감정보를 포함할 수 있다. 예를 들어 Authorization header나 token이 command 문자열에 들어 있을 수 있다. 현재 Control Root에는 암호화와 ACL hardening이 없으며, 이번 EPIC에는 Redaction Engine을 추가하지 않는다. `PRETOOL_REQUEST`와 `COMMAND_OBSERVED`에 command를 중복 저장하지 않으며, command를 Error message, Sensor Health, 사용자 요약, 다른 metadata에 복사하지 않는다. PreTool append 후 Command append가 실패하면 이미 저장된 PreTool Record는 삭제·수정하지 않고 Sensor를 `FAILED`로 둔다.
 
 ## Hook Channel Trust
 
