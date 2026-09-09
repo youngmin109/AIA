@@ -50,6 +50,7 @@ class FilesystemSensorContext:
     started_at: datetime
     evidence_path: Path
     health: SensorHealth
+    observation_sequence: int = 0
 
 
 def _now_utc() -> datetime:
@@ -164,6 +165,7 @@ class FilesystemSensor:
         self._handler = _FilesystemEventHandler(self)
         self._lock = RLock()
         self._status = SensorStatus.STOPPED
+        self._observation_sequence = 0
         self._started_at: datetime | None = None
         self._health = SensorHealth(
             EvidenceSource.FILESYSTEM_WATCHER,
@@ -183,6 +185,17 @@ class FilesystemSensor:
     @property
     def observer(self) -> Any | None:
         return self._observer
+
+    @property
+    def context(self) -> FilesystemSensorContext:
+        return self._context()
+
+    @property
+    def observation_sequence(self) -> int:
+        """Monotonic observation generation for Readiness stability checks."""
+
+        with self._lock:
+            return self._observation_sequence
 
     def start(self) -> FilesystemSensorContext:
         with self._lock:
@@ -296,6 +309,7 @@ class FilesystemSensor:
             if event_type not in self._SUPPORTED_EVENT_TYPES:
                 # opened/closed/access-like events are deliberately not READ evidence.
                 return
+            self._observation_sequence += 1
             payload: dict[str, Any] = {
                 "event_type": event_type,
                 "src_path": getattr(event, "src_path", None),
@@ -335,6 +349,7 @@ class FilesystemSensor:
             started_at=started_at,
             evidence_path=self.evidence_store.path,
             health=self._health,
+            observation_sequence=self._observation_sequence,
         )
 
     def _set_health(

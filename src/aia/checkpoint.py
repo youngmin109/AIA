@@ -149,6 +149,16 @@ class CheckpointValidationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkspaceBaselineComparison:
+    """Read-only comparison between a live Workspace and a Checkpoint baseline."""
+
+    matches: bool
+    checkpoint_content_sha256: str
+    current_workspace_content_sha256: str
+    reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class SafeCheckpoint:
     checkpoint_id: str
     session_id: str
@@ -634,6 +644,33 @@ def validate_checkpoint(
     return CheckpointValidationResult(CheckpointValidity.VALID)
 
 
+def compare_workspace_to_checkpoint(
+    checkpoint: SafeCheckpoint,
+    workspace: Path | str | None = None,
+) -> WorkspaceBaselineComparison:
+    """Compare the current Workspace manifest with a finalized Checkpoint.
+
+    This is a baseline comparison for Readiness. It does not create or assert
+    Recovery Integrity status.
+    """
+
+    if not isinstance(checkpoint, SafeCheckpoint):
+        raise CheckpointError("checkpoint must be a SafeCheckpoint")
+    target = canonicalize_workspace(workspace or checkpoint.workspace)
+    current_entries = _scan_workspace(target)
+    current_fingerprint = _sha256_bytes(_content_fingerprint_bytes(current_entries))
+    matches = (
+        current_entries == checkpoint.manifest
+        and current_fingerprint == checkpoint.checkpoint_content_sha256
+    )
+    return WorkspaceBaselineComparison(
+        matches=matches,
+        checkpoint_content_sha256=checkpoint.checkpoint_content_sha256,
+        current_workspace_content_sha256=current_fingerprint,
+        reason=None if matches else "WORKSPACE_DRIFTED_AFTER_CHECKPOINT",
+    )
+
+
 validate_safe_checkpoint = validate_checkpoint
 
 
@@ -821,7 +858,9 @@ __all__ = [
     "SafeCheckpoint",
     "SafeCheckpointManager",
     "UnsupportedFilesystemEntryError",
+    "WorkspaceBaselineComparison",
     "WorkspaceChangedDuringCheckpoint",
+    "compare_workspace_to_checkpoint",
     "create_checkpoint",
     "create_safe_checkpoint",
     "validate_checkpoint",

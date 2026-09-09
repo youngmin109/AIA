@@ -10,6 +10,7 @@ from .checkpoint import (
     CheckpointSnapshot,
     CheckpointValidity,
     CheckpointValidationResult,
+    WorkspaceBaselineComparison,
     ManifestEntry,
     ManifestEntryType,
     SafeCheckpoint,
@@ -20,6 +21,7 @@ from .checkpoint import (
     create_safe_checkpoint,
     validate_checkpoint,
     validate_safe_checkpoint,
+    compare_workspace_to_checkpoint,
 )
 from .evidence import (
     EvidenceError,
@@ -84,6 +86,8 @@ from .sensors import (
     HookSensorContext,
     ProcessEvidenceStoreError,
     ProcessMetadataStatus,
+    ProcessObserverCapability,
+    ProcessObserverCapabilityStatus,
     ProcessObservation,
     ProcessRole,
     ProcessRuntimeError,
@@ -102,6 +106,17 @@ from .sensors import (
     ValidatedHookRequest,
     validate_hook_input,
     validate_hook_payload,
+)
+from .readiness import (
+    ProtectionReadinessBarrier,
+    ProtectionReadinessContext,
+    ProtectionReadinessResult,
+    ReadinessBarrier,
+    ReadinessCheck,
+    ReadinessError,
+    ReadinessStatus,
+    check_readiness,
+    evaluate_readiness,
 )
 from .policy import (
     KOREAN_ASSET_TYPES,
@@ -160,6 +175,7 @@ __all__ = [
     "CheckpointSnapshot",
     "CheckpointValidity",
     "CheckpointValidationResult",
+    "WorkspaceBaselineComparison",
     "EvidenceError",
     "EvidenceRecordType",
     "EvidenceSource",
@@ -184,6 +200,8 @@ __all__ = [
     "verify_process_identity",
     "ProcessEvidenceStoreError",
     "ProcessMetadataStatus",
+    "ProcessObserverCapability",
+    "ProcessObserverCapabilityStatus",
     "ProcessObservation",
     "ProcessRole",
     "ProcessRuntimeError",
@@ -273,5 +291,15 @@ __all__ = [
     "workspace_identity",
     "validate_checkpoint",
     "validate_safe_checkpoint",
+    "compare_workspace_to_checkpoint",
+    "ProtectionReadinessBarrier",
+    "ProtectionReadinessContext",
+    "ProtectionReadinessResult",
+    "ReadinessBarrier",
+    "ReadinessCheck",
+    "ReadinessError",
+    "ReadinessStatus",
+    "check_readiness",
+    "evaluate_readiness",
 ]
 __version__ = "0.1.0"

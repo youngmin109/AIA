@@ -27,6 +27,8 @@ from .hook import (
 from .process import (
     ProcessEvidenceStoreError,
     ProcessMetadataStatus,
+    ProcessObserverCapability,
+    ProcessObserverCapabilityStatus,
     ProcessObservation,
     ProcessRole,
     ProcessRuntimeError,
@@ -48,6 +50,8 @@ __all__ = [
     "HookSensorContext",
     "ProcessEvidenceStoreError",
     "ProcessMetadataStatus",
+    "ProcessObserverCapability",
+    "ProcessObserverCapabilityStatus",
     "ProcessObservation",
     "ProcessRole",
     "ProcessRuntimeError",

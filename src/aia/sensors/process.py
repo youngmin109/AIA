@@ -75,6 +75,66 @@ class ProcessMetadataStatus(StrEnum):
     PARTIAL = "PARTIAL"
 
 
+class ProcessObserverCapabilityStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+@dataclass(frozen=True, slots=True)
+class ProcessObserverCapability:
+    """Validated Process Runtime configuration without starting a process."""
+
+    sensor_source: EvidenceSource = EvidenceSource.PROCESS_RUNTIME
+    polling_interval: float = 0.25
+    configured: bool = True
+    process_factory: ProcessFactory = psutil.Process
+    aia_session_id: str | None = None
+    workspace: Path | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "sensor_source", EvidenceSource(self.sensor_source))
+        if self.sensor_source is not EvidenceSource.PROCESS_RUNTIME:
+            raise ProcessRuntimeError(
+                "Process Observer Capability must use PROCESS_RUNTIME"
+            )
+        if not isinstance(self.polling_interval, (int, float)) or isinstance(
+            self.polling_interval, bool
+        ) or not math.isfinite(float(self.polling_interval)) or self.polling_interval <= 0:
+            raise ProcessRuntimeError(
+                "polling_interval must be a positive finite number"
+            )
+        object.__setattr__(self, "polling_interval", float(self.polling_interval))
+        if not isinstance(self.configured, bool):
+            raise ProcessRuntimeError("configured must be a bool")
+        if not callable(self.process_factory):
+            raise ProcessRuntimeError("process_factory must be callable")
+        if self.aia_session_id is not None and (
+            not isinstance(self.aia_session_id, str) or not self.aia_session_id
+        ):
+            raise ProcessRuntimeError("aia_session_id must be non-empty when provided")
+        if self.workspace is not None:
+            try:
+                object.__setattr__(
+                    self,
+                    "workspace",
+                    Path(self.workspace).expanduser().resolve(strict=False),
+                )
+            except (TypeError, ValueError, OSError) as error:
+                raise ProcessRuntimeError("workspace is invalid") from error
+
+    @property
+    def status(self) -> ProcessObserverCapabilityStatus:
+        return (
+            ProcessObserverCapabilityStatus.AVAILABLE
+            if self.configured
+            else ProcessObserverCapabilityStatus.UNAVAILABLE
+        )
+
+    @property
+    def available(self) -> bool:
+        return self.status is ProcessObserverCapabilityStatus.AVAILABLE
+
+
 @dataclass(frozen=True, slots=True)
 class ProcessObservation:
     identity: ProcessIdentity
@@ -298,6 +358,17 @@ class ProcessRuntimeSensor:
     @property
     def context(self) -> ProcessRuntimeSensorContext:
         return self._context()
+
+    @property
+    def capability(self) -> ProcessObserverCapability:
+        """Return validated configuration without starting Runtime observation."""
+
+        return ProcessObserverCapability(
+            polling_interval=self.poll_interval,
+            process_factory=self.process_factory,
+            aia_session_id=self.session.session_id,
+            workspace=self.session.workspace,
+        )
 
     def start(self) -> ProcessRuntimeSensorContext:
         with self._lock:
@@ -743,6 +814,8 @@ class ProcessRuntimeSensor:
 __all__ = [
     "ProcessEvidenceStoreError",
     "ProcessMetadataStatus",
+    "ProcessObserverCapability",
+    "ProcessObserverCapabilityStatus",
     "ProcessObservation",
     "ProcessRole",
     "ProcessRuntimeError",
