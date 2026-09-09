@@ -928,6 +928,42 @@ class WorkspaceLeaseManager:
                     f"workspace lease cannot be released: {artifact_path}"
                 ) from error
 
+    def validate_ownership(self, lease: WorkspaceLease) -> WorkspaceLease:
+        """Revalidate the current on-disk lease without changing it."""
+
+        if not isinstance(lease, WorkspaceLease):
+            raise LeaseOwnershipError("lease must be a WorkspaceLease")
+        workspace_path = canonicalize_workspace(lease.workspace)
+        root = _coerce_control_root(workspace_path, self.control_root)
+        lease_directory = root.workspace_lease_directory(workspace_path)
+        artifact_path = lease_directory / "lease.json"
+        with _exclusive_file_lock(lease_directory / ".lease.lock"):
+            if not artifact_path.exists() or not artifact_path.is_file():
+                raise LeaseOwnershipError("workspace lease does not exist")
+            current = self._read_lease(artifact_path)
+            current_lease = self._lease_from_mapping(current, artifact_path)
+            if current_lease.workspace != workspace_path:
+                raise LeaseOwnershipError("lease workspace does not match")
+            if current_lease.session_id != lease.session_id:
+                raise LeaseOwnershipError("lease is owned by another session")
+            if current_lease.owner_pid != lease.owner_pid:
+                raise LeaseOwnershipError("lease owner PID does not match")
+            if (
+                current_lease.owner_process_create_time
+                != lease.owner_process_create_time
+            ):
+                raise LeaseOwnershipError(
+                    "lease owner process create time does not match"
+                )
+            owner_status = self._owner_status(current)
+            if owner_status is LeaseOwnerStatus.OWNER_UNVERIFIABLE:
+                raise WorkspaceOwnerUnverifiableError(current_lease)
+            if owner_status is not LeaseOwnerStatus.LIVE_MATCH:
+                raise LeaseOwnershipError(
+                    f"lease owner is not live: {owner_status.value}"
+                )
+            return current_lease
+
     def _read_lease(self, artifact_path: Path) -> dict[str, Any]:
         if artifact_path.is_dir():
             raise LeaseArtifactError(
