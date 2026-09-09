@@ -238,6 +238,23 @@ def _is_reparse_point(info: os.stat_result) -> bool:
     return bool(attributes & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
 
 
+def _classify_entry_info(
+    path: Path,
+    info: os.stat_result,
+    *,
+    is_junction: bool = False,
+) -> ManifestEntryType:
+    """Classify an lstat result without ever following link-like entries."""
+
+    if stat.S_ISLNK(info.st_mode) or is_junction or _is_reparse_point(info):
+        raise UnsupportedFilesystemEntryError(path)
+    if stat.S_ISREG(info.st_mode):
+        return ManifestEntryType.FILE
+    if stat.S_ISDIR(info.st_mode):
+        return ManifestEntryType.DIRECTORY
+    raise UnsupportedFilesystemEntryError(path)
+
+
 def _entry_kind(path: Path) -> ManifestEntryType:
     try:
         info = path.lstat()
@@ -250,16 +267,16 @@ def _entry_kind(path: Path) -> ManifestEntryType:
             f"Workspace entry cannot be inspected: {path}"
         ) from error
 
-    is_junction = getattr(path, "is_junction", None)
-    if stat.S_ISLNK(info.st_mode) or (
-        callable(is_junction) and is_junction()
-    ) or _is_reparse_point(info):
-        raise UnsupportedFilesystemEntryError(path)
-    if stat.S_ISREG(info.st_mode):
-        return ManifestEntryType.FILE
-    if stat.S_ISDIR(info.st_mode):
-        return ManifestEntryType.DIRECTORY
-    raise UnsupportedFilesystemEntryError(path)
+    junction_detector = getattr(path, "is_junction", None)
+    try:
+        is_junction = bool(
+            callable(junction_detector) and junction_detector()
+        )
+    except OSError as error:
+        raise CheckpointCreationError(
+            f"Workspace junction status cannot be inspected: {path}"
+        ) from error
+    return _classify_entry_info(path, info, is_junction=is_junction)
 
 
 def _relative_path(prefix: str, name: str) -> str:

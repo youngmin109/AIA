@@ -107,6 +107,10 @@ reparse point, socket, device 등은 `UNSUPPORTED_FILESYSTEM_ENTRY`로 처리한
 Symlink나 junction target을 따라가면 Workspace 밖 파일이 Snapshot에 들어가거나
 동일 경로가 다른 대상에 매핑될 수 있으므로 자동 follow하지 않는다.
 
+실제 Symlink 통합 테스트는 Windows 권한과 실행 환경에 따라 생성할 수 없어 skip될
+수 있다. 이 경우에도 link-like `lstat`/reparse 판정과 Snapshot Copy 차단은 OS 권한에
+의존하지 않는 결정론적 Unit Test로 항상 검증한다.
+
 ## Checkpoint Validation
 
 Finalization 전에 다음을 검증한다.

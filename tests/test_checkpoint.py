@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
+from types import SimpleNamespace
 
 import pytest
 
@@ -326,6 +328,67 @@ def test_unsupported_symlink_is_not_followed(tmp_path: Path) -> None:
             context,
             lease_manager=lease_manager,
         )
+
+
+@pytest.mark.parametrize(
+    ("mode", "attributes", "is_junction"),
+    [
+        (stat.S_IFLNK, 0, False),
+        (stat.S_IFDIR, 0, True),
+        (stat.S_IFDIR, 0x400, False),
+    ],
+    ids=["symbolic-link", "junction", "reparse-point"],
+)
+def test_link_like_entry_classification_is_environment_independent(
+    mode: int,
+    attributes: int,
+    is_junction: bool,
+) -> None:
+    fake_info = SimpleNamespace(st_mode=mode, st_file_attributes=attributes)
+
+    with pytest.raises(UnsupportedFilesystemEntryError) as error:
+        checkpoint_module._classify_entry_info(
+            Path("fake-link"),
+            fake_info,
+            is_junction=is_junction,
+        )
+
+    assert error.value.code == "UNSUPPORTED_FILESYSTEM_ENTRY"
+
+
+def test_unsupported_entry_is_rejected_before_snapshot_copy_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    entry = ManifestEntry(
+        "external-link",
+        ManifestEntryType.FILE,
+        size=1,
+        sha256="0" * 64,
+    )
+    copied = False
+
+    def reject_entry(_: Path) -> ManifestEntryType:
+        raise UnsupportedFilesystemEntryError(workspace / "external-link")
+
+    def unexpected_copy(*_: object) -> tuple[int, str]:
+        nonlocal copied
+        copied = True
+        return 1, "0" * 64
+
+    monkeypatch.setattr(checkpoint_module, "_entry_kind", reject_entry)
+    monkeypatch.setattr(checkpoint_module, "_copy_file", unexpected_copy)
+
+    with pytest.raises(UnsupportedFilesystemEntryError):
+        checkpoint_module._copy_workspace_snapshot(
+            workspace,
+            (entry,),
+            tmp_path / "staging-workspace",
+        )
+
+    assert copied is False
 
 
 def test_workspace_change_during_copy_is_not_valid(
