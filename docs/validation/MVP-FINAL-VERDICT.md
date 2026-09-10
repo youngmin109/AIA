@@ -20,7 +20,9 @@ Candidate Commit: `c5bd350`
 
 ## 다음 진행 조건
 
-후속 작업은 Actual Codex destructive scenario와 Process Tree termination을 별도 환경에서 검증할 때까지 제한된 주장 범위를 유지해야 한다. 이 문서와 평가 산출물이 MVP-1.0 후보의 검토 기준이다.
+후속 작업은 Actual Codex destructive scenario와 정책 기반 Process Tree 자동 집행을
+별도 환경에서 검증할 때까지 제한된 주장 범위를 유지해야 한다. 이 문서와 평가
+산출물이 MVP-1.0 후보의 검토 기준이다.
 
 ## 후속 검증
 
@@ -34,3 +36,9 @@ Candidate Commit: `c5bd350`
 - Result Bundle `VALID`
 
 산출물은 `evaluation/actual-codex/pretool-block/20260910T145857Z-cdc585c2/run.json`이다. 이 증명은 등록된 파일 읽기 MCP 경로에 한정되며, 모든 MCP 도구나 Process Tree 종료를 의미하지 않는다.
+
+2026-09-11 후속 검증에서는 실제 Codex 사용자 중지 경로의 Process Tree 종료를
+별도로 확인했다. Root → Child → Grandchild는 모두 종료되고 unrelated 프로세스는
+보존됐으며, `user_abort_termination_result=SUCCEEDED`와
+`verified_tree_gone=true`, Result Bundle `VALID`가 기록됐다. 이 후속 결과는
+정책 위반에 따른 자동 destructive PROCESS 집행의 성공 증명과는 구분한다.

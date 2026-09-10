@@ -40,10 +40,13 @@ Hook Event를 확인하고 현재 Hook 설정·Codex 실행 파일에 대한 검
 뒤에만 `aia protect`와 콘솔 실행 버튼이 열리는 구조다. 검증 기록이 오래됐거나
 실행 파일·Hook 설정이 바뀌면 다시 검증해야 한다.
 
-Process Manager 자체는 Codex 실행 환경의 Job Object 영향을 피한 별도 Windows
-PowerShell smoke에서도 `Root → Child → Grandchild = TERMINATED / SUCCEEDED`,
-unrelated process = `LIVE_MATCH`로 확인했다. 이 결과는 관리된 프로세스 종료 계약의
-증거이며, Actual Codex가 생성한 트리의 종료까지 자동으로 증명하는 결과는 아니다.
+Process Manager 자체는 별도 Windows PowerShell smoke에서 `Root → Child →
+Grandchild = TERMINATED / SUCCEEDED`, unrelated process = `LIVE_MATCH`로 확인했다.
+추가로 실제 Codex가 생성한 동일한 트리를 사용자가 중지하는 경로에서도 세 프로세스
+종료, unrelated 프로세스 보존, `user_abort_termination_result=SUCCEEDED`,
+`verified_tree_gone=true`, Result Bundle `VALID`를 확인했다. 이 결과는 사용자 중지
+계약의 증거이며, 정책 위반에 따른 자동 destructive PROCESS 집행까지 증명하는 결과는
+아니다.
 
 ## 현재 결과를 읽는 방법
 
@@ -82,10 +85,10 @@ Enforcement Gate
   Hook 차단까지의 Protected Launcher E2E를 `mcp-read` Canary로 검증했다. 등록되지
   않은 MCP 도구와 전체 Codex 도구 범위는 지원하지 않는다.
 - 대화형 세션과 Codex 버전·출력 형식별 실행 결과 확인을 더 넓게 검증해야 한다.
-- Actual Codex destructive Process Tree termination은 아직 제품 지원 주장으로
-  완료하지 않았다. 다만 검증된 PreTool deny 이후 실제 PostToolUse가 들어오는
-  우회 상황에 대해 별도 POST_ACTION Gate와 보상적 Process Manager 경로를
-  제품 런타임에 연결했으며, 이 경로의 Actual Codex 성공 증명은 아직 남아 있다.
+- 정책 위반에 따른 Actual Codex destructive Process Tree 자동 집행은 아직 제품
+  지원 주장으로 완료하지 않았다. 실제 Codex 사용자 중지 트리 종료는 검증했으며,
+  검증된 PreTool deny 이후 실제 PostToolUse가 들어오는 우회 상황에 대한 별도
+  POST_ACTION Gate와 보상적 Process Manager 경로의 Actual Codex 성공 증명은 남아 있다.
 - Hook 신뢰 검토는 Codex 화면에서 사용자가 직접 수행해야 하며 AIA가 자동 증명하지
   못한다.
 - 소스 체크아웃용 Windows 설치 스크립트와 릴리스 ZIP의 wheel 설치기를 제공하며,
@@ -99,7 +102,7 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 ## 다음 제품화 우선순위
 
-1. Actual Codex Process Tree termination과 Recovery/Integrity 연계를 검증한다.
+1. 정책 위반에 따른 Actual Codex Process Tree 자동 집행과 Recovery/Integrity 연계를 검증한다.
 2. 소스 설치를 넘어 서명된 배포 설치 파일과 업데이트·롤백 경로를 제공한다.
 3. 대화형 세션과 간헐적인 Process Sensor 실패를 안정화한다.
 4. 성능 평가 결과와 제한사항을 제품 화면에서 함께 보여준다.

@@ -163,6 +163,10 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - Recovery `RESTORED`와 Integrity `VERIFIED`를 독립적으로 표시한다.
 - 독립 Windows Process Manager smoke에서 등록된 프로세스 트리만 종료하고
   unrelated process를 `LIVE_MATCH`로 보존한다.
+- 실제 Codex 사용자 중지 경로에서 등록된 Agent Root → Child → Grandchild만
+  종료하고 unrelated 프로세스를 보존하며, `user_abort_termination_result`의
+  `SUCCEEDED + verified_tree_gone=true`를 Result Bundle에 기록한다. 이 동작은
+  정책 위반 자동 집행과 별도인 사용자 세션 제어다.
 
 ## 현재 주장하지 않는 것
 
@@ -174,9 +178,9 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - Process Sensor 관찰만으로 자동 종료하는 것. Process termination은 검증된
   Gate와 AIA가 등록한 Agent Root가 함께 확인된 경우에만 시도한다.
 - Network와 Database 상태 보안
-- Actual Codex의 destructive Process Tree termination이 실제 제품 실행에서
-  성공했다는 주장. 보상적 종료 경로는 구현했지만, 독립적인 Actual Codex 증명이
-  완료될 때까지 지원 주장으로 승격하지 않는다.
+- 정책 위반에 따른 Actual Codex destructive Process Tree 자동 집행이 성공했다는
+  주장. 사용자 중지에 따른 실제 트리 종료 증명과 정책 위반 자동 집행은 서로 다른
+  계약이다.
 - 등록되지 않은 MCP 도구와 지원 범위 밖 MCP 서버의 보편적 보호
 - 대규모 Workspace에 대한 성능 SLA
 - 실행 환경이 제품이 요청한 Sandbox보다 약한 경우의 완전한 보호 보장. 이 경우

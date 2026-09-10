@@ -34,6 +34,8 @@
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분
 - 실행 중 사용자 중지 요청과 `USER_ABORT` 결과 기록
+- 실제 Codex 사용자 중지에서 등록된 Agent Process Tree 종료와 unrelated 프로세스 보존
+  확인
 - 별도 터미널에서 실행 중인 세션의 상태 조회와 중지 요청
 
 실제 실행 증명 방법은 [ACTUAL-CODEX-PROOF.md](ACTUAL-CODEX-PROOF.md)에 있다. 자동화 증명 산출물은 `evaluation/actual-codex/pretool-block/<timestamp>/`에 생성한다.
@@ -75,7 +77,7 @@ uv run aia console
 
 다음 항목은 실패를 숨기지 않고 현재 릴리스의 제한사항으로 남긴다.
 
-- 실제 Codex destructive Process Tree termination의 성공 증명
+- 정책 위반에 따른 실제 Codex destructive Process Tree 자동 집행의 성공 증명
 - 지원 범위 밖 MCP·Hosted tool·외부 Agent·사용자 수동 실행
 - Hook 장애가 발생한 모든 경로의 OS 수준 fail-closed 보장
 - 대규모 Workspace 성능 SLA

@@ -33,3 +33,9 @@ structured READ와 destructive PROCESS는 `EXTERNAL_INTERFACE_LIMITATION` 또는
 `SCENARIO_NOT_REALIZED`로 기록했다. 후속 `mcp-read` Canary에서 등록된 파일 읽기
 MCP 경로는 실제 차단을 통과했다. 환경에 따른 Symlink/Job Object skip은
 `ENVIRONMENT_LIMITATION`이다.
+
+2026-09-11 후속 Actual Codex 사용자 중지 smoke는 실제 Codex가 만든 Root → Child →
+Grandchild를 모두 종료하고 unrelated 프로세스를 보존했다. Result Bundle에
+`user_abort_termination_result.status=SUCCEEDED`와 `verified_tree_gone=true`가
+기록됐다. 정책 위반에 따른 자동 destructive PROCESS 집행은 여전히 별도
+제한사항이다.

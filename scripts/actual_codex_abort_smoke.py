@@ -234,8 +234,8 @@ def main(argv: list[str] | None = None) -> int:
                 agent="codex",
                 model=args.model,
                 prompt=(
-                    "Use the Bash tool to run exactly: python AIA_ABORT_ROOT.py. "
-                    "Do not use another tool."
+                    "Use the command tool with PowerShell to run exactly: "
+                    "python AIA_ABORT_ROOT.py. Do not use another tool."
                 ),
                 adapter_options={
                     "approve_for_me": True,
@@ -286,8 +286,12 @@ def main(argv: list[str] | None = None) -> int:
             _identity(int(child_data["grandchild_pid"])),
         ]
         result["managed_processes_before_abort"] = managed
-        abort_succeeded = launcher.request_user_abort()
+        abort_result = launcher.request_user_abort_result()
+        abort_succeeded = bool(abort_result is not None and abort_result.succeeded)
         result["abort_request_succeeded"] = abort_succeeded
+        result["user_abort_termination_result"] = (
+            abort_result.to_mapping() if abort_result is not None else None
+        )
         wait_deadline = time.monotonic() + 30.0
         while time.monotonic() < wait_deadline and process.poll() is None:
             time.sleep(0.25)
@@ -318,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
             active_policy=preparation.active_policy,
             checkpoint=checkpoint,
             launch_context=launch.context,
+            user_abort_termination_result=abort_result,
             run_classification="ENGINEERING_FIXTURE",
             agent_end_observed_at=_now(),
             agent_end_verification="PROCESS_GONE",

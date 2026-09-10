@@ -17,6 +17,6 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - 전체 Workspace에 대한 원자적 트랜잭션은 제공하지 않는다.
 - 외부 Writer race 및 TOCTOU는 제한사항이다.
 - GB 단위 Workspace 성능 목표나 SLA를 주장하지 않는다.
-- Actual Codex의 파괴적 `PROCESS` 시나리오와 Actual Codex 프로세스 트리 종료는 이번 평가에서 실행하지 않았다. 결정론적 Process Manager fixture만 검증했다.
+- 정책 위반에 따른 Actual Codex의 자동 destructive `PROCESS` 집행은 아직 검증하지 않았다. 다만 실제 Codex 사용자 중지 경로에서는 등록된 Root → Child → Grandchild 트리 종료와 unrelated 프로세스 보존을 확인했다. 이 결과를 정책 위반 자동 집행의 성공으로 해석하지 않는다.
 
 이 제한사항은 `docs/validation/CLAIM-MATRIX.md`의 허용 문구와 함께 읽어야 한다.

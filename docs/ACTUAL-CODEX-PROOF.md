@@ -67,9 +67,16 @@ uv run python scripts/actual_codex_abort_smoke.py --model gpt-5.5
 
 이 시나리오는 Codex가 disposable Workspace에서 Root → Child → Grandchild를
 생성한 뒤 AIA가 사용자 중지를 요청하고, 관리 트리만 종료되는지 확인한다.
+성공 시 `user_abort_termination_result.status=SUCCEEDED`,
+`outcome=TERMINATED`, `verified_tree_gone=true`가 Result Bundle에도 기록된다.
 Codex의 유효 sandbox가 `read-only`이면 명령 실행 자체가 실현되지 않으므로
 `SCENARIO_NOT_REALIZED`로 기록한다. `--dangerously-bypass-approvals-and-sandbox`로
 이 제한을 우회하는 것은 제품 증명에 사용하지 않는다.
+
+현재 Windows 검증에서는 Codex가 PowerShell 실행 경로로 fixture를 실행하도록
+요청한다. 이 결과는 사용자가 중지한 실제 Codex 트리의 종료 증명이다. 정책 위반에
+따른 자동 destructive PROCESS 집행의 성공으로 해석하지 않는다. 확인된 산출물은
+`evaluation/actual-codex/abort/20260910T201146Z-6b49fcb4/run.json`이다.
 
 자동화 증명은 disposable Workspace에서만 수행하며, Hook trust 확인을 위해 `--dangerously-bypass-hook-trust`를 사용한다. 이 플래그는 일반 제품 사용 경로가 아니다.
 
