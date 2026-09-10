@@ -28,6 +28,8 @@ class RunRecord:
     created_at: datetime = field(default_factory=_now)
     status: str = "CREATED"
     phase: str = "CREATED"
+    protection_state: str = "STARTING"
+    hook_event_count: int = 0
     error: str | None = None
     result_path: Path | None = None
     checkpoint: str = "NOT_READY"
@@ -83,6 +85,8 @@ class RunRegistry:
                 created_at=record.created_at,
                 status=record.status,
                 phase=record.phase,
+                protection_state=record.protection_state,
+                hook_event_count=record.hook_event_count,
                 error=record.error,
                 result_path=record.result_path,
                 checkpoint=record.checkpoint,
@@ -94,6 +98,39 @@ class RunRegistry:
                 bundle_status=record.bundle_status,
             )
             return clone
+
+    def snapshots(self) -> tuple[RunRecord, ...]:
+        with self._lock:
+            return tuple(self._snapshot_record(record) for record in self._records.values())
+
+    @staticmethod
+    def _snapshot_record(record: RunRecord) -> RunRecord:
+        return RunRecord(
+            session_id=record.session_id,
+            workspace=record.workspace,
+            agent=record.agent,
+            model=record.model,
+            policy_profile=record.policy_profile,
+            policy_id=record.policy_id,
+            policy_version=record.policy_version,
+            mode=record.mode,
+            task=record.task,
+            interactive=record.interactive,
+            created_at=record.created_at,
+            status=record.status,
+            phase=record.phase,
+            protection_state=record.protection_state,
+            hook_event_count=record.hook_event_count,
+            error=record.error,
+            result_path=record.result_path,
+            checkpoint=record.checkpoint,
+            lease=record.lease,
+            sensor_health=dict(record.sensor_health),
+            actions=[dict(item) for item in record.actions],
+            incidents=[dict(item) for item in record.incidents],
+            result=dict(record.result) if record.result is not None else None,
+            bundle_status=record.bundle_status,
+        )
 
     def update(self, session_id: str, **changes: Any) -> RunRecord:
         with self._lock:

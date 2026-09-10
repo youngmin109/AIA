@@ -6,6 +6,10 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
+사용자 지원 범위와 상태 해석은 [제품 지원 범위](docs/PRODUCT-SUPPORT.md),
+보안 문제 보고 절차는 [SECURITY.md](SECURITY.md), 기여 규칙은
+[CONTRIBUTING.md](CONTRIBUTING.md)를 참조한다.
+
 시스템 전체 구성은 [AIA 시스템 구성도](docs/SYSTEM-OVERVIEW.md)에서 확인할 수 있다.
 
 ## 개발 환경
@@ -33,12 +37,26 @@ uv run aia-web
 
 ## 실제 Codex 보호 실행
 
+처음 설치한 뒤에는 환경 점검부터 실행합니다.
+
+```powershell
+uv run aia doctor
+```
+
+`READY`가 나오면 Hook을 한 번 설치합니다. 설치 명령은 기존 Codex Hook 설정을
+덮어쓰지 않고 AIA의 PreToolUse 항목만 추가합니다.
+
 ```powershell
 uv run aia hook install
+```
+
+Codex에서 `/hooks`를 열어 AIA Hook을 검토하고 신뢰한 뒤 보호 실행을 시작합니다.
+
+```powershell
 uv run aia protect C:\workspace\my-project
 ```
 
-위 명령은 먼저 AIA Protected Run을 만들고 Workspace, 정책, Lease, Checkpoint, 센서를 준비한 뒤 Codex 대화형 세션을 엽니다. Codex 화면에서 여러 작업을 입력하고 Codex를 종료하면 AIA가 Evidence, Recovery, Integrity, Audit 결과를 확정합니다.
+위 명령은 먼저 AIA Protected Run을 만들고 Workspace, 정책, Lease, Checkpoint, 센서를 준비한 뒤 Codex 대화형 세션을 엽니다. Codex 화면에서 여러 작업을 입력하고 Codex를 종료하면 AIA가 Evidence, Recovery, Integrity, Audit 결과를 확정합니다. 실행 화면의 `ACTIVE_VERIFIED`는 실제 Hook Evidence가 AIA Session과 연결됐다는 뜻이고, `ACTIVE_UNVERIFIED`는 아직 Hook 이벤트가 확인되지 않았다는 뜻입니다.
 
 한 번의 작업만 자동으로 실행하려면 다음처럼 초기 작업을 전달할 수 있습니다.
 
@@ -47,3 +65,8 @@ uv run aia protect C:\workspace\my-project --task "작업 내용을 입력"
 ```
 
 Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 사전 차단 증명은 [docs/ACTUAL-CODEX-PROOF.md](docs/ACTUAL-CODEX-PROOF.md)를 참고한다.
+
+현재 제품이 보장하는 보호 경계는 Windows 11, Codex CLI, AIA Protected Run,
+그리고 지원되는 `PreToolUse` matcher입니다. Hook이 끊기거나 지원되지 않는 도구를
+사용한 실행은 완전한 보호 실행으로 표시하지 않습니다. Actual Codex 전체 도구와
+OS 전체 Writer를 보호한다고 주장하지 않으며, 제한사항은 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)에 고정되어 있습니다.

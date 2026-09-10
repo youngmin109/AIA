@@ -9,6 +9,9 @@ class FakeService:
     def policy_profiles(self):
         return [{"value": "BASIC_DEVELOPMENT", "label": "Basic Development"}]
 
+    def list_runs(self):
+        return []
+
     def create_protected_run(self, payload):
         if payload.get("workspace") == "invalid":
             raise ValueError("workspace validation failed")
@@ -30,6 +33,7 @@ class FakeService:
             "lease": "ACTIVE",
             "mode": "ENFORCE",
             "phase": "RUNNING",
+            "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1},
             "policy": {"id": "basic", "profile": "BASIC_DEVELOPMENT", "version": "1.0"},
             "result_available": True,
             "sensor_health": {"FILESYSTEM_WATCHER": "HEALTHY"},
@@ -100,7 +104,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert created.json()["redirect_url"] == "/runs/run-1"
     live = client.get("/runs/run-1")
     assert live.status_code == 200
-    assert "Live execution" in live.text
+    assert "보호 실행 상태" in live.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.get("/api/runs/run-1/actions").json()["actions"][0]["operation"] == "DELETE"
     incident = client.get("/runs/run-1/incidents/a1")

@@ -39,6 +39,7 @@ from .pretool_enforcement import (
     HookEnforcementBridge,
     PreToolDecision,
     PreToolExecutionConfirmation,
+    protected_pretool_deny,
 )
 from .runtime_policy import RuntimePolicyEvaluation, RuntimePolicyEvaluator
 from .session import ProtectedRunSession
@@ -119,11 +120,11 @@ class CodexPreToolController:
             )
         except (CodexHookPayloadError, ValueError) as error:
             self._record_error(f"INVALID_CODEX_PRETOOL: {error}")
-            return {}
+            return protected_pretool_deny("INVALID_PRETOOL_EVENT")
 
         if native.status is not HookTrustStatus.VERIFIED:
             self._record_error(f"CODEX_INGRESS_{native.status.value}: {native.reason}")
-            return {}
+            return protected_pretool_deny("UNTRUSTED_PRETOOL_INGRESS")
 
         try:
             records = self.hook_sensor.observe(
@@ -187,7 +188,7 @@ class CodexPreToolController:
             return decision.response.to_mapping()
         except Exception as error:
             self._record_error(f"PRETOOL_EVALUATION_FAILED: {type(error).__name__}: {error}")
-            return {}
+            return protected_pretool_deny("PRETOOL_EVALUATION_FAILED")
 
     def confirm_block(self, tool_use_id: str, blocked: bool) -> CodexPreToolEvent | None:
         """Attach an externally observed Codex execution confirmation."""

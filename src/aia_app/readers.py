@@ -81,6 +81,48 @@ class ResultBundleReader:
             )
         return items
 
+    def list_completed(self) -> list[dict[str, Any]]:
+        """List only committed, valid Result Bundles under this Control Root."""
+
+        sessions = self.control_root / "sessions"
+        if not sessions.is_dir():
+            return []
+        completed: list[dict[str, Any]] = []
+        for candidate in sessions.iterdir():
+            if not candidate.is_dir() or not _SAFE_SESSION_ID.fullmatch(candidate.name):
+                continue
+            try:
+                result = self.read_result(candidate.name)
+                verification = self.verification(candidate.name)
+            except (OSError, ValueError, KeyError):
+                continue
+            if verification is None:
+                continue
+            completed.append(
+                {
+                    "session_id": candidate.name,
+                    "status": result.get("session_status"),
+                    "ended_at": result.get("ended_at"),
+                    "created_at": result.get("created_at"),
+                    "workspace": result.get("workspace"),
+                    "agent": result.get("agent"),
+                    "policy": result.get("policy", {}),
+                    "run_classification": result.get("run_classification"),
+                    "bundle_status": verification.status.value,
+                    "incident_count": sum(
+                        1
+                        for item in result.get("action_outcomes", ())
+                        if item.get("policy_decision") in {"VIOLATION", "INDETERMINATE"}
+                    ),
+                    "result_url": f"/runs/{candidate.name}/result",
+                }
+            )
+        return sorted(
+            completed,
+            key=lambda item: str(item.get("ended_at") or item.get("created_at") or ""),
+            reverse=True,
+        )
+
     def _require_valid(self, session_id: str) -> None:
         verification = self.verification(session_id)
         if verification is None or verification.status is not BundleVerificationStatus.VALID:

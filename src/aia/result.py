@@ -26,6 +26,7 @@ class RunClassification(StrEnum):
     REVIEWER_APPROVED_RERUN = "REVIEWER_APPROVED_RERUN"
     EXPLORATORY = "EXPLORATORY"
     ENGINEERING_FIXTURE = "ENGINEERING_FIXTURE"
+    PRODUCT_PROTECTED_RUN = "PRODUCT_PROTECTED_RUN"
 
 
 def _aware(value: datetime, *, field_name: str) -> datetime:

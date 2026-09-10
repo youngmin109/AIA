@@ -1,30 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Live Run · AIA{% endblock %}
+{% block title %}보호 실행 상태 · AIA{% endblock %}
 {% block content %}
 <section class="hero compact">
   <div>
-    <p class="eyebrow">PROTECTED RUN</p>
-    <h1>Live execution</h1>
+    <p class="eyebrow">PROTECTED RUN · 보호 실행</p>
+    <h1>보호 실행 상태</h1>
     <p class="muted mono">{{ session_id }}</p>
   </div>
   <div id="status-badge" class="status-badge">{{ status.session.status }}</div>
 </section>
 
 <section class="metric-grid" id="run-summary">
-  <div class="metric"><span>Phase</span><strong id="phase">{{ status.phase }}</strong></div>
+  <div class="metric"><span>단계</span><strong id="phase">{{ status.phase }}</strong></div>
   <div class="metric"><span>Checkpoint</span><strong id="checkpoint">{{ status.checkpoint or 'PENDING' }}</strong></div>
-  <div class="metric"><span>Lease</span><strong id="lease">{{ status.lease or 'PENDING' }}</strong></div>
-  <div class="metric"><span>Incidents</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
+  <div class="metric"><span>Workspace Lease</span><strong id="lease">{{ status.lease or 'PENDING' }}</strong></div>
+  <div class="metric"><span>보호 상태</span><strong id="protection-state">{{ status.protection.state if status.protection else 'UNKNOWN' }}</strong></div>
+  <div class="metric"><span>사건 수</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
 </section>
 
 <section class="panel">
-  <div class="panel-heading"><h2>Protection timeline</h2><span id="sensor-health" class="muted"></span></div>
+  <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted"></span></div>
+  <div id="protection-note" class="notice warning" hidden></div>
   <div id="error-box" class="error" {% if not status.error %}hidden{% endif %}>{{ status.error or '' }}</div>
-  <div class="table-wrap"><table><thead><tr><th>Action</th><th>Operation</th><th>Target</th><th>Policy</th><th>Attribution</th><th>Enforcement</th></tr></thead>
-  <tbody id="actions"><tr><td colspan="6" class="empty">Waiting for runtime evidence…</td></tr></tbody></table></div>
+  <div class="table-wrap"><table><thead><tr><th>Action</th><th>행위</th><th>대상</th><th>정책</th><th>귀속</th><th>집행</th></tr></thead>
+  <tbody id="actions"><tr><td colspan="6" class="empty">실행 증거를 기다리는 중입니다…</td></tr></tbody></table></div>
 </section>
 
-<div class="page-actions"><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>Open result</a><a class="text-link" href="/">Start another run</a></div>
+<div class="page-actions"><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a><a class="text-link" href="/">새 보호 실행</a></div>
 <script>
 const sessionId = {{ session_id|tojson }};
 const actionsEl = document.getElementById('actions');
@@ -32,7 +34,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&a
 const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
 const actionTarget = (item) => { const target = item.target || {}; return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || '—'; };
 function renderActions(items) {
-  if (!items.length) { actionsEl.innerHTML = '<tr><td colspan="6" class="empty">No canonical actions observed yet.</td></tr>'; return; }
+  if (!items.length) { actionsEl.innerHTML = '<tr><td colspan="6" class="empty">표준 행위가 아직 관찰되지 않았습니다.</td></tr>'; return; }
   actionsEl.innerHTML = items.map((item) => `<tr><td class="mono">${esc(item.action_id || '—')}</td><td>${esc(item.operation || '—')}</td><td class="mono target-cell">${esc(actionTarget(item))}</td><td>${badge(item.policy_effect)}</td><td>${badge(item.attribution_class)}</td><td>${badge(item.enforcement_action)} ${badge(item.execution_result)}</td></tr>`).join('');
 }
 async function poll() {
@@ -46,13 +48,24 @@ async function poll() {
     document.getElementById('checkpoint').textContent = status.checkpoint || 'PENDING';
     document.getElementById('lease').textContent = status.lease || 'PENDING';
     document.getElementById('incident-count').textContent = status.incident_count;
+    const protection = status.protection || {};
+    document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
+    const protectionNote = document.getElementById('protection-note');
+    const notes = {
+      'READY_UNVERIFIED': 'Codex가 아직 시작되지 않았거나, Hook 이벤트가 아직 확인되지 않았습니다.',
+      'ACTIVE_UNVERIFIED': 'Codex는 실행 중이지만 아직 검증된 Hook 이벤트가 없습니다. 보호 상태를 확인하세요.',
+      'DEGRADED': '보호 경계에서 오류가 발생했습니다. 해당 실행은 완전한 보호 실행으로 주장하지 않습니다.',
+      'COMPLETED_DEGRADED': '실행은 끝났지만 보호 경계에 오류가 있어 결과를 제한적으로 해석해야 합니다.'
+    };
+    protectionNote.textContent = notes[protection.state] || '';
+    protectionNote.hidden = !notes[protection.state];
     document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${key}: ${value}`).join(' · ');
     const errorBox = document.getElementById('error-box');
     errorBox.textContent = status.error || '';
     errorBox.hidden = !status.error;
     renderActions(actions.actions || []);
     document.getElementById('result-link').hidden = !status.result_available;
-  } catch (error) { document.getElementById('sensor-health').textContent = error.message; }
+  } catch (error) { document.getElementById('sensor-health').textContent = `상태 조회 실패: ${error.message}`; }
 }
 poll();
 setInterval(poll, 1000);

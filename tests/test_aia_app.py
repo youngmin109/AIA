@@ -63,6 +63,32 @@ def test_registry_snapshot_excludes_runtime_and_isolated_lists(tmp_path) -> None
     assert registry.require(record.session_id).actions == [{"action_id": "a1"}]
 
 
+def test_registry_snapshots_exclude_runtime(tmp_path) -> None:
+    registry = RunRegistry()
+    record = make_record(tmp_path)
+    record.runtime["secret"] = "internal"
+    registry.add(record)
+
+    snapshots = registry.snapshots()
+
+    assert len(snapshots) == 1
+    assert snapshots[0].runtime == {}
+
+
+def test_application_lists_live_runs_without_runtime_contents(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.runtime["secret"] = "do-not-expose"
+    service.registry.add(record)
+    try:
+        runs = service.list_runs()
+        assert runs[0]["session_id"] == record.session_id
+        assert "do-not-expose" not in repr(runs)
+        assert runs[0]["protection_state"] == "STARTING"
+    finally:
+        service.shutdown()
+
+
 def test_presenters_keep_sensitive_target_values_out_of_views() -> None:
     action = {
         "action_id": "a1",
@@ -155,6 +181,8 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         )
         assert created["session_id"]
         assert created["redirect_url"].endswith(created["session_id"])
+        status = service.get_run_status(created["session_id"])
+        assert status["protection"]["state"] == "STARTING"
     finally:
         service.shutdown()
 

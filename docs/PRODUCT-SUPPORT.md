@@ -1,0 +1,76 @@
+# AIA 제품 지원 범위
+
+현재 AIA는 모든 운영체제와 모든 Agent를 감시하는 범용 보안 제품이 아니다.
+제품의 첫 지원 계약은 다음과 같이 고정한다.
+
+```text
+운영체제: Windows 11
+Agent: Codex CLI
+실행 방식: AIA Protected Run 안에서 시작한 Codex
+정책 관문: Codex PreToolUse command Hook
+지원 matcher: Bash, apply_patch, Edit, Write
+Control Root: Workspace 밖의 사용자별 AIA control directory
+```
+
+## 시작하기
+
+```powershell
+uv sync
+uv run aia doctor
+uv run aia hook install
+```
+
+Codex의 `/hooks` 화면에서 AIA Hook을 직접 검토하고 신뢰한 다음 보호 실행을
+시작한다.
+
+```powershell
+uv run aia protect C:\workspace\my-project
+```
+
+명령을 한 번만 전달하려면 다음처럼 실행한다.
+
+```powershell
+uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변경 결과를 설명해줘"
+```
+
+첫 실행은 실제 Workspace 대신 복사본 또는 disposable Workspace에서 수행한다.
+
+## 보호 상태 해석
+
+| 상태 | 의미 |
+|---|---|
+| `PREPARING` | 정책, Lease, Checkpoint, Sensor를 준비하는 중 |
+| `READY_UNVERIFIED` | 준비는 끝났지만 검증된 Hook Event가 아직 없음 |
+| `ACTIVE_UNVERIFIED` | Codex는 실행 중이나 Hook 계보가 아직 확인되지 않음 |
+| `ACTIVE_VERIFIED` | AIA Session에 연결된 실제 Hook Event를 확인함 |
+| `DEGRADED` | 보호 경계 또는 Hook 처리에 오류가 발생함 |
+| `COMPLETED_VERIFIED` | 실행과 결과 Bundle이 종료됐고 보호 경계 오류가 없음 |
+| `COMPLETED_DEGRADED` | 실행은 끝났지만 보호 경계 오류가 있어 제한적으로 해석해야 함 |
+
+`ACTIVE_UNVERIFIED`와 `DEGRADED`는 완전한 보호 성공으로 해석하지 않는다.
+지원되지 않는 도구 경로, Hook 비활성화, 외부 Agent, 사용자의 수동 실행은 AIA가
+`PROTECTED` 또는 `BLOCKED`로 주장하는 범위에 포함되지 않는다.
+
+## AIA가 현재 증명하는 것
+
+- 보호 실행 시작 전에 Workspace, 정책, Lease, Checkpoint를 준비한다.
+- Active Policy를 하나의 Protected Run에 고정한다.
+- 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
+- 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
+- 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
+- Session, Evidence, Result Bundle을 별도로 저장하고 Bundle 무결성을 검증한다.
+- Recovery `RESTORED`와 Integrity `VERIFIED`를 독립적으로 표시한다.
+
+## 현재 주장하지 않는 것
+
+- 모든 Codex 도구와 MCP 경로의 보편적 차단
+- Hook 장애가 발생해도 모든 경로가 OS 수준에서 fail-closed라는 보장
+- `PROCESS` Evidence만으로 정확한 파일 Writer를 증명하는 것
+- 모든 OS 프로세스의 종료 또는 사용자의 수동 작업 통제
+- Network와 Database 상태 보안
+- Actual Codex의 구조화된 `.env READ`와 destructive Process Tree termination
+- 대규모 Workspace에 대한 성능 SLA
+
+자세한 제한사항과 평가 결과는 [LIMITATIONS.md](LIMITATIONS.md),
+[CLAIM-MATRIX.md](validation/CLAIM-MATRIX.md),
+[ACTUAL-CODEX-PROOF.md](ACTUAL-CODEX-PROOF.md)를 함께 확인한다.

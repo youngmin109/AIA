@@ -1,45 +1,46 @@
 {% extends "base.html" %}
-{% block title %}New Protected Run · AIA{% endblock %}
+{% block title %}새 보호 실행 · AIA{% endblock %}
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">PROTECTED EXECUTION</p>
-  <h1>Start a protected run</h1>
-  <p class="lede">Choose a workspace and policy before Codex starts. AIA keeps the active policy fixed for this run and records an auditable result bundle.</p>
+  <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
+  <h1>보호 실행 시작</h1>
+  <p class="lede">Codex를 시작하기 전에 Workspace와 정책을 선택합니다. AIA는 실행 중 정책을 고정하고, 허용·차단 결과를 검증 가능한 결과 Bundle로 저장합니다.</p>
 </section>
 
 <section class="panel form-panel">
   <form id="new-run-form">
     <div class="form-grid">
-      <label class="field field-wide">Workspace path
+      <label class="field field-wide">Workspace 경로
         <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
-        <span class="hint">The directory that the protected run may access.</span>
-        <span id="workspace-status" class="hint">Path validation runs before start.</span>
+        <span class="hint">보호 실행이 접근할 작업 폴더입니다.</span>
+        <span id="workspace-status" class="hint">시작 전에 폴더를 확인합니다.</span>
       </label>
       <label class="field">Agent
         <input name="agent" value="Codex" readonly>
       </label>
-      <label class="field">Model (optional)
+      <label class="field">Model (선택)
         <input name="model" placeholder="Configured default">
       </label>
-      <label class="field">Policy profile
+      <label class="field">정책 프로필
         <select name="policy_profile" id="policy-profile">
           {% for profile in profiles %}<option value="{{ profile.value }}">{{ profile.label }}</option>{% endfor %}
         </select>
       </label>
-      <label class="field" id="custom-policy-field" hidden>Custom policy JSON path
+      <label class="field" id="custom-policy-field" hidden>사용자 정책 JSON 경로
         <input name="custom_policy_path" placeholder="C:\\policies\\policy.json">
       </label>
-      <label class="field">Mode
+      <label class="field">실행 모드
         <select name="mode"><option value="ENFORCE">ENFORCE</option><option value="AUDIT">AUDIT</option></select>
       </label>
-      <label class="field field-wide">Task prompt
-        <textarea name="task" rows="6" required placeholder="Describe the bounded task for Codex"></textarea>
-        <span class="hint">The prompt is passed to the Codex adapter after readiness succeeds.</span>
+      <label class="field field-wide">작업 요청
+        <textarea name="task" rows="6" required placeholder="Codex가 수행할 작업을 입력하세요"></textarea>
+        <span class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다.</span>
       </label>
     </div>
-    <div class="notice warning"><strong>Local-only:</strong> this console binds to 127.0.0.1 by default. Use a disposable workspace and never place secrets in the task prompt.</div>
+    <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
+    <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · PreToolUse 기반 Bash/apply_patch 계열 도구</div>
     <div id="form-error" class="error" hidden></div>
-    <div class="form-actions"><button class="button primary" type="submit">Prepare protected run</button></div>
+    <div class="form-actions"><button class="button primary" type="submit">보호 실행 준비</button></div>
   </form>
 </section>
 <script>

@@ -220,6 +220,7 @@ from .pretool_enforcement import (
     PreToolEnforcementError,
     PreToolExecutionConfirmation,
     PreToolExecutionResult,
+    protected_pretool_deny,
     TrustedHookIngress,
     evaluate_pretool,
 )
@@ -604,6 +605,7 @@ __all__ = [
     "PreToolEnforcementError",
     "PreToolExecutionConfirmation",
     "PreToolExecutionResult",
+    "protected_pretool_deny",
     "TrustedHookIngress",
     "evaluate_pretool",
 ]

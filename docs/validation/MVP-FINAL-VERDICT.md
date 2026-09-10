@@ -8,7 +8,7 @@ Candidate Commit: `c5bd350`
 
 전체 회귀는 `360 passed, 3 skipped`였고, 결정론적 Containment·Recovery·Integrity·Evidence tamper·secret safety 검증은 통과했다. Actual Codex는 보호 실행 정상 완료와 `VALID` Result Bundle까지 확인했다.
 
-남은 제한은 Actual Codex의 structured `.env` READ blocking, Actual Codex PreTool deny, Actual Codex destructive PROCESS/tree termination 검증이다. 이 제한은 제품 결함으로 PASS 처리하지 않고 `docs/LIMITATIONS.md`와 Claim Matrix에 고정했다.
+남은 제한은 Actual Codex의 structured `.env` READ blocking과 Actual Codex destructive PROCESS/tree termination 검증이다. Actual Codex Bash PreTool deny는 별도 disposable 평가에서 실제 `permissionDecision=deny`와 Canary 부작용 없음까지 검증했다. 구조화 READ와 PROCESS 제한은 제품 결함으로 PASS 처리하지 않고 `docs/LIMITATIONS.md`와 Claim Matrix에 고정했다.
 
 ## 금지된 해석
 

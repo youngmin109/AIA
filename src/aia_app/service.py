@@ -140,6 +140,7 @@ class RunApplicationService:
             task=request.task,
             interactive=request.interactive,
             created_at=session.created_at,
+            protection_state="STARTING",
         )
         record.runtime.update({"request": request, "resolved_policy": resolved, "session": session})
         self.registry.add(record)
@@ -151,6 +152,9 @@ class RunApplicationService:
         }
 
     def get_run_status(self, session_id: str) -> dict[str, Any]:
+        live_record = self.registry.get(session_id)
+        if live_record is not None:
+            self._refresh_protection_state(live_record)
         record = self.registry.snapshot(session_id)
         if record is None:
             return self._status_from_completed_bundle(session_id)
@@ -164,6 +168,11 @@ class RunApplicationService:
             "mode": record.mode,
             "interactive": record.interactive,
             "phase": record.phase,
+            "result_path": str(record.result_path) if record.result_path is not None else None,
+            "protection": {
+                "state": record.protection_state,
+                "hook_events": record.hook_event_count,
+            },
             "policy": {
                 "id": record.policy_id,
                 "profile": record.policy_profile,
@@ -187,6 +196,34 @@ class RunApplicationService:
             return record.actions
         result = self.reader.read_result(session_id)
         return [action_view(item) for item in result.get("action_outcomes", [])]
+
+    def list_runs(self) -> list[dict[str, Any]]:
+        """Return live runs plus valid persisted Bundles for the local console."""
+
+        values: dict[str, dict[str, Any]] = {}
+        for record in self.registry.snapshots():
+            self._refresh_protection_state(record)
+            values[record.session_id] = {
+                "session_id": record.session_id,
+                "status": record.status,
+                "ended_at": None,
+                "created_at": record.created_at.isoformat(),
+                "workspace": str(record.workspace),
+                "agent": record.agent,
+                "policy": {"id": record.policy_id, "version": record.policy_version},
+                "run_classification": "PRODUCT_PROTECTED_RUN",
+                "bundle_status": record.bundle_status or "PENDING",
+                "incident_count": len(record.incidents),
+                "result_url": f"/runs/{record.session_id}/result",
+                "protection_state": record.protection_state,
+            }
+        for item in self.reader.list_completed():
+            values.setdefault(item["session_id"], item)
+        return sorted(
+            values.values(),
+            key=lambda item: str(item.get("ended_at") or item.get("created_at") or ""),
+            reverse=True,
+        )
 
     def get_incidents(self, session_id: str) -> list[dict[str, Any]]:
         record = self.registry.snapshot(session_id)
@@ -253,6 +290,7 @@ class RunApplicationService:
         finalization_done = False
         try:
             self._phase(record, "PREPARING", SessionStatus.PREPARING)
+            record.protection_state = "PREPARING"
             session.transition(SessionStatus.PREPARING, at=_now())
             manager = WorkspaceLeaseManager(
                 self.control_root,
@@ -295,6 +333,7 @@ class RunApplicationService:
             if readiness.readiness_context is None:
                 raise RuntimeError("readiness barrier failed")
             self._phase(record, "READY", SessionStatus.READY)
+            record.protection_state = "READY_UNVERIFIED"
 
             launch_holder: dict[str, Any] = {}
             bridge = HookEnforcementBridge()
@@ -365,6 +404,7 @@ class RunApplicationService:
             sensors = (filesystem, hook, process_sensor)
             record.runtime["sensors"] = sensors
             self._phase(record, "RUNNING", SessionStatus.RUNNING)
+            record.protection_state = "ACTIVE_UNVERIFIED"
             process = launcher.process_handle
             exit_code = process.wait(timeout=3600)
             record.runtime["exit_code"] = exit_code
@@ -389,7 +429,7 @@ class RunApplicationService:
                 active_policy=preparation.active_policy,
                 checkpoint=checkpoint,
                 launch_context=launch.context,
-                run_classification="ENGINEERING_FIXTURE",
+                run_classification="PRODUCT_PROTECTED_RUN",
                 agent_exit_code=exit_code,
                 agent_end_observed_at=_now(),
                 agent_end_verification="PROCESS_GONE",
@@ -406,6 +446,10 @@ class RunApplicationService:
                 result_path=final.bundle.result_directory / "result.json",
                 result=result_mapping,
                 bundle_status=verification.status.value,
+                protection_state=(
+                    "COMPLETED_VERIFIED" if not controller.errors else "COMPLETED_DEGRADED"
+                ),
+                hook_event_count=len(controller.events),
                 sensor_health={
                     item.get("sensor"): item.get("runtime_health_before_stop")
                     for item in final.result.sensor_summary
@@ -523,6 +567,19 @@ class RunApplicationService:
         self.registry.update(record.session_id, actions=action_views, incidents=incidents)
 
     @staticmethod
+    def _refresh_protection_state(record: RunRecord) -> None:
+        if record.status in {"COMPLETED", "FAILED", "ABORTED"}:
+            return
+        controller = record.runtime.get("codex_controller")
+        if controller is None:
+            return
+        record.hook_event_count = len(controller.events)
+        if controller.errors:
+            record.protection_state = "DEGRADED"
+        elif controller.events:
+            record.protection_state = "ACTIVE_VERIFIED"
+
+    @staticmethod
     def _phase(record: RunRecord, phase: str, status: SessionStatus) -> None:
         record.phase = phase
         record.status = status.value
@@ -538,6 +595,7 @@ class RunApplicationService:
     def _fail_record(self, record: RunRecord, error: Exception) -> None:
         record.status = "FAILED"
         record.phase = "FAILED"
+        record.protection_state = "FAILED"
         record.error = f"{type(error).__name__}: {error}"
         record.lease = "FAILED" if record.lease == "ACTIVE" else record.lease
 
@@ -552,6 +610,21 @@ class RunApplicationService:
             "lease": "RELEASED",
             "mode": view["mode"],
             "phase": view["session_status"],
+            "result_path": str(self.result_directory_for(session_id)),
+            "protection": {
+                "state": "COMPLETED_DEGRADED"
+                if any(
+                    item.get("runtime_health_before_stop") == "FAILED"
+                    for item in result.get("sensor_summary", [])
+                    if isinstance(item, dict)
+                )
+                else "COMPLETED_VERIFIED",
+                "hook_events": sum(
+                    1
+                    for item in result.get("evidence_references", [])
+                    if item.get("source") == "CODEX_HOOK"
+                ),
+            },
             "policy": view["policy"],
             "result_available": True,
             "sensor_health": {
@@ -567,3 +640,6 @@ class RunApplicationService:
                 "workspace": result.get("workspace"),
             },
         }
+
+    def result_directory_for(self, session_id: str) -> Path:
+        return self.reader.result_directory(session_id) / "result.json"

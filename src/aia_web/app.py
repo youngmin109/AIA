@@ -50,6 +50,18 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             {"profiles": app.state.service.policy_profiles()},
         )
 
+    @app.get("/runs", response_class=HTMLResponse)
+    def run_history(request: Request) -> HTMLResponse:
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "history.html",
+            {"runs": app.state.service.list_runs()},
+        )
+
+    @app.get("/api/runs")
+    def run_history_api() -> JSONResponse:
+        return JSONResponse({"runs": app.state.service.list_runs()})
+
     @app.get("/api/profiles")
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())

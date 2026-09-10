@@ -15,3 +15,10 @@ def test_protect_with_task_keeps_one_shot_mode() -> None:
     )
 
     assert args.task == "inspect"
+
+
+def test_doctor_parser_supports_machine_readable_preflight() -> None:
+    args = _parser().parse_args(["doctor", "--json"])
+
+    assert args.command == "doctor"
+    assert args.json is True

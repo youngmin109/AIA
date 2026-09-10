@@ -14,6 +14,7 @@ from aia import (
     PolicyDecision,
     PreToolEnforcementAdapter,
     PreToolExecutionConfirmation,
+    protected_pretool_deny,
     SessionMode,
     evaluate_pretool,
 )
@@ -173,6 +174,14 @@ def test_continue_and_refuse_use_neutral_response(tmp_path: Path):
     assert compliant.gate_result.decision is EnforcementDecision.CONTINUE
     assert compliant.response.to_mapping() == {}
     assert "allow" not in repr(compliant.response.to_mapping()).casefold()
+
+
+def test_bound_hook_failures_return_a_conservative_deny_without_payload_values():
+    response = protected_pretool_deny("UNTRUSTED_PRETOOL_INGRESS")
+
+    assert response["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "UNTRUSTED_PRETOOL_INGRESS" in response["reason"]
+    assert "secret" not in repr(response).casefold()
 
 
 def test_codex_native_pretool_schema_and_deny_wire_are_explicit():

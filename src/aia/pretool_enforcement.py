@@ -33,6 +33,28 @@ class PreToolEnforcementError(ValueError):
     """Raised when a trusted PreTool boundary cannot be established."""
 
 
+def protected_pretool_deny(reason_code: str) -> dict[str, Any]:
+    """Return a conservative deny response for a bound Protected Run.
+
+    A malformed or untrusted event must not silently fall through to Codex's
+    native permission handling. The caller supplies a fixed reason code;
+    arbitrary payload values are deliberately excluded from the wire reason.
+    """
+
+    if not isinstance(reason_code, str) or not reason_code.strip():
+        raise PreToolEnforcementError("reason_code must be non-empty")
+    reason = f"AIA protection unavailable; reason={reason_code.strip()}"
+    return {
+        "decision": "block",
+        "reason": reason,
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        },
+    }
+
+
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -444,6 +466,7 @@ __all__ = [
     "PreToolEnforcementError",
     "PreToolExecutionConfirmation",
     "PreToolExecutionResult",
+    "protected_pretool_deny",
     "TrustedHookIngress",
     "evaluate_pretool",
 ]

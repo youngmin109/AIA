@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Run Result · AIA{% endblock %}
+{% block title %}보호 실행 결과 · AIA{% endblock %}
 {% block content %}
-<section class="hero compact"><div><p class="eyebrow">RESULT BUNDLE</p><h1>Protected run result</h1><p class="muted mono">{{ session_id }}</p></div><div class="status-badge">{{ result.bundle_status }}</div></section>
+<section class="hero compact"><div><p class="eyebrow">RESULT BUNDLE · 실행 결과</p><h1>보호 실행 결과</h1><p class="muted mono">{{ session_id }}</p></div><div class="status-badge">{{ result.bundle_status }}</div></section>
 <section class="metric-grid">
-  <div class="metric"><span>Session</span><strong>{{ result.session_status }}</strong></div>
-  <div class="metric"><span>Policy</span><strong>{{ result.policy_state }}</strong></div>
-  <div class="metric"><span>Attribution</span><strong>{{ result.attribution_state }}</strong></div>
-  <div class="metric"><span>Enforcement</span><strong>{{ result.enforcement_state }} / {{ result.execution_state }}</strong></div>
+  <div class="metric"><span>세션</span><strong>{{ result.session_status }}</strong></div>
+  <div class="metric"><span>정책 판정</span><strong>{{ result.policy_state }}</strong></div>
+  <div class="metric"><span>행위 귀속</span><strong>{{ result.attribution_state }}</strong></div>
+  <div class="metric"><span>집행 결과</span><strong>{{ result.enforcement_state }} / {{ result.execution_state }}</strong></div>
 </section>
-<section class="metric-grid"><div class="metric"><span>Recovery</span><strong>{{ result.recovery_status }}</strong></div><div class="metric"><span>Integrity</span><strong>{{ result.integrity_status }}</strong></div><div class="metric"><span>Evidence Bundle</span><strong>{{ result.bundle_status }}</strong></div><div class="metric"><span>End reason</span><strong>{{ result.session_end_reason or '—' }}</strong></div></section>
+<section class="metric-grid"><div class="metric"><span>복구</span><strong>{{ result.recovery_status }}</strong></div><div class="metric"><span>무결성</span><strong>{{ result.integrity_status }}</strong></div><div class="metric"><span>Evidence Bundle</span><strong>{{ result.bundle_status }}</strong></div><div class="metric"><span>보호 분류</span><strong>{{ result.run_classification or '—' }}</strong></div></section>
 <section class="panel"><div class="panel-heading"><h2>Security outcomes</h2><span class="muted">Policy {{ result.policy_id }} · {{ result.policy_version }}</span></div><div class="table-wrap"><table><thead><tr><th>Action</th><th>Operation</th><th>Target</th><th>Policy</th><th>Attribution</th><th>Enforcement</th><th>Detail</th></tr></thead><tbody>{% for item in result.actions %}<tr><td class="mono">{{ item.action_id }}</td><td>{{ item.operation }}</td><td class="mono target-cell">{{ item.target.display }}</td><td><span class="badge badge-{{ item.policy_effect|lower }}">{{ item.policy_effect }}</span></td><td><span class="badge badge-{{ item.attribution_class|lower }}">{{ item.attribution_class }}</span></td><td><span class="badge badge-{{ item.enforcement_action|lower }}">{{ item.enforcement_action }}</span> <span class="badge badge-{{ item.execution_result|lower }}">{{ item.execution_result }}</span></td><td>{% if item.incident %}<a href="/runs/{{ session_id }}/incidents/{{ item.action_id }}">View incident</a>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="7" class="empty">No actions recorded.</td></tr>{% endfor %}</tbody></table></div></section>
 {% if result.limitations %}<section class="panel"><h2>Limitations</h2><ul class="limitations">{% for item in result.limitations %}<li>{{ item }}</li>{% endfor %}</ul><p class="muted">전체 내용: <code>docs/LIMITATIONS.md</code></p></section>{% endif %}
-<div class="page-actions"><a class="button" href="/runs/{{ session_id }}/report">Download report</a><a class="button" href="/runs/{{ session_id }}/raw-evidence">Evidence metadata</a><a class="button" href="/runs/{{ session_id }}/result.json">Result JSON</a><a class="text-link" href="/">New protected run</a></div>
+<div class="page-actions"><a class="button" href="/runs/{{ session_id }}/report">보안 보고서</a><a class="button" href="/runs/{{ session_id }}/raw-evidence">Evidence 메타데이터</a><a class="button" href="/runs/{{ session_id }}/result.json">Result JSON</a><a class="text-link" href="/">새 보호 실행</a></div>
 {% endblock %}

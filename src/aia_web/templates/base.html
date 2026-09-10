@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,15 +8,16 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>Local Security Console</small></div>
+    <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>로컬 보안 콘솔</small></div>
     <nav>
-      <a href="/">New Protected Run</a>
-      {% if session_id %}<a href="/runs/{{ session_id }}">Current Run</a>{% endif %}
+      <a href="/">새 보호 실행</a>
+      <a href="/runs">실행 기록</a>
+      {% if session_id %}<a href="/runs/{{ session_id }}">현재 실행</a>{% endif %}
     </nav>
   </header>
   <main class="page-shell">
     {% block content %}{% endblock %}
   </main>
-  <footer class="footer">Local-only console · Core security authority remains in AIA</footer>
+  <footer class="footer">로컬 전용 콘솔 · 보안 판단 권한은 AIA Core에 있습니다</footer>
 </body>
 </html>

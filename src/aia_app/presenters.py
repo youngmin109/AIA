@@ -196,6 +196,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "policy": result.get("policy"),
         "policy_id": policy.get("policy_id") or policy.get("id"),
         "policy_version": policy.get("policy_version") or policy.get("version"),
+        "run_classification": result.get("run_classification"),
         "recovery": result.get("recovery_result"),
         "recovery_status": recovery.get("status") or recovery.get("recovery_status") or "NOT_ATTEMPTED",
         "integrity_status": integrity.get("status") or integrity.get("integrity_status") or "NOT_ATTEMPTED",
