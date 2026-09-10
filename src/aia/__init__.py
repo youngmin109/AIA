@@ -198,6 +198,7 @@ from .launcher import (
     ProtectedLaunchRequest,
     ProtectedLaunchResult,
     ProtectedLauncher,
+    UserAbortTerminationResult,
 )
 from .enforcement import (
     EnforcementAction,
@@ -594,6 +595,7 @@ __all__ = [
     "ProtectedLaunchRequest",
     "ProtectedLaunchResult",
     "ProtectedLauncher",
+    "UserAbortTerminationResult",
     "EnforcementAction",
     "EnforcementDecision",
     "EnforcementExecutionResult",

@@ -27,6 +27,7 @@ from .enforcement import (
     EnforcementGateResult,
 )
 from .integrity import IntegrityStatus, IntegrityVerificationResult
+from .launcher import UserAbortTerminationResult
 from .process_identity import ProcessIdentity, ProcessIdentityStatus, inspect_process_identity
 from .process_manager import ProcessTerminationOutcome, ProcessTerminationResult
 from .protection import ActivePolicySnapshot, WorkspaceLease, WorkspaceLeaseManager
@@ -85,6 +86,15 @@ def _dt(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value.astimezone(timezone.utc)
     return None
+
+
+def _dt_from_text(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value).astimezone(timezone.utc)
+    except ValueError:
+        return None
 
 
 def _value(value: Any) -> Any:
@@ -172,6 +182,7 @@ class SessionFinalizer:
         process_identity: ProcessIdentity | None = None,
         process_end_status: ProcessIdentityStatus | str | None = None,
         termination_result: ProcessTerminationResult | None = None,
+        user_abort_termination_result: UserAbortTerminationResult | Mapping[str, Any] | None = None,
         gate_results: Iterable[EnforcementGateResult] | Any = (),
         gate_result: EnforcementGateResult | None = None,
         actions: Iterable[Any] | Any = (),
@@ -237,6 +248,7 @@ class SessionFinalizer:
         if not self._has_result_inputs(
             end_reason=end_reason,
             termination_result=termination_result,
+            user_abort_termination_result=user_abort_termination_result,
             gate_results=gates,
             actions=action_items,
             policy_evaluations=policy_items,
@@ -305,6 +317,7 @@ class SessionFinalizer:
         all_limitations.extend(correlation_limits)
         all_limitations = list(dict.fromkeys(all_limitations))
         process_mapping = self._termination_mapping(termination_result)
+        user_abort_mapping = self._user_abort_mapping(user_abort_termination_result)
         recovery_mapping, integrity_mapping = self._recovery_mappings(recovery_result, integrity_result)
         policy_mapping = self._policy_binding(session, active_policy, gates, policy_items)
         evidence_references, evidence_artifacts = self._evidence_references(
@@ -361,6 +374,7 @@ class SessionFinalizer:
             attribution_results=attribution_mappings,
             enforcement_results=enforcement_mappings,
             process_termination_result=process_mapping,
+            user_abort_termination_result=user_abort_mapping,
             recovery_result=recovery_mapping,
             integrity_result=integrity_mapping,
             limitations=tuple(dict.fromkeys(all_limitations)),
@@ -387,6 +401,7 @@ class SessionFinalizer:
             attribution_results=attribution_items,
             gates=gates,
             termination_result=termination_result,
+            user_abort_termination_result=user_abort_termination_result,
             recovery_result=recovery_result,
             integrity_result=integrity_result or (recovery_result.integrity if isinstance(recovery_result, RecoveryVerificationResult) else None),
             sensor_summaries=sensor_summaries,
@@ -428,6 +443,7 @@ class SessionFinalizer:
         *,
         end_reason: SessionEndReason | str | None,
         termination_result: ProcessTerminationResult | None,
+        user_abort_termination_result: UserAbortTerminationResult | Mapping[str, Any] | None,
         gate_results: tuple[EnforcementGateResult, ...],
         actions: tuple[Any, ...],
         policy_evaluations: tuple[Any, ...],
@@ -445,6 +461,7 @@ class SessionFinalizer:
             (
                 end_reason is not None,
                 termination_result is not None,
+                user_abort_termination_result is not None,
                 bool(gate_results),
                 bool(actions),
                 bool(policy_evaluations),
@@ -731,6 +748,25 @@ class SessionFinalizer:
         }
 
     @staticmethod
+    def _user_abort_mapping(
+        value: UserAbortTerminationResult | Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        if isinstance(value, UserAbortTerminationResult):
+            return value.to_mapping()
+        if isinstance(value, Mapping):
+            mapping = {str(key): value[key] for key in value}
+            if mapping.get("status") not in {"SUCCEEDED", "FAILED"}:
+                raise FinalizationError("user abort status is invalid")
+            if mapping.get("outcome") not in {"TERMINATED", "ALREADY_EXITED", "FAILED"}:
+                raise FinalizationError("user abort outcome is invalid")
+            if mapping.get("status") == "SUCCEEDED" and mapping.get("verified_tree_gone") is not True:
+                raise FinalizationError("successful user abort requires verified_tree_gone")
+            return mapping
+        raise FinalizationError("user_abort_termination_result is invalid")
+
+    @staticmethod
     def _recovery_mappings(
         recovery: RecoveryVerificationResult | RecoveryResult | None,
         integrity: IntegrityVerificationResult | None,
@@ -922,6 +958,7 @@ class SessionFinalizer:
         attribution_results: tuple[AttributionResult, ...],
         gates: tuple[EnforcementGateResult, ...],
         termination_result: ProcessTerminationResult | None,
+        user_abort_termination_result: UserAbortTerminationResult | Mapping[str, Any] | None,
         recovery_result: RecoveryVerificationResult | RecoveryResult | None,
         integrity_result: IntegrityVerificationResult | None,
         sensor_summaries: tuple[SensorSummary, ...],
@@ -951,6 +988,21 @@ class SessionFinalizer:
         if termination_result is not None:
             add(AuditEventType.ENFORCEMENT_EXECUTED, termination_result.termination_requested_at, "TERMINATION", termination_result.termination_id, "process-manager")
             add(AuditEventType.PROCESS_TERMINATED, termination_result.termination_completed_at, "TERMINATION", termination_result.termination_id, "process-manager", reason=_value(termination_result.outcome))
+        if user_abort_termination_result is not None:
+            abort_mapping = self._user_abort_mapping(user_abort_termination_result)
+            abort_completed_at = (
+                user_abort_termination_result.completed_at
+                if isinstance(user_abort_termination_result, UserAbortTerminationResult)
+                else _dt_from_text(abort_mapping.get("completed_at"))
+            )
+            add(
+                AuditEventType.USER_ABORT_EXECUTED,
+                abort_completed_at,
+                "USER_ABORT",
+                str(abort_mapping.get("termination_id", "user-abort")),
+                "launcher",
+                reason=str(abort_mapping.get("status", "UNKNOWN")),
+            )
         recovery = getattr(recovery_result, "recovery", recovery_result)
         integrity = integrity_result or getattr(recovery_result, "integrity", None)
         add(AuditEventType.RECOVERY_EXECUTED, _dt(getattr(recovery, "ended_at", None)), "RECOVERY", getattr(recovery, "recovery_id", "recovery"), "recovery", action_id=getattr(recovery, "action_id", None), reason=_value(getattr(recovery, "recovery_status", None)))

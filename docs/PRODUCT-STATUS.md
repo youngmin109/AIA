@@ -58,6 +58,11 @@ Enforcement Gate
 이 분리는 결과를 약하게 보이게 하려는 것이 아니라, “차단 응답을 만들었다”와
 “도구가 실행되지 않았다”를 같은 사실로 잘못 기록하지 않기 위한 제품 계약이다.
 
+사용자 중지 결과도 정책 집행 결과와 분리한다. `USER_ABORT` 세션에서는
+`user_abort_termination_result`가 등록된 Agent Root 트리의 종료 검증을 담고,
+정책 Gate가 실행되지 않았으므로 이를 `CONTAIN` 또는 정책용
+`process_termination_result`로 기록하지 않는다.
+
 ## 아직 제품으로서 부족한 부분
 
 - 등록된 파일 읽기 MCP 도구 이름은 `READ`로 정규화하며, 실제 MCP 서버 시작부터

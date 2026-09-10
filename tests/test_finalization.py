@@ -189,6 +189,33 @@ def test_security_containment_is_aborted_even_after_successful_recovery_axis(tmp
     assert result.result.action_outcomes[0].enforcement_action == "TERMINATED"
 
 
+def test_user_abort_termination_is_recorded_outside_policy_enforcement(tmp_path: Path):
+    session, store, _ = _session(tmp_path)
+    result = SessionFinalizer(evidence_store=store).finalize(
+        session,
+        end_reason=SessionEndReason.USER_ABORT,
+        user_abort_termination_result={
+            "termination_id": "user-abort-017",
+            "status": "SUCCEEDED",
+            "outcome": "TERMINATED",
+            "root_pid": 1234,
+            "root_create_time": 10.5,
+            "verified_tree_gone": True,
+            "requested_at": NOW.isoformat(),
+            "completed_at": NOW.isoformat(),
+            "reason": None,
+        },
+    )
+
+    assert result.result.session_status is SessionStatus.ABORTED
+    assert result.result.process_termination_result is None
+    assert result.result.user_abort_termination_result["status"] == "SUCCEEDED"
+    assert result.result.user_abort_termination_result["verified_tree_gone"] is True
+    assert any(item.event_type.value == "USER_ABORT_EXECUTED" for item in result.audit_records)
+    restored = type(result.result).from_mapping(result.result.to_mapping())
+    assert restored.user_abort_termination_result == result.result.user_abort_termination_result
+
+
 def test_blocked_and_process_refuse_do_not_abort_session(tmp_path: Path):
     session, store, action = _session(tmp_path)
     blocked = SessionFinalizer(evidence_store=store).finalize(

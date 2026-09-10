@@ -17,6 +17,7 @@ from aia import (
     ProtectedLaunchRequest,
     ProtectedLauncher,
     SessionStatus,
+    UserAbortTerminationResult,
 )
 
 from tests.test_readiness import make_barrier, readiness_inputs
@@ -118,6 +119,26 @@ def test_user_abort_terminates_only_the_verified_launched_root(
         assert launcher.process_handle is not None
         assert launcher.process_handle.poll() is not None
         assert values["session"].status is SessionStatus.RUNNING
+    finally:
+        cleanup_running_launcher(values, launcher)
+
+
+def test_user_abort_result_is_separate_and_verified(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+    launcher = make_ready_launcher(values)
+    result = launcher.launch(launch_request(values))
+
+    try:
+        assert result.status is LaunchStatus.RUNNING
+        abort = launcher.request_user_abort_result()
+        assert isinstance(abort, UserAbortTerminationResult)
+        assert abort.status == "SUCCEEDED"
+        assert abort.outcome == "TERMINATED"
+        assert abort.verified_tree_gone is True
+        assert abort.succeeded is True
+        assert abort.to_mapping()["termination_id"] == abort.termination_id
     finally:
         cleanup_running_launcher(values, launcher)
 

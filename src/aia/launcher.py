@@ -264,6 +264,59 @@ class ProtectedLaunchResult:
         object.__setattr__(self, "checked_at", self.checked_at.astimezone(timezone.utc))
 
 
+@dataclass(frozen=True, slots=True)
+class UserAbortTerminationResult:
+    """Auditable result for an explicit user stop request.
+
+    This remains separate from ``ProcessTerminationResult`` because a user
+    stop is session control, not a policy Enforcement action.
+    """
+
+    termination_id: str
+    status: str
+    outcome: str
+    root_pid: int
+    root_create_time: float
+    verified_tree_gone: bool
+    requested_at: datetime
+    completed_at: datetime
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.termination_id.strip():
+            raise LauncherError("termination_id must be non-empty")
+        if self.status not in {"SUCCEEDED", "FAILED"}:
+            raise LauncherError("status must be SUCCEEDED or FAILED")
+        if self.outcome not in {"TERMINATED", "ALREADY_EXITED", "FAILED"}:
+            raise LauncherError("unsupported user abort outcome")
+        if self.root_pid < 0 or self.root_create_time < 0:
+            raise LauncherError("root process identity must be non-negative")
+        for field_name in ("requested_at", "completed_at"):
+            value = getattr(self, field_name)
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise LauncherError(f"{field_name} must be timezone-aware")
+            object.__setattr__(self, field_name, value.astimezone(timezone.utc))
+        if self.status == "SUCCEEDED" and not self.verified_tree_gone:
+            raise LauncherError("successful user abort requires verified_tree_gone")
+
+    @property
+    def succeeded(self) -> bool:
+        return self.status == "SUCCEEDED" and self.verified_tree_gone
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "termination_id": self.termination_id,
+            "status": self.status,
+            "outcome": self.outcome,
+            "root_pid": self.root_pid,
+            "root_create_time": self.root_create_time,
+            "verified_tree_gone": self.verified_tree_gone,
+            "requested_at": self.requested_at.isoformat(),
+            "completed_at": self.completed_at.isoformat(),
+            "reason": self.reason,
+        }
+
+
 class _LaunchStepError(LauncherError):
     def __init__(self, code: str) -> None:
         self.code = code
@@ -348,11 +401,58 @@ class ProtectedLauncher:
         termination so a reused PID cannot be treated as the managed Agent.
         """
 
+        result = self.request_user_abort_result()
+        return result.succeeded if result is not None else False
+
+    def request_user_abort_result(self) -> UserAbortTerminationResult | None:
+        """Return the verified result of an explicit user stop request."""
+
+        requested_at = _now_utc()
         launch = self._last_result
         context = launch.context if launch is not None else None
         if context is None or launch.status is not LaunchStatus.RUNNING:
-            return False
-        return self._terminate_verified_tree(context.root_process_identity)
+            return None
+        identity = context.root_process_identity
+        termination_id = str(uuid4())
+        root_status, _ = inspect_process_identity(
+            identity,
+            process_factory=self.process_factory,
+        )
+        if root_status is ProcessIdentityStatus.PROCESS_GONE:
+            return UserAbortTerminationResult(
+                termination_id=termination_id,
+                status="SUCCEEDED",
+                outcome="ALREADY_EXITED",
+                root_pid=identity.pid,
+                root_create_time=identity.create_time,
+                verified_tree_gone=True,
+                requested_at=requested_at,
+                completed_at=_now_utc(),
+            )
+        if root_status is not ProcessIdentityStatus.LIVE_MATCH:
+            return UserAbortTerminationResult(
+                termination_id=termination_id,
+                status="FAILED",
+                outcome="FAILED",
+                root_pid=identity.pid,
+                root_create_time=identity.create_time,
+                verified_tree_gone=False,
+                requested_at=requested_at,
+                completed_at=_now_utc(),
+                reason=f"ROOT_{root_status.value}",
+            )
+        succeeded = self._terminate_verified_tree(identity)
+        return UserAbortTerminationResult(
+            termination_id=termination_id,
+            status="SUCCEEDED" if succeeded else "FAILED",
+            outcome="TERMINATED" if succeeded else "FAILED",
+            root_pid=identity.pid,
+            root_create_time=identity.create_time,
+            verified_tree_gone=succeeded,
+            requested_at=requested_at,
+            completed_at=_now_utc(),
+            reason=None if succeeded else "PROCESS_TREE_TERMINATION_INCOMPLETE",
+        )
 
     def _terminate_verified_tree(
         self,
@@ -880,4 +980,5 @@ __all__ = [
     "ProtectedLaunchRequest",
     "ProtectedLaunchResult",
     "ProtectedLauncher",
+    "UserAbortTerminationResult",
 ]

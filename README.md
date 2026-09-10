@@ -120,6 +120,9 @@ uv run aia stop <SESSION_ID>
 `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계가 완전히 검증되지 않은 실행입니다.
 후자는 성공한 보호 실행으로 해석하지 말고 제한사항을 확인해야 합니다.
 `aia stop`은 정책 위반 집행과 분리된 사용자 취소이며, 결과에는 `USER_ABORT`로 기록됩니다.
+완료된 Result Bundle에서는 `user_abort_termination_result.status`와
+`verified_tree_gone`으로 실제 관리 트리 종료 여부를 확인할 수 있습니다. 이 값은
+정책 위반 집행용 `process_termination_result`와 별도입니다.
 
 AIA를 업데이트한 뒤 matcher가 바뀌어 `aia doctor`가 `NOT_READY`를 보여주면
 `uv run aia hook install`을 다시 실행하고 Codex `/hooks`에서 변경된 Hook을

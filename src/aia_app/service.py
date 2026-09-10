@@ -366,7 +366,7 @@ class RunApplicationService:
                 "reason": "STOP_WILL_BE_APPLIED_BEFORE_AGENT_LAUNCH",
             }
         try:
-            stopped = bool(launcher.request_user_abort())
+            stopped = self._request_user_abort(record, launcher)
         except Exception as error:
             stopped = False
             record.stop_error = f"{type(error).__name__}: {error}"
@@ -686,7 +686,7 @@ class RunApplicationService:
                     )
                     finalization_done = True
                     return
-                if not launcher.request_user_abort():
+                if not self._request_user_abort(record, launcher):
                     record.stop_error = "USER_ABORT_TERMINATION_UNCONFIRMED"
             if launch.context is None or launch.status.value != "RUNNING":
                 raise RuntimeError(launch.failure_code or "Codex launch failed")
@@ -736,6 +736,7 @@ class RunApplicationService:
                 agent_end_observed_at=_now(),
                 agent_end_verification="PROCESS_GONE",
                 agent_output_observation=record.runtime.get("codex_output_observation"),
+                user_abort_termination_result=record.runtime.get("user_abort_termination_result"),
                 limitations=limitations,
             )
             finalization_done = True
@@ -850,10 +851,28 @@ class RunApplicationService:
                     continue
                 record.runtime["stop_action_attempted"] = True
                 record.protection_state = "STOP_REQUESTED"
-                if not launcher.request_user_abort():
+                if not self._request_user_abort(record, launcher):
                     record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
                     record.protection_state = "DEGRADED"
                 self._persist_runtime_state(record)
+
+    @staticmethod
+    def _request_user_abort(record: RunRecord, launcher: ProtectedLauncher) -> bool:
+        """Request a user stop and retain its verified result separately."""
+
+        detailed = getattr(launcher, "request_user_abort_result", None)
+        try:
+            if callable(detailed):
+                result = detailed()
+                if result is None:
+                    return False
+                mapping = result.to_mapping() if hasattr(result, "to_mapping") else dict(result)
+                record.runtime["user_abort_termination_result"] = mapping
+                return bool(getattr(result, "succeeded", False))
+            return bool(launcher.request_user_abort())
+        except Exception as error:
+            record.stop_error = f"{type(error).__name__}: {error}"
+            return False
 
     def _is_stop_requested(self, record: RunRecord) -> bool:
         if record.stop_requested:

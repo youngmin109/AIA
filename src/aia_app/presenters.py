@@ -219,6 +219,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "enforcement_results": list(result.get("enforcement_results") or []),
         "incidents": incidents,
         "integrity": result.get("integrity_result"),
+        "user_abort_termination": result.get("user_abort_termination_result"),
         "limitations": limitations,
         "mode": result.get("mode"),
         "posttool_event_count": int(result.get("posttool_event_count") or 0),

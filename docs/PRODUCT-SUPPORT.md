@@ -57,7 +57,9 @@ uv run aia stop <SESSION_ID>
 
 이 동작은 정책 위반 집행과 구분되는 `USER_ABORT`다. AIA는 등록된 Agent Root와
 검증된 자식 프로세스만 대상으로 종료를 시도하고, 종료를 확인하지 못하면 성공으로
-표시하지 않는다.
+표시하지 않는다. Result Bundle에는 정책 집행용 `process_termination_result`와
+분리된 `user_abort_termination_result`가 저장되며, 여기의 `status=SUCCEEDED`와
+`verified_tree_gone=true`가 함께 있어야 실제 종료 성공으로 해석한다.
 
 `aia status`는 보호 실행을 시작한 터미널과 다른 터미널에서 실행해도 Control Root의
 실행 상태 스냅샷을 읽을 수 있다. 완료된 실행은 검증된 Result Bundle이 최종 권위이며,
