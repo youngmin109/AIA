@@ -23,6 +23,7 @@
 - 실제 Codex Bash Canary: `permissionDecision=deny`, Canary 파일 미생성
 - 실제 Codex `type .env`: Secret 출력 없음, PostToolUse 성공 없음
 - 실제 Hook Event: `tool_name`, 원문 command, `tool_use_id`와 AIA Session 연결
+- 실제 `aia protect` CLI 경로: disposable Workspace에서 `COMPLETED`와 `Bundle VALID` 확인
 - `VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED/SUCCEEDED` 결과 기록
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분

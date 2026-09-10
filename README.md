@@ -101,3 +101,10 @@ Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 
 그리고 지원되는 `PreToolUse` matcher입니다. Hook이 끊기거나 지원되지 않는 도구를
 사용한 실행은 완전한 보호 실행으로 표시하지 않습니다. Actual Codex 전체 도구와
 OS 전체 Writer를 보호한다고 주장하지 않으며, 제한사항은 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)에 고정되어 있습니다.
+
+제품 CLI 전체 경계를 disposable Workspace에서 다시 확인하려면 다음 opt-in smoke를
+실행한다. 이 명령은 실제 Codex 실행을 시작하므로 일반 회귀 테스트에는 포함하지 않는다.
+
+```powershell
+uv run python scripts/product_e2e_smoke.py
+```

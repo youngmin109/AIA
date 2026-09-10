@@ -11,3 +11,4 @@ build/
 htmlcov/
 evaluation/actual-codex/
 evaluation/product-e2e-live/
+evaluation/product-e2e/
