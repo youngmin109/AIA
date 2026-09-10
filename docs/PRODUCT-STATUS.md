@@ -70,7 +70,9 @@ Enforcement Gate
   않은 MCP 도구와 전체 Codex 도구 범위는 지원하지 않는다.
 - 대화형 세션과 Codex 버전·출력 형식별 실행 결과 확인을 더 넓게 검증해야 한다.
 - Actual Codex destructive Process Tree termination은 아직 제품 지원 주장으로
-  완료하지 않았다.
+  완료하지 않았다. 다만 검증된 PreTool deny 이후 실제 PostToolUse가 들어오는
+  우회 상황에 대해 별도 POST_ACTION Gate와 보상적 Process Manager 경로를
+  제품 런타임에 연결했으며, 이 경로의 Actual Codex 성공 증명은 아직 남아 있다.
 - Hook 신뢰 검토는 Codex 화면에서 사용자가 직접 수행해야 하며 AIA가 자동 증명하지
   못한다.
 - 소스 체크아웃용 Windows 설치 스크립트와 정책 프로필 초기화는 제공하지만,

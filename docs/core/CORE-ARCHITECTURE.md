@@ -136,6 +136,12 @@ Process termination에는 실패할 수 있으므로 별도의 execution result�
 TERMINATED를 주장하지 않고 Enforcement Decision은 CONTAIN, Action은 NONE, Execution
 Result는 FAILED가 될 수 있다.
 
+제품 런타임에서 검증된 PreTool deny 뒤에도 동일 Tool의 PostToolUse가
+확인되면, 원래 PRE_ACTION Action을 POST_ACTION 보상 Action으로 별도 파생한다.
+이 보상 Action도 동일한 정책·귀속·세션·Lease·센서 검사를 다시 통과해야 하며,
+그때만 Process Manager에 종료를 요청한다. Process Sensor 관찰만으로 이 경로를
+시작하지 않으며, 사전 차단 성공과 사후 보상 종료를 하나의 성공으로 합치지 않는다.
+
 ### 7. 프로세스 관리자 (Process Manager)
 
 - **책임**: AIA가 시작한 process와 그 자식 tree의 lifecycle을 관리하고, 등록된 process identity에 대해서만 종료를 수행한다.

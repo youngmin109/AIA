@@ -18,12 +18,14 @@ import threading
 from typing import Any, TYPE_CHECKING
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+from uuid import NAMESPACE_URL, uuid5
 
 from .action import NormalizedAction
 from .adapters import CodexHookAdapter, CodexHookPayloadError
 from .attribution import AttributionEngine, AttributionResult
 from .enforcement import (
     EnforcementAction,
+    EnforcementDecision,
     EnforcementExecutionResult,
     EnforcementGate,
     EnforcementGateInput,
@@ -31,7 +33,7 @@ from .enforcement import (
     EnforcementRoute,
     HookTrustStatus,
 )
-from .evidence import RawEvidenceRecord
+from .evidence import ObservationStage, RawEvidenceRecord
 from .normalizer import normalize_evidence
 from .policy import PolicyDecision
 from .pretool_enforcement import (
@@ -43,6 +45,7 @@ from .pretool_enforcement import (
 )
 from .runtime_policy import RuntimePolicyEvaluation, RuntimePolicyEvaluator
 from .session import ProtectedRunSession
+from .process_manager import ProcessTerminationResult
 
 if TYPE_CHECKING:
     from .checkpoint import SafeCheckpoint
@@ -69,6 +72,19 @@ class CodexPreToolEvent:
     confirmed_block: bool | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CodexPostActionContainment:
+    """A verified post-action containment attempt for a bypassed PreTool deny."""
+
+    source_event: CodexPreToolEvent
+    action: NormalizedAction
+    policy_evaluation: RuntimePolicyEvaluation
+    attribution: AttributionResult
+    gate_result: EnforcementGateResult
+    termination_result: ProcessTerminationResult | None = None
+    termination_error: str | None = None
+
+
 class CodexPreToolController:
     """Bridge native Codex events into the existing AIA decision pipeline."""
 
@@ -84,6 +100,9 @@ class CodexPreToolController:
         bridge: HookEnforcementBridge,
         launch_context_provider: Callable[[], Any | None],
         process_sensor_provider: Callable[[], Any | None],
+        post_action_containment_callback: Callable[
+            [CodexPostActionContainment], ProcessTerminationResult | None
+        ] | None = None,
     ) -> None:
         self.session = session
         self.preparation_context = preparation_context
@@ -94,7 +113,9 @@ class CodexPreToolController:
         self.bridge = bridge
         self.launch_context_provider = launch_context_provider
         self.process_sensor_provider = process_sensor_provider
+        self.post_action_containment_callback = post_action_containment_callback
         self._events: list[CodexPreToolEvent] = []
+        self._post_action_containments: list[CodexPostActionContainment] = []
         self._errors: list[str] = []
         self._lock = threading.RLock()
 
@@ -107,6 +128,11 @@ class CodexPreToolController:
     def errors(self) -> tuple[str, ...]:
         with self._lock:
             return tuple(self._errors)
+
+    @property
+    def post_action_containments(self) -> tuple[CodexPostActionContainment, ...]:
+        with self._lock:
+            return tuple(self._post_action_containments)
 
     def evaluate(self, native_payload: Mapping[str, Any]) -> Mapping[str, Any]:
         """Evaluate one native Codex payload and return the Codex wire response."""
@@ -224,7 +250,7 @@ class CodexPreToolController:
             return {}
 
         try:
-            self.hook_sensor.observe_posttool(
+            posttool_record = self.hook_sensor.observe_posttool(
                 self._posttool_sensor_payload(native_payload, native)
             )
             if native.tool_use_id:
@@ -241,13 +267,131 @@ class CodexPreToolController:
                     and event.gate_result.decision.value == "CONTAIN"
                     and event.gate_result.route.value == "PRETOOL_BLOCK"
                 ):
-                    self.confirm_block(native.tool_use_id, False)
+                    updated_event = self.confirm_block(native.tool_use_id, False)
+                    if updated_event is not None:
+                        self._handle_bypassed_pretool(
+                            updated_event,
+                            posttool_record,
+                        )
             return {}
         except Exception as error:
             self._record_error(
                 f"POSTTOOL_EVIDENCE_FAILED: {type(error).__name__}: {error}"
             )
             return {}
+
+    def _handle_bypassed_pretool(
+        self,
+        event: CodexPreToolEvent,
+        posttool_record: RawEvidenceRecord,
+    ) -> None:
+        """Contain a tool that ran after AIA had issued a verified deny."""
+
+        try:
+            action = self._derive_post_action(event.action, posttool_record)
+            records = (*event.records, posttool_record)
+            launch_context = self.launch_context_provider()
+            attribution = AttributionEngine(
+                self.session.session_id,
+                records,
+                launch_context=launch_context,
+                expected_agent_native_session_id=action.agent_native_session_id,
+            ).attribute(action)
+            policy_evaluation = RuntimePolicyEvaluator(
+                self.preparation_context.active_policy,
+                session_id=self.session.session_id,
+            ).evaluate(action)
+            process_sensor = self.process_sensor_provider()
+            sensor_health = tuple(
+                sensor.health
+                for sensor in (
+                    self.filesystem_sensor,
+                    self.hook_sensor,
+                    process_sensor,
+                )
+                if sensor is not None
+            )
+            gate_result = EnforcementGate(
+                lease_manager=self.lease_manager
+            ).evaluate(
+                EnforcementGateInput(
+                    action=action,
+                    policy_evaluation=policy_evaluation,
+                    attribution=attribution,
+                    session=self.session,
+                    active_policy=self.preparation_context.active_policy,
+                    launch_context=launch_context,
+                    workspace_lease=self.preparation_context.workspace_lease,
+                    sensor_health=sensor_health,
+                    hook_trust_status=HookTrustStatus.VERIFIED,
+                    checked_at=_now_utc(),
+                )
+            )
+            containment = CodexPostActionContainment(
+                source_event=event,
+                action=action,
+                policy_evaluation=policy_evaluation,
+                attribution=attribution,
+                gate_result=gate_result,
+            )
+            result = None
+            termination_error = None
+            if (
+                gate_result.decision is EnforcementDecision.CONTAIN
+                and gate_result.route is EnforcementRoute.PROCESS_TERMINATION
+            ):
+                callback = self.post_action_containment_callback
+                if callback is None:
+                    termination_error = "PROCESS_CONTAINMENT_CALLBACK_UNAVAILABLE"
+                else:
+                    try:
+                        result = callback(containment)
+                    except Exception as error:
+                        termination_error = f"{type(error).__name__}: {error}"
+                        self._record_error("POST_ACTION_CONTAINMENT_FAILED")
+            elif gate_result.decision is EnforcementDecision.CONTAIN:
+                termination_error = "POST_ACTION_GATE_ROUTE_UNAVAILABLE"
+            updated = replace(
+                containment,
+                termination_result=result,
+                termination_error=termination_error,
+            )
+            with self._lock:
+                self._post_action_containments.append(updated)
+        except Exception as error:
+            self._record_error(
+                "POST_ACTION_CONTAINMENT_EVALUATION_FAILED: "
+                f"{type(error).__name__}"
+            )
+
+    @staticmethod
+    def _derive_post_action(
+        action: NormalizedAction,
+        posttool_record: RawEvidenceRecord,
+    ) -> NormalizedAction:
+        if posttool_record.record_type.value != "POSTTOOL_OBSERVED":
+            raise ValueError("post_action derivation requires PostTool evidence")
+        if posttool_record.session_id != action.aia_session_id:
+            raise ValueError("PostTool evidence Session does not match Action")
+        evidence_ids = tuple(
+            dict.fromkeys((*action.evidence_ids, posttool_record.evidence_id))
+        )
+        evidence_sources = tuple(
+            dict.fromkeys((*action.evidence_sources, posttool_record.source))
+        )
+        return replace(
+            action,
+            action_id=str(
+                uuid5(
+                    NAMESPACE_URL,
+                    f"{action.action_id}:POST_ACTION:{posttool_record.evidence_id}",
+                )
+            ),
+            stage=ObservationStage.POST_ACTION,
+            observed_at=posttool_record.captured_at,
+            evidence_ids=evidence_ids,
+            evidence_sources=evidence_sources,
+        )
 
     def confirm_block(self, tool_use_id: str, blocked: bool) -> CodexPreToolEvent | None:
         """Attach an externally observed Codex execution confirmation."""
@@ -490,6 +634,7 @@ def send_hook_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
 
 __all__ = [
     "CodexHookBroker",
+    "CodexPostActionContainment",
     "CodexPreToolController",
     "CodexPreToolEvent",
     "send_hook_payload",

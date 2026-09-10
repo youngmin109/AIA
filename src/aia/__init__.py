@@ -234,6 +234,7 @@ from .adapters import (
 )
 from .codex_runtime import (
     CodexHookBroker,
+    CodexPostActionContainment,
     CodexPreToolController,
     CodexPreToolEvent,
     send_hook_payload,
@@ -579,6 +580,7 @@ __all__ = [
     "CodexAdapter",
     "CodexExecutionObservation",
     "CodexHookBroker",
+    "CodexPostActionContainment",
     "CodexHookInstallationError",
     "CodexHookInstaller",
     "AIA_CODEX_HOOK_MATCHER",

@@ -102,6 +102,10 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
   시작·호출부터 PreToolUse 차단까지의 경로를 `mcp-read` Canary로 검증했다.
 - 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
+- 검증된 PreTool deny 이후에도 동일 Tool의 `PostToolUse`가 확인되면, 원래
+  `PRE_ACTION` 차단 결과와 별도의 `POST_ACTION` Gate를 생성한다. 이때만
+  Process Manager에 보상적 종료를 요청하며, 실제 종료 결과가 확인된 경우에만
+  `TERMINATED / SUCCEEDED`를 기록한다.
 - Session, Evidence, Result Bundle을 별도로 저장하고 Bundle 무결성을 검증한다.
 - Recovery `RESTORED`와 Integrity `VERIFIED`를 독립적으로 표시한다.
 - 독립 Windows Process Manager smoke에서 등록된 프로세스 트리만 종료하고
@@ -114,8 +118,12 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - Hook 장애가 발생해도 모든 경로가 OS 수준에서 fail-closed라는 보장
 - `PROCESS` Evidence만으로 정확한 파일 Writer를 증명하는 것
 - 모든 OS 프로세스의 종료 또는 사용자의 수동 작업 통제
+- Process Sensor 관찰만으로 자동 종료하는 것. Process termination은 검증된
+  Gate와 AIA가 등록한 Agent Root가 함께 확인된 경우에만 시도한다.
 - Network와 Database 상태 보안
-- Actual Codex의 destructive Process Tree termination
+- Actual Codex의 destructive Process Tree termination이 실제 제품 실행에서
+  성공했다는 주장. 보상적 종료 경로는 구현했지만, 독립적인 Actual Codex 증명이
+  완료될 때까지 지원 주장으로 승격하지 않는다.
 - 등록되지 않은 MCP 도구와 지원 범위 밖 MCP 서버의 보편적 보호
 - 대규모 Workspace에 대한 성능 SLA
 

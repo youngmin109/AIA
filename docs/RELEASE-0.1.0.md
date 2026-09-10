@@ -29,6 +29,8 @@
   서버 시작·호출과 `.env` PreToolUse 차단을 `mcp-read` Canary로 검증했다. 등록되지
   않은 MCP 도구는 추측하지 않는다.
 - `VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED/SUCCEEDED` 결과 기록
+- 검증된 PreTool deny가 실제로 무시되어 PostToolUse가 들어온 경우의 별도
+  `POST_ACTION → PROCESS_TERMINATION` 보상 경로와 실제 Process Manager 결과 기록
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분
 - 실행 중 사용자 중지 요청과 `USER_ABORT` 결과 기록
@@ -66,7 +68,7 @@ uv run aia-web
 
 다음 항목은 실패를 숨기지 않고 현재 릴리스의 제한사항으로 남긴다.
 
-- 실제 Codex destructive Process Tree termination
+- 실제 Codex destructive Process Tree termination의 성공 증명
 - 지원 범위 밖 MCP·Hosted tool·외부 Agent·사용자 수동 실행
 - Hook 장애가 발생한 모든 경로의 OS 수준 fail-closed 보장
 - 대규모 Workspace 성능 SLA

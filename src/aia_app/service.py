@@ -27,6 +27,7 @@ from aia import (
     Normalizer,
     PolicyProfile,
     ProcessIdentityStatus,
+    ProcessManager,
     ProcessObserverCapability,
     ProtectedLaunchRequest,
     ProtectedLauncher,
@@ -583,6 +584,27 @@ class RunApplicationService:
             launch_holder: dict[str, Any] = {}
             bridge = HookEnforcementBridge()
             launcher: ProtectedLauncher
+
+            def execute_post_action_containment(containment: Any) -> Any:
+                """Execute only a verified compensating containment request."""
+
+                process_manager = record.runtime.get("process_manager")
+                launch_context = launch_holder.get("context")
+                if process_manager is None or launch_context is None:
+                    raise RuntimeError("PROCESS_CONTAINMENT_CONTEXT_UNAVAILABLE")
+                result = process_manager.execute(
+                    containment.gate_result,
+                    session=session,
+                    launch_context=launch_context,
+                    workspace_lease=preparation.workspace_lease,
+                )
+                record.runtime["process_termination_result"] = result
+                record.runtime.setdefault("post_action_gate_results", []).append(
+                    containment.gate_result
+                )
+                self._persist_runtime_state(record)
+                return result
+
             controller = CodexPreToolController(
                 session,
                 preparation,
@@ -593,6 +615,7 @@ class RunApplicationService:
                 bridge=bridge,
                 launch_context_provider=lambda: launch_holder.get("context"),
                 process_sensor_provider=lambda: launcher.process_sensor,
+                post_action_containment_callback=execute_post_action_containment,
             )
 
             def broker_factory(launch_id: str, prepared_bridge: HookEnforcementBridge) -> CodexHookBroker:
@@ -642,6 +665,10 @@ class RunApplicationService:
                 launch_context_callback=lambda context: launch_holder.update(
                     {"context": context}
                 ),
+            )
+            record.runtime["process_manager"] = ProcessManager(
+                launcher.managed_process_registry,
+                manager,
             )
             adapter_options: dict[str, Any] = {"sandbox": "workspace-write"}
             if record.interactive:
@@ -709,11 +736,13 @@ class RunApplicationService:
                 if record.stop_requested
                 else SessionEndReason.AGENT_EXITED
             )
-            limitations = (
+            limitations = list(
                 ("USER_ABORT_TERMINATION_UNCONFIRMED",)
                 if record.stop_error
                 else ()
             )
+            if record.runtime.get("post_action_containment_errors"):
+                limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
             final = SessionFinalizer(
                 evidence_store=raw_store,
                 sensors=sensors,
@@ -728,6 +757,7 @@ class RunApplicationService:
                 policy_evaluations=record.runtime.get("policy_evaluations", ()),
                 attribution_results=record.runtime.get("attribution_results", ()),
                 enforcement_results=record.runtime.get("gate_results", ()),
+                termination_result=record.runtime.get("process_termination_result"),
                 active_policy=preparation.active_policy,
                 checkpoint=checkpoint,
                 launch_context=launch.context,
@@ -737,7 +767,7 @@ class RunApplicationService:
                 agent_end_verification="PROCESS_GONE",
                 agent_output_observation=record.runtime.get("codex_output_observation"),
                 user_abort_termination_result=record.runtime.get("user_abort_termination_result"),
-                limitations=limitations,
+                limitations=tuple(limitations),
             )
             finalization_done = True
             result_mapping = final.result.to_mapping()
@@ -941,6 +971,43 @@ class RunApplicationService:
                     return event
             return None
 
+        def append_action_view(
+            action: Any,
+            policy_result: Any,
+            attribution_result: Any,
+            gate_result: Any,
+        ) -> None:
+            action_views.append(
+                {
+                    "action_id": action.action_id,
+                    "attribution_grade": attribution_result.grade.value,
+                    "attribution_reason": attribution_result.reason,
+                    "enforcement_action": gate_result.action.value,
+                    "enforcement_decision": gate_result.decision.value,
+                    "execution_result": gate_result.execution_result.value,
+                    "operation": action.operation.value,
+                    "policy_decision": policy_result.policy_decision.value,
+                    "enforcement_route": gate_result.route.value,
+                    "evidence_ids": list(action.evidence_ids),
+                    "matched_rule_ids": list(
+                        getattr(policy_result, "matched_rule_ids", ()) or ()
+                    ),
+                    "matched_asset_types": [
+                        getattr(
+                            policy_result.asset_type,
+                            "value",
+                            policy_result.asset_type,
+                        )
+                    ]
+                    if getattr(policy_result, "asset_type", None) is not None
+                    else [],
+                    "target": {
+                        "canonical_path": action.canonical_path,
+                        "target_kind": action.target_kind.value,
+                    },
+                }
+            )
+
         for action in normalized.actions:
             policy_result = evaluator.evaluate(action)
             attribution_result = attribution_engine.attribute(action)
@@ -969,33 +1036,33 @@ class RunApplicationService:
             policy_results.append(policy_result)
             attribution_results.append(attribution_result)
             gate_results.append(gate_result)
-            action_views.append(
-                {
-                    "action_id": action.action_id,
-                    "attribution_grade": attribution_result.grade.value,
-                    "attribution_reason": attribution_result.reason,
-                    "enforcement_action": gate_result.action.value,
-                    "enforcement_decision": gate_result.decision.value,
-                    "execution_result": gate_result.execution_result.value,
-                    "operation": action.operation.value,
-                    "policy_decision": policy_result.policy_decision.value,
-                    "enforcement_route": gate_result.route.value,
-                    "evidence_ids": list(action.evidence_ids),
-                    "matched_rule_ids": list(getattr(policy_result, "matched_rule_ids", ()) or ()),
-                    "matched_asset_types": [
-                        getattr(policy_result.asset_type, "value", policy_result.asset_type)
-                    ]
-                    if getattr(policy_result, "asset_type", None) is not None
-                    else [],
-                    "target": {
-                        "canonical_path": action.canonical_path,
-                        "target_kind": action.target_kind.value,
-                    },
-                }
+            append_action_view(action, policy_result, attribution_result, gate_result)
+
+        post_action_containments = (
+            tuple(codex_controller.post_action_containments)
+            if codex_controller is not None
+            else ()
+        )
+        for containment in post_action_containments:
+            policy_results.append(containment.policy_evaluation)
+            attribution_results.append(containment.attribution)
+            gate_results.append(containment.gate_result)
+            append_action_view(
+                containment.action,
+                containment.policy_evaluation,
+                containment.attribution,
+                containment.gate_result,
             )
+            if containment.termination_error:
+                record.runtime.setdefault("post_action_containment_errors", []).append(
+                    containment.termination_error
+                )
+        all_actions = tuple(
+            (*normalized.actions, *(item.action for item in post_action_containments))
+        )
         record.runtime.update(
             {
-                "normalized_actions": normalized.actions,
+                "normalized_actions": all_actions,
                 "policy_evaluations": tuple(policy_results),
                 "attribution_results": tuple(attribution_results),
                 "gate_results": tuple(gate_results),
