@@ -21,7 +21,12 @@ from aia import (
     Operation,
     PolicyDecision,
 )
-from aia_app.service import ApplicationValidationError, RunApplicationService
+from aia_app.service import (
+    ApplicationValidationError,
+    RunApplicationService,
+    _sensor_summary_is_verified,
+    _sensors_runtime_healthy,
+)
 
 
 def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
@@ -136,6 +141,9 @@ def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path)
         errors=(),
         post_action_containments=(),
     )
+    record.runtime["sensors"] = (
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY")),
+    )
     service.registry.add(record)
     try:
         service._refresh_protection_state(record)
@@ -145,6 +153,86 @@ def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path)
         assert record.actions[0]["action_id"] == "action-live"
         assert record.incidents[0]["enforcement_route"] == "PRETOOL_BLOCK"
         assert "raw_command" not in repr(record.actions)
+    finally:
+        service.shutdown()
+
+
+def test_verified_sensor_summary_requires_healthy_runtime_and_clean_stop() -> None:
+    assert _sensor_summary_is_verified(
+        [
+            {
+                "sensor": "FILESYSTEM_WATCHER",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
+            {
+                "sensor": "AGENT_HOOK",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
+        ]
+    ) is True
+    assert _sensor_summary_is_verified(
+        [
+            {
+                "sensor": "FILESYSTEM_WATCHER",
+                "runtime_health_before_stop": "FAILED",
+                "final_sensor_state": "STOPPED",
+            }
+        ]
+    ) is False
+    assert _sensor_summary_is_verified(
+        [
+            {
+                "sensor": "FILESYSTEM_WATCHER",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "FAILED",
+            }
+        ]
+    ) is False
+    assert _sensor_summary_is_verified([]) is False
+
+
+def test_live_verified_state_requires_all_sensors_healthy(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        healthy = SimpleNamespace(health=SimpleNamespace(status="HEALTHY"))
+        failed = SimpleNamespace(health=SimpleNamespace(status="FAILED"))
+        assert _sensors_runtime_healthy((healthy,)) is True
+        assert _sensors_runtime_healthy((healthy, failed)) is False
+        assert _sensors_runtime_healthy(()) is False
+    finally:
+        service.shutdown()
+
+
+def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    session_dir = tmp_path / "control" / "sessions" / "session-1"
+    session_dir.mkdir(parents=True)
+    base = {
+        "session_status": "COMPLETED",
+        "session_end_reason": "AGENT_EXITED",
+        "limitations": [],
+        "action_outcomes": [],
+        "sensor_summary": [
+            {
+                "sensor": "FILESYSTEM_WATCHER",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            }
+        ],
+    }
+    monkeypatch.setattr(service.reader, "read_result", lambda _session_id: dict(base))
+    monkeypatch.setattr(
+        service.reader,
+        "verification",
+        lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
+    )
+    monkeypatch.setattr(service.reader, "hook_event_count", lambda _session_id: 1)
+    try:
+        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_VERIFIED"
+        base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
+        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
     finally:
         service.shutdown()
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 import os
@@ -61,6 +62,30 @@ class ApplicationValidationError(ValueError):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _sensor_status(sensor: Any) -> str | None:
+    health = getattr(sensor, "health", None)
+    if callable(health):
+        health = health()
+    status = getattr(health, "status", None)
+    return getattr(status, "value", status)
+
+
+def _sensors_runtime_healthy(sensors: Any) -> bool:
+    items = tuple(item for item in (sensors or ()) if item is not None)
+    return bool(items) and all(_sensor_status(item) == "HEALTHY" for item in items)
+
+
+def _sensor_summary_is_verified(sensor_summary: Any) -> bool:
+    summaries = tuple(
+        item for item in (sensor_summary or ()) if isinstance(item, Mapping)
+    )
+    return bool(summaries) and all(
+        item.get("runtime_health_before_stop") == "HEALTHY"
+        and item.get("final_sensor_state") == "STOPPED"
+        for item in summaries
+    )
 
 
 def _runtime_action_view(
@@ -957,6 +982,8 @@ class RunApplicationService:
                 limitations.append("CODEX_APPROVAL_POLICY_DOWNGRADED")
             if recovery_verification is not None and not recovery_verification.verified_recovery_success:
                 limitations.append("RECOVERY_NOT_VERIFIED")
+            if not _sensors_runtime_healthy(sensors):
+                limitations.append("SENSOR_RUNTIME_NOT_VERIFIED")
             final = SessionFinalizer(
                 evidence_store=raw_store,
                 sensors=sensors,
@@ -993,6 +1020,7 @@ class RunApplicationService:
             result_mapping = final.result.to_mapping()
             verification = final.bundle_verification
             record.runtime["final"] = final
+            sensor_verified = _sensor_summary_is_verified(final.result.sensor_summary)
             self.registry.update(
                 record.session_id,
                 status=final.result.session_status.value,
@@ -1007,12 +1035,14 @@ class RunApplicationService:
                     and not record.stop_error
                     and controller.events
                     and not controller.errors
+                    and sensor_verified
                     and not record.runtime.get("codex_sandbox_downgraded")
                     and not record.runtime.get("codex_approval_policy_downgraded")
                     else "ABORTED_DEGRADED"
                     if final.result.session_status is SessionStatus.ABORTED
                     else "COMPLETED_VERIFIED"
                     if controller.events and not controller.errors
+                    and sensor_verified
                     and not record.runtime.get("codex_sandbox_downgraded")
                     and not record.runtime.get("codex_approval_policy_downgraded")
                     else "COMPLETED_DEGRADED"
@@ -1432,10 +1462,13 @@ class RunApplicationService:
             if item
         ]
         record.hook_event_count = len(events)
+        sensors_healthy = _sensors_runtime_healthy(record.runtime.get("sensors", ()))
         if controller.errors:
             record.protection_state = "DEGRADED"
-        elif events:
+        elif events and sensors_healthy:
             record.protection_state = "ACTIVE_VERIFIED"
+        elif events:
+            record.protection_state = "ACTIVE_DEGRADED"
         self._persist_runtime_state(record)
 
     def _phase(self, record: RunRecord, phase: str, status: SessionStatus) -> None:
@@ -1593,8 +1626,9 @@ class RunApplicationService:
         sensor_failed = any(
             item.get("runtime_health_before_stop") == "FAILED"
             for item in result.get("sensor_summary", [])
-            if isinstance(item, dict)
+            if isinstance(item, Mapping)
         )
+        sensor_verified = _sensor_summary_is_verified(result.get("sensor_summary", []))
         protection_downgraded = any(
             item in {
                 "CODEX_SANDBOX_DOWNGRADED",
@@ -1609,13 +1643,13 @@ class RunApplicationService:
         if aborted:
             protection_state = (
                 "ABORTED_VERIFIED"
-                if hook_events and not sensor_failed and not protection_downgraded
+                if hook_events and sensor_verified and not sensor_failed and not protection_downgraded
                 else "ABORTED_DEGRADED"
             )
         else:
             protection_state = (
                 "COMPLETED_VERIFIED"
-                if hook_events and not sensor_failed and not protection_downgraded
+                if hook_events and sensor_verified and not sensor_failed and not protection_downgraded
                 else "COMPLETED_DEGRADED"
             )
         return {

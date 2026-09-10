@@ -153,17 +153,22 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 | `PREPARING` | 정책, Lease, Checkpoint, Sensor를 준비하는 중 |
 | `READY_UNVERIFIED` | 준비는 끝났지만 검증된 Hook Event가 아직 없음 |
 | `ACTIVE_UNVERIFIED` | Codex는 실행 중이나 Hook 계보가 아직 확인되지 않음 |
-| `ACTIVE_VERIFIED` | AIA Session에 연결된 실제 Hook Event를 확인함 |
+| `ACTIVE_VERIFIED` | AIA Session에 연결된 실제 Hook Event와 현재 센서의 `HEALTHY` 상태를 확인함 |
 | `DEGRADED` | 보호 경계 또는 Hook 처리에 오류가 발생함 |
-| `COMPLETED_VERIFIED` | 실행과 결과 Bundle이 종료됐고 보호 경계 오류가 없음 |
+| `COMPLETED_VERIFIED` | 실제 Hook Event가 있었고, 모든 런타임 센서가 실행 중 `HEALTHY`였으며 종료 시 `STOPPED`였고, 결과 Bundle이 검증됨 |
 | `COMPLETED_DEGRADED` | 실행은 끝났지만 보호 경계 오류가 있어 제한적으로 해석해야 함 |
-| `ABORTED_VERIFIED` | 사용자가 중지했고 실행된 Agent의 Hook·센서 경계가 검증됨 |
+| `ABORTED_VERIFIED` | 사용자가 중지했고, 실행된 Agent의 Hook과 모든 런타임 센서가 실행 중 `HEALTHY`였으며 종료 시 `STOPPED`였음 |
 | `ABORTED_DEGRADED` | 중지됐지만 보호 경계 검증이 충분하지 않음 |
 | `ABORTED_BEFORE_LAUNCH` | Agent를 실행하기 전에 사용자가 취소함 |
 
 `ACTIVE_UNVERIFIED`와 `DEGRADED`는 완전한 보호 성공으로 해석하지 않는다.
 지원되지 않는 도구 경로, Hook 비활성화, 외부 Agent, 사용자의 수동 실행은 AIA가
 `PROTECTED` 또는 `BLOCKED`로 주장하는 범위에 포함되지 않는다.
+
+`COMPLETED_VERIFIED`와 `ABORTED_VERIFIED`는 Hook Event만으로 결정하지 않는다. 결과의
+`sensor_summary`에서 각 센서의 `runtime_health_before_stop=HEALTHY`와
+`final_sensor_state=STOPPED`가 모두 확인되어야 한다. 센서 요약이 없거나 일부라도
+실패·비정상 종료이면 해당 실행은 `*_DEGRADED`로 표시한다.
 
 Process Sensor는 Protected Run에서 관찰한 프로세스 명령행을 선택적으로 lexical
 Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 기록할 수 있지만,
