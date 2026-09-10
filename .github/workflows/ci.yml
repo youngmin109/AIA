@@ -62,6 +62,7 @@ jobs:
             throw "The release installer did not configure the AIA Hook."
           }
           & $aia --version
+          & $aia self-test --json
 
       - name: Install wheel smoke
         shell: pwsh
@@ -73,3 +74,4 @@ jobs:
           uv pip install --python $python $wheel.FullName
           & (Join-Path $venv "Scripts\aia.exe") --help
           & (Join-Path $venv "Scripts\aia.exe") console --help
+          & (Join-Path $venv "Scripts\aia.exe") self-test --json

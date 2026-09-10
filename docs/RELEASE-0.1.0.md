@@ -20,6 +20,7 @@
 
 - `uv run pytest`: 전체 회귀 테스트 통과
 - `uv build`: source distribution과 wheel 생성
+- `aia self-test`: Codex 없이 정책·Lease·Checkpoint·Raw Evidence Core 점검 통과
 - 실제 Codex Bash Canary: `permissionDecision=deny`, Canary 파일 미생성
 - 실제 Codex `type .env`: Secret 출력 없음, PostToolUse 성공 없음
 - 실제 Hook Event: `tool_name`, 원문 command, `tool_use_id`와 AIA Session 연결
@@ -48,6 +49,7 @@ Windows 소스 체크아웃에서는 [INSTALL.md](../INSTALL.md)의 설치 스�
 
 ```powershell
 uv sync
+uv run aia self-test
 uv run aia hook install
 uv run aia hook verify
 uv run aia doctor
