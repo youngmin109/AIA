@@ -250,6 +250,50 @@ def test_codex_hook_trust_summary_exposes_modified_and_untrusted_entries(tmp_pat
     ) is False
 
 
+def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, capsys) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                        {"event": "postToolUse", "trust_status": "UNTRUSTED"},
+                    ],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(
+        [
+            "doctor",
+            "--json",
+            "--hook-path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    trust_check = next(item for item in payload["checks"] if item["name"] == "codex_hook_trust")
+    assert trust_check["ok"] is False
+    assert "PreToolUse=MODIFIED" in trust_check["value"]
+    assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
+
+
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: "codex.exe")
     monkeypatch.setattr("aia.cli.CodexHookInstaller.is_installed", lambda _installer: False)

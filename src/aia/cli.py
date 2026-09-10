@@ -317,6 +317,56 @@ def _doctor(args: argparse.Namespace) -> int:
         }
     )
 
+    codex_hook_trust: dict[str, object] = {
+        "available": False,
+        "reason": "CODEX_EXECUTABLE_OR_HOOK_UNAVAILABLE",
+        "hooks": [],
+    }
+    if executable is not None and hook_installed:
+        codex_hook_trust = inspect_codex_hook_trust(
+            executable,
+            hook_path=installer.path,
+            cwd=Path.cwd(),
+            timeout=8.0,
+        ).to_mapping()
+        trust_entries = codex_hook_trust.get("hooks") or []
+        pretool_status = next(
+            (
+                item.get("trust_status")
+                for item in trust_entries
+                if isinstance(item, dict) and item.get("event") == "preToolUse"
+            ),
+            None,
+        )
+        posttool_status = next(
+            (
+                item.get("trust_status")
+                for item in trust_entries
+                if isinstance(item, dict) and item.get("event") == "postToolUse"
+            ),
+            None,
+        )
+        trust_ok = pretool_status in {"TRUSTED", "MANAGED"}
+        if pretool_status is None:
+            trust_detail = "Codex 실제 PreToolUse Trust 상태를 확인할 수 없음"
+        elif trust_ok:
+            trust_detail = f"Codex PreToolUse Trust={pretool_status}"
+        else:
+            trust_detail = (
+                f"Codex PreToolUse Trust={pretool_status}; Codex /hooks에서 AIA Hook을 검토·신뢰하세요."
+            )
+        checks.append(
+            {
+                "name": "codex_hook_trust",
+                "ok": trust_ok,
+                "value": (
+                    f"PreToolUse={pretool_status or 'UNKNOWN'}, "
+                    f"PostToolUse={posttool_status or 'UNKNOWN'}"
+                ),
+                "detail": trust_detail,
+            }
+        )
+
     control_root = _control_root(args.control_root)
     recent_run = _recent_run_diagnostic(control_root)
     hook_verified = bool(
@@ -333,7 +383,16 @@ def _doctor(args: argparse.Namespace) -> int:
                 "Live Codex Hook Event verification is current"
                 if hook_verified
                 else (
-                    "Run 'aia hook verify' after reviewing the Hook in Codex"
+                    (
+                        "Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 'aia hook verify'를 실행하세요"
+                        if any(
+                            isinstance(item, dict)
+                            and item.get("event") == "preToolUse"
+                            and item.get("trust_status") not in {"TRUSTED", "MANAGED"}
+                            for item in (codex_hook_trust.get("hooks") or [])
+                        )
+                        else "Run 'aia hook verify' after reviewing the Hook in Codex"
+                    )
                     + (
                         f"; recent run: {recent_run['next_step']}"
                         if recent_run is not None
@@ -376,6 +435,7 @@ def _doctor(args: argparse.Namespace) -> int:
                 ),
             }
         },
+        "codex_hook_trust": codex_hook_trust,
         "recent_protected_run": recent_run,
         "limitations": [
             "Hook trust is reviewed in Codex and cannot be proven by this local preflight command.",
@@ -396,6 +456,14 @@ def _doctor(args: argparse.Namespace) -> int:
             "[INFO] PostToolUse 관찰: "
             f"{'설치됨' if posttool_installed else '선택 기능 미설치'}"
         )
+        trust_entries = codex_hook_trust.get("hooks") or []
+        if trust_entries:
+            trust_summary = ", ".join(
+                f"{item.get('event')}={item.get('trust_status')}"
+                for item in trust_entries
+                if isinstance(item, dict)
+            )
+            print(f"[INFO] Codex 실제 Hook Trust: {trust_summary}")
         print("[INFO] AIA는 지원 범위 밖의 실행을 보호 실행으로 주장하지 않습니다.")
         if recent_run is not None:
             print(
