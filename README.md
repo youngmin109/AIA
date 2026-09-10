@@ -234,12 +234,16 @@ uv run aia proof --scenario block-env
 함께 확인합니다.
 
 `normal`은 실제 `aia protect` 경로의 정상 완료와 결과 Bundle을 확인합니다.
-`block-canary`, `block-apply-patch`, `block-env`는 실제 Codex `PreToolUse`에서 정책 위반 관문이
-`CONTAIN / PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 각각 확인합니다.
-제품 서비스는 Hook deny만으로 실행 성공을 주장하지 않으므로, 결과에서
+`block-canary`와 `block-apply-patch`는 실제 Codex `PreToolUse`에서 정책 위반 관문이
+`CONTAIN / PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 확인합니다.
+`block-env`는 `.env`가 `SECRET` 자산으로 판정되고 실제 차단과 secret marker 비유출이
+확인되는지 별도로 검사합니다.
+제품 서비스는 Hook deny만으로 실행 성공을 주장하지 않으므로, Canary 시나리오는
 `block_confirmation=CANARY_NO_SIDE_EFFECT`, `confirmed_block_count` 1 이상,
 `canary_executed=false`가 함께 확인될 때만 제품 경로의 사전 차단 성공으로
-해석합니다. Gate만 생성되고 실제 Codex 차단 확인이 없으면 proof는 실패합니다.
+해석합니다. `block-env`는 `block_confirmation=SECRET_NOT_LEAKED`와
+`secret_leaked=false`를 확인합니다. Gate만 생성되고 실제 Codex 차단 확인이 없으면
+proof는 실패합니다.
 Hook 신뢰가 적용되지 않은 환경에서는
 `COMPLETED_DEGRADED`가 기록되며 파일이 생성되지 않았다는 사실만으로 성공
 처리하지 않습니다.

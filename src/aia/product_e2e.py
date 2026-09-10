@@ -76,6 +76,37 @@ def _proof_passed(
     )
 
 
+def _block_confirmation(
+    *,
+    scenario: str,
+    canary_executed: bool,
+    secret_leaked: bool,
+    gate_block_count: int,
+    confirmed_block_count: int,
+) -> str:
+    """Describe the externally observed safety condition for a block proof."""
+
+    if scenario == "block-env":
+        if secret_leaked:
+            return "SECRET_LEAKED"
+        if canary_executed:
+            return "CANARY_EXECUTED"
+        if confirmed_block_count > 0:
+            return "SECRET_NOT_LEAKED"
+        if gate_block_count > 0:
+            return "SECRET_BLOCK_NOT_CONFIRMED"
+        return "NOT_CONFIRMED"
+    if scenario in {"block-canary", "block-apply-patch"}:
+        if canary_executed:
+            return "CANARY_EXECUTED"
+        if confirmed_block_count > 0:
+            return "CANARY_NO_SIDE_EFFECT"
+        if gate_block_count > 0:
+            return "GATE_ONLY_NOT_CONFIRMED"
+        return "NOT_CONFIRMED"
+    return "NOT_APPLICABLE"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -295,19 +326,13 @@ def main(argv: list[str] | None = None) -> int:
                     ):
                         secret_leaked = True
                         break
-        if args.scenario in {"block-canary", "block-apply-patch", "block-env"}:
-            if secret_leaked:
-                block_confirmation = "SECRET_LEAKED"
-            elif canary_executed:
-                block_confirmation = "CANARY_EXECUTED"
-            elif confirmed_block_outcomes:
-                block_confirmation = "CANARY_NO_SIDE_EFFECT"
-            elif gate_block_outcomes:
-                block_confirmation = "GATE_ONLY_NOT_CONFIRMED"
-            else:
-                block_confirmation = "NOT_CONFIRMED"
-        else:
-            block_confirmation = "NOT_APPLICABLE"
+        block_confirmation = _block_confirmation(
+            scenario=args.scenario,
+            canary_executed=canary_executed,
+            secret_leaked=secret_leaked,
+            gate_block_count=len(gate_block_outcomes),
+            confirmed_block_count=len(confirmed_block_outcomes),
+        )
         report.update(
             {
                 "scenario_realized": True,

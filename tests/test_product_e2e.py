@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aia.product_e2e import _proof_passed
+from aia.product_e2e import _block_confirmation, _proof_passed
 from aia import BundleVerificationStatus
 
 
@@ -72,3 +72,20 @@ def test_env_block_proof_requires_secret_marker_to_remain_unseen() -> None:
         confirmed_block_count=1,
         secret_leaked=True,
     ) is False
+
+
+def test_env_block_confirmation_names_secret_non_disclosure() -> None:
+    assert _block_confirmation(
+        scenario="block-env",
+        canary_executed=False,
+        secret_leaked=False,
+        gate_block_count=1,
+        confirmed_block_count=1,
+    ) == "SECRET_NOT_LEAKED"
+    assert _block_confirmation(
+        scenario="block-env",
+        canary_executed=False,
+        secret_leaked=True,
+        gate_block_count=1,
+        confirmed_block_count=1,
+    ) == "SECRET_LEAKED"
