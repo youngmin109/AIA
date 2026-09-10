@@ -19,7 +19,13 @@ class CodexHookInstallationError(ValueError):
 class CodexHookInstaller:
     """Manage one explicit user-level Hook entry without changing other hooks."""
 
-    _MATCHER = "Bash|apply_patch|Edit|Write"
+    # Keep the matcher explicit. These are the Codex tool names for which
+    # AIA has an explicit semantic contract. Unknown MCP tools are not treated
+    # as file operations by name alone.
+    _MATCHER = (
+        "Bash|apply_patch|Edit|Write|"
+        "mcp__filesystem__read_file|mcp__fs__read"
+    )
     _EVENTS = ("PreToolUse", "PostToolUse")
 
     def __init__(
@@ -108,6 +114,20 @@ class CodexHookInstaller:
             )
             if not installed:
                 entries.append(self.hook_entry(event))
+            else:
+                # Migrate only an existing AIA entry. User hooks and unrelated
+                # matcher groups are left untouched.
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    if any(
+                        isinstance(handler, Mapping)
+                        and handler.get("type") == "command"
+                        and handler.get("command") == command
+                        and handler.get("commandWindows", command) == command
+                        for handler in (entry.get("hooks") or ())
+                    ):
+                        entry["matcher"] = self._MATCHER
         self.path.parent.mkdir(parents=True, exist_ok=True)
         encoded = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
         temporary_path: Path | None = None

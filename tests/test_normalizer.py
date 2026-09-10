@@ -396,13 +396,20 @@ def test_command_missing_parent_is_partial_and_not_claimed_as_verified(tmp_path:
     assert "COMMAND_PARENT_UNVERIFIED" in action.limitations
 
 
-def test_hook_read_file_is_explicit_file_action_and_native_context_is_preserved(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "tool_name",
+    ["read_file", "mcp__filesystem__read_file", "mcp__fs__read"],
+)
+def test_hook_read_file_is_explicit_file_action_and_native_context_is_preserved(
+    tmp_path: Path,
+    tool_name: str,
+) -> None:
     workspace = make_workspace(tmp_path)
     result = Normalizer(SESSION, workspace).normalize(
         [
             raw(
                 EvidenceRecordType.PRETOOL_REQUEST,
-                pretool_payload(tool_name="read_file", path=".env"),
+                pretool_payload(tool_name=tool_name, path=".env"),
                 evidence_id="P1",
             )
         ]

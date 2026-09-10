@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import sys
 import time
 from typing import Sequence
@@ -15,9 +16,11 @@ from aia import (
     CodexHookInstallationError,
     CodexHookInstaller,
     PolicyProfile,
+    POLICY_PROFILE_DISPLAY_NAMES,
     ResolvedPolicy,
     load_policy,
     policy_content_sha256,
+    resolve_profile,
 )
 from aia_app import ApplicationValidationError, RunApplicationService
 
@@ -63,6 +66,27 @@ def _parser() -> argparse.ArgumentParser:
     stop.add_argument("--control-root", type=Path, help="AIA control root")
     policy = commands.add_parser("policy", help="validate and inspect a policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
+    profiles = policy_commands.add_parser(
+        "profiles",
+        help="list the built-in Korean policy profiles",
+    )
+    profiles.add_argument("--json", action="store_true", help="print machine-readable output")
+    init_policy = policy_commands.add_parser(
+        "init",
+        help="create a copy of a built-in policy profile for editing",
+    )
+    init_policy.add_argument("path", type=Path)
+    init_policy.add_argument(
+        "--profile",
+        default="BASIC_DEVELOPMENT",
+        choices=(
+            "BASIC_DEVELOPMENT",
+            "CONSERVATIVE_SECURITY",
+            "FREE_DEVELOPMENT",
+        ),
+        help="built-in profile to copy",
+    )
+    init_policy.add_argument("--force", action="store_true", help="replace an existing file")
     validate = policy_commands.add_parser(
         "validate",
         help="strictly validate a Korean or canonical policy JSON",
@@ -327,6 +351,60 @@ def _validate_policy(args: argparse.Namespace) -> int:
     return 0
 
 
+def _policy_profiles(args: argparse.Namespace) -> int:
+    descriptions = {
+        PolicyProfile.BASIC_DEVELOPMENT: "일반적인 개발 작업과 기본적인 보호를 함께 제공",
+        PolicyProfile.CONSERVATIVE_SECURITY: "중요 자산 변경을 더 보수적으로 제한",
+        PolicyProfile.FREE_DEVELOPMENT: "개발 자유도를 우선하고 관찰 중심으로 운용",
+        PolicyProfile.CUSTOM: "사용자가 직접 작성하고 Strict Validation을 통과한 정책",
+    }
+    profiles = [
+        {
+            "value": profile.value,
+            "label": POLICY_PROFILE_DISPLAY_NAMES[profile],
+            "description": descriptions[profile],
+            "editable": profile is not PolicyProfile.CUSTOM,
+        }
+        for profile in (
+            PolicyProfile.BASIC_DEVELOPMENT,
+            PolicyProfile.CONSERVATIVE_SECURITY,
+            PolicyProfile.FREE_DEVELOPMENT,
+            PolicyProfile.CUSTOM,
+        )
+    ]
+    if args.json:
+        print(_json_text({"profiles": profiles}))
+        return 0
+    print("AIA 정책 프로필")
+    for item in profiles:
+        edit_hint = "복사 후 수정 가능" if item["editable"] else "직접 JSON 필요"
+        print(f"- {item['value']} / {item['label']}: {item['description']} ({edit_hint})")
+    print("기본 정책 파일 생성: uv run aia policy init C:\\workspace\\policies\\my-policy.json")
+    return 0
+
+
+def _init_policy(args: argparse.Namespace) -> int:
+    target = args.path.expanduser().resolve(strict=False)
+    profile = PolicyProfile.from_value(args.profile)
+    try:
+        resolved = resolve_profile(profile)
+        source = Path(resolved.source)
+        if target.exists() and not args.force:
+            print(f"정책 생성 실패: 파일이 이미 존재합니다: {target}")
+            print("덮어쓰려면 --force를 사용하세요.")
+            return 2
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    except (OSError, ValueError) as error:
+        print(f"정책 생성 실패: {error}")
+        return 2
+    print("정책 파일을 생성했습니다.")
+    print(f"프로필: {profile.value} ({profile.display_name})")
+    print(f"경로: {target}")
+    print(f"다음 단계: uv run aia policy validate \"{target}\"")
+    return 0
+
+
 def _list_runs(args: argparse.Namespace) -> int:
     if args.limit < 0:
         print("AIA error: limit must be zero or greater")
@@ -535,6 +613,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _stop_run(args)
         if args.command == "policy" and args.policy_command == "validate":
             return _validate_policy(args)
+        if args.command == "policy" and args.policy_command == "profiles":
+            return _policy_profiles(args)
+        if args.command == "policy" and args.policy_command == "init":
+            return _init_policy(args)
         if args.command == "hook" and args.hook_command == "install":
             path = CodexHookInstaller(args.path).install()
             print(f"Codex Hook installed: {path}")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aia.cli import _parser, _protected_run_preflight
+from aia.cli import _parser, _protected_run_preflight, main
 
 
 def test_protect_without_task_selects_interactive_mode() -> None:
@@ -50,6 +50,65 @@ def test_policy_validate_parser_keeps_policy_path_and_json_flag(tmp_path) -> Non
     assert args.policy_command == "validate"
     assert args.path == path
     assert args.json is True
+
+
+def test_policy_profiles_parser_supports_json_output() -> None:
+    args = _parser().parse_args(["policy", "profiles", "--json"])
+
+    assert args.command == "policy"
+    assert args.policy_command == "profiles"
+    assert args.json is True
+
+
+def test_policy_init_parser_supports_profile_and_force(tmp_path) -> None:
+    path = tmp_path / "policy.json"
+    args = _parser().parse_args(
+        [
+            "policy",
+            "init",
+            str(path),
+            "--profile",
+            "CONSERVATIVE_SECURITY",
+            "--force",
+        ]
+    )
+
+    assert args.command == "policy"
+    assert args.policy_command == "init"
+    assert args.path == path
+    assert args.profile == "CONSERVATIVE_SECURITY"
+    assert args.force is True
+
+
+def test_policy_init_creates_a_valid_editable_profile(tmp_path, capsys) -> None:
+    path = tmp_path / "policy.json"
+
+    assert (
+        main(
+            [
+                "policy",
+                "init",
+                str(path),
+                "--profile",
+                "CONSERVATIVE_SECURITY",
+            ]
+        )
+        == 0
+    )
+
+    assert path.is_file()
+    assert "정책 파일을 생성했습니다" in capsys.readouterr().out
+    assert main(["policy", "validate", str(path), "--json"]) == 0
+
+
+def test_policy_init_does_not_overwrite_without_force(tmp_path, capsys) -> None:
+    path = tmp_path / "policy.json"
+    path.write_text("original", encoding="utf-8")
+
+    assert main(["policy", "init", str(path)]) == 2
+
+    assert path.read_text(encoding="utf-8") == "original"
+    assert "--force" in capsys.readouterr().out
 
 
 def test_runs_and_status_parsers_keep_inspection_arguments() -> None:

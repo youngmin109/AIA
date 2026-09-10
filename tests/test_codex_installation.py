@@ -34,5 +34,31 @@ def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
     second = json.loads(path.read_text(encoding="utf-8"))
     assert len(second["hooks"]["PreToolUse"]) == 1
     assert second["hooks"]["PreToolUse"][0]["hooks"][0]["type"] == "command"
+    assert second["hooks"]["PreToolUse"][0]["matcher"] == (
+        "Bash|apply_patch|Edit|Write|"
+        "mcp__filesystem__read_file|mcp__fs__read"
+    )
     assert len(second["hooks"]["PostToolUse"]) == 1
     assert second["hooks"]["PostToolUse"][0]["hooks"][0]["type"] == "command"
+
+
+def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path) -> None:
+    path = tmp_path / "hooks.json"
+    python_executable = tmp_path / "python.exe"
+    installer = CodexHookInstaller(path, python_executable=python_executable)
+    installer.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    )
+    document["hooks"]["PreToolUse"][0]["matcher"] = "Bash|apply_patch"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    installer.install()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    assert updated["hooks"]["PreToolUse"][0]["matcher"] == (
+        "Bash|apply_patch|Edit|Write|"
+        "mcp__filesystem__read_file|mcp__fs__read"
+    )
+    assert updated["hooks"]["PreToolUse"][1]["matcher"] == "Bash"

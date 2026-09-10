@@ -581,13 +581,21 @@ class ProcessRuntimeSensor:
                     continue
                 if child_identity in current:
                     continue
-                observation = self._build_observation(
-                    live_child,
-                    child_identity,
-                    ProcessRole.DESCENDANT,
-                    root_identity,
-                    parent_identity=parent_identity,
-                )
+                try:
+                    observation = self._build_observation(
+                        live_child,
+                        child_identity,
+                        ProcessRole.DESCENDANT,
+                        root_identity,
+                        parent_identity=parent_identity,
+                    )
+                except ProcessRuntimeError:
+                    # Windows process trees can change between the children()
+                    # enumeration and the ppid() read.  A race here must not
+                    # turn the whole sensor unhealthy or create an unverified
+                    # parent relation.  Omit only this descendant and observe
+                    # it on a later poll if the relation becomes stable.
+                    continue
                 current[child_identity] = observation
                 stack.append((live_child, child_identity))
         return current

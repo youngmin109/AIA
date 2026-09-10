@@ -310,6 +310,28 @@ def test_process_runtime_observes_root_children_and_grandchild_without_unrelated
         stop_sensor_and_release(sensor, context, lease_manager)
 
 
+def test_unstable_child_parent_relation_is_skipped_without_failing_sensor(
+    tmp_path: Path,
+) -> None:
+    root, child, _, _, table = make_tree()
+    child._ppid = 999  # children() saw it, but the relation changed before ppid().
+    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        table=table,
+    )
+    sensor.start()
+    try:
+        observations = [
+            record
+            for record in sensor.evidence_store.records()
+            if record.record_type is EvidenceRecordType.PROCESS_OBSERVED
+        ]
+        assert {record.payload["pid"] for record in observations} == {root.pid}
+        assert sensor.status is SensorStatus.HEALTHY
+    finally:
+        stop_sensor_and_release(sensor, context, lease_manager)
+
+
 def test_repeated_polling_does_not_create_duplicate_observation_records(
     tmp_path: Path,
 ) -> None:

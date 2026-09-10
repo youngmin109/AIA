@@ -8,7 +8,8 @@
 Agent: Codex CLI
 실행 방식: AIA Protected Run 안에서 시작한 Codex
 정책 관문: Codex PreToolUse command Hook
-지원 matcher: Bash, apply_patch, Edit, Write
+지원 matcher: Bash, apply_patch, Edit, Write,
+`mcp__filesystem__read_file`, `mcp__fs__read`
 실행 확인: 선택적 Codex PostToolUse evidence
 Control Root: Workspace 밖의 사용자별 AIA control directory
 ```
@@ -20,6 +21,14 @@ uv sync
 uv run aia doctor
 uv run aia policy validate C:\workspace\policies\protected-policy.json
 uv run aia hook install
+```
+
+정책을 새로 만들 때는 기본 프로필을 복사한 뒤 수정합니다.
+
+```powershell
+uv run aia policy profiles
+uv run aia policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
+uv run aia policy validate C:\workspace\policies\my-policy.json
 ```
 
 `aia hook install`은 정책 관문인 PreToolUse와 실행 확인용 PostToolUse Hook을
@@ -80,6 +89,7 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - 보호 실행 시작 전에 Workspace, 정책, Lease, Checkpoint를 준비한다.
 - Active Policy를 하나의 Protected Run에 고정한다.
 - 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
+- 명시적으로 지원하는 파일 읽기 MCP 도구는 `READ`로 정규화해 정책 평가한다.
 - 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
 - Session, Evidence, Result Bundle을 별도로 저장하고 Bundle 무결성을 검증한다.
@@ -88,6 +98,7 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 ## 현재 주장하지 않는 것
 
 - 모든 Codex 도구와 MCP 경로의 보편적 차단
+- 이름이 등록되지 않은 MCP 도구를 파일 읽기·쓰기라고 추측하는 것
 - Hook 장애가 발생해도 모든 경로가 OS 수준에서 fail-closed라는 보장
 - `PROCESS` Evidence만으로 정확한 파일 Writer를 증명하는 것
 - 모든 OS 프로세스의 종료 또는 사용자의 수동 작업 통제

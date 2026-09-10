@@ -68,16 +68,27 @@ uv run aia setup
 uv run aia policy validate C:\workspace\policies\protected-policy.json
 ```
 
-`READY`가 나오면 Hook을 한 번 설치합니다. 설치 명령은 기존 Codex Hook 설정을
-덮어쓰지 않고 AIA의 PreToolUse와 PostToolUse 항목을 추가합니다. PreToolUse는
-실행 전 정책 관문이고, PostToolUse는 실제 실행 여부를 확인하기 위한 선택적
-관찰 경로입니다.
+처음 정책을 만드는 사용자는 검증된 기본 프로필을 복사해서 시작할 수 있습니다.
+
+```powershell
+uv run aia policy profiles
+uv run aia policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
+uv run aia policy validate C:\workspace\policies\my-policy.json
+```
+
+`policy init`은 기존 파일을 덮어쓰지 않으며, 다시 생성하려면 명시적으로
+`--force`를 사용해야 합니다.
+
+`aia setup`이 기존 Codex Hook 설정을 덮어쓰지 않고 AIA의 PreToolUse와
+PostToolUse 항목을 추가합니다. PreToolUse는 실행 전 정책 관문이고, PostToolUse는
+실제 실행 여부를 확인하기 위한 선택적 관찰 경로입니다. `aia doctor`가
+`READY`를 보여주면 Codex에서 `/hooks`를 열어 AIA Hook을 검토하고 신뢰한 뒤
+보호 실행을 시작합니다. 이미 Hook만 설치해야 하는 경우에는 다음 명령을
+사용할 수도 있습니다.
 
 ```powershell
 uv run aia hook install
 ```
-
-Codex에서 `/hooks`를 열어 AIA Hook을 검토하고 신뢰한 뒤 보호 실행을 시작합니다.
 
 ```powershell
 uv run aia protect C:\workspace\my-project
