@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `a32336e` |
+| 코드 기준 | `f09072c` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -42,6 +42,7 @@
 - 실행 중 per-run Hook Broker가 사라지면 live 상태를 `DEGRADED`로 낮추고,
   종료 결과를 `*_VERIFIED`로 표시하지 않는다.
 - Live Run 화면과 API에서 per-run Hook Broker 상태를 별도 표시한다.
+- Actual Codex PreTool proof도 차단 판정에 종료 직전 Broker 생존 확인을 요구한다.
 
 ## 해석상 제한
 
