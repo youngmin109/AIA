@@ -209,6 +209,27 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         if item not in limitations
     )
     first_action = actions[0] if actions else {}
+    recovery_summary = {
+        "status": recovery.get("recovery_status") or recovery.get("status") or "NOT_ATTEMPTED",
+        "reason": recovery.get("reason"),
+        "planned_operations": int(recovery.get("planned_operation_count") or 0),
+        "attempted_operations": int(recovery.get("attempted_operation_count") or 0),
+        "succeeded_operations": int(recovery.get("succeeded_operation_count") or 0),
+        "failed_operations": int(recovery.get("failed_operation_count") or 0),
+        "restored_paths": len(recovery.get("restored_paths") or []),
+        "removed_paths": len(recovery.get("removed_paths") or []),
+        "failed_paths": len(recovery.get("failed_paths") or []),
+    }
+    integrity_summary = {
+        "status": integrity.get("integrity_status") or integrity.get("status") or "NOT_ATTEMPTED",
+        "reason": integrity.get("reason"),
+        "expected_entries": int(integrity.get("expected_entry_count") or 0),
+        "actual_entries": int(integrity.get("actual_entry_count") or 0),
+        "missing_paths": len(integrity.get("missing_paths") or []),
+        "unexpected_paths": len(integrity.get("unexpected_paths") or []),
+        "changed_paths": len(integrity.get("changed_paths") or []),
+        "verification_errors": len(integrity.get("verification_errors") or []),
+    }
     return {
         "agent": result.get("agent"),
         "attribution_results": list(result.get("attribution_results") or []),
@@ -228,8 +249,10 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "policy_version": policy.get("policy_version") or policy.get("version"),
         "run_classification": result.get("run_classification"),
         "recovery": result.get("recovery_result"),
+        "recovery_summary": recovery_summary,
         "recovery_status": recovery.get("status") or recovery.get("recovery_status") or "NOT_ATTEMPTED",
         "integrity_status": integrity.get("status") or integrity.get("integrity_status") or "NOT_ATTEMPTED",
+        "integrity_summary": integrity_summary,
         "session_end_reason": result.get("session_end_reason"),
         "policy_state": first_action.get("policy_effect") or "—",
         "attribution_state": first_action.get("attribution_class") or "—",

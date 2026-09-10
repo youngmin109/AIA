@@ -261,6 +261,35 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["bundle_status"] == "VALID"
 
 
+def test_result_presenter_exposes_redacted_recovery_and_integrity_counts() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "ABORTED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "recovery_result": {
+                "recovery_status": "RESTORED",
+                "planned_operation_count": 3,
+                "succeeded_operation_count": 3,
+                "failed_operation_count": 0,
+                "restored_paths": ["a.py", "b.py"],
+            },
+            "integrity_result": {
+                "integrity_status": "VERIFIED",
+                "expected_entry_count": 4,
+                "actual_entry_count": 4,
+                "verification_errors": [],
+            },
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+    assert view["recovery_summary"]["succeeded_operations"] == 3
+    assert view["recovery_summary"]["restored_paths"] == 2
+    assert view["integrity_summary"]["expected_entries"] == 4
+    assert view["integrity_summary"]["verification_errors"] == 0
+
+
 def test_result_presenter_exposes_codex_block_confirmation() -> None:
     view = result_view(
         {
