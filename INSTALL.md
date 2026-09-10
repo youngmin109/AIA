@@ -18,6 +18,17 @@ Hook을 덮어쓰지 않는다. Hook을 추가하지 않고 Python 환경만 준
 실행 중인 `aia-web` 또는 AIA Python 프로세스가 있으면 Windows가 `.venv` 파일을
 잠글 수 있다. 이 경우 해당 프로세스를 종료한 뒤 설치 명령을 다시 실행한다.
 
+저장소 폴더 안에서 `uv run aia`를 붙이지 않고 어느 Workspace에서든 `aia`를
+사용하려면 다음처럼 사용자 도구로도 설치할 수 있다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -SetupHook -InstallTool
+aia --version
+```
+
+`-InstallTool`은 현재 저장소 내용을 `uv` 사용자 도구로 설치한다. 저장소에서
+개발을 계속하는 경우에는 기본 설치 명령과 `uv run aia` 경로를 사용한다.
+
 ## Codex Hook 신뢰
 
 설치 명령이 끝나면 Codex에서 `/hooks`를 열어 AIA Hook의 명령과 Matcher를 직접

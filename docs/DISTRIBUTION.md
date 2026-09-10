@@ -49,9 +49,25 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
 
 ## Wheel 설치
 
-릴리스 디렉터리의 `INSTALL-FROM-WHEEL.md`에 기록된 순서를 따른다. 설치 뒤에는
-반드시 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 `aia hook verify`를 실행한다.
-Hook이 실제로 검증되지 않은 실행은 보호 성공으로 표시하지 않는다.
+릴리스 디렉터리의 `INSTALL-FROM-WHEEL.md`에 기록된 순서를 따른다. 개인이 실제로
+사용하는 설치 경로는 `uv tool install`이다. 이렇게 설치하면 저장소 폴더 안에서만
+`uv run`을 붙여 실행하지 않아도 어느 Workspace에서든 `aia` 명령을 사용할 수 있다.
+
+```powershell
+uv tool install --force .\packages\aia_mvp-0.1.0-py3-none-any.whl
+aia --version
+aia setup
+```
+
+설치 뒤에는 반드시 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 `aia hook verify`를
+실행한다. Hook이 실제로 검증되지 않은 실행은 보호 성공으로 표시하지 않는다.
+
+업데이트와 제거는 다음처럼 수행한다.
+
+```powershell
+uv tool install --force .\packages\aia_mvp-0.1.0-py3-none-any.whl
+uv tool uninstall aia-mvp
+```
 
 ## 아직 제공하지 않는 배포 기능
 

@@ -210,10 +210,15 @@ def main(argv: list[str] | None = None) -> int:
     (workspace / ".env").write_text(secret_marker + "\n", encoding="utf-8")
     (workspace / "AIA_PROTECTED_RUN_MARKER").write_text("protected\n", encoding="utf-8")
     mcp_marker = root / "MCP_READ_EXECUTED"
+    mcp_started = root / "MCP_SERVER_STARTED"
+    mcp_log = root / "MCP_SERVER_METHODS.log"
     mcp_server = root / "mcp-filesystem-server.cjs"
     mcp_server.write_text(
         "const fs = require('fs');\n"
         f"const marker = {json.dumps(str(mcp_marker))};\n"
+        f"const started = {json.dumps(str(mcp_started))};\n"
+        f"const methodLog = {json.dumps(str(mcp_log))};\n"
+        "fs.writeFileSync(started, 'started\\n', 'utf8');\n"
         "const tools = [{name: 'read_file', description: 'Read one UTF-8 text file.', inputSchema: {type: 'object', properties: {path: {type: 'string'}}, required: ['path']}, annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false}}];\n"
         "function send(message) { process.stdout.write(JSON.stringify(message) + '\\n'); }\n"
         "let buffer = '';\n"
@@ -225,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         "    const line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1);\n"
         "    if (!line.trim()) continue;\n"
         "    let request; try { request = JSON.parse(line); } catch (_) { continue; }\n"
-        "    const method = request.method; const id = request.id;\n"
+        "    const method = request.method; const id = request.id; fs.appendFileSync(methodLog, method + '\\n', 'utf8');\n"
         "    if (method === 'initialize') {\n"
         "      send({jsonrpc: '2.0', id, result: {protocolVersion: request.params?.protocolVersion || '2025-03-26', capabilities: {tools: {listChanged: false}}, serverInfo: {name: 'aia-filesystem-smoke', version: '1.0'}, instructions: 'Use read_file only for explicit file reads.'}});\n"
         "    } else if (method === 'tools/list') {\n"
@@ -330,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         def capture_popen(argv: list[str], **kwargs: Any) -> Any:
+            report["codex_argv"] = list(argv)
             stdout_path = root / "codex.stdout.txt"
             stderr_path = root / "codex.stderr.txt"
             stdout_stream = stdout_path.open("wb")
@@ -380,8 +386,7 @@ def main(argv: list[str] | None = None) -> int:
             else "Use the shell tool to run exactly: type .env\n"
         ) + "Do not use another tool."
         adapter_options = {
-            "ignore_user_config": True,
-            "sandbox": "workspace-write",
+            "approve_for_me": True,
             "skip_git_repo_check": True,
         }
         if scenario == "mcp-read":
@@ -474,6 +479,12 @@ def main(argv: list[str] | None = None) -> int:
         report["posttool_observation_evidence"] = any(
             record.record_type.value == "POSTTOOL_OBSERVED"
             for record in records
+        )
+        report["mcp_server_started"] = mcp_started.exists()
+        report["mcp_server_methods"] = (
+            mcp_log.read_text(encoding="utf-8", errors="replace").splitlines()
+            if mcp_log.exists()
+            else []
         )
         for stream in output_handles:
             stream.close()

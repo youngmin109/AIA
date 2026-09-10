@@ -2,7 +2,8 @@
 param(
     [string]$ProjectRoot = $PSScriptRoot,
     [switch]$SetupHook,
-    [switch]$SkipDoctor
+    [switch]$SkipDoctor,
+    [switch]$InstallTool
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +44,14 @@ try {
         }
     }
 
+    if ($InstallTool) {
+        Write-Host "[AIA] Installing the aia command as a user-level uv tool..."
+        & uv tool install --force .
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv tool install failed with exit code $LASTEXITCODE"
+        }
+    }
+
     if (-not $SkipDoctor) {
         Write-Host "[AIA] Checking the local protected-run prerequisites..."
         & uv run aia doctor
@@ -53,8 +62,15 @@ try {
     }
 
     Write-Host "[AIA] Installation complete."
-    Write-Host "Next: review/trust the Hook in Codex with /hooks, then run 'uv run aia doctor'."
-    Write-Host "Start a protected run with: uv run aia protect C:\workspace\my-project"
+    if ($InstallTool) {
+        Write-Host "Next: review/trust the Hook in Codex with /hooks, then run 'aia doctor'."
+        Write-Host "Start a protected run with: aia protect C:\workspace\my-project"
+    }
+    else {
+        Write-Host "Next: review/trust the Hook in Codex with /hooks, then run 'uv run aia doctor'."
+        Write-Host "Start a protected run with: uv run aia protect C:\workspace\my-project"
+        Write-Host "For a user-level command available from any folder, rerun with -InstallTool."
+    }
 }
 finally {
     Pop-Location

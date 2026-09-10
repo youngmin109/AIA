@@ -86,13 +86,13 @@ $installGuide = @"
 
 This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
-1. Create an isolated environment:
+1. Install the wheel as a user-level command:
 
-   uv venv
+   uv tool install --force .\packages\aia_mvp-$version-py3-none-any.whl
 
-2. Install the wheel from the `packages` directory:
+2. Confirm the command is available:
 
-   uv pip install .\packages\aia_mvp-$version-py3-none-any.whl
+   aia --version
 
 3. Install and review the Codex Hook:
 
@@ -101,7 +101,7 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
    aia hook verify
    aia doctor
 
-4. Start the local console or a protected run:
+4. Start the local console or a protected run from any Workspace:
 
    aia console
    aia protect C:\workspace\my-project
@@ -109,6 +109,9 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 The product scope is Windows 11 + Codex CLI + AIA Protected Run + supported
 PreToolUse matchers. Read docs\PRODUCT-SUPPORT.md and docs\LIMITATIONS.md
 before making a security claim.
+
+To update, repeat the `uv tool install --force` command. To remove AIA, run
+`uv tool uninstall aia-mvp`.
 "@
 Set-Content -LiteralPath (Join-Path $releaseDirectory "INSTALL-FROM-WHEEL.md") -Value $installGuide -Encoding UTF8
 

@@ -23,6 +23,7 @@ from uuid import uuid4
 
 from aia import (
     CodexAdapter,
+    CodexHookInstaller,
     FilesystemSensor,
     HookSensor,
     PolicyProfile,
@@ -194,7 +195,13 @@ def main(argv: list[str] | None = None) -> int:
             result["failure_classification"] = "PRODUCT_DEFECT"
             return _write_report(root, result, 1)
 
-        adapter = CodexAdapter(allow_hook_trust_bypass=True)
+        # This opt-in evaluation uses an explicit disposable-run Hook command.
+        # It must not depend on the user's global Hook trust state, while the
+        # normal product path continues to require manual Codex trust.
+        adapter = CodexAdapter(
+            hook_command=CodexHookInstaller().command,
+            allow_hook_trust_bypass=True,
+        )
 
         def capture_popen(argv: list[str], **kwargs: Any) -> Any:
             stdout_stream = codex_stdout.open("wb")
@@ -231,9 +238,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Do not use another tool."
                 ),
                 adapter_options={
-                    "ignore_user_config": True,
-                    "approval_policy": "on-request",
-                    "sandbox": "workspace-write",
+                    "approve_for_me": True,
                     "skip_git_repo_check": True,
                 },
             )
