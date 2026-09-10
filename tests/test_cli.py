@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+from aia import CodexHookInstaller
 from aia.cli import _extract_session_id, _parser, _protected_run_preflight, main
 
 
@@ -58,6 +61,35 @@ def test_hook_status_parser_supports_json_and_control_root(tmp_path) -> None:
     assert args.json is True
     assert args.path == tmp_path / "hooks.json"
     assert args.control_root == tmp_path / "control"
+
+
+def test_hook_status_is_not_ready_when_only_the_definition_is_installed(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["pretool_installed"] is True
+    assert payload["verification_status"] == "MISSING_OR_STALE"
+    assert payload["ready"] is False
 
 
 def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:

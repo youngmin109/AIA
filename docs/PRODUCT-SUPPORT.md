@@ -49,6 +49,10 @@ OBSERVED_FROM_RUN`은 과거 Protected Run에서 Session에 연결된 Hook Event
 들어왔다는 뜻이다. 설치만 되어 있거나 `NOT_OBSERVED`이면 해당 실행을 보호 성공으로
 해석하지 않는다.
 
+`aia hook status`의 `현재 검증 증명: CURRENT`는 현재 Hook 설정과 Codex 실행 파일에
+묶인 실제 Probe 검증이 남아 있다는 뜻이다. `MISSING_OR_STALE`이면
+`uv run aia hook verify`를 다시 실행해야 한다.
+
 처음 사용하거나 Hook 설정을 변경한 뒤에는 다음 명령으로 실제 Codex 연결을
 확인한다.
 
