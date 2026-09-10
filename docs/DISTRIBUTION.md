@@ -62,10 +62,15 @@ aia setup
 설치 뒤에는 반드시 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 `aia hook verify`를
 실행한다. Hook이 실제로 검증되지 않은 실행은 보호 성공으로 표시하지 않는다.
 
-업데이트와 제거는 다음처럼 수행한다.
+업데이트는 다음처럼 수행한다.
 
 ```powershell
 uv tool install --force .\packages\aia_mvp-0.1.0-py3-none-any.whl
+```
+
+제거는 다음처럼 수행한다.
+
+```powershell
 uv tool uninstall aia-mvp
 ```
 
