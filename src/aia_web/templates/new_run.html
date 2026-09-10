@@ -119,7 +119,7 @@ const taskField = document.getElementById('task-field');
 const taskInput = document.getElementById('task-input');
 const runModeInputs = [...form.querySelectorAll('input[name="run_mode"]')];
 function updateRunMode() {
-  const interactive = form.elements.run_mode.value === 'interactive';
+  const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
   taskField.hidden = interactive;
   taskInput.required = !interactive;
   if (interactive) taskInput.value = '';

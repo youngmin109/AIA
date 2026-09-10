@@ -117,6 +117,9 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 현재 온보딩에는 `aia setup`, `aia doctor`, 웹 콘솔의 실행 전 사전 점검이 포함된다.
 이 점검은 Hook 설치 여부를 확인하지만 Codex의 Hook 신뢰는 자동으로 증명하지 않으며,
 사용자가 Codex `/hooks` 화면에서 직접 검토해야 한다.
+웹 콘솔은 `대화형 보호 세션`을 기본 제공하므로 사용자가 작업 문장을 미리 입력하지
+않고도 AIA가 먼저 보호된 Codex 세션을 연 뒤 그 안에서 작업을 시작할 수 있다. 한 번의
+요청만 실행하는 `한 번의 작업 실행`도 별도로 선택할 수 있다.
 
 Protected Launcher는 제품 실행에 `workspace-write` Sandbox와 `on-request`
 Approval Policy를 요청하고, 바깥 Codex의 일시적인 세션·권한 환경값을 자식 Codex로
