@@ -82,7 +82,7 @@ POST /api/runs/{session_id}/stop
 ```powershell
 cd C:\workspace\01_projects\aia-mvp
 uv sync
-uv run aia-web
+uv run aia console
 ```
 
 브라우저에서 [http://127.0.0.1:8787](http://127.0.0.1:8787)을 연다. Control Root를 바꾸려면 PowerShell에서 `AIA_CONTROL_ROOT`를 설정한다. host와 port는 각각 `AIA_WEB_HOST`, `AIA_WEB_PORT`로 바꿀 수 있지만, 기본값인 loopback bind를 제품 기본으로 유지한다.

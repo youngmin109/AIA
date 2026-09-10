@@ -134,6 +134,22 @@ def _parser() -> argparse.ArgumentParser:
     setup.add_argument("--path", type=Path, help="hooks.json path")
     setup.add_argument("--json", action="store_true", help="print machine-readable output")
 
+    console = commands.add_parser(
+        "console",
+        help="start the local AIA Security Console",
+    )
+    console.add_argument(
+        "--host",
+        default=os.environ.get("AIA_WEB_HOST", "127.0.0.1"),
+        help="bind address; localhost is the safe default",
+    )
+    console.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("AIA_WEB_PORT", "8787")),
+        help="local HTTP port",
+    )
+
     protect = commands.add_parser(
         "protect",
         help="run Codex inside an AIA Protected Run",
@@ -345,6 +361,21 @@ def _setup(args: argparse.Namespace) -> int:
         print("[다음] uv run aia doctor")
         print("[검증] uv run aia hook verify")
         print("[실행] uv run aia protect C:\\workspace\\my-project")
+    return 0
+
+
+def _run_console(args: argparse.Namespace) -> int:
+    """Start the local console through the same product CLI as other commands."""
+
+    if not 1 <= args.port <= 65_535:
+        raise ApplicationValidationError("port must be between 1 and 65535")
+    if not args.host.strip():
+        raise ApplicationValidationError("host must not be empty")
+    from aia_web.__main__ import run
+
+    print(f"AIA 로컬 보안 콘솔: http://{args.host}:{args.port}")
+    print("종료하려면 Ctrl+C를 누르세요.")
+    run(host=args.host, port=args.port)
     return 0
 
 
@@ -987,6 +1018,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "setup":
             return _setup(args)
+        if args.command == "console":
+            return _run_console(args)
         if args.command == "hook" and args.hook_command == "status":
             return _hook_status(args)
         if args.command == "hook" and args.hook_command == "verify":

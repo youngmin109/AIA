@@ -67,7 +67,7 @@ uv run aia policy validate C:\workspace\policies\my-policy.json
 ```powershell
 uv run aia runs
 uv run aia status <SESSION_ID>
-uv run aia-web
+uv run aia console
 ```
 
 ## Hook 제거

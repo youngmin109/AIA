@@ -35,6 +35,14 @@ def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:
     assert args.path == tmp_path / "hooks.json"
 
 
+def test_console_parser_supports_explicit_bind_values() -> None:
+    args = _parser().parse_args(["console", "--host", "127.0.0.1", "--port", "8799"])
+
+    assert args.command == "console"
+    assert args.host == "127.0.0.1"
+    assert args.port == 8799
+
+
 def test_hook_uninstall_parser_supports_custom_hook_path(tmp_path) -> None:
     args = _parser().parse_args(["hook", "uninstall", "--path", str(tmp_path / "hooks.json")])
 
