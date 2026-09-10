@@ -38,3 +38,14 @@ jobs:
         run: |
           $output = Join-Path $env:RUNNER_TEMP "aia-release"
           pwsh -NoProfile -File .\scripts\package-release.ps1 -OutputRoot $output
+
+      - name: Install wheel smoke
+        shell: pwsh
+        run: |
+          $venv = Join-Path $env:RUNNER_TEMP "aia-wheel-venv"
+          uv venv $venv
+          $python = Join-Path $venv "Scripts\python.exe"
+          $wheel = Get-ChildItem .\dist\*.whl | Select-Object -First 1
+          uv pip install --python $python $wheel.FullName
+          & (Join-Path $venv "Scripts\aia.exe") --help
+          & (Join-Path $venv "Scripts\aia.exe") console --help
