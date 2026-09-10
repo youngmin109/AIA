@@ -741,6 +741,19 @@ class Normalizer:
         metadata_status = payload.get("metadata_status")
         if metadata_status != "COMPLETE":
             limitations.append("PROCESS_METADATA_PARTIAL")
+        raw_command = payload.get("raw_command")
+        if raw_command is not None and (
+            not isinstance(raw_command, str) or not raw_command.strip()
+        ):
+            raw_command = None
+            limitations.append("PROCESS_COMMAND_LINE_INVALID")
+            issues.append(
+                NormalizationIssue(
+                    code="PROCESS_COMMAND_LINE_INVALID",
+                    message="PROCESS_OBSERVED raw command is not a valid command line",
+                    evidence_ids=(record.evidence_id,),
+                )
+            )
         if ("parent_pid" in payload) != ("parent_create_time" in payload):
             limitations.append("PARENT_IDENTITY_PARTIAL")
             issues.append(
@@ -768,6 +781,12 @@ class Normalizer:
                 process_role=_as_text(payload.get("process_role")),
                 process_name=_as_text(payload.get("name")),
                 process_executable=_as_text(payload.get("executable")),
+                raw_command=raw_command,
+                normalized_command=(
+                    normalize_command(raw_command)
+                    if raw_command is not None
+                    else None
+                ),
                 completeness=completeness,
                 limitations=tuple(_ordered_unique(limitations)),
             ),

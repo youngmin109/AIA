@@ -344,6 +344,7 @@ class ProtectedLauncher:
         popen_factory: Callable[..., Any] = subprocess.Popen,
         hook_broker_factory: Callable[[str, HookEnforcementBridge], Any] | None = None,
         launch_context_callback: Callable[[ProtectedLaunchContext], None] | None = None,
+        capture_process_command_line: bool = False,
     ) -> None:
         self.session = session
         self.readiness_context = readiness_context
@@ -362,6 +363,9 @@ class ProtectedLauncher:
         self.popen_factory = popen_factory
         self.hook_broker_factory = hook_broker_factory
         self.launch_context_callback = launch_context_callback
+        if not isinstance(capture_process_command_line, bool):
+            raise LauncherError("capture_process_command_line must be a bool")
+        self.capture_process_command_line = capture_process_command_line
         self._status = LaunchStatus.NOT_STARTED
         self._process_handle: Any | None = None
         self._process_sensor: ProcessRuntimeSensor | None = None
@@ -674,6 +678,7 @@ class ProtectedLauncher:
                 lease_manager=self.lease_manager,
                 process_factory=self.process_factory,
                 allow_ready=True,
+                capture_command_line=self.capture_process_command_line,
             )
             self._process_sensor = sensor
             sensor.start()

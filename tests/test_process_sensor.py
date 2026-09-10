@@ -60,6 +60,7 @@ class FakeProcess:
         executable: str = r"C:\Python\python.exe",
         name_error: bool = False,
         executable_error: bool = False,
+        cmdline: list[str] | None = None,
     ) -> None:
         self.pid = pid
         self._create_time = create_time
@@ -69,6 +70,7 @@ class FakeProcess:
         self._executable = executable
         self.name_error = name_error
         self.executable_error = executable_error
+        self._cmdline = cmdline if cmdline is not None else [executable, "--fixture"]
 
     def create_time(self) -> float:
         return self._create_time
@@ -89,6 +91,9 @@ class FakeProcess:
     def children(self, recursive: bool = False) -> list["FakeProcess"]:
         assert recursive is False
         return list(self.children_list)
+
+    def cmdline(self) -> list[str]:
+        return list(self._cmdline)
 
 
 class FakeProcessTable:
@@ -186,6 +191,7 @@ def make_sensor(
     store: RawEvidenceStore | None = None,
     registration: RootProcessRegistration | None = None,
     poll_interval: float = 0.02,
+    capture_command_line: bool = False,
 ) -> tuple[
     ProcessRuntimeSensor,
     FakeProcessTable,
@@ -211,6 +217,7 @@ def make_sensor(
         evidence_store=store,
         poll_interval=poll_interval,
         process_factory=table,
+        capture_command_line=capture_command_line,
     )
     return (
         sensor,
@@ -296,6 +303,7 @@ def test_process_runtime_observes_root_children_and_grandchild_without_unrelated
         assert by_pid[grandchild.pid].payload["parent_create_time"] == child._create_time
         assert all("cmdline" not in record.payload for record in observations)
         assert all("command_line" not in record.payload for record in observations)
+        assert all("raw_command" not in record.payload for record in observations)
         assert all(
             datetime.fromisoformat(record.payload["observed_at"]).tzinfo is not None
             for record in observations
@@ -701,3 +709,25 @@ def test_actual_python_root_child_grandchild_process_integration(
         release_lease(context, lease_manager)
     finally:
         terminate_tree(process)
+
+
+def test_process_runtime_can_capture_command_line_as_lexical_evidence(
+    tmp_path: Path,
+) -> None:
+    sensor, _, root, child, grandchild, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        capture_command_line=True,
+    )
+    try:
+        sensor.start()
+        observations = [
+            record
+            for record in sensor.evidence_store.records()
+            if record.record_type is EvidenceRecordType.PROCESS_OBSERVED
+        ]
+        by_pid = {record.payload["pid"]: record for record in observations}
+        assert by_pid[root.pid].payload["raw_command"]
+        assert by_pid[child.pid].payload["raw_command"]
+        assert by_pid[grandchild.pid].payload["raw_command"]
+    finally:
+        stop_sensor_and_release(sensor, context, lease_manager)

@@ -480,6 +480,20 @@ def test_process_observation_is_process_execute_and_does_not_become_file_writer(
     assert action.completeness is NormalizationCompleteness.COMPLETE
 
 
+def test_process_command_line_is_normalized_as_lexical_execute_evidence(
+    tmp_path: Path,
+) -> None:
+    workspace = make_workspace(tmp_path)
+    payload = process_payload()
+    payload["raw_command"] = r'python "AIA_PROCESS_CANARY.py" --flag'
+    action = Normalizer(SESSION, workspace).normalize(
+        [raw(EvidenceRecordType.PROCESS_OBSERVED, payload, evidence_id="R1")]
+    ).actions[0]
+    assert action.target_kind is ActionTargetKind.PROCESS
+    assert action.raw_command == r'python "AIA_PROCESS_CANARY.py" --flag'
+    assert action.normalized_command == r'python "aia_process_canary.py" --flag'
+
+
 def test_partial_process_metadata_is_partial(tmp_path: Path) -> None:
     workspace = make_workspace(tmp_path)
     action = Normalizer(SESSION, workspace).normalize(

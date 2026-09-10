@@ -57,6 +57,13 @@ Grandchild = TERMINATED / SUCCEEDED`, unrelated process = `LIVE_MATCH`로 확인
 계약의 증거이며, 정책 위반에 따른 자동 destructive PROCESS 집행까지 증명하는 결과는
 아니다.
 
+Protected Run의 Process Sensor는 제품 경로에서 관찰한 프로세스 명령행을 선택적으로
+Raw Evidence로 보존하고, 등록된 Command Rule의 lexical `EXECUTE` 판정에 사용할 수
+있다. 이 정보는 프로세스가 실행됐다는 사실과 명령행 문자열만 보여 주며, 명령 내부의
+파일 변경을 증명하지 않는다. 현재 `PROCESS` Attribution은 자동 종료 권한으로
+승격되지 않으므로, 이 결과는 정책 위반 관찰·기록과 `REFUSE / NONE` 보수성으로
+해석한다.
+
 ## 현재 결과를 읽는 방법
 
 차단 결과는 두 층으로 기록한다.

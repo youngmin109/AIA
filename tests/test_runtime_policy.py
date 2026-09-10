@@ -342,6 +342,35 @@ def test_process_execute_without_command_is_indeterminate(tmp_path: Path) -> Non
     assert result.reason == RuntimePolicyReason.COMMAND_EVIDENCE_INSUFFICIENT
 
 
+def test_process_execute_command_line_is_evaluated_without_claiming_file_effect(
+    tmp_path: Path,
+) -> None:
+    policy = resolved_policy(
+        rules=(
+            command_rule(
+                "deny-process-canary",
+                "*AIA_PROCESS_CANARY.py*",
+                PolicyEffect.DENY,
+                asset_type=SecurityAssetType.WORKSPACE,
+            ),
+        )
+    )
+    session, snapshot = make_snapshot(tmp_path, policy)
+    result = RuntimePolicyEvaluator(snapshot).evaluate(
+        action(
+            session.session_id,
+            Operation.EXECUTE,
+            target_kind=ActionTargetKind.PROCESS,
+            canonical_path=None,
+            raw_command=r'python "AIA_PROCESS_CANARY.py"',
+        )
+    )
+    assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.operation_effect is PolicyEffect.DENY
+    assert result.matched_rule_ids == ("deny-process-canary",)
+    assert result.asset_type is SecurityAssetType.WORKSPACE
+
+
 def test_command_uses_raw_command_and_existing_lexical_normalization(tmp_path: Path) -> None:
     policy = resolved_policy(
         rules=(

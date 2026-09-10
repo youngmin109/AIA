@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 import math
 from pathlib import Path
+import subprocess
 from threading import Event, RLock, Thread, current_thread
 from typing import Any
 
@@ -146,6 +147,7 @@ class ProcessObservation:
     executable: str | None = None
     metadata_status: ProcessMetadataStatus = ProcessMetadataStatus.COMPLETE
     parent_identity: ProcessIdentity | None = None
+    raw_command: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.identity, ProcessIdentity):
@@ -177,6 +179,10 @@ class ProcessObservation:
             or self.ppid != self.parent_identity.pid
         ):
             raise ProcessRuntimeError("parent_identity does not match process parent")
+        if self.raw_command is not None and (
+            not isinstance(self.raw_command, str) or not self.raw_command.strip()
+        ):
+            raise ProcessRuntimeError("raw_command must be non-empty when provided")
 
     def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -197,6 +203,8 @@ class ProcessObservation:
         if self.parent_identity is not None:
             payload["parent_pid"] = self.parent_identity.pid
             payload["parent_create_time"] = self.parent_identity.create_time
+        if self.raw_command is not None:
+            payload["raw_command"] = self.raw_command
         return payload
 
 
@@ -301,6 +309,7 @@ class ProcessRuntimeSensor:
         poll_interval: float = 0.25,
         process_factory: ProcessFactory = psutil.Process,
         allow_ready: bool = False,
+        capture_command_line: bool = False,
     ) -> None:
         if not isinstance(poll_interval, (int, float)) or isinstance(
             poll_interval,
@@ -309,6 +318,8 @@ class ProcessRuntimeSensor:
             raise ProcessRuntimeError("poll_interval must be a positive finite number")
         if not isinstance(allow_ready, bool):
             raise ProcessRuntimeError("allow_ready must be a bool")
+        if not isinstance(capture_command_line, bool):
+            raise ProcessRuntimeError("capture_command_line must be a bool")
         self.session = session
         self.preparation_context = context
         self.checkpoint = checkpoint
@@ -317,6 +328,7 @@ class ProcessRuntimeSensor:
         self.poll_interval = float(poll_interval)
         self.process_factory = process_factory
         self.allow_ready = allow_ready
+        self.capture_command_line = capture_command_line
         self._control_root: ControlRoot | None = None
         if evidence_store is None:
             try:
@@ -655,6 +667,11 @@ class ProcessRuntimeSensor:
     ) -> ProcessObservation:
         ppid = self._read_ppid(process)
         name, executable, metadata_status = self._read_metadata(process)
+        raw_command = (
+            self._read_command_line(process)
+            if self.capture_command_line
+            else None
+        )
         return ProcessObservation(
             identity=identity,
             ppid=ppid,
@@ -665,6 +682,7 @@ class ProcessRuntimeSensor:
             executable=executable,
             metadata_status=metadata_status,
             parent_identity=parent_identity,
+            raw_command=raw_command,
         )
 
     @staticmethod
@@ -701,6 +719,29 @@ class ProcessRuntimeSensor:
             else ProcessMetadataStatus.PARTIAL
         )
         return name, executable, status
+
+    @staticmethod
+    def _read_command_line(process: Any) -> str | None:
+        """Capture only the observed lexical command line.
+
+        This is evidence for command-pattern evaluation.  It does not claim
+        what a script will do internally, and it is intentionally opt-in
+        because process command lines can contain secrets.
+        """
+
+        try:
+            values = process.cmdline()
+        except Exception:
+            return None
+        if not isinstance(values, (tuple, list)) or not values:
+            return None
+        if any(not isinstance(value, str) or not value for value in values):
+            return None
+        try:
+            command = subprocess.list2cmdline(values)
+        except (TypeError, ValueError):
+            return None
+        return command if command.strip() else None
 
     def _append_observation(self, observation: ProcessObservation) -> None:
         record = RawEvidenceRecord(

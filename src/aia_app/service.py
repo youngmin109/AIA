@@ -832,6 +832,7 @@ class RunApplicationService:
                 hook_bridge=bridge,
                 hook_broker_factory=broker_factory,
                 popen_factory=capture_popen,
+                capture_process_command_line=True,
                 launch_context_callback=lambda context: launch_holder.update(
                     {"context": context}
                 ),

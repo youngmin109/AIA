@@ -165,6 +165,11 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 지원되지 않는 도구 경로, Hook 비활성화, 외부 Agent, 사용자의 수동 실행은 AIA가
 `PROTECTED` 또는 `BLOCKED`로 주장하는 범위에 포함되지 않는다.
 
+Process Sensor는 Protected Run에서 관찰한 프로세스 명령행을 선택적으로 lexical
+Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 기록할 수 있지만,
+`PROCESS` Attribution만으로 프로세스 자동 종료를 수행하지 않는다. 프로세스 명령행은
+스크립트 내부의 실제 파일 변경을 증명하지 않는다.
+
 ## AIA가 현재 증명하는 것
 
 - 보호 실행 시작 전에 Workspace, 정책, Lease, Checkpoint를 준비한다.
