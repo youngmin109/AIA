@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -10,6 +11,16 @@ from aia_app.dto import CreateRunRequest, DTOValidationError
 from aia_app.presenters import action_view, incident_view, result_view
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
+from aia import (
+    ActionTargetKind,
+    AttributionGrade,
+    EnforcementAction,
+    EnforcementDecision,
+    EnforcementExecutionResult,
+    EnforcementRoute,
+    Operation,
+    PolicyDecision,
+)
 from aia_app.service import ApplicationValidationError, RunApplicationService
 
 
@@ -87,6 +98,53 @@ def test_application_lists_live_runs_without_runtime_contents(tmp_path) -> None:
         assert runs[0]["session_id"] == record.session_id
         assert "do-not-expose" not in repr(runs)
         assert runs[0]["protection_state"] == "STARTING"
+    finally:
+        service.shutdown()
+
+
+def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    action = SimpleNamespace(
+        action_id="action-live",
+        operation=Operation.DELETE,
+        target_kind=ActionTargetKind.FILE,
+        canonical_path=".env",
+        evidence_ids=("evidence-live",),
+    )
+    event = SimpleNamespace(
+        action=action,
+        policy_evaluation=SimpleNamespace(
+            policy_decision=PolicyDecision.VIOLATION,
+            matched_rule_ids=("deny-env",),
+            asset_type=None,
+        ),
+        attribution=SimpleNamespace(
+            grade=AttributionGrade.EXACT,
+            reason="DIRECT_TRUSTED_HOOK",
+        ),
+        gate_result=SimpleNamespace(
+            action=EnforcementAction.NONE,
+            decision=EnforcementDecision.CONTAIN,
+            execution_result=EnforcementExecutionResult.NOT_ATTEMPTED,
+            route=EnforcementRoute.PRETOOL_BLOCK,
+        ),
+    )
+    record.runtime["codex_controller"] = SimpleNamespace(
+        events=(event,),
+        errors=(),
+        post_action_containments=(),
+    )
+    service.registry.add(record)
+    try:
+        service._refresh_protection_state(record)
+
+        assert record.protection_state == "ACTIVE_VERIFIED"
+        assert record.hook_event_count == 1
+        assert record.actions[0]["action_id"] == "action-live"
+        assert record.incidents[0]["enforcement_route"] == "PRETOOL_BLOCK"
+        assert "raw_command" not in repr(record.actions)
     finally:
         service.shutdown()
 

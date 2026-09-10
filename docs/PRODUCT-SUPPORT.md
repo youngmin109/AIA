@@ -102,6 +102,8 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
   시작·호출부터 PreToolUse 차단까지의 경로를 `mcp-read` Canary로 검증했다.
 - 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
+- 보호 실행 화면은 실행 중에도 검증된 Hook Action의 요약과 Incident를 갱신하며,
+  원문 command나 민감한 payload를 화면으로 내보내지 않는다.
 - 검증된 PreTool deny 이후에도 동일 Tool의 `PostToolUse`가 확인되면, 원래
   `PRE_ACTION` 차단 결과와 별도의 `POST_ACTION` Gate를 생성한다. 이때만
   Process Manager에 보상적 종료를 요청하며, 실제 종료 결과가 확인된 경우에만

@@ -60,6 +60,44 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _runtime_action_view(
+    action: Any,
+    policy_result: Any,
+    attribution_result: Any,
+    gate_result: Any,
+) -> dict[str, Any]:
+    """Build the redacted live/result action view from authoritative facts."""
+
+    return {
+        "action_id": action.action_id,
+        "attribution_grade": attribution_result.grade.value,
+        "attribution_reason": attribution_result.reason,
+        "enforcement_action": gate_result.action.value,
+        "enforcement_decision": gate_result.decision.value,
+        "execution_result": gate_result.execution_result.value,
+        "operation": action.operation.value,
+        "policy_decision": policy_result.policy_decision.value,
+        "enforcement_route": gate_result.route.value,
+        "evidence_ids": list(action.evidence_ids),
+        "matched_rule_ids": list(
+            getattr(policy_result, "matched_rule_ids", ()) or ()
+        ),
+        "matched_asset_types": [
+            getattr(
+                policy_result.asset_type,
+                "value",
+                policy_result.asset_type,
+            )
+        ]
+        if getattr(policy_result, "asset_type", None) is not None
+        else [],
+        "target": {
+            "canonical_path": action.canonical_path,
+            "target_kind": action.target_kind.value,
+        },
+    }
+
+
 class RunApplicationService:
     """Connect UI requests to existing AIA Core APIs.
 
@@ -978,34 +1016,12 @@ class RunApplicationService:
             gate_result: Any,
         ) -> None:
             action_views.append(
-                {
-                    "action_id": action.action_id,
-                    "attribution_grade": attribution_result.grade.value,
-                    "attribution_reason": attribution_result.reason,
-                    "enforcement_action": gate_result.action.value,
-                    "enforcement_decision": gate_result.decision.value,
-                    "execution_result": gate_result.execution_result.value,
-                    "operation": action.operation.value,
-                    "policy_decision": policy_result.policy_decision.value,
-                    "enforcement_route": gate_result.route.value,
-                    "evidence_ids": list(action.evidence_ids),
-                    "matched_rule_ids": list(
-                        getattr(policy_result, "matched_rule_ids", ()) or ()
-                    ),
-                    "matched_asset_types": [
-                        getattr(
-                            policy_result.asset_type,
-                            "value",
-                            policy_result.asset_type,
-                        )
-                    ]
-                    if getattr(policy_result, "asset_type", None) is not None
-                    else [],
-                    "target": {
-                        "canonical_path": action.canonical_path,
-                        "target_kind": action.target_kind.value,
-                    },
-                }
+                _runtime_action_view(
+                    action,
+                    policy_result,
+                    attribution_result,
+                    gate_result,
+                )
             )
 
         for action in normalized.actions:
@@ -1143,10 +1159,35 @@ class RunApplicationService:
         controller = record.runtime.get("codex_controller")
         if controller is None:
             return
-        record.hook_event_count = len(controller.events)
+        events = tuple(controller.events)
+        action_views = [
+            _runtime_action_view(
+                event.action,
+                event.policy_evaluation,
+                event.attribution,
+                event.gate_result,
+            )
+            for event in events
+        ]
+        for containment in getattr(controller, "post_action_containments", ()):
+            action_views.append(
+                _runtime_action_view(
+                    containment.action,
+                    containment.policy_evaluation,
+                    containment.attribution,
+                    containment.gate_result,
+                )
+            )
+        record.actions = action_views
+        record.incidents = [
+            item
+            for item in (incident_view(action) for action in action_views)
+            if item
+        ]
+        record.hook_event_count = len(events)
         if controller.errors:
             record.protection_state = "DEGRADED"
-        elif controller.events:
+        elif events:
             record.protection_state = "ACTIVE_VERIFIED"
         self._persist_runtime_state(record)
 
