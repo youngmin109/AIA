@@ -108,14 +108,18 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
    aia --version
 
-3. Install and review the Codex Hook:
+3. Verify the AIA Core without starting Codex:
+
+   aia self-test
+
+4. Install and review the Codex Hook:
 
    aia setup
    # Open Codex /hooks and review/trust the AIA Hook.
    aia hook verify
    aia doctor
 
-4. Start the local console or a protected run from any Workspace:
+5. Start the local console or a protected run from any Workspace:
 
    aia console
    aia protect C:\workspace\my-project

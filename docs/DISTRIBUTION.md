@@ -63,6 +63,12 @@ aia --version
 aia setup
 ```
 
+설치된 AIA Core 계약을 Codex 실행 없이 확인하려면 다음을 실행한다.
+
+```powershell
+aia self-test
+```
+
 설치 뒤에는 반드시 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 `aia hook verify`를
 실행한다. Hook이 실제로 검증되지 않은 실행은 보호 성공으로 표시하지 않는다.
 
