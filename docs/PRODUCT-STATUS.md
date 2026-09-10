@@ -109,8 +109,8 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 Protected Launcher는 제품 실행에 `workspace-write` Sandbox와 `on-request`
 Approval Policy를 요청하고, 바깥 Codex의 일시적인 세션·권한 환경값을 자식 Codex로
-전달하지 않는다. 보호 실행은 사용자의 전역 Codex `config.toml`도 상속하지 않고,
-인증에 필요한 `CODEX_HOME`만 유지한 채 보호 계약을 명시적으로 적용한다. 실제
-Codex가 보고한 실행 Sandbox와 Approval Policy는 Result Bundle에 제한된 메타데이터로
-남긴다. 실행 환경이 `read-only`로 강등되거나 보호 설정이 제품 요청과 다르게 적용되면 실행은 성공으로 포장하지 않고
+전달하지 않는다. 사용자가 검토한 Hook trust와 인증 설정은 유지하면서 보호 실행에
+필요한 Sandbox와 Approval Policy를 명시적으로 요청한다. 실제 Codex가 보고한 실행
+Sandbox와 Approval Policy는 Result Bundle에 제한된 메타데이터로 남긴다. 실행 환경이
+`read-only`로 강등되거나 보호 설정이 제품 요청과 다르게 적용되면 실행은 성공으로 포장하지 않고
 `COMPLETED_DEGRADED`와 제한사항을 남긴다.
