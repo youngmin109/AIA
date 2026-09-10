@@ -1,5 +1,7 @@
 """AIA product MVP package."""
 
+from ._version import __version__
+
 from .action import (
     ActionTargetKind,
     NonActionEvidence,
@@ -620,4 +622,3 @@ __all__ = [
     "TrustedHookIngress",
     "evaluate_pretool",
 ]
-__version__ = "0.1.0"

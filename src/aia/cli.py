@@ -40,6 +40,7 @@ from aia import (
 )
 from aia.hook_verification import HookVerificationStore
 from aia.codex_hook_trust import inspect_codex_hook_trust
+from aia._version import __version__
 from aia_app import ApplicationValidationError, RunApplicationService
 from aia_app.readers import ResultBundleReader
 
@@ -53,7 +54,7 @@ def _json_text(value: object, *, default: object | None = None) -> str:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aia")
-    parser.add_argument("--version", action="version", version="AIA 0.1.0")
+    parser.add_argument("--version", action="version", version=f"AIA {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     doctor = commands.add_parser(
         "doctor",

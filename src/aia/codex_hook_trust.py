@@ -13,6 +13,8 @@ import threading
 import time
 from typing import Any
 
+from ._version import __version__
+
 
 @dataclass(frozen=True, slots=True)
 class CodexHookTrustInspection:
@@ -120,7 +122,7 @@ def inspect_codex_hook_trust(
 
         reader = threading.Thread(target=read_lines, daemon=True)
         reader.start()
-        _send(process, {"method": "initialize", "id": 1, "params": {"clientInfo": {"name": "aia", "version": "0.1.0"}, "capabilities": {"experimentalApi": True}}})
+        _send(process, {"method": "initialize", "id": 1, "params": {"clientInfo": {"name": "aia", "version": __version__}, "capabilities": {"experimentalApi": True}}})
         if _read_response(lines, 1, timeout) is None:
             return CodexHookTrustInspection(False, "APP_SERVER_INITIALIZE_TIMEOUT")
         _send(process, {"method": "initialized", "params": {}})

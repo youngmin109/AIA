@@ -14,6 +14,7 @@ from aia.cli import (
     main,
 )
 from aia.codex_hook_trust import summarize_aia_hooks
+from aia._version import __version__
 from aia_web.__main__ import run as run_console, validate_local_bind
 
 
@@ -37,6 +38,14 @@ def test_product_proof_parser_defaults_to_disposable_block_canary() -> None:
     assert args.command == "proof"
     assert args.scenario == "block-canary"
     assert args.timeout == 180.0
+
+
+def test_cli_version_uses_package_version(capsys) -> None:
+    with pytest.raises(SystemExit) as error:
+        _parser().parse_args(["--version"])
+
+    assert error.value.code == 0
+    assert capsys.readouterr().out.strip() == f"AIA {__version__}"
 
 
 def test_doctor_parser_supports_machine_readable_preflight() -> None:
