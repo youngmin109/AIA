@@ -876,13 +876,37 @@ def _protected_run_preflight(
             executable = CodexAdapter().discover()
         except Exception:
             executable = None
+        trust_status = None
+        if executable is not None:
+            try:
+                inspection = inspect_codex_hook_trust(
+                    executable,
+                    hook_path=installer.path,
+                    cwd=Path.cwd(),
+                    timeout=8.0,
+                ).to_mapping()
+                trust_status = next(
+                    (
+                        item.get("trust_status")
+                        for item in (inspection.get("hooks") or [])
+                        if isinstance(item, dict) and item.get("event") == "preToolUse"
+                    ),
+                    None,
+                )
+            except (OSError, ValueError):
+                trust_status = None
         if executable is None or not HookVerificationStore(resolved_control_root).is_current(
             installer,
             executable,
         ):
-            failures.append(
-                "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
-            )
+            if trust_status not in {None, "TRUSTED", "MANAGED"}:
+                failures.append(
+                    f"Codex PreToolUse Hook Trust={trust_status}. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 'uv run aia hook verify'를 실행하세요."
+                )
+            else:
+                failures.append(
+                    "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+                )
     return not failures, failures
 
 
