@@ -96,7 +96,8 @@ def _run_protected(args: argparse.Namespace) -> int:
                 return 2
             time.sleep(0.5)
         status = service.get_run_status(session_id)
-        print(f"Status: {status.get('status')}")
+        final_status = status.get("status") or status.get("session", {}).get("status")
+        print(f"Status: {final_status}")
         if status.get("error"):
             print(f"Error: {status['error']}")
         if status.get("result_available"):
@@ -112,7 +113,7 @@ def _run_protected(args: argparse.Namespace) -> int:
                     ensure_ascii=False,
                 )
             )
-        return 0 if status.get("status") == "COMPLETED" else 1
+        return 0 if final_status == "COMPLETED" else 1
     finally:
         service.shutdown()
 
