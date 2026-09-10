@@ -10,3 +10,4 @@ build/
 .coverage
 htmlcov/
 evaluation/actual-codex/
+evaluation/product-e2e-live/

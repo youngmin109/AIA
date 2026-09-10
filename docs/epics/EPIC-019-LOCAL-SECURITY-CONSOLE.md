@@ -33,9 +33,15 @@ Raw Evidence → Normalization → Attribution / Policy → Enforcement
 Session Finalizer → Result Bundle / Audit / Integrity Verification
 ```
 
-`RunRegistry`는 진행 중인 실행의 화면 상태만 보관하는 in-memory registry다. 보안 판정의 권위 있는 원본은 Core 객체와 검증된 Result Bundle이다. 완료 후 화면이 Registry에 의존하지 못하면 `ResultBundleReader`가 `VALID` bundle만 읽는다.
+`RunRegistry`는 프로세스 내부에서 빠른 화면 갱신에 사용하는 in-memory registry다. 동시에
+Control Root의 `run-status/<session_id>.json`에 raw command와 비밀값을 제외한 실행 상태를
+원자적으로 보존하므로, 다른 CLI 프로세스에서도 실행 중인 Session을 조회하고 중지 요청을
+전달할 수 있다. 보안 판정의 권위 있는 원본은 Core 객체와 검증된 Result Bundle이며,
+완료된 실행은 항상 검증된 Bundle을 우선한다.
 
-서버가 재시작되면 진행 중인 Registry 상태는 복원하지 않는다. 이미 완료된 실행은 Session ID와 Control Root를 알고 있으면 Result Bundle에서 다시 읽을 수 있다. 완료 실행 전체 목록이나 active run 복원은 이번 EPIC 범위가 아니다.
+콘솔 프로세스가 재시작되어도 실행 중인 Agent를 자동으로 인수하거나 복구하지는 않는다.
+상태 스냅샷은 관찰용이며, 이미 완료된 실행은 Session ID와 Control Root를 알고 있으면
+Result Bundle에서 다시 읽을 수 있다.
 
 ## 화면
 
@@ -66,6 +72,7 @@ GET  /runs/{session_id}/result
 GET  /runs/{session_id}/report
 GET  /runs/{session_id}/raw-evidence
 GET  /runs/{session_id}/result.json
+POST /api/runs/{session_id}/stop
 ```
 
 입력 DTO는 허용된 key만 받고, workspace/agent/model/profile/mode/task의 타입과 크기를 검증한다. API는 잘못된 입력을 400으로 반환한다. Session ID는 Control Root 아래로 제한된 안전한 식별자만 허용한다.
@@ -82,7 +89,7 @@ uv run aia-web
 
 ## 범위 밖
 
-이번 EPIC에서는 로그인/원격 접근, 다중 사용자 권한, Database persistence, WebSocket, GUI 기반 policy authoring, Network Security, Claude 지원, 새 Core 보안 기능을 구현하지 않는다. 대규모 Workspace 성능, 결과 bundle 보존 정책, 장기 실행 취소 UI는 후속 EPIC의 책임이다.
+이번 EPIC에서는 로그인/원격 접근, 다중 사용자 권한, Database persistence, WebSocket, GUI 기반 policy authoring, Network Security, Claude 지원, 새 Core 보안 기능을 구현하지 않는다. 대규모 Workspace 성능, 결과 bundle 보존 정책, OS 수준 Agent 복구와 중지 실패 시 자동 복구는 제공하지 않는다.
 
 ## 검증
 

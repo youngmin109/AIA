@@ -166,8 +166,19 @@ def incident_views_for_result(result: Mapping[str, Any]) -> list[dict[str, Any]]
 
 
 def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
-    actions = [action_view(item) for item in result.get("action_outcomes", [])]
     incidents = incident_views_for_result(result)
+    incident_action_ids = {
+        item.get("action_id")
+        for item in incidents
+        if item.get("action_id") is not None
+    }
+    actions = [
+        {
+            **action_view(item),
+            "incident": item.get("action_id") in incident_action_ids,
+        }
+        for item in result.get("action_outcomes", [])
+    ]
     policy = result.get("policy") or {}
     recovery = result.get("recovery_result") or {}
     integrity = result.get("integrity_result") or {}

@@ -132,6 +132,29 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["bundle_status"] == "VALID"
 
 
+def test_result_presenter_marks_action_incidents_for_result_links() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "action_outcomes": [
+                {
+                    "action_id": "a1",
+                    "operation": "DELETE",
+                    "policy_decision": "VIOLATION",
+                    "attribution_grade": "EXACT",
+                    "enforcement_action": "BLOCKED",
+                    "execution_result": "SUCCEEDED",
+                    "target": {"canonical_path": "secret.txt"},
+                },
+            ],
+        },
+        "VALID",
+    )
+    assert view["actions"][0]["incident"] is True
+
+
 def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_path) -> None:
     reader = ResultBundleReader(tmp_path)
     with pytest.raises(ValueError, match="invalid session_id"):
