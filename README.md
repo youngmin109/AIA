@@ -59,7 +59,9 @@ uv run aia policy validate C:\workspace\policies\protected-policy.json
 ```
 
 `READY`가 나오면 Hook을 한 번 설치합니다. 설치 명령은 기존 Codex Hook 설정을
-덮어쓰지 않고 AIA의 PreToolUse 항목만 추가합니다.
+덮어쓰지 않고 AIA의 PreToolUse와 PostToolUse 항목을 추가합니다. PreToolUse는
+실행 전 정책 관문이고, PostToolUse는 실제 실행 여부를 확인하기 위한 선택적
+관찰 경로입니다.
 
 ```powershell
 uv run aia hook install
@@ -117,3 +119,8 @@ uv run python scripts/product_e2e_smoke.py --scenario block-canary
 PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 확인합니다. 제품 서비스는
 Hook deny만으로 실행 성공을 주장하지 않으므로, 이 smoke의 결과에는
 `CANARY_NO_SIDE_EFFECT`와 `confirmed_block_count`가 따로 표시됩니다.
+
+결정론적 전후 성능·보안 평가 결과는
+[fixture 평가 대시보드](evaluation/product-before-after/fixture-20260910-001/report.html)에서
+확인할 수 있다. 이 결과는 12개 시나리오의 AIA OFF/AIA ON 반복 실행을 포함하며,
+Actual Codex 결과와 섞지 않고 별도 평가로 표시한다.
