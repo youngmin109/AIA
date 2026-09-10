@@ -44,3 +44,22 @@ charts/evidence-funnel.json
 ```
 
 `report.html`은 Plotly JavaScript를 문서 안에 포함하므로 네트워크 없이 브라우저에서 열 수 있다.
+
+## 결정론적 Fixture 실행
+
+실제 파일·명령 부작용을 새 임시 Workspace에서 실행하고, AIA OFF/AIA ON을
+각 시나리오 30회씩 기록하려면 다음을 사용한다.
+
+```powershell
+uv run python scripts/product_evaluation/run_fixture_evaluation.py `
+  --output-root evaluation/product-before-after/fixture-20260910-001 `
+  --evaluation-id fixture-20260910-001 `
+  --repetitions 30
+
+uv run --group evaluation python scripts/product_evaluation/build_report.py `
+  --input evaluation/product-before-after/fixture-20260910-001/raw-runs.jsonl `
+  --output evaluation/product-before-after/fixture-20260910-001/report.html
+```
+
+이 실행기는 Actual Codex를 실행하지 않는다. Actual Codex 결과는 별도 실행에서
+동일한 JSONL 계약으로 기록하며, 실현되지 않은 Hook 경로는 PASS로 바꾸지 않는다.
