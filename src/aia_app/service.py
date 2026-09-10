@@ -164,6 +164,7 @@ class RunApplicationService:
             protection_state="STARTING",
         )
         record.runtime.update({"request": request, "resolved_policy": resolved, "session": session})
+        self._persist_runtime_state(record, strict=True)
         self.registry.add(record)
         self._executor.submit(self._run, record)
         return {
@@ -178,7 +179,13 @@ class RunApplicationService:
             self._refresh_protection_state(live_record)
         record = self.registry.snapshot(session_id)
         if record is None:
-            return self._status_from_completed_bundle(session_id)
+            try:
+                return self._status_from_completed_bundle(session_id)
+            except (KeyError, OSError, ValueError):
+                runtime_state = self._read_runtime_state(session_id)
+                if runtime_state is None:
+                    raise
+                return self._status_from_runtime_state(runtime_state)
         incidents = list(record.incidents)
         return {
             "checkpoint": record.checkpoint,
@@ -255,9 +262,11 @@ class RunApplicationService:
             self._write_stop_request(session_id)
         except (OSError, ValueError) as error:
             record.stop_error = f"STOP_REQUEST_PERSIST_FAILED: {type(error).__name__}"
+        self._persist_runtime_state(record)
         launcher = record.runtime.get("launcher")
         if launcher is None or getattr(getattr(launcher, "status", None), "value", None) != "RUNNING":
             record.protection_state = "STOP_REQUESTED"
+            self._persist_runtime_state(record)
             return {
                 "accepted": True,
                 "session_id": session_id,
@@ -272,6 +281,7 @@ class RunApplicationService:
         if not stopped:
             record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
             record.protection_state = "DEGRADED"
+            self._persist_runtime_state(record)
             return {
                 "accepted": False,
                 "session_id": session_id,
@@ -279,6 +289,7 @@ class RunApplicationService:
                 "reason": record.stop_error,
             }
         record.protection_state = "STOP_REQUESTED"
+        self._persist_runtime_state(record)
         return {
             "accepted": True,
             "session_id": session_id,
@@ -297,8 +308,36 @@ class RunApplicationService:
         """Return live runs plus valid persisted Bundles for the local console."""
 
         values: dict[str, dict[str, Any]] = {}
+        for state in self._list_runtime_states():
+            session = state.get("session") if isinstance(state.get("session"), dict) else {}
+            policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
+            protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
+            session_id = state.get("session_id")
+            if not isinstance(session_id, str):
+                continue
+            values[session_id] = {
+                "session_id": session_id,
+                "status": session.get("status", "UNKNOWN"),
+                "ended_at": None,
+                "created_at": session.get("created_at"),
+                "workspace": session.get("workspace"),
+                "agent": session.get("agent"),
+                "policy": {
+                    "id": policy.get("id"),
+                    "version": policy.get("version"),
+                },
+                "run_classification": "PRODUCT_PROTECTED_RUN",
+                "bundle_status": "PENDING",
+                "incident_count": state.get("incident_count", 0),
+                "result_url": f"/runs/{session_id}/result",
+                "protection_state": protection.get("state", "UNKNOWN"),
+                "hook_event_count": protection.get("hook_events", 0),
+            }
         for record in self.registry.snapshots():
-            self._refresh_protection_state(record)
+            live_record = self.registry.get(record.session_id)
+            if live_record is not None:
+                self._refresh_protection_state(live_record)
+                record = self.registry.snapshot(record.session_id) or record
             values[record.session_id] = {
                 "session_id": record.session_id,
                 "status": record.status,
@@ -315,7 +354,7 @@ class RunApplicationService:
                 "hook_event_count": record.hook_event_count,
             }
         for item in self.reader.list_completed():
-            values.setdefault(item["session_id"], item)
+            values[item["session_id"]] = item
         return sorted(
             values.values(),
             key=lambda item: str(item.get("ended_at") or item.get("created_at") or ""),
@@ -612,6 +651,7 @@ class RunApplicationService:
                     if hasattr(item, "get")
                 },
             )
+            self._persist_runtime_state(record)
         except Exception as error:
             self._fail_record(record, error)
         finally:
@@ -669,6 +709,7 @@ class RunApplicationService:
             bundle_status=verification.status.value,
             protection_state="ABORTED_BEFORE_LAUNCH",
         )
+        self._persist_runtime_state(record)
 
     def _wait_for_agent(
         self,
@@ -689,6 +730,7 @@ class RunApplicationService:
                 if not launcher.request_user_abort():
                     record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
                     record.protection_state = "DEGRADED"
+                self._persist_runtime_state(record)
 
     def _is_stop_requested(self, record: RunRecord) -> bool:
         if record.stop_requested:
@@ -820,8 +862,7 @@ class RunApplicationService:
         incidents = [item for item in (incident_view(item) for item in action_views) if item]
         self.registry.update(record.session_id, actions=action_views, incidents=incidents)
 
-    @staticmethod
-    def _refresh_protection_state(record: RunRecord) -> None:
+    def _refresh_protection_state(self, record: RunRecord) -> None:
         if record.status in {"COMPLETED", "FAILED", "ABORTED"}:
             return
         controller = record.runtime.get("codex_controller")
@@ -832,19 +873,20 @@ class RunApplicationService:
             record.protection_state = "DEGRADED"
         elif controller.events:
             record.protection_state = "ACTIVE_VERIFIED"
+        self._persist_runtime_state(record)
 
-    @staticmethod
-    def _phase(record: RunRecord, phase: str, status: SessionStatus) -> None:
+    def _phase(self, record: RunRecord, phase: str, status: SessionStatus) -> None:
         record.phase = phase
         record.status = status.value
+        self._persist_runtime_state(record)
 
-    @staticmethod
-    def _refresh_sensors(record: RunRecord, sensors: tuple[Any, ...]) -> None:
+    def _refresh_sensors(self, record: RunRecord, sensors: tuple[Any, ...]) -> None:
         record.sensor_health = {
             sensor.health.sensor.value: sensor.health.status.value
             for sensor in sensors
             if sensor is not None
         }
+        self._persist_runtime_state(record)
 
     def _fail_record(self, record: RunRecord, error: Exception) -> None:
         record.status = "FAILED"
@@ -852,6 +894,134 @@ class RunApplicationService:
         record.protection_state = "FAILED"
         record.error = f"{type(error).__name__}: {error}"
         record.lease = "FAILED" if record.lease == "ACTIVE" else record.lease
+        self._persist_runtime_state(record)
+
+    def _runtime_state_path(self, session_id: str) -> Path:
+        if (
+            not isinstance(session_id, str)
+            or not session_id
+            or any(not (character.isalnum() or character == "-") for character in session_id)
+        ):
+            raise ValueError("invalid session_id")
+        root = (self.control_root / "run-status").resolve(strict=False)
+        candidate = (root / f"{session_id}.json").resolve(strict=False)
+        if not candidate.is_relative_to(root):
+            raise ValueError("runtime state path escaped control root")
+        return candidate
+
+    @staticmethod
+    def _runtime_state_mapping(record: RunRecord) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "session_id": record.session_id,
+            "updated_at": _now().isoformat(),
+            "session": {
+                "agent": record.agent,
+                "created_at": record.created_at.isoformat(),
+                "model": record.model,
+                "session_id": record.session_id,
+                "status": record.status,
+                "workspace": str(record.workspace),
+            },
+            "phase": record.phase,
+            "protection": {
+                "state": record.protection_state,
+                "hook_events": record.hook_event_count,
+            },
+            "checkpoint": record.checkpoint,
+            "lease": record.lease,
+            "mode": record.mode,
+            "policy": {
+                "id": record.policy_id,
+                "profile": record.policy_profile,
+                "version": record.policy_version,
+            },
+            "incident_count": len(record.incidents),
+            "latest_actions": record.actions[-20:],
+            "sensor_health": dict(record.sensor_health),
+            "stop": {
+                "requested": record.stop_requested,
+                "error": record.stop_error,
+            },
+            "error": record.error,
+            "result_path": str(record.result_path) if record.result_path is not None else None,
+            "result_available": record.result_path is not None,
+        }
+
+    def _persist_runtime_state(self, record: RunRecord, *, strict: bool = False) -> None:
+        try:
+            path = self._runtime_state_path(record.session_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(
+                json.dumps(self._runtime_state_mapping(record), ensure_ascii=True, indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, path)
+        except (OSError, ValueError):
+            if strict:
+                raise
+            record.protection_state = "DEGRADED"
+            record.error = record.error or "RUNTIME_STATE_PERSIST_FAILED"
+
+    def _read_runtime_state(self, session_id: str) -> dict[str, Any] | None:
+        try:
+            path = self._runtime_state_path(session_id)
+            if not path.is_file():
+                return None
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict) or payload.get("session_id") != session_id:
+            return None
+        return payload
+
+    def _list_runtime_states(self) -> list[dict[str, Any]]:
+        root = (self.control_root / "run-status").resolve(strict=False)
+        if not root.is_dir():
+            return []
+        states: list[dict[str, Any]] = []
+        for path in root.glob("*.json"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            session_id = payload.get("session_id")
+            if not isinstance(session_id, str):
+                continue
+            try:
+                if self._runtime_state_path(session_id) != path.resolve(strict=False):
+                    continue
+            except ValueError:
+                continue
+            states.append(payload)
+        return states
+
+    @staticmethod
+    def _status_from_runtime_state(state: dict[str, Any]) -> dict[str, Any]:
+        session = state.get("session") if isinstance(state.get("session"), dict) else {}
+        protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
+        policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
+        stop = state.get("stop") if isinstance(state.get("stop"), dict) else {}
+        return {
+            "checkpoint": state.get("checkpoint", "UNKNOWN"),
+            "error": state.get("error"),
+            "incident_count": state.get("incident_count", 0),
+            "latest_actions": state.get("latest_actions", []),
+            "lease": state.get("lease", "UNKNOWN"),
+            "mode": state.get("mode"),
+            "phase": state.get("phase", session.get("status", "UNKNOWN")),
+            "result_path": state.get("result_path"),
+            "protection": protection,
+            "stop": stop,
+            "policy": policy,
+            "result_available": bool(state.get("result_available")),
+            "sensor_health": state.get("sensor_health", {}),
+            "session": session,
+        }
 
     def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
         result = self.reader.read_result(session_id)

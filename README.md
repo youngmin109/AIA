@@ -87,6 +87,9 @@ uv run aia status <SESSION_ID> --json
 uv run aia stop <SESSION_ID>
 ```
 
+실행 중인 Session은 Control Root에 안전한 상태 스냅샷을 보존하므로, 보호 실행을
+시작한 터미널과 다른 터미널에서도 `status`와 `stop`을 사용할 수 있다.
+
 `COMPLETED_VERIFIED`는 실제 Hook Event와 검증된 Result Bundle이 확인된 실행이고,
 `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계가 완전히 검증되지 않은 실행입니다.
 후자는 성공한 보호 실행으로 해석하지 말고 제한사항을 확인해야 합니다.

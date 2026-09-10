@@ -27,6 +27,7 @@
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분
 - 실행 중 사용자 중지 요청과 `USER_ABORT` 결과 기록
+- 별도 터미널에서 실행 중인 세션의 상태 조회와 중지 요청
 
 실제 실행 증명 방법은 [ACTUAL-CODEX-PROOF.md](ACTUAL-CODEX-PROOF.md)에 있다. 자동화 증명 산출물은 `evaluation/actual-codex/pretool-block/<timestamp>/`에 생성한다.
 

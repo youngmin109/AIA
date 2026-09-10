@@ -190,6 +190,51 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         service.shutdown()
 
 
+def test_runtime_status_can_be_read_from_another_service_process(tmp_path, monkeypatch) -> None:
+    control_root = tmp_path / "control"
+    writer = RunApplicationService(control_root)
+    record = make_record(tmp_path, session_id="session-1")
+    record.status = "RUNNING"
+    record.phase = "RUNNING"
+    record.protection_state = "ACTIVE_VERIFIED"
+    record.checkpoint = "READY"
+    record.lease = "ACTIVE"
+    writer.registry.add(record)
+    writer._persist_runtime_state(record, strict=True)
+    reader = RunApplicationService(control_root)
+    monkeypatch.setattr(
+        reader.reader,
+        "read_result",
+        lambda requested: (_ for _ in ()).throw(ValueError("not completed")),
+    )
+    try:
+        status = reader.get_run_status(record.session_id)
+        assert status["phase"] == "RUNNING"
+        assert status["protection"]["state"] == "ACTIVE_VERIFIED"
+        assert status["session"]["workspace"] == str(tmp_path)
+    finally:
+        reader.shutdown()
+        writer.shutdown()
+
+
+def test_list_runs_includes_runtime_state_from_another_service_process(tmp_path) -> None:
+    control_root = tmp_path / "control"
+    writer = RunApplicationService(control_root)
+    record = make_record(tmp_path, session_id="session-1")
+    record.status = "RUNNING"
+    record.phase = "RUNNING"
+    writer.registry.add(record)
+    writer._persist_runtime_state(record, strict=True)
+    reader = RunApplicationService(control_root)
+    try:
+        runs = reader.list_runs()
+        assert runs[0]["session_id"] == "session-1"
+        assert runs[0]["status"] == "RUNNING"
+    finally:
+        reader.shutdown()
+        writer.shutdown()
+
+
 def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
