@@ -86,7 +86,7 @@ class ProtectedLaunchRequest:
     aia_session_id: str
     workspace: Path | str
     agent: str
-    prompt: str = field(repr=False)
+    prompt: str = field(default="", repr=False)
     model: str | None = None
     resume_native_session_id: str | None = None
     adapter_options: Mapping[str, Any] = field(default_factory=dict, repr=False)
@@ -99,7 +99,24 @@ class ProtectedLaunchRequest:
         )
         object.__setattr__(self, "workspace", canonicalize_workspace(self.workspace))
         object.__setattr__(self, "agent", _required_text(self.agent, field_name="agent"))
-        object.__setattr__(self, "prompt", _required_text(self.prompt, field_name="prompt"))
+        if not isinstance(self.adapter_options, Mapping):
+            raise LauncherError("adapter_options must be a mapping")
+        object.__setattr__(
+            self,
+            "adapter_options",
+            MappingProxyType(dict(self.adapter_options)),
+        )
+        if not isinstance(self.prompt, str):
+            raise LauncherError("prompt must be a string")
+        interactive = self.adapter_options.get("interactive", False)
+        if not isinstance(interactive, bool):
+            raise LauncherError("interactive must be a boolean")
+        if not interactive:
+            object.__setattr__(
+                self,
+                "prompt",
+                _required_text(self.prompt, field_name="prompt"),
+            )
         if self.model is not None:
             object.__setattr__(self, "model", _required_text(self.model, field_name="model"))
         if self.resume_native_session_id is not None:
@@ -111,14 +128,6 @@ class ProtectedLaunchRequest:
                     field_name="resume_native_session_id",
                 ),
             )
-        if not isinstance(self.adapter_options, Mapping):
-            raise LauncherError("adapter_options must be a mapping")
-        object.__setattr__(
-            self,
-            "adapter_options",
-            MappingProxyType(dict(self.adapter_options)),
-        )
-
     @property
     def prompt_sha256(self) -> str:
         return hashlib.sha256(self.prompt.encode("utf-8")).hexdigest()
@@ -132,6 +141,7 @@ class AgentLaunchSpec:
     executable: Path | str
     argv: tuple[str, ...]
     stdin_bytes: bytes = field(repr=False)
+    interactive: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "adapter", _required_text(self.adapter, field_name="adapter"))
@@ -147,6 +157,8 @@ class AgentLaunchSpec:
         object.__setattr__(self, "argv", argv)
         if not isinstance(self.stdin_bytes, bytes):
             raise LauncherError("stdin_bytes must be bytes")
+        if not isinstance(self.interactive, bool):
+            raise LauncherError("interactive must be a boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,10 +369,15 @@ class ProtectedLauncher:
             popen_kwargs: dict[str, Any] = {
                 "shell": False,
                 "cwd": str(self.session.workspace),
-                "stdin": subprocess.PIPE,
-                "stdout": subprocess.DEVNULL,
-                "stderr": subprocess.DEVNULL,
             }
+            if not spec.interactive:
+                popen_kwargs.update(
+                    {
+                        "stdin": subprocess.PIPE,
+                        "stdout": subprocess.DEVNULL,
+                        "stderr": subprocess.DEVNULL,
+                    }
+                )
             if self.hook_broker_factory is not None:
                 broker = self.hook_broker_factory(launch_id, self.hook_bridge)
                 if broker is None:
@@ -470,7 +487,8 @@ class ProtectedLauncher:
             # A spawned process is not an activated protected task.  The task
             # prompt is released only after identity, sensors, bridge, and
             # Session RUNNING have all been established.
-            self._write_stdin(process, spec.stdin_bytes)
+            if not spec.interactive:
+                self._write_stdin(process, spec.stdin_bytes)
             result = ProtectedLaunchResult(
                 launch_id=launch_id,
                 status=LaunchStatus.RUNNING,

@@ -27,6 +27,7 @@ class CodexAdapter:
             "ignore_rules",
             "ignore_user_config",
             "json",
+            "interactive",
             "profile",
             "sandbox",
             "skip_git_repo_check",
@@ -138,15 +139,37 @@ class CodexAdapter:
                 raise AdapterError("protected Codex permission option is not allowed")
             raise AdapterError("unsupported Codex adapter option")
 
-        argv: list[str] = [
-            str(executable),
-            "exec",
-            "-C",
-            str(request.workspace),
-            "--ephemeral",
-            "--color",
-            "never",
-        ]
+        interactive = options.pop("interactive", False)
+        if not isinstance(interactive, bool):
+            raise AdapterError("interactive must be a boolean")
+        if interactive and any(
+            key in options for key in ("ignore_rules", "json", "skip_git_repo_check")
+        ):
+            raise AdapterError(
+                "the requested Codex option is only supported in exec mode"
+            )
+
+        if interactive:
+            # Interactive mode inherits the user's terminal.  AIA owns the
+            # process and its Hook environment, while Codex owns the prompt
+            # loop shown to the user.
+            argv: list[str] = [
+                str(executable),
+                "-C",
+                str(request.workspace),
+                "--color",
+                "never",
+            ]
+        else:
+            argv = [
+                str(executable),
+                "exec",
+                "-C",
+                str(request.workspace),
+                "--ephemeral",
+                "--color",
+                "never",
+            ]
         if request.model is not None:
             argv.extend(("--model", request.model))
         self._append_options(argv, options)
@@ -161,14 +184,23 @@ class CodexAdapter:
             )
             if self.allow_hook_trust_bypass:
                 argv.append("--dangerously-bypass-hook-trust")
-        # ``-`` is the documented exec prompt form; the prompt is kept on
-        # stdin instead of being exposed in the process command line.
-        argv.append("-")
+        stdin_bytes = b""
+        if interactive:
+            if request.prompt.strip():
+                raise AdapterError(
+                    "interactive Codex launch cannot receive an initial prompt"
+                )
+        else:
+            # ``-`` is the documented exec prompt form; the prompt is kept on
+            # stdin instead of being exposed in the process command line.
+            argv.append("-")
+            stdin_bytes = request.prompt.encode("utf-8")
         return AgentLaunchSpec(
             adapter=self.name,
             executable=executable,
             argv=tuple(argv),
-            stdin_bytes=request.prompt.encode("utf-8"),
+            stdin_bytes=stdin_bytes,
+            interactive=interactive,
         )
 
     @staticmethod

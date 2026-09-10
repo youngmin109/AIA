@@ -22,6 +22,7 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "policy_profile",
         "custom_policy_path",
         "mode",
+        "interactive",
         "task",
     }
 )
@@ -42,6 +43,7 @@ class CreateRunRequest:
     custom_policy_path: str | None = None
     mode: str = "ENFORCE"
     task: str = ""
+    interactive: bool = False
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "CreateRunRequest":
@@ -70,6 +72,9 @@ class CreateRunRequest:
             raise DTOValidationError("task must be a string")
         if len(task) > 50_000:
             raise DTOValidationError("task is too large")
+        interactive = value.get("interactive", False)
+        if not isinstance(interactive, bool):
+            raise DTOValidationError("interactive must be a boolean")
         return cls(
             workspace=workspace,
             agent=agent,
@@ -78,6 +83,7 @@ class CreateRunRequest:
             custom_policy_path=custom_policy_path,
             mode=mode,
             task=task,
+            interactive=interactive,
         )
 
     def to_mapping(self) -> dict[str, Any]:
@@ -88,5 +94,6 @@ class CreateRunRequest:
             "model": self.model,
             "policy_profile": self.policy_profile,
             "task": self.task,
+            "interactive": self.interactive,
             "workspace": self.workspace,
         }

@@ -98,6 +98,10 @@ class RunApplicationService:
         if not isinstance(request, CreateRunRequest):
             raise ApplicationValidationError("request is invalid")
         workspace = self._validate_workspace(request.workspace)
+        if not request.interactive and not request.task.strip():
+            raise ApplicationValidationError(
+                "task is required for a non-interactive protected run"
+            )
         if request.agent.lower() != "codex":
             raise ApplicationValidationError("only Codex is supported in this console")
         try:
@@ -134,6 +138,7 @@ class RunApplicationService:
             policy_version=resolved.policy_version,
             mode=mode.value,
             task=request.task,
+            interactive=request.interactive,
             created_at=session.created_at,
         )
         record.runtime.update({"request": request, "resolved_policy": resolved, "session": session})
@@ -157,6 +162,7 @@ class RunApplicationService:
             "latest_actions": record.actions[-20:],
             "lease": record.lease,
             "mode": record.mode,
+            "interactive": record.interactive,
             "phase": record.phase,
             "policy": {
                 "id": record.policy_id,
@@ -335,6 +341,11 @@ class RunApplicationService:
                     {"context": context}
                 ),
             )
+            adapter_options: dict[str, Any] = {"sandbox": "workspace-write"}
+            if record.interactive:
+                adapter_options["interactive"] = True
+            else:
+                adapter_options["skip_git_repo_check"] = True
             launch = launcher.launch(
                 ProtectedLaunchRequest(
                     aia_session_id=session.session_id,
@@ -342,10 +353,7 @@ class RunApplicationService:
                     agent="codex",
                     model=record.model,
                     prompt=record.task,
-                    adapter_options={
-                        "sandbox": "workspace-write",
-                        "skip_git_repo_check": True,
-                    },
+                    adapter_options=adapter_options,
                 )
             )
             record.runtime.update(

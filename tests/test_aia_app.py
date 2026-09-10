@@ -41,6 +41,15 @@ def test_create_request_normalizes_mode_and_preserves_explicit_profile() -> None
     assert request.policy_profile == "CONSERVATIVE_SECURITY"
 
 
+def test_create_request_can_explicitly_open_interactive_session() -> None:
+    request = CreateRunRequest.from_mapping(
+        {"workspace": ".", "interactive": True}
+    )
+
+    assert request.interactive is True
+    assert request.task == ""
+
+
 def test_registry_snapshot_excludes_runtime_and_isolated_lists(tmp_path) -> None:
     registry = RunRegistry()
     record = make_record(tmp_path)
@@ -124,6 +133,15 @@ def test_application_rejects_invalid_workspace_before_background_launch(tmp_path
             service.create_protected_run(
                 {"workspace": str(tmp_path / "missing"), "task": "inspect"}
             )
+    finally:
+        service.shutdown()
+
+
+def test_application_rejects_empty_non_interactive_task(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        with pytest.raises(ApplicationValidationError, match="task is required"):
+            service.create_protected_run({"workspace": str(tmp_path), "task": ""})
     finally:
         service.shutdown()
 

@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 import time
 from typing import Sequence
 
@@ -26,7 +27,10 @@ def _parser() -> argparse.ArgumentParser:
         help="run Codex inside an AIA Protected Run",
     )
     protect.add_argument("workspace", type=Path)
-    protect.add_argument("--task", required=True, help="Codex task prompt")
+    protect.add_argument(
+        "--task",
+        help="initial Codex task prompt; omit it to open an interactive protected session",
+    )
     protect.add_argument("--policy", type=Path, help="custom policy JSON path")
     protect.add_argument(
         "--profile",
@@ -61,6 +65,13 @@ def _control_root(value: Path | None) -> Path:
 def _run_protected(args: argparse.Namespace) -> int:
     if args.timeout <= 0:
         raise ApplicationValidationError("timeout must be positive")
+    interactive = args.task is None
+    if interactive and (not sys.stdin.isatty() or not sys.stdout.isatty()):
+        print(
+            "AIA error: interactive protected runs require a terminal; "
+            "provide --task for non-interactive execution"
+        )
+        return 2
     service = RunApplicationService(_control_root(args.control_root))
     try:
         created = service.create_protected_run(
@@ -71,19 +82,30 @@ def _run_protected(args: argparse.Namespace) -> int:
                 "policy_profile": "CUSTOM" if args.policy else args.profile,
                 "custom_policy_path": str(args.policy) if args.policy else None,
                 "mode": args.mode,
-                "task": args.task,
+                "task": args.task or "",
+                "interactive": interactive,
             }
         )
         session_id = created["session_id"]
         print(f"AIA Protected Run: {session_id}")
         print(f"Control Root: {_control_root(args.control_root)}")
+        if interactive:
+            print(
+                "Interactive protected session: Codex will open after readiness; "
+                "enter tasks in the Codex screen and exit Codex to finish."
+            )
         deadline = time.monotonic() + args.timeout
         last_phase: str | None = None
+        interactive_started = False
         while True:
             status = service.get_run_status(session_id)
             phase = str(status.get("phase"))
-            if phase != last_phase:
+            if phase != last_phase and (not interactive or phase != "RUNNING"):
                 print(f"Phase: {phase}")
+                last_phase = phase
+            if interactive and phase == "RUNNING" and not interactive_started:
+                print("Protected Codex session is active.")
+                interactive_started = True
                 last_phase = phase
             if status.get("result_available") or status.get("status") in {
                 "COMPLETED",

@@ -306,6 +306,27 @@ def test_codex_adapter_uses_verified_cli_contract_without_prompt_in_argv(
     assert "--dangerously-bypass-approvals-and-sandbox" not in spec.argv
 
 
+def test_codex_adapter_builds_interactive_terminal_launch_without_prompt(
+    tmp_path: Path,
+) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        adapter_options={"interactive": True, "sandbox": "workspace-write"},
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert spec.interactive is True
+    assert spec.argv[0] == str(sys.executable)
+    assert spec.argv[1] == "-C"
+    assert "exec" not in spec.argv
+    assert "-" not in spec.argv
+    assert spec.stdin_bytes == b""
+
+
 def test_codex_adapter_rejects_permission_bypass_option(tmp_path: Path) -> None:
     adapter = CodexAdapter()
     request = ProtectedLaunchRequest(

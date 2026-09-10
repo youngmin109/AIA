@@ -24,6 +24,7 @@ class RunRecord:
     policy_version: str
     mode: str
     task: str
+    interactive: bool = False
     created_at: datetime = field(default_factory=_now)
     status: str = "CREATED"
     phase: str = "CREATED"
@@ -78,6 +79,7 @@ class RunRegistry:
                 policy_version=record.policy_version,
                 mode=record.mode,
                 task=record.task,
+                interactive=record.interactive,
                 created_at=record.created_at,
                 status=record.status,
                 phase=record.phase,

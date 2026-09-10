@@ -35,6 +35,14 @@ uv run aia-web
 
 ```powershell
 uv run aia hook install
+uv run aia protect C:\workspace\my-project
+```
+
+위 명령은 먼저 AIA Protected Run을 만들고 Workspace, 정책, Lease, Checkpoint, 센서를 준비한 뒤 Codex 대화형 세션을 엽니다. Codex 화면에서 여러 작업을 입력하고 Codex를 종료하면 AIA가 Evidence, Recovery, Integrity, Audit 결과를 확정합니다.
+
+한 번의 작업만 자동으로 실행하려면 다음처럼 초기 작업을 전달할 수 있습니다.
+
+```powershell
 uv run aia protect C:\workspace\my-project --task "작업 내용을 입력"
 ```
 
