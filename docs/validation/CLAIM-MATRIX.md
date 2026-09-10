@@ -15,7 +15,7 @@
 | SHA-256 integrity | 경로·존재·SHA-256 기준의 복원 후 검증을 수행한다 | 공격자에 대한 tamper-proof를 보장한다 |
 | Evidence Bundle | staging·manifest·검증된 Result Bundle을 생성한다 | 서명되었거나 공격자가 수정할 수 없는 저장소라고 주장한다 |
 | Actual Codex | Actual Codex 보호 실행의 정상 종료, Bash/apply_patch/등록된 파일 읽기 MCP PreTool `permissionDecision=deny`, Canary 부작용 없음, Bundle 생성을 검증했다 | Actual Codex의 모든 도구, 등록되지 않은 MCP 도구나 실제 Agent tree kill을 검증했다고 주장한다 |
-| Fail-open limitation | Hook 실패가 계속 실행될 수 있음을 결과와 문서에 남긴다 | 모든 경로가 universally fail-closed하다고 주장한다 |
+| Hook boundary limitation | 보호 실행에 바인딩된 PreToolUse Broker 오류는 Codex blocking exit path로 처리하고, 지원 범위 밖·우회 경로와 PostToolUse 오류의 한계를 결과와 문서에 남긴다 | 모든 도구·모든 경로가 universally fail-closed하다고 주장한다 |
 | PROCESS limitation | PROCESS 증거는 자동 종료하지 않는다고 주장한다 | Agent가 특정 파일을 작성했다고 주장한다 |
 
 `LIMITATION`은 실패를 숨기지 않는 평가 결과다. 제한된 외부 인터페이스가 열리면 별도 평가에서 다시 검증해야 한다.

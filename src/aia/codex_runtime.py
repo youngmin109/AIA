@@ -611,8 +611,13 @@ def send_hook_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
 
     endpoint = os.environ.get("AIA_CODEX_HOOK_ENDPOINT")
     capability = os.environ.get("AIA_CODEX_HOOK_CAPABILITY")
-    if not endpoint or not capability:
+    if not endpoint:
         return {}
+    if not capability:
+        # An endpoint without its per-run capability is a partially bound
+        # Protected Run.  Returning an empty response here would make Codex
+        # continue because an empty exit-0 hook response is successful.
+        raise RuntimeError("AIA Hook Broker capability is missing")
     request = Request(
         endpoint,
         data=json.dumps(dict(payload), ensure_ascii=False).encode("utf-8"),

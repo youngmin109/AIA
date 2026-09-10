@@ -225,7 +225,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
             "PROCESS는 exact file writer 증명이 아닙니다.",
             "post-action 감지는 prevention이 아닙니다.",
             "structured READ interception은 제한됩니다.",
-            "Hook failure 시 보호 수준이 저하될 수 있습니다.",
+            "지원 범위 밖 경로 또는 Hook 우회 시 보호 수준이 저하될 수 있습니다.",
         )
         if item not in limitations
     )

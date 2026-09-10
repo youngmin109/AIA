@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import BytesIO
 import json
 from pathlib import Path
 from types import SimpleNamespace
 from threading import RLock
+import sys
 
 import pytest
 import aia.codex_runtime as codex_runtime
+import aia.codex_hook_runtime as codex_hook_runtime
 
 from aia import (
     ActionTargetKind,
@@ -26,6 +29,81 @@ from aia import (
 
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+class _BinaryStdin(BytesIO):
+    @property
+    def buffer(self):
+        return self
+
+
+def _native_hook_payload(event: str = "PreToolUse") -> dict[str, object]:
+    return {
+        "session_id": "native-1",
+        "turn_id": "turn-1",
+        "tool_use_id": "tool-1",
+        "cwd": "C:/workspace/demo",
+        "tool_name": "Bash",
+        "tool_input": {"command": "echo test"},
+        "hook_event_name": event,
+    }
+
+
+def test_bound_pretool_broker_failure_uses_codex_blocking_exit(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("AIA_CODEX_HOOK_ENDPOINT", "http://127.0.0.1:1/pretool")
+    monkeypatch.setenv("AIA_CODEX_HOOK_CAPABILITY", "capability")
+    monkeypatch.setattr(
+        codex_hook_runtime,
+        "send_hook_payload",
+        lambda payload: (_ for _ in ()).throw(RuntimeError("broker down")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _BinaryStdin(json.dumps(_native_hook_payload()).encode("utf-8")),
+    )
+
+    assert codex_hook_runtime.main() == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "AIA protection unavailable" in captured.err
+
+
+def test_partially_bound_pretool_does_not_fall_through_to_empty_success(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("AIA_CODEX_HOOK_ENDPOINT", "http://127.0.0.1:1/pretool")
+    monkeypatch.delenv("AIA_CODEX_HOOK_CAPABILITY", raising=False)
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _BinaryStdin(json.dumps(_native_hook_payload()).encode("utf-8")),
+    )
+
+    assert codex_hook_runtime.main() == 2
+    assert "capability is missing" in capsys.readouterr().err
+
+
+def test_unbound_hook_failure_remains_neutral(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("AIA_CODEX_HOOK_ENDPOINT", raising=False)
+    monkeypatch.delenv("AIA_CODEX_HOOK_CAPABILITY", raising=False)
+    monkeypatch.setattr(
+        codex_hook_runtime,
+        "send_hook_payload",
+        lambda payload: (_ for _ in ()).throw(RuntimeError("not bound")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _BinaryStdin(json.dumps(_native_hook_payload()).encode("utf-8")),
+    )
+
+    assert codex_hook_runtime.main() == 0
+    assert capsys.readouterr().out == ""
 
 
 def test_codex_hook_broker_round_trip_is_capability_authenticated(
