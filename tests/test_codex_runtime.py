@@ -175,6 +175,7 @@ def test_codex_hook_broker_round_trip_is_capability_authenticated(
     )
     broker.start()
     try:
+        assert broker.is_running is True
         environment = broker.environment
         monkeypatch.setenv("AIA_CODEX_HOOK_ENDPOINT", environment["AIA_CODEX_HOOK_ENDPOINT"])
         monkeypatch.setenv("AIA_CODEX_HOOK_CAPABILITY", environment["AIA_CODEX_HOOK_CAPABILITY"])
@@ -194,6 +195,7 @@ def test_codex_hook_broker_round_trip_is_capability_authenticated(
         assert received == [payload]
     finally:
         broker.stop()
+    assert broker.is_running is False
 
 
 def test_codex_hook_broker_does_not_expose_capability_in_wire_response(

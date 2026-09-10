@@ -554,6 +554,13 @@ class CodexHookBroker:
             "AIA_CONTROL_ROOT": str(self.control_root),
         }
 
+    @property
+    def is_running(self) -> bool:
+        """Whether the per-run HTTP transport is currently serving requests."""
+
+        server, thread = self._server, self._thread
+        return server is not None and thread is not None and thread.is_alive()
+
     def start(self) -> None:
         if self._server is not None:
             raise RuntimeError("Codex Hook Broker is already started")

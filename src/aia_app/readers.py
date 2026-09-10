@@ -106,6 +106,7 @@ class ResultBundleReader:
                 item in {
                     "CODEX_SANDBOX_DOWNGRADED",
                     "CODEX_APPROVAL_POLICY_DOWNGRADED",
+                    "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
                 }
                 for item in result.get("limitations", ())
             )

@@ -205,6 +205,34 @@ def test_live_verified_state_requires_all_sensors_healthy(tmp_path) -> None:
         service.shutdown()
 
 
+def test_live_state_degrades_when_hook_broker_is_not_running(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    record.runtime["codex_controller"] = SimpleNamespace(
+        events=(),
+        errors=(),
+        post_action_containments=(),
+    )
+    record.runtime["sensors"] = (
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY")),
+    )
+    record.runtime["launcher"] = SimpleNamespace(
+        hook_broker=SimpleNamespace(is_running=False),
+    )
+    service.registry.add(record)
+    try:
+        service._refresh_protection_state(record)
+
+        assert record.protection_state == "DEGRADED"
+        assert (
+            service.get_run_status(record.session_id)["protection"]["hook_broker"]
+            == "FAILED"
+        )
+    finally:
+        service.shutdown()
+
+
 def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(tmp_path / "control")
     session_dir = tmp_path / "control" / "sessions" / "session-1"
@@ -232,6 +260,9 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
     try:
         assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_VERIFIED"
         base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
+        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
+        base["sensor_summary"][0]["final_sensor_state"] = "STOPPED"
+        base["limitations"] = ["HOOK_BROKER_RUNTIME_NOT_VERIFIED"]
         assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
     finally:
         service.shutdown()

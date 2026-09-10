@@ -88,6 +88,21 @@ def _sensor_summary_is_verified(sensor_summary: Any) -> bool:
     )
 
 
+def _hook_broker_runtime_healthy(record: RunRecord) -> bool | None:
+    """Return per-run Hook transport health when a launcher is available."""
+
+    launcher = record.runtime.get("launcher")
+    if launcher is None:
+        return None
+    broker = getattr(launcher, "hook_broker", None)
+    if broker is None:
+        return False
+    status = getattr(broker, "is_running", None)
+    if callable(status):
+        status = status()
+    return bool(status)
+
+
 def _runtime_action_view(
     action: Any,
     policy_result: Any,
@@ -463,8 +478,10 @@ class RunApplicationService:
 
     def get_run_status(self, session_id: str) -> dict[str, Any]:
         live_record = self.registry.get(session_id)
+        live_hook_broker_healthy: bool | None = None
         if live_record is not None:
             self._refresh_protection_state(live_record)
+            live_hook_broker_healthy = _hook_broker_runtime_healthy(live_record)
         record = self.registry.snapshot(session_id)
         if record is None:
             try:
@@ -474,6 +491,11 @@ class RunApplicationService:
                 if runtime_state is None:
                     raise
                 return self._status_from_runtime_state(runtime_state)
+        hook_broker_healthy = (
+            live_hook_broker_healthy
+            if live_record is not None
+            else _hook_broker_runtime_healthy(record)
+        )
         incidents = list(record.incidents)
         return {
             "checkpoint": record.checkpoint,
@@ -488,6 +510,13 @@ class RunApplicationService:
             "protection": {
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,
+                "hook_broker": (
+                    "HEALTHY"
+                    if hook_broker_healthy is True
+                    else "FAILED"
+                    if hook_broker_healthy is False
+                    else "NOT_STARTED"
+                ),
             },
             "stop": {
                 "requested": record.stop_requested,
@@ -950,6 +979,10 @@ class RunApplicationService:
             process = launcher.process_handle
             exit_code = self._wait_for_agent(record, process, launcher)
             record.runtime["exit_code"] = exit_code
+            hook_broker_healthy_before_stop = _hook_broker_runtime_healthy(record)
+            record.runtime["hook_broker_runtime_healthy_before_stop"] = (
+                hook_broker_healthy_before_stop
+            )
             launcher.stop_hook_broker()
             self._capture_codex_execution_observation(record, codex_output_handles)
             self._confirm_codex_blocks(record)
@@ -984,6 +1017,8 @@ class RunApplicationService:
                 limitations.append("RECOVERY_NOT_VERIFIED")
             if not _sensors_runtime_healthy(sensors):
                 limitations.append("SENSOR_RUNTIME_NOT_VERIFIED")
+            if hook_broker_healthy_before_stop is not True:
+                limitations.append("HOOK_BROKER_RUNTIME_NOT_VERIFIED")
             final = SessionFinalizer(
                 evidence_store=raw_store,
                 sensors=sensors,
@@ -1036,6 +1071,7 @@ class RunApplicationService:
                     and controller.events
                     and not controller.errors
                     and sensor_verified
+                    and hook_broker_healthy_before_stop is True
                     and not record.runtime.get("codex_sandbox_downgraded")
                     and not record.runtime.get("codex_approval_policy_downgraded")
                     else "ABORTED_DEGRADED"
@@ -1043,6 +1079,7 @@ class RunApplicationService:
                     else "COMPLETED_VERIFIED"
                     if controller.events and not controller.errors
                     and sensor_verified
+                    and hook_broker_healthy_before_stop is True
                     and not record.runtime.get("codex_sandbox_downgraded")
                     and not record.runtime.get("codex_approval_policy_downgraded")
                     else "COMPLETED_DEGRADED"
@@ -1463,9 +1500,10 @@ class RunApplicationService:
         ]
         record.hook_event_count = len(events)
         sensors_healthy = _sensors_runtime_healthy(record.runtime.get("sensors", ()))
-        if controller.errors:
+        hook_broker_healthy = _hook_broker_runtime_healthy(record)
+        if controller.errors or hook_broker_healthy is False:
             record.protection_state = "DEGRADED"
-        elif events and sensors_healthy:
+        elif events and sensors_healthy and hook_broker_healthy is not False:
             record.protection_state = "ACTIVE_VERIFIED"
         elif events:
             record.protection_state = "ACTIVE_DEGRADED"
@@ -1633,6 +1671,7 @@ class RunApplicationService:
             item in {
                 "CODEX_SANDBOX_DOWNGRADED",
                 "CODEX_APPROVAL_POLICY_DOWNGRADED",
+                "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
             }
             for item in result.get("limitations", [])
         )

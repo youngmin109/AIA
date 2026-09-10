@@ -6,8 +6,9 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - 사후 파일시스템 감지는 사전 예방이 아니다.
 - AIA에 연결되지 않은 Hook 우회 경로와 지원 범위 밖 도구는 보호되지 않는다.
   보호 실행에 바인딩된 동기식 PreToolUse Hook은 Broker·Capability 오류 시 Codex의
-  documented blocking exit path를 사용하지만, PostToolUse 오류는 이미 실행된 작업을
-  되돌릴 수 없고 Hook 우회 경로를 OS 수준에서 차단하지 않는다.
+  documented blocking exit path를 사용하고 Broker가 사라진 실행은 검증 상태를
+  유지하지 않지만, PostToolUse 오류는 이미 실행된 작업을 되돌릴 수 없고 Hook 우회
+  경로를 OS 수준에서 차단하지 않는다.
 - 등록된 파일 읽기 MCP 경로의 `.env READ → BLOCKED`는 실제 Codex Protected Launcher
   Canary로 검증했지만, 등록되지 않은 MCP 도구와 모든 구조화 READ 경로를 보편적으로
   보호한다고 주장하지 않는다.
