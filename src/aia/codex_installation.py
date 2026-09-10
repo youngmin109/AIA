@@ -221,6 +221,7 @@ class CodexHookInstaller:
         command = self.command
         return any(
             isinstance(entry, Mapping)
+            and entry.get("matcher") == self._MATCHER
             and any(
                 isinstance(handler, Mapping)
                 and handler.get("type") == "command"
