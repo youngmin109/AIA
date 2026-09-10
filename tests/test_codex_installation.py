@@ -34,3 +34,5 @@ def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
     second = json.loads(path.read_text(encoding="utf-8"))
     assert len(second["hooks"]["PreToolUse"]) == 1
     assert second["hooks"]["PreToolUse"][0]["hooks"][0]["type"] == "command"
+    assert len(second["hooks"]["PostToolUse"]) == 1
+    assert second["hooks"]["PostToolUse"][0]["hooks"][0]["type"] == "command"

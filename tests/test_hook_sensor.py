@@ -346,6 +346,29 @@ def test_hook_sensor_without_command_stores_only_pretool_request(
     release_lease(context, lease_manager)
 
 
+def test_posttool_observation_stores_only_response_digest(
+    tmp_path: Path,
+) -> None:
+    sensor, workspace, session, context, lease_manager = make_sensor(tmp_path)
+    sensor.start()
+    payload = valid_payload(
+        session,
+        workspace,
+        hook_event_name="POST_TOOL_USE",
+        tool_response={"stdout": "SECRET-MARKER", "exit_code": 0},
+    )
+
+    record = sensor.observe_posttool(payload)
+
+    assert record.record_type is EvidenceRecordType.POSTTOOL_OBSERVED
+    assert record.observation_stage is ObservationStage.POST_ACTION
+    assert record.payload["tool_response_observed"] is True
+    assert len(record.payload["tool_response_sha256"]) == 64
+    assert "SECRET-MARKER" not in str(record.payload)
+    sensor.stop()
+    release_lease(context, lease_manager)
+
+
 def test_optional_native_session_and_turn_are_not_generated(
     tmp_path: Path,
 ) -> None:

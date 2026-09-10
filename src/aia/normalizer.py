@@ -290,6 +290,19 @@ class Normalizer:
                         reason="NON_ACTION_SENSOR_EVIDENCE",
                     )
                 )
+            elif record.record_type is EvidenceRecordType.POSTTOOL_OBSERVED:
+                action = None
+                record_issues = ()
+                non_actions.append(
+                    NonActionEvidence(
+                        evidence_id=record.evidence_id,
+                        session_id=record.session_id,
+                        record_type=record.record_type,
+                        source=record.source,
+                        captured_at=record.captured_at,
+                        reason="NON_ACTION_POSTTOOL_CONFIRMATION_EVIDENCE",
+                    )
+                )
             else:
                 action = None
                 record_issues = (

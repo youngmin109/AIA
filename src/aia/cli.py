@@ -152,6 +152,7 @@ def _doctor(args: argparse.Namespace) -> int:
 
     installer = CodexHookInstaller(args.hook_path)
     hook_installed = installer.is_installed()
+    posttool_installed = installer.is_posttool_installed()
     checks.append(
         {
             "name": "codex_hook",
@@ -189,6 +190,16 @@ def _doctor(args: argparse.Namespace) -> int:
         "product": "AIA",
         "checks": checks,
         "ready": all(bool(item["ok"]) for item in checks),
+        "optional_capabilities": {
+            "posttool_observation": {
+                "installed": posttool_installed,
+                "detail": (
+                    "PostToolUse evidence is enabled"
+                    if posttool_installed
+                    else "Run 'aia hook install' to add PostToolUse evidence"
+                ),
+            }
+        },
         "limitations": [
             "Hook trust is reviewed in Codex and cannot be proven by this local preflight command.",
             "The protected scope is Windows 11 + Codex CLI + supported PreToolUse matchers.",
@@ -204,6 +215,10 @@ def _doctor(args: argparse.Namespace) -> int:
             if item["value"]:
                 print(f"      {item['value']}")
         print("[INFO] Codex에서 Hook을 직접 검토하고 신뢰해야 합니다.")
+        print(
+            "[INFO] PostToolUse 관찰: "
+            f"{'설치됨' if posttool_installed else '선택 기능 미설치'}"
+        )
         print("[INFO] AIA는 지원 범위 밖의 실행을 보호 실행으로 주장하지 않습니다.")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1

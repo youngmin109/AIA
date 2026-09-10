@@ -506,7 +506,7 @@ class RunApplicationService:
                     session_id=session.session_id,
                     launch_id=launch_id,
                     control_root=preparation.control_directory,
-                    handler=controller.evaluate,
+                    handler=controller.handle,
                 )
 
             if not CodexHookInstaller().is_installed():

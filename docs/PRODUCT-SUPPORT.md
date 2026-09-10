@@ -9,6 +9,7 @@ Agent: Codex CLI
 실행 방식: AIA Protected Run 안에서 시작한 Codex
 정책 관문: Codex PreToolUse command Hook
 지원 matcher: Bash, apply_patch, Edit, Write
+실행 확인: 선택적 Codex PostToolUse evidence
 Control Root: Workspace 밖의 사용자별 AIA control directory
 ```
 
@@ -20,6 +21,10 @@ uv run aia doctor
 uv run aia policy validate C:\workspace\policies\protected-policy.json
 uv run aia hook install
 ```
+
+`aia hook install`은 정책 관문인 PreToolUse와 실행 확인용 PostToolUse Hook을
+함께 설치한다. 기존 PreToolUse만 설치된 설정도 보호 실행은 계속 사용할 수 있지만,
+PostToolUse가 없으면 실제 도구 실행 여부를 확인하는 증거가 줄어든다.
 
 Codex의 `/hooks` 화면에서 AIA Hook을 직접 검토하고 신뢰한 다음 보호 실행을
 시작한다.

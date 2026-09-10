@@ -35,7 +35,12 @@ class CodexPreToolPayload:
     transcript_path: str | None = None
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "CodexPreToolPayload":
+    def from_mapping(
+        cls,
+        value: Mapping[str, Any],
+        *,
+        expected_event: str = "PreToolUse",
+    ) -> "CodexPreToolPayload":
         if not isinstance(value, Mapping):
             raise CodexHookPayloadError("PreToolUse payload must be an object")
         allowed = {
@@ -56,6 +61,8 @@ class CodexPreToolPayload:
             "aia_launch_id",
             "aia_capability",
         }
+        if expected_event == "PostToolUse":
+            allowed.add("tool_response")
         if set(value) - allowed:
             raise CodexHookPayloadError("unsupported PreToolUse fields")
         required = (
@@ -70,7 +77,7 @@ class CodexPreToolPayload:
         missing = [key for key in required if key not in value]
         if missing:
             raise CodexHookPayloadError("missing native PreToolUse fields")
-        if value["hook_event_name"] != "PreToolUse":
+        if value["hook_event_name"] != expected_event:
             raise CodexHookPayloadError("unsupported hook event")
         text_fields = ("session_id", "turn_id", "tool_use_id", "cwd", "tool_name")
         if any(not isinstance(value[key], str) or not value[key].strip() for key in text_fields):
@@ -114,8 +121,12 @@ class CodexHookAdapter:
         bridge: HookEnforcementBridge,
         session: ProtectedRunSession,
         launch_context: Any | None = None,
+        expected_event: str = "PreToolUse",
     ) -> TrustedHookIngress:
-        native = CodexPreToolPayload.from_mapping(payload)
+        native = CodexPreToolPayload.from_mapping(
+            payload,
+            expected_event=expected_event,
+        )
         return bridge.verify(
             {
                 **native.to_mapping(),
@@ -123,6 +134,7 @@ class CodexHookAdapter:
             },
             session=session,
             launch_context=launch_context,
+            expected_hook_event=expected_event,
         )
 
     @staticmethod

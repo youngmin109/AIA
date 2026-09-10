@@ -20,6 +20,7 @@ class CodexHookInstaller:
     """Manage one explicit user-level Hook entry without changing other hooks."""
 
     _MATCHER = "Bash|apply_patch|Edit|Write"
+    _EVENTS = ("PreToolUse", "PostToolUse")
 
     def __init__(
         self,
@@ -42,8 +43,9 @@ class CodexHookInstaller:
             [self.python_executable, "-m", "aia.codex_hook_runtime"]
         )
 
-    @property
-    def hook_entry(self) -> dict[str, Any]:
+    def hook_entry(self, event: str = "PreToolUse") -> dict[str, Any]:
+        if event not in self._EVENTS:
+            raise CodexHookInstallationError(f"unsupported AIA Hook event: {event}")
         return {
             "matcher": self._MATCHER,
             "hooks": [
@@ -64,32 +66,48 @@ class CodexHookInstaller:
         hooks = document.get("hooks")
         if not isinstance(hooks, Mapping):
             return False
-        entries = hooks.get("PreToolUse")
-        if not isinstance(entries, list):
+        return self._is_event_installed(hooks, "PreToolUse")
+
+    def is_posttool_installed(self) -> bool:
+        """Return whether optional post-tool observation is configured."""
+
+        try:
+            document = self._read()
+        except (OSError, ValueError, TypeError):
             return False
-        command = self.command
-        return any(
-            isinstance(entry, Mapping)
-            and any(
-                isinstance(handler, Mapping)
-                and handler.get("type") == "command"
-                and handler.get("command") == command
-                and handler.get("commandWindows", command) == command
-                for handler in (entry.get("hooks") or ())
-            )
-            for entry in entries
+        hooks = document.get("hooks")
+        return isinstance(hooks, Mapping) and self._is_event_installed(
+            hooks, "PostToolUse"
         )
+
+    def is_fully_installed(self) -> bool:
+        """Return whether both pre-tool enforcement and post-tool evidence exist."""
+
+        return self.is_installed() and self.is_posttool_installed()
 
     def install(self) -> Path:
         document = self._read()
         hooks = document.setdefault("hooks", {})
         if not isinstance(hooks, dict):
             raise CodexHookInstallationError("hooks must be a JSON object")
-        entries = hooks.setdefault("PreToolUse", [])
-        if not isinstance(entries, list):
-            raise CodexHookInstallationError("hooks.PreToolUse must be a JSON array")
-        if not self.is_installed():
-            entries.append(self.hook_entry)
+        for event in self._EVENTS:
+            entries = hooks.setdefault(event, [])
+            if not isinstance(entries, list):
+                raise CodexHookInstallationError(f"hooks.{event} must be a JSON array")
+            command = self.command
+            installed = any(
+                isinstance(entry, Mapping)
+                and any(
+                    isinstance(handler, Mapping)
+                    and handler.get("type") == "command"
+                    and handler.get("command") == command
+                    and handler.get("commandWindows", command) == command
+                    for handler in (entry.get("hooks") or ())
+                )
+                for entry in entries
+            )
+            if not installed:
+                entries.append(self.hook_entry(event))
         self.path.parent.mkdir(parents=True, exist_ok=True)
         encoded = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
         temporary_path: Path | None = None
@@ -117,6 +135,23 @@ class CodexHookInstaller:
                 f"could not install Codex Hook at {self.path}"
             ) from error
         return self.path
+
+    def _is_event_installed(self, hooks: Mapping[str, Any], event: str) -> bool:
+        entries = hooks.get(event)
+        if not isinstance(entries, list):
+            return False
+        command = self.command
+        return any(
+            isinstance(entry, Mapping)
+            and any(
+                isinstance(handler, Mapping)
+                and handler.get("type") == "command"
+                and handler.get("command") == command
+                and handler.get("commandWindows", command) == command
+                for handler in (entry.get("hooks") or ())
+            )
+            for entry in entries
+        )
 
     def _read(self) -> dict[str, Any]:
         if not self.path.exists():

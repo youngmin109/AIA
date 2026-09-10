@@ -211,6 +211,7 @@ class HookEnforcementBridge:
         *,
         session: ProtectedRunSession,
         launch_context: "ProtectedLaunchContext | None" = None,
+        expected_hook_event: str = "PreToolUse",
     ) -> TrustedHookIngress:
         """Verify the official Codex fields plus the AIA bridge envelope."""
 
@@ -232,7 +233,7 @@ class HookEnforcementBridge:
         )
         if any(key not in payload for key in required):
             return TrustedHookIngress(HookTrustStatus.UNVERIFIED, "HOOK_REQUIRED_FIELD_MISSING")
-        if payload.get("hook_event_name") != "PreToolUse":
+        if payload.get("hook_event_name") != expected_hook_event:
             return TrustedHookIngress(HookTrustStatus.UNVERIFIED, "HOOK_EVENT_UNSUPPORTED")
         try:
             native_id = _text(payload["session_id"], field_name="session_id")

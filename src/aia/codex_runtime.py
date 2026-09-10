@@ -190,6 +190,65 @@ class CodexPreToolController:
             self._record_error(f"PRETOOL_EVALUATION_FAILED: {type(error).__name__}: {error}")
             return protected_pretool_deny("PRETOOL_EVALUATION_FAILED")
 
+    def handle(self, native_payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Dispatch the two synchronous tool lifecycle events we observe.
+
+        PreToolUse remains the only event that can return a deny decision.
+        PostToolUse is evidence only; it can prove that a tool ran after a
+        containment decision, but it cannot undo that tool's side effects.
+        """
+
+        if native_payload.get("hook_event_name") == "PostToolUse":
+            return self.observe_posttool(native_payload)
+        return self.evaluate(native_payload)
+
+    def observe_posttool(self, native_payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Record a bounded post-tool observation and fail open only for the
+        already-completed tool call.
+        """
+
+        try:
+            native = CodexHookAdapter.verify_ingress(
+                self._bridge_payload(native_payload),
+                bridge=self.bridge,
+                session=self.session,
+                launch_context=self.launch_context_provider(),
+                expected_event="PostToolUse",
+            )
+        except (CodexHookPayloadError, ValueError) as error:
+            self._record_error(f"INVALID_CODEX_POSTTOOL: {error}")
+            return {}
+
+        if native.status is not HookTrustStatus.VERIFIED:
+            self._record_error(f"CODEX_POSTTOOL_{native.status.value}: {native.reason}")
+            return {}
+
+        try:
+            self.hook_sensor.observe_posttool(
+                self._posttool_sensor_payload(native_payload, native)
+            )
+            if native.tool_use_id:
+                event = next(
+                    (
+                        item
+                        for item in self.events
+                        if item.tool_use_id == native.tool_use_id
+                    ),
+                    None,
+                )
+                if (
+                    event is not None
+                    and event.gate_result.decision.value == "CONTAIN"
+                    and event.gate_result.route.value == "PRETOOL_BLOCK"
+                ):
+                    self.confirm_block(native.tool_use_id, False)
+            return {}
+        except Exception as error:
+            self._record_error(
+                f"POSTTOOL_EVIDENCE_FAILED: {type(error).__name__}: {error}"
+            )
+            return {}
+
     def confirm_block(self, tool_use_id: str, blocked: bool) -> CodexPreToolEvent | None:
         """Attach an externally observed Codex execution confirmation."""
 
@@ -212,6 +271,11 @@ class CodexPreToolController:
                         updated_gate,
                         action=EnforcementAction.NONE,
                         execution_result=EnforcementExecutionResult.FAILED,
+                        failure_reasons=tuple(
+                            dict.fromkeys(
+                                (*updated_gate.failure_reasons, confirmation.reason)
+                            )
+                        ),
                     )
                 updated = replace(
                     event,
@@ -251,6 +315,31 @@ class CodexPreToolController:
             "hook_event_name": "PRE_TOOL_USE",
             "source_metadata": {
                 "adapter": "codex-pretooluse",
+                "channel": "loopback",
+                "provider": "codex",
+                "transport": "http-localhost",
+            },
+            "ingress_status": "VERIFIED",
+            "ingress_verified": True,
+        }
+
+    def _posttool_sensor_payload(
+        self,
+        payload: Mapping[str, Any],
+        ingress: Any,
+    ) -> dict[str, Any]:
+        return {
+            "aia_session_id": self.session.session_id,
+            "agent": self.session.agent,
+            "agent_native_session_id": ingress.agent_native_session_id,
+            "turn_id": ingress.turn_id,
+            "tool_use_id": ingress.tool_use_id,
+            "tool_name": ingress.tool_name,
+            "tool_input": payload.get("tool_input", {}),
+            "tool_response": payload.get("tool_response"),
+            "hook_event_name": "POST_TOOL_USE",
+            "source_metadata": {
+                "adapter": "codex-posttooluse",
                 "channel": "loopback",
                 "provider": "codex",
                 "transport": "http-localhost",

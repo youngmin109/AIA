@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 from threading import RLock
@@ -66,6 +67,7 @@ class HookEvidenceStoreError(SensorError):
 
 
 _SUPPORTED_EVENT = "PRE_TOOL_USE"
+_SUPPORTED_POST_EVENT = "POST_TOOL_USE"
 _MAX_PAYLOAD_BYTES = 64 * 1024
 _ALLOWED_TOP_LEVEL_KEYS = frozenset(
     {
@@ -260,6 +262,7 @@ class ValidatedHookRequest:
     hook_event_name: str
     source_metadata: Mapping[str, str | int | float | bool]
     ingress_verified: bool = False
+    tool_response_sha256: str | None = None
 
     def to_pretool_payload(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -280,6 +283,26 @@ class ValidatedHookRequest:
             result["turn_id"] = self.turn_id
         return result
 
+    def to_posttool_payload(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "agent": self.agent,
+            "aia_session_id": self.aia_session_id,
+            "hook_event_name": self.hook_event_name,
+            "ingress_status": "VERIFIED" if self.ingress_verified else "UNVERIFIED",
+            "ingress_verified": self.ingress_verified,
+            "source_metadata": dict(self.source_metadata),
+            "tool_name": self.tool_name,
+            "tool_response_observed": self.tool_response_sha256 is not None,
+            "tool_use_id": self.tool_use_id,
+        }
+        if self.tool_response_sha256 is not None:
+            result["tool_response_sha256"] = self.tool_response_sha256
+        if self.agent_native_session_id is not None:
+            result["agent_native_session_id"] = self.agent_native_session_id
+        if self.turn_id is not None:
+            result["turn_id"] = self.turn_id
+        return result
+
 
 def validate_hook_input(
     payload: Mapping[str, Any] | str | bytes,
@@ -287,11 +310,16 @@ def validate_hook_input(
     expected_session_id: str,
     expected_agent: str,
     max_payload_bytes: int = _MAX_PAYLOAD_BYTES,
+    expected_event: str = _SUPPORTED_EVENT,
+    include_tool_response: bool = False,
 ) -> ValidatedHookRequest:
     """Validate the product Hook boundary without interpreting tool semantics."""
 
     value = _decode_payload(payload, max_payload_bytes=max_payload_bytes)
-    unknown_keys = set(value) - _ALLOWED_TOP_LEVEL_KEYS
+    allowed_keys = _ALLOWED_TOP_LEVEL_KEYS | (
+        frozenset({"tool_response"}) if include_tool_response else frozenset()
+    )
+    unknown_keys = set(value) - allowed_keys
     if unknown_keys:
         raise HookInputError(
             f"unsupported Hook fields: {', '.join(sorted(map(str, unknown_keys)))}"
@@ -314,7 +342,7 @@ def validate_hook_input(
         value["hook_event_name"],
         field_name="hook_event_name",
     )
-    if event_name != _SUPPORTED_EVENT:
+    if event_name != expected_event:
         raise UnsupportedHookEventError(
             f"unsupported Hook event: {event_name}"
         )
@@ -339,6 +367,18 @@ def validate_hook_input(
         raise HookInputError("ingress_status must be VERIFIED or UNVERIFIED")
     if ingress_status == "VERIFIED" and not ingress_verified:
         raise HookInputError("VERIFIED ingress_status requires ingress_verified=true")
+    tool_response_sha256 = None
+    if include_tool_response and "tool_response" in value:
+        try:
+            encoded_response = json.dumps(
+                value["tool_response"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except (TypeError, ValueError) as error:
+            raise HookInputError("tool_response must be JSON serializable") from error
+        tool_response_sha256 = hashlib.sha256(encoded_response).hexdigest()
     return ValidatedHookRequest(
         aia_session_id=aia_session_id,
         agent=agent,
@@ -351,6 +391,7 @@ def validate_hook_input(
         hook_event_name=event_name,
         source_metadata=source_metadata,
         ingress_verified=ingress_verified,
+        tool_response_sha256=tool_response_sha256,
     )
 
 
@@ -374,7 +415,7 @@ class HookSensorContext:
 
 
 class HookSensor:
-    """Collect validated PreTool and Command Raw Evidence only."""
+    """Collect validated Hook, Command, and post-tool confirmation evidence."""
 
     def __init__(
         self,
@@ -575,6 +616,40 @@ class HookSensor:
                 raise HookEvidenceStoreError(
                     "Hook Raw Evidence could not be appended"
                 ) from error
+
+    def observe_posttool(
+        self,
+        payload: Mapping[str, Any] | str | bytes,
+    ) -> RawEvidenceRecord:
+        """Append bounded post-tool metadata without storing tool output."""
+
+        with self._lock:
+            if self._status is not SensorStatus.HEALTHY:
+                raise HookNotHealthyError("Agent Hook Sensor is not HEALTHY")
+            request = validate_hook_input(
+                payload,
+                expected_session_id=self.session.session_id,
+                expected_agent=self.session.agent,
+                max_payload_bytes=self.max_payload_bytes,
+                expected_event=_SUPPORTED_POST_EVENT,
+                include_tool_response=True,
+            )
+            record = RawEvidenceRecord(
+                session_id=self.session.session_id,
+                source=EvidenceSource.AGENT_HOOK,
+                record_type=EvidenceRecordType.POSTTOOL_OBSERVED,
+                captured_at=_now_utc(),
+                observation_stage=ObservationStage.POST_ACTION,
+                payload=request.to_posttool_payload(),
+            )
+            try:
+                self.evidence_store.append(record)
+            except EvidenceStoreError as error:
+                self._set_failed("EVIDENCE_STORE_FAILURE", append=True)
+                raise HookEvidenceStoreError(
+                    "PostTool Raw Evidence could not be appended"
+                ) from error
+            return record
 
     record = observe
     ingest = observe

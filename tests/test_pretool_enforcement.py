@@ -61,6 +61,32 @@ def test_trusted_bridge_verifies_session_launch_capability_and_native_id(tmp_pat
     assert "secret" not in repr(trusted).casefold()
 
 
+def test_trusted_bridge_accepts_posttool_event_with_same_session_binding(tmp_path: Path):
+    value, _ = _gate_input(tmp_path)
+    bridge = HookEnforcementBridge()
+    bridge.prepare(
+        aia_session_id=value.session.session_id,
+        launch_id="launch-1",
+        workspace=value.session.workspace,
+        control_directory=tmp_path / "control-root",
+    )
+    payload = _bridge_payload(bridge, value)
+    payload.update(
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_response": {"exit_code": 0, "stdout": "secret"},
+        }
+    )
+    trusted = CodexHookAdapter.verify_ingress(
+        payload,
+        bridge=bridge,
+        session=value.session,
+        launch_context=value.launch_context,
+        expected_event="PostToolUse",
+    )
+    assert trusted.status is HookTrustStatus.VERIFIED
+
+
 def test_arbitrary_payload_is_not_trusted(tmp_path: Path):
     value, _ = _gate_input(tmp_path)
     bridge = HookEnforcementBridge()
@@ -199,6 +225,15 @@ def test_codex_native_pretool_schema_and_deny_wire_are_explicit():
     }
     parsed = CodexPreToolPayload.from_mapping(payload)
     assert parsed.tool_use_id == "tool"
+    posttool = CodexPreToolPayload.from_mapping(
+        payload
+        | {
+            "hook_event_name": "PostToolUse",
+            "tool_response": {"exit_code": 0},
+        },
+        expected_event="PostToolUse",
+    )
+    assert posttool.hook_event_name == "PostToolUse"
     with pytest.raises(CodexHookPayloadError):
         CodexPreToolPayload.from_mapping(payload | {"unknown": True})
     assert CodexHookAdapter.is_actual_pretool_deny(

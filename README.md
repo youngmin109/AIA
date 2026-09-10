@@ -99,8 +99,9 @@ uv run aia stop <SESSION_ID>
 Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 사전 차단 증명은 [docs/ACTUAL-CODEX-PROOF.md](docs/ACTUAL-CODEX-PROOF.md)를 참고한다.
 
 현재 제품이 보장하는 보호 경계는 Windows 11, Codex CLI, AIA Protected Run,
-그리고 지원되는 `PreToolUse` matcher입니다. Hook이 끊기거나 지원되지 않는 도구를
-사용한 실행은 완전한 보호 실행으로 표시하지 않습니다. Actual Codex 전체 도구와
+그리고 지원되는 `PreToolUse` matcher입니다. `PostToolUse`는 실행 결과 확인을
+위한 선택적 증거 경로이며 사후에 이미 발생한 부작용을 되돌리지 않습니다. Hook이
+끊기거나 지원되지 않는 도구를 사용한 실행은 완전한 보호 실행으로 표시하지 않습니다. Actual Codex 전체 도구와
 OS 전체 Writer를 보호한다고 주장하지 않으며, 제한사항은 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)에 고정되어 있습니다.
 
 제품 CLI 전체 경계를 disposable Workspace에서 다시 확인하려면 다음 opt-in smoke를
