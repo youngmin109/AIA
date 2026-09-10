@@ -26,10 +26,11 @@
   <tbody id="actions"><tr><td colspan="6" class="empty">실행 증거를 기다리는 중입니다…</td></tr></tbody></table></div>
 </section>
 
-<div class="page-actions"><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a><a class="text-link" href="/">새 보호 실행</a></div>
+<div class="page-actions"><button class="button danger" id="stop-run" type="button">보호 실행 중지</button><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a><a class="text-link" href="/">새 보호 실행</a></div>
 <script>
 const sessionId = {{ session_id|tojson }};
 const actionsEl = document.getElementById('actions');
+const stopButton = document.getElementById('stop-run');
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
 const actionTarget = (item) => { const target = item.target || {}; return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || '—'; };
@@ -55,7 +56,9 @@ async function poll() {
       'READY_UNVERIFIED': 'Codex가 아직 시작되지 않았거나, Hook 이벤트가 아직 확인되지 않았습니다.',
       'ACTIVE_UNVERIFIED': 'Codex는 실행 중이지만 아직 검증된 Hook 이벤트가 없습니다. 보호 상태를 확인하세요.',
       'DEGRADED': '보호 경계에서 오류가 발생했습니다. 해당 실행은 완전한 보호 실행으로 주장하지 않습니다.',
-      'COMPLETED_DEGRADED': '실행은 끝났지만 보호 경계에 오류가 있어 결과를 제한적으로 해석해야 합니다.'
+      'COMPLETED_DEGRADED': '실행은 끝났지만 보호 경계에 오류가 있어 결과를 제한적으로 해석해야 합니다.',
+      'ABORTED_DEGRADED': '사용자 중지 요청은 처리됐지만 보호 상태를 완전히 검증하지 못했습니다.',
+      'ABORTED_BEFORE_LAUNCH': 'Agent를 실행하기 전에 사용자가 보호 실행을 취소했습니다.'
     };
     protectionNote.textContent = notes[protection.state] || '';
     protectionNote.hidden = !notes[protection.state];
@@ -65,8 +68,25 @@ async function poll() {
     errorBox.hidden = !status.error;
     renderActions(actions.actions || []);
     document.getElementById('result-link').hidden = !status.result_available;
+    const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session.status);
+    stopButton.hidden = terminal || Boolean(status.stop?.requested);
+    stopButton.disabled = Boolean(status.stop?.requested);
+    if (status.stop?.requested && !protectionNote.textContent) {
+      protectionNote.textContent = '사용자 중지 요청을 처리하는 중입니다.';
+      protectionNote.hidden = false;
+    }
   } catch (error) { document.getElementById('sensor-health').textContent = `상태 조회 실패: ${error.message}`; }
 }
+stopButton.addEventListener('click', async () => {
+  stopButton.disabled = true;
+  const response = await fetch(`/api/runs/${sessionId}/stop`, {method: 'POST'});
+  const payload = await response.json();
+  if (!response.ok) {
+    stopButton.disabled = false;
+    document.getElementById('error-box').textContent = payload.reason || payload.error || '중지 요청을 처리하지 못했습니다.';
+    document.getElementById('error-box').hidden = false;
+  }
+});
 poll();
 setInterval(poll, 1000);
 </script>

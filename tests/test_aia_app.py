@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
+from uuid import uuid4
 
 import pytest
 
@@ -184,6 +186,59 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         assert created["redirect_url"].endswith(created["session_id"])
         status = service.get_run_status(created["session_id"])
         assert status["protection"]["state"] == "STARTING"
+    finally:
+        service.shutdown()
+
+
+def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "READY"
+    service.registry.add(record)
+    try:
+        result = service.request_stop(record.session_id)
+        assert result["accepted"] is True
+        assert result["status"] == "STOP_REQUESTED"
+        status = service.get_run_status(record.session_id)
+        assert status["stop"]["requested"] is True
+    finally:
+        service.shutdown()
+
+
+def test_request_stop_reports_persisted_terminal_run(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        session_id = "persisted-session"
+        monkeypatch.setattr(
+            service.reader,
+            "read_result",
+            lambda requested: {"session_status": "COMPLETED"}
+            if requested == session_id
+            else {},
+        )
+        result = service.request_stop(session_id)
+        assert result["accepted"] is False
+        assert result["status"] == "COMPLETED"
+        assert result["reason"] == "RUN_ALREADY_TERMINAL"
+    finally:
+        service.shutdown()
+
+
+def test_request_stop_persists_cross_process_user_abort_request(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    session_id = str(uuid4())
+    monkeypatch.setattr(
+        service.reader,
+        "read_result",
+        lambda requested: (_ for _ in ()).throw(ValueError("not completed")),
+    )
+    try:
+        result = service.request_stop(session_id)
+        assert result["accepted"] is True
+        assert result["reason"] == "STOP_REQUEST_STORED"
+        request_path = tmp_path / "control" / "stop-requests" / f"{session_id}.json"
+        assert request_path.is_file()
+        assert json.loads(request_path.read_text(encoding="utf-8"))["reason"] == "USER_ABORT"
     finally:
         service.shutdown()
 

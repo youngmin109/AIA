@@ -42,3 +42,11 @@ def test_runs_and_status_parsers_keep_inspection_arguments() -> None:
     assert runs.limit == 5
     assert status.command == "status"
     assert status.session_id == "session-1"
+
+
+def test_stop_parser_keeps_session_id_and_control_root() -> None:
+    args = _parser().parse_args(["stop", "session-1", "--json"])
+
+    assert args.command == "stop"
+    assert args.session_id == "session-1"
+    assert args.json is True

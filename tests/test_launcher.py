@@ -105,6 +105,23 @@ def test_deterministic_python_protected_launch_reaches_running(
         cleanup_running_launcher(values, launcher)
 
 
+def test_user_abort_terminates_only_the_verified_launched_root(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+    launcher = make_ready_launcher(values)
+    result = launcher.launch(launch_request(values))
+
+    try:
+        assert result.status is LaunchStatus.RUNNING
+        assert launcher.request_user_abort() is True
+        assert launcher.process_handle is not None
+        assert launcher.process_handle.poll() is not None
+        assert values["session"].status is SessionStatus.RUNNING
+    finally:
+        cleanup_running_launcher(values, launcher)
+
+
 def test_prompt_is_dispatched_only_after_running_and_hook_bridge_ready(
     readiness_inputs: dict,
 ) -> None:

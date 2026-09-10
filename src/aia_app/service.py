@@ -5,8 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import os
+import json
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+from uuid import UUID
 
 from aia import (
     AttributionEngine,
@@ -191,6 +194,10 @@ class RunApplicationService:
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,
             },
+            "stop": {
+                "requested": record.stop_requested,
+                "error": record.stop_error,
+            },
             "policy": {
                 "id": record.policy_id,
                 "profile": record.policy_profile,
@@ -206,6 +213,77 @@ class RunApplicationService:
                 "status": record.status,
                 "workspace": str(record.workspace),
             },
+        }
+
+    def request_stop(self, session_id: str) -> dict[str, Any]:
+        """Request a user-initiated stop for one live Protected Run.
+
+        The launcher performs identity-safe tree termination.  This method
+        records the request and never turns a failed stop into a success claim.
+        """
+
+        record = self.registry.get(session_id)
+        if record is None:
+            try:
+                result = self.reader.read_result(session_id)
+            except (KeyError, OSError, ValueError):
+                try:
+                    self._write_stop_request(session_id)
+                except (OSError, ValueError):
+                    raise KeyError(session_id) from None
+                return {
+                    "accepted": True,
+                    "session_id": session_id,
+                    "status": "STOP_REQUESTED",
+                    "reason": "STOP_REQUEST_STORED",
+                }
+            return {
+                "accepted": False,
+                "session_id": session_id,
+                "status": result.get("session_status", "UNKNOWN"),
+                "reason": "RUN_ALREADY_TERMINAL",
+            }
+        if record.status in {"COMPLETED", "ABORTED", "FAILED"}:
+            return {
+                "accepted": False,
+                "session_id": session_id,
+                "status": record.status,
+                "reason": "RUN_ALREADY_TERMINAL",
+            }
+        record.stop_requested = True
+        try:
+            self._write_stop_request(session_id)
+        except (OSError, ValueError) as error:
+            record.stop_error = f"STOP_REQUEST_PERSIST_FAILED: {type(error).__name__}"
+        launcher = record.runtime.get("launcher")
+        if launcher is None or getattr(getattr(launcher, "status", None), "value", None) != "RUNNING":
+            record.protection_state = "STOP_REQUESTED"
+            return {
+                "accepted": True,
+                "session_id": session_id,
+                "status": "STOP_REQUESTED",
+                "reason": "STOP_WILL_BE_APPLIED_BEFORE_AGENT_LAUNCH",
+            }
+        try:
+            stopped = bool(launcher.request_user_abort())
+        except Exception as error:
+            stopped = False
+            record.stop_error = f"{type(error).__name__}: {error}"
+        if not stopped:
+            record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
+            record.protection_state = "DEGRADED"
+            return {
+                "accepted": False,
+                "session_id": session_id,
+                "status": record.status,
+                "reason": record.stop_error,
+            }
+        record.protection_state = "STOP_REQUESTED"
+        return {
+            "accepted": True,
+            "session_id": session_id,
+            "status": "STOP_REQUESTED",
+            "reason": "USER_ABORT_REQUESTED",
         }
 
     def get_run_actions(self, session_id: str) -> list[dict[str, Any]]:
@@ -351,6 +429,18 @@ class RunApplicationService:
             ).evaluate()
             if readiness.readiness_context is None:
                 raise RuntimeError("readiness barrier failed")
+            if record.stop_requested:
+                self._finalize_user_abort_before_launch(
+                    record,
+                    session,
+                    preparation,
+                    checkpoint,
+                    sensors,
+                    manager,
+                    lease,
+                )
+                finalization_done = True
+                return
             self._phase(record, "READY", SessionStatus.READY)
             record.protection_state = "READY_UNVERIFIED"
 
@@ -404,6 +494,18 @@ class RunApplicationService:
                 adapter_options["interactive"] = True
             else:
                 adapter_options["skip_git_repo_check"] = True
+            if record.stop_requested:
+                self._finalize_user_abort_before_launch(
+                    record,
+                    session,
+                    preparation,
+                    checkpoint,
+                    sensors,
+                    manager,
+                    lease,
+                )
+                finalization_done = True
+                return
             launch = launcher.launch(
                 ProtectedLaunchRequest(
                     aia_session_id=session.session_id,
@@ -417,6 +519,21 @@ class RunApplicationService:
             record.runtime.update(
                 {"launcher": launcher, "launch": launch, "codex_controller": controller}
             )
+            if record.stop_requested:
+                if launch.context is None:
+                    self._finalize_user_abort_before_launch(
+                        record,
+                        session,
+                        preparation,
+                        checkpoint,
+                        sensors,
+                        manager,
+                        lease,
+                    )
+                    finalization_done = True
+                    return
+                if not launcher.request_user_abort():
+                    record.stop_error = "USER_ABORT_TERMINATION_UNCONFIRMED"
             if launch.context is None or launch.status.value != "RUNNING":
                 raise RuntimeError(launch.failure_code or "Codex launch failed")
             process_sensor = launcher.process_sensor
@@ -425,12 +542,22 @@ class RunApplicationService:
             self._phase(record, "RUNNING", SessionStatus.RUNNING)
             record.protection_state = "ACTIVE_UNVERIFIED"
             process = launcher.process_handle
-            exit_code = process.wait(timeout=3600)
+            exit_code = self._wait_for_agent(record, process, launcher)
             record.runtime["exit_code"] = exit_code
             launcher.stop_hook_broker()
             self._process_evidence(record)
             raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
             process_identity = launch.context.root_process_identity
+            end_reason = (
+                SessionEndReason.USER_ABORT
+                if record.stop_requested
+                else SessionEndReason.AGENT_EXITED
+            )
+            limitations = (
+                ("USER_ABORT_TERMINATION_UNCONFIRMED",)
+                if record.stop_error
+                else ()
+            )
             final = SessionFinalizer(
                 evidence_store=raw_store,
                 sensors=sensors,
@@ -438,7 +565,7 @@ class RunApplicationService:
                 workspace_lease=lease,
             ).finalize(
                 session,
-                end_reason=SessionEndReason.AGENT_EXITED,
+                end_reason=end_reason,
                 process_identity=process_identity,
                 process_end_status=ProcessIdentityStatus.PROCESS_GONE,
                 actions=record.runtime.get("normalized_actions", ()),
@@ -452,6 +579,7 @@ class RunApplicationService:
                 agent_exit_code=exit_code,
                 agent_end_observed_at=_now(),
                 agent_end_verification="PROCESS_GONE",
+                limitations=limitations,
             )
             finalization_done = True
             result_mapping = final.result.to_mapping()
@@ -466,7 +594,14 @@ class RunApplicationService:
                 result=result_mapping,
                 bundle_status=verification.status.value,
                 protection_state=(
-                    "COMPLETED_VERIFIED"
+                    "ABORTED_VERIFIED"
+                    if final.result.session_status is SessionStatus.ABORTED
+                    and not record.stop_error
+                    and controller.events
+                    and not controller.errors
+                    else "ABORTED_DEGRADED"
+                    if final.result.session_status is SessionStatus.ABORTED
+                    else "COMPLETED_VERIFIED"
                     if controller.events and not controller.errors
                     else "COMPLETED_DEGRADED"
                 ),
@@ -498,6 +633,104 @@ class RunApplicationService:
                         manager.release(lease)
                     except Exception:
                         pass
+
+    def _finalize_user_abort_before_launch(
+        self,
+        record: RunRecord,
+        session: ProtectedRunSession,
+        preparation: Any,
+        checkpoint: Any,
+        sensors: tuple[Any, ...],
+        manager: WorkspaceLeaseManager,
+        lease: Any,
+    ) -> None:
+        raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
+        final = SessionFinalizer(
+            evidence_store=raw_store,
+            sensors=sensors,
+            lease_manager=manager,
+            workspace_lease=lease,
+        ).finalize(
+            session,
+            end_reason=SessionEndReason.USER_ABORT,
+            active_policy=preparation.active_policy,
+            checkpoint=checkpoint,
+            run_classification="PRODUCT_PROTECTED_RUN",
+            limitations=("AGENT_NOT_LAUNCHED",),
+        )
+        verification = final.bundle_verification
+        self.registry.update(
+            record.session_id,
+            status=final.result.session_status.value,
+            phase=final.result.session_status.value,
+            lease="RELEASED",
+            result_path=final.bundle.result_directory / "result.json",
+            result=final.result.to_mapping(),
+            bundle_status=verification.status.value,
+            protection_state="ABORTED_BEFORE_LAUNCH",
+        )
+
+    def _wait_for_agent(
+        self,
+        record: RunRecord,
+        process: Any,
+        launcher: ProtectedLauncher,
+    ) -> int:
+        while True:
+            try:
+                return int(process.wait(timeout=0.5))
+            except subprocess.TimeoutExpired:
+                if not self._is_stop_requested(record):
+                    continue
+                if record.runtime.get("stop_action_attempted"):
+                    continue
+                record.runtime["stop_action_attempted"] = True
+                record.protection_state = "STOP_REQUESTED"
+                if not launcher.request_user_abort():
+                    record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
+                    record.protection_state = "DEGRADED"
+
+    def _is_stop_requested(self, record: RunRecord) -> bool:
+        if record.stop_requested:
+            return True
+        try:
+            requested = self._stop_request_path(record.session_id).is_file()
+        except (OSError, ValueError):
+            requested = False
+        if requested:
+            record.stop_requested = True
+        return requested
+
+    def _write_stop_request(self, session_id: str) -> Path:
+        path = self._stop_request_path(session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "requested_at": _now().isoformat(),
+                    "reason": "USER_ABORT",
+                },
+                ensure_ascii=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+        return path
+
+    def _stop_request_path(self, session_id: str) -> Path:
+        try:
+            UUID(session_id)
+        except (ValueError, AttributeError, TypeError) as error:
+            raise ValueError("invalid session_id") from error
+        requests = (self.control_root / "stop-requests").resolve(strict=False)
+        requests.mkdir(parents=True, exist_ok=True)
+        candidate = (requests / f"{session_id}.json").resolve(strict=False)
+        if not candidate.is_relative_to(requests):
+            raise ValueError("stop request path escaped control root")
+        return candidate
 
     def _process_evidence(self, record: RunRecord) -> None:
         session: ProtectedRunSession = record.runtime["session"]
@@ -623,6 +856,28 @@ class RunApplicationService:
     def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
         result = self.reader.read_result(session_id)
         view = result_view(result, self.reader.verification(session_id).status.value)
+        hook_events = self.reader.hook_event_count(session_id)
+        sensor_failed = any(
+            item.get("runtime_health_before_stop") == "FAILED"
+            for item in result.get("sensor_summary", [])
+            if isinstance(item, dict)
+        )
+        aborted = (
+            result.get("session_status") == "ABORTED"
+            and result.get("session_end_reason") == "USER_ABORT"
+        )
+        if aborted:
+            protection_state = (
+                "ABORTED_VERIFIED"
+                if hook_events and not sensor_failed
+                else "ABORTED_DEGRADED"
+            )
+        else:
+            protection_state = (
+                "COMPLETED_VERIFIED"
+                if hook_events and not sensor_failed
+                else "COMPLETED_DEGRADED"
+            )
         return {
             "checkpoint": "UNKNOWN",
             "error": None,
@@ -633,18 +888,10 @@ class RunApplicationService:
             "phase": view["session_status"],
             "result_path": str(self.result_directory_for(session_id)),
             "protection": {
-                "state": (
-                    "COMPLETED_VERIFIED"
-                    if self.reader.hook_event_count(session_id) > 0
-                    and not any(
-                        item.get("runtime_health_before_stop") == "FAILED"
-                        for item in result.get("sensor_summary", [])
-                        if isinstance(item, dict)
-                    )
-                    else "COMPLETED_DEGRADED"
-                ),
-                "hook_events": self.reader.hook_event_count(session_id),
+                "state": protection_state,
+                "hook_events": hook_events,
             },
+            "stop": {"requested": aborted, "error": None},
             "policy": view["policy"],
             "result_available": True,
             "sensor_health": {

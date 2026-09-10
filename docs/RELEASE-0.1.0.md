@@ -26,6 +26,7 @@
 - `VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED/SUCCEEDED` 결과 기록
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분
+- 실행 중 사용자 중지 요청과 `USER_ABORT` 결과 기록
 
 실제 실행 증명 방법은 [ACTUAL-CODEX-PROOF.md](ACTUAL-CODEX-PROOF.md)에 있다. 자동화 증명 산출물은 `evaluation/actual-codex/pretool-block/<timestamp>/`에 생성한다.
 
@@ -60,6 +61,7 @@ uv run aia-web
 - 지원 범위 밖 MCP·Hosted tool·외부 Agent·사용자 수동 실행
 - Hook 장애가 발생한 모든 경로의 OS 수준 fail-closed 보장
 - 대규모 Workspace 성능 SLA
+- 사용자 중지 요청이 실패한 경우의 자동 복구 보장
 
 이 항목을 통과하기 전에는 AIA를 해당 범위까지 보호한다고 광고하지 않는다. 자세한 금지 주장은 [LIMITATIONS.md](LIMITATIONS.md)와 [CLAIM-MATRIX.md](validation/CLAIM-MATRIX.md)를 따른다.
 

@@ -54,6 +54,13 @@ def _parser() -> argparse.ArgumentParser:
     status.add_argument("session_id")
     status.add_argument("--json", action="store_true", help="print machine-readable output")
     status.add_argument("--control-root", type=Path, help="AIA control root")
+    stop = commands.add_parser(
+        "stop",
+        help="request a safe user abort for one running Protected Run",
+    )
+    stop.add_argument("session_id")
+    stop.add_argument("--json", action="store_true", help="print machine-readable output")
+    stop.add_argument("--control-root", type=Path, help="AIA control root")
     policy = commands.add_parser("policy", help="validate and inspect a policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     validate = policy_commands.add_parser(
@@ -324,6 +331,31 @@ def _show_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _stop_run(args: argparse.Namespace) -> int:
+    service = RunApplicationService(_control_root(args.control_root))
+    try:
+        try:
+            result = service.request_stop(args.session_id)
+        except KeyError:
+            result = {
+                "accepted": False,
+                "session_id": args.session_id,
+                "status": "NOT_FOUND",
+                "reason": "RUN_NOT_FOUND",
+            }
+    finally:
+        service.shutdown()
+    if args.json:
+        print(_json_text(result))
+    else:
+        state = "접수됨" if result.get("accepted") else "실패"
+        print(f"보호 실행 중지 요청: {state}")
+        print(f"Session: {result.get('session_id', args.session_id)}")
+        print(f"상태: {result.get('status', 'UNKNOWN')}")
+        print(f"사유: {result.get('reason', '-')}")
+    return 0 if result.get("accepted") else 1
+
+
 def _run_protected(args: argparse.Namespace) -> int:
     if args.timeout <= 0:
         raise ApplicationValidationError("timeout must be positive")
@@ -415,6 +447,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _list_runs(args)
         if args.command == "status":
             return _show_status(args)
+        if args.command == "stop":
+            return _stop_run(args)
         if args.command == "policy" and args.policy_command == "validate":
             return _validate_policy(args)
         if args.command == "hook" and args.hook_command == "install":

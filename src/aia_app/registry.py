@@ -29,6 +29,8 @@ class RunRecord:
     status: str = "CREATED"
     phase: str = "CREATED"
     protection_state: str = "STARTING"
+    stop_requested: bool = False
+    stop_error: str | None = None
     hook_event_count: int = 0
     error: str | None = None
     result_path: Path | None = None
@@ -94,6 +96,8 @@ class RunRegistry:
             status=record.status,
             phase=record.phase,
             protection_state=record.protection_state,
+            stop_requested=record.stop_requested,
+            stop_error=record.stop_error,
             hook_event_count=record.hook_event_count,
             error=record.error,
             result_path=record.result_path,

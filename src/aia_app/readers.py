@@ -99,6 +99,8 @@ class ResultBundleReader:
             if verification is None:
                 continue
             hook_event_count = self.hook_event_count(candidate.name)
+            session_status = result.get("session_status")
+            session_end_reason = result.get("session_end_reason")
             completed.append(
                 {
                     "session_id": candidate.name,
@@ -111,7 +113,16 @@ class ResultBundleReader:
                     "run_classification": result.get("run_classification"),
                     "bundle_status": verification.status.value,
                     "protection_state": (
-                        "COMPLETED_VERIFIED" if hook_event_count else "COMPLETED_DEGRADED"
+                        "ABORTED_VERIFIED"
+                        if session_status == "ABORTED"
+                        and session_end_reason == "USER_ABORT"
+                        and hook_event_count
+                        else "ABORTED_DEGRADED"
+                        if session_status == "ABORTED"
+                        and session_end_reason == "USER_ABORT"
+                        else "COMPLETED_VERIFIED"
+                        if hook_event_count
+                        else "COMPLETED_DEGRADED"
                     ),
                     "hook_event_count": hook_event_count,
                     "incident_count": sum(

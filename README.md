@@ -84,11 +84,13 @@ uv run aia protect C:\workspace\my-project --task "작업 내용을 입력"
 uv run aia runs
 uv run aia status <SESSION_ID>
 uv run aia status <SESSION_ID> --json
+uv run aia stop <SESSION_ID>
 ```
 
 `COMPLETED_VERIFIED`는 실제 Hook Event와 검증된 Result Bundle이 확인된 실행이고,
 `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계가 완전히 검증되지 않은 실행입니다.
 후자는 성공한 보호 실행으로 해석하지 말고 제한사항을 확인해야 합니다.
+`aia stop`은 정책 위반 집행과 분리된 사용자 취소이며, 결과에는 `USER_ABORT`로 기록됩니다.
 
 Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 사전 차단 증명은 [docs/ACTUAL-CODEX-PROOF.md](docs/ACTUAL-CODEX-PROOF.md)를 참고한다.
 

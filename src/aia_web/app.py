@@ -106,6 +106,14 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
 
+    @app.post("/api/runs/{session_id}/stop")
+    def stop_run(session_id: str) -> JSONResponse:
+        try:
+            result = app.state.service.request_stop(session_id)
+        except KeyError:
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+        return JSONResponse(result, status_code=202 if result.get("accepted") else 409)
+
     @app.get("/runs/{session_id}/incidents/{action_id}", response_class=HTMLResponse)
     def incident(request: Request, session_id: str, action_id: str) -> HTMLResponse:
         try:

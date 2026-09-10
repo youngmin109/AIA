@@ -73,6 +73,10 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _identity_from_process(process: Any) -> ProcessIdentity:
+    return ProcessIdentity(int(process.pid), float(process.create_time()))
+
+
 def _required_text(value: Any, *, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise LauncherError(f"{field_name} must be non-empty")
@@ -333,6 +337,165 @@ class ProtectedLauncher:
         broker, self._hook_broker = self._hook_broker, None
         if broker is not None:
             broker.stop()
+
+    def request_user_abort(self) -> bool:
+        """Stop the registered Agent tree for an explicit user abort.
+
+        This is a session-control operation, not a policy enforcement result.
+        It therefore does not manufacture a Gate decision or a TERMINATED
+        enforcement action.  The caller records ``USER_ABORT`` during session
+        finalization.  Every process identity is rechecked before and after
+        termination so a reused PID cannot be treated as the managed Agent.
+        """
+
+        launch = self._last_result
+        context = launch.context if launch is not None else None
+        if context is None or launch.status is not LaunchStatus.RUNNING:
+            return False
+        return self._terminate_verified_tree(context.root_process_identity)
+
+    def _terminate_verified_tree(
+        self,
+        root_identity: ProcessIdentity,
+        *,
+        wait_seconds: float = 2.0,
+    ) -> bool:
+        root_status, root = inspect_process_identity(
+            root_identity,
+            process_factory=self.process_factory,
+        )
+        if root_status is ProcessIdentityStatus.PROCESS_GONE:
+            return True
+        if root_status is not ProcessIdentityStatus.LIVE_MATCH or root is None:
+            return False
+
+        descendants: list[tuple[int, ProcessIdentity]] = []
+        try:
+            candidates = root.children(recursive=True)
+        except psutil.Error:
+            return False
+        for candidate in candidates:
+            try:
+                identity = _identity_from_process(candidate)
+            except (OSError, psutil.Error, TypeError, ValueError):
+                return False
+            status, _ = inspect_process_identity(
+                identity,
+                process_factory=self.process_factory,
+            )
+            if status is ProcessIdentityStatus.PROCESS_GONE:
+                continue
+            if status is not ProcessIdentityStatus.LIVE_MATCH:
+                return False
+            depth = self._verified_descendant_depth(candidate, root_identity)
+            if depth is None:
+                return False
+            descendants.append((depth, identity))
+
+        # Descendants must stop before their parent.  The final identity check
+        # is performed even if an earlier termination call reports an error.
+        descendants.sort(key=lambda item: (-item[0], item[1].pid, item[1].create_time))
+        all_identities = [root_identity, *(identity for _, identity in descendants)]
+        success = True
+        for _, identity in descendants:
+            success = self._terminate_verified_identity(identity, wait_seconds) and success
+        success = self._terminate_verified_identity(root_identity, wait_seconds) and success
+        for identity in all_identities:
+            status, _ = inspect_process_identity(
+                identity,
+                process_factory=self.process_factory,
+            )
+            if status is not ProcessIdentityStatus.PROCESS_GONE:
+                success = False
+        return success
+
+    def _verified_descendant_depth(
+        self,
+        process: Any,
+        root_identity: ProcessIdentity,
+    ) -> int | None:
+        current = process
+        seen: set[int] = set()
+        depth = 0
+        while True:
+            try:
+                pid = int(current.pid)
+            except (AttributeError, TypeError, ValueError):
+                return None
+            if pid in seen:
+                return None
+            seen.add(pid)
+            try:
+                parent = current.parent()
+            except psutil.Error:
+                return None
+            if parent is None:
+                return None
+            try:
+                parent_identity = _identity_from_process(parent)
+            except (OSError, psutil.Error, TypeError, ValueError):
+                return None
+            depth += 1
+            if parent_identity == root_identity:
+                return depth
+            parent_status, _ = inspect_process_identity(
+                parent_identity,
+                process_factory=self.process_factory,
+            )
+            if parent_status is not ProcessIdentityStatus.LIVE_MATCH:
+                return None
+            current = parent
+
+    def _terminate_verified_identity(
+        self,
+        identity: ProcessIdentity,
+        wait_seconds: float,
+    ) -> bool:
+        status, process = inspect_process_identity(
+            identity,
+            process_factory=self.process_factory,
+        )
+        if status is ProcessIdentityStatus.PROCESS_GONE:
+            return True
+        if status is not ProcessIdentityStatus.LIVE_MATCH or process is None:
+            return False
+        try:
+            process.terminate()
+        except psutil.Error:
+            return False
+        status = self._wait_for_identity(identity, wait_seconds)
+        if status is ProcessIdentityStatus.PROCESS_GONE:
+            return True
+        if status is not ProcessIdentityStatus.LIVE_MATCH:
+            return False
+        status, process = inspect_process_identity(
+            identity,
+            process_factory=self.process_factory,
+        )
+        if status is not ProcessIdentityStatus.LIVE_MATCH or process is None:
+            return status is ProcessIdentityStatus.PROCESS_GONE
+        try:
+            process.kill()
+        except psutil.Error:
+            return False
+        return self._wait_for_identity(identity, wait_seconds) is ProcessIdentityStatus.PROCESS_GONE
+
+    def _wait_for_identity(
+        self,
+        identity: ProcessIdentity,
+        timeout_seconds: float,
+    ) -> ProcessIdentityStatus:
+        deadline = time.monotonic() + max(0.0, timeout_seconds)
+        while True:
+            status, _ = inspect_process_identity(
+                identity,
+                process_factory=self.process_factory,
+            )
+            if status is not ProcessIdentityStatus.LIVE_MATCH:
+                return status
+            if time.monotonic() >= deadline:
+                return status
+            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
 
     def launch(self, request: ProtectedLaunchRequest) -> ProtectedLaunchResult:
         launch_id = str(uuid4())
@@ -653,39 +816,11 @@ class ProtectedLauncher:
                 pass
             # A PID-only termination would violate the identity contract.
             return LaunchCleanupStatus.FAILED
-        try:
-            status, root = inspect_process_identity(
-                identity,
-                process_factory=self.process_factory,
-            )
-            if status is ProcessIdentityStatus.PROCESS_GONE:
-                return LaunchCleanupStatus.SUCCEEDED
-            if status is not ProcessIdentityStatus.LIVE_MATCH or root is None:
-                return LaunchCleanupStatus.FAILED
-            descendants = list(root.children(recursive=True))
-            for child in reversed(descendants):
-                try:
-                    child.terminate()
-                except psutil.Error:
-                    pass
-            try:
-                root.terminate()
-            except psutil.Error:
-                pass
-            _, alive = psutil.wait_procs(descendants + [root], timeout=2)
-            for process in alive:
-                try:
-                    process.kill()
-                except psutil.Error:
-                    pass
-            _, still_alive = psutil.wait_procs(alive, timeout=2)
-            return (
-                LaunchCleanupStatus.SUCCEEDED
-                if not still_alive
-                else LaunchCleanupStatus.FAILED
-            )
-        except Exception:
-            return LaunchCleanupStatus.FAILED
+        return (
+            LaunchCleanupStatus.SUCCEEDED
+            if self._terminate_verified_tree(identity)
+            else LaunchCleanupStatus.FAILED
+        )
 
     def _mark_session_failed(self) -> None:
         if self.session.status in {SessionStatus.READY, SessionStatus.RUNNING}:

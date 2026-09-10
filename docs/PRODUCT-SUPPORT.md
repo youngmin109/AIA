@@ -28,6 +28,16 @@ Codex의 `/hooks` 화면에서 AIA Hook을 직접 검토하고 신뢰한 다음 
 uv run aia protect C:\workspace\my-project
 ```
 
+실행 중 사용자가 중지해야 하면 별도 터미널이나 웹 콘솔에서 중지 요청을 보낼 수 있다.
+
+```powershell
+uv run aia stop <SESSION_ID>
+```
+
+이 동작은 정책 위반 집행과 구분되는 `USER_ABORT`다. AIA는 등록된 Agent Root와
+검증된 자식 프로세스만 대상으로 종료를 시도하고, 종료를 확인하지 못하면 성공으로
+표시하지 않는다.
+
 명령을 한 번만 전달하려면 다음처럼 실행한다.
 
 ```powershell
@@ -47,6 +57,9 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 | `DEGRADED` | 보호 경계 또는 Hook 처리에 오류가 발생함 |
 | `COMPLETED_VERIFIED` | 실행과 결과 Bundle이 종료됐고 보호 경계 오류가 없음 |
 | `COMPLETED_DEGRADED` | 실행은 끝났지만 보호 경계 오류가 있어 제한적으로 해석해야 함 |
+| `ABORTED_VERIFIED` | 사용자가 중지했고 실행된 Agent의 Hook·센서 경계가 검증됨 |
+| `ABORTED_DEGRADED` | 중지됐지만 보호 경계 검증이 충분하지 않음 |
+| `ABORTED_BEFORE_LAUNCH` | Agent를 실행하기 전에 사용자가 취소함 |
 
 `ACTIVE_UNVERIFIED`와 `DEGRADED`는 완전한 보호 성공으로 해석하지 않는다.
 지원되지 않는 도구 경로, Hook 비활성화, 외부 Agent, 사용자의 수동 실행은 AIA가
