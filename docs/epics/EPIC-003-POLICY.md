@@ -30,13 +30,16 @@ Policy Profile은 사용자가 선택하는 정책 템플릿이고 Session Mode�
 
 | 내부 코드 | 한국어 표시명 | 기본 효과 | 역할 |
 |---|---|---|---|
+| `PROTECTED_DEVELOPMENT` | 보호 우선 개발형 | `AUDIT` | `.env` 같은 비밀정보 읽기와 대표적인 파괴 명령을 기본 차단하고, 일반 개발 변경은 기록 |
 | `BASIC_DEVELOPMENT` | 기본 개발형 | `ALLOW` | 일반 개발 자유도를 유지하면서 주요 변경과 파괴 행위를 기록·금지 |
 | `CONSERVATIVE_SECURITY` | 보수적 보안형 | `AUDIT` | 중요 자산 변경과 파괴 명령을 더 엄격하게 관리 |
 | `FREE_DEVELOPMENT` | 자유 개발형 | `ALLOW` | 명시적 파괴 가능 행위도 기본 차단하지 않고 중요 행위를 감사 |
 | `CUSTOM` | 직접 설정 | 사용자 지정 | 하나의 완전한 사용자 정책 문서를 그대로 사용 |
 
-기본 프로필은 수정 가능한 템플릿이다. 제품 엔진에 하드코딩된 시스템 보안
-정책이 아니다. `CUSTOM`은 선택한 built-in profile 위에 암묵적으로 Rule을
+보호 실행과 정책 미리보기의 기본 프로필은 `PROTECTED_DEVELOPMENT`다. 이 프로필은
+민감정보를 기본 차단하는 안전한 시작점이며, 사용자는 실행 화면에서 더 자유로운
+프로필을 명시적으로 선택할 수 있다. 모든 기본 프로필은 수정 가능한 템플릿이다.
+제품 엔진에 하드코딩된 시스템 보안 정책이 아니다. `CUSTOM`은 선택한 built-in profile 위에 암묵적으로 Rule을
 merge하지 않는다. UI에서 템플릿을 복사해 편집하는 경험은 후속 범위이며, 현재는
 완전한 사용자 정책 JSON을 명시적으로 제공한다.
 
@@ -46,6 +49,7 @@ merge하지 않는다. UI에서 템플릿을 복사해 편집하는 경험은 �
 프로필별로 분리되어 있다.
 
 - `policies/profiles/기본-개발형.ko.json`
+- `policies/profiles/보호-우선-개발형.ko.json`
 - `policies/profiles/보수적-보안형.ko.json`
 - `policies/profiles/자유-개발형.ko.json`
 - `policies/profiles/직접-설정.example.ko.json`
@@ -145,7 +149,7 @@ profile과 다른 조합을 표현한다. 특정 Asset Type을 Rule에서 생략
 
 `ProfileResolver`는 선택한 프로필을 다음과 같이 하나의 `ResolvedPolicy`로 바꾼다.
 
-- 세 built-in profile은 해당 한국어 JSON을 로드한다.
+- 네 built-in profile은 해당 한국어 JSON을 로드한다.
 - `CUSTOM`은 명시적인 사용자 JSON 또는 mapping이 필요하다.
 - `CUSTOM`에 정책이 없으면 실패하며 built-in profile로 fallback하지 않는다.
 - 반환 결과에는 `profile`, `policy_id`, `policy_version`, `source`, `policy`가

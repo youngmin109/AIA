@@ -4,6 +4,11 @@ AIA는 Codex를 대신하는 프로그램이 아니다. AIA가 먼저 보호 실
 그 안에서 Codex를 자식 프로세스로 시작한다. 사용자는 Codex 화면이 열린 뒤
 평소처럼 작업을 입력한다.
 
+기본 정책은 `보호 우선 개발형(PROTECTED_DEVELOPMENT)`이다. `.env` 같은 비밀정보
+읽기와 대표적인 파괴 명령은 기본 차단하고, 일반 소스 변경은 기록한다. 실행 시
+`--profile BASIC_DEVELOPMENT` 또는 `--profile FREE_DEVELOPMENT`를 명시하면 다른
+기본 정책을 선택할 수 있다.
+
 ## 1. AIA Core 확인
 
 저장소 폴더에서 실행한다.

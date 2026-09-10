@@ -46,6 +46,7 @@ def test_all_official_profiles_resolve() -> None:
     resolved = [
         resolver.resolve(profile)
         for profile in (
+            PolicyProfile.PROTECTED_DEVELOPMENT,
             PolicyProfile.BASIC_DEVELOPMENT,
             PolicyProfile.CONSERVATIVE_SECURITY,
             PolicyProfile.FREE_DEVELOPMENT,
@@ -53,6 +54,7 @@ def test_all_official_profiles_resolve() -> None:
     ]
 
     assert [item.profile for item in resolved] == [
+        PolicyProfile.PROTECTED_DEVELOPMENT,
         PolicyProfile.BASIC_DEVELOPMENT,
         PolicyProfile.CONSERVATIVE_SECURITY,
         PolicyProfile.FREE_DEVELOPMENT,
@@ -65,6 +67,7 @@ def test_all_official_profiles_resolve() -> None:
 @pytest.mark.parametrize(
     ("display_name", "profile"),
     [
+        ("보호 우선 개발형", PolicyProfile.PROTECTED_DEVELOPMENT),
         ("기본 개발형", PolicyProfile.BASIC_DEVELOPMENT),
         ("보수적 보안형", PolicyProfile.CONSERVATIVE_SECURITY),
         ("자유 개발형", PolicyProfile.FREE_DEVELOPMENT),
@@ -99,6 +102,27 @@ def test_basic_development_profile_has_expected_identity() -> None:
     assert resolved.profile is PolicyProfile.BASIC_DEVELOPMENT
     assert resolved.policy.policy_id == "aia-basic-development"
     assert resolved.policy.default_effect is PolicyEffect.ALLOW
+
+
+def test_protected_development_profile_is_safe_by_default() -> None:
+    policy = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy
+
+    secret_read = policy.evaluate_target(operation=Operation.READ, path=".env")
+    secret_command = policy.evaluate_target(
+        operation=Operation.EXECUTE,
+        raw_command="type .env",
+    )
+    normal_source_change = policy.evaluate_target(
+        operation=Operation.MODIFY,
+        path="src/app.py",
+    )
+
+    assert secret_read.policy_decision is PolicyDecision.VIOLATION
+    assert secret_read.asset_type is SecurityAssetType.SECRET
+    assert secret_command.policy_decision is PolicyDecision.VIOLATION
+    assert secret_command.asset_type is SecurityAssetType.SECRET
+    assert normal_source_change.policy_decision is PolicyDecision.COMPLIANT
+    assert normal_source_change.operation_effect is PolicyEffect.AUDIT
 
 
 @pytest.mark.parametrize(

@@ -74,7 +74,7 @@
       </label>
       <label class="field">정책 프로필
         <select name="policy_profile" id="policy-profile">
-          {% for profile in profiles %}<option value="{{ profile.value }}">{{ profile.label }}</option>{% endfor %}
+          {% for profile in profiles %}<option value="{{ profile.value }}" {% if loop.first %}selected{% endif %}>{{ profile.label }}{% if loop.first %} · 권장{% endif %}</option>{% endfor %}
         </select>
         <span id="policy-description" class="hint">선택한 정책의 보호 범위가 표시됩니다.</span>
       </label>

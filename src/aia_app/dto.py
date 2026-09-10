@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from aia import PolicyProfile
+
 
 class DTOValidationError(ValueError):
     """Raised when a console request cannot be represented safely."""
@@ -39,7 +41,7 @@ class CreateRunRequest:
     workspace: str
     agent: str = "codex"
     model: str | None = None
-    policy_profile: str = "BASIC_DEVELOPMENT"
+    policy_profile: str = PolicyProfile.PROTECTED_DEVELOPMENT.value
     custom_policy_path: str | None = None
     mode: str = "ENFORCE"
     task: str = ""
@@ -60,7 +62,7 @@ class CreateRunRequest:
         if model is not None:
             model = _required_text(model, "model")
         policy_profile = _required_text(
-            value.get("policy_profile", "BASIC_DEVELOPMENT"),
+            value.get("policy_profile", PolicyProfile.PROTECTED_DEVELOPMENT.value),
             "policy_profile",
         )
         custom_policy_path = value.get("custom_policy_path")

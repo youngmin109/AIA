@@ -76,6 +76,10 @@ uv run aia doctor
 
 `READY`가 확인된 뒤에만 보호 실행을 시작한다.
 
+보호 실행의 기본 정책은 `PROTECTED_DEVELOPMENT`다. 비밀정보 읽기와 대표적인
+파괴 명령은 기본 차단하고 일반 소스 변경은 감사 기록으로 남긴다. 더 자유로운
+정책이 필요하면 실행 시 다른 프로필을 명시적으로 선택한다.
+
 ```powershell
 uv run aia protect C:\workspace\my-project
 ```

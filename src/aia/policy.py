@@ -30,6 +30,7 @@ class PolicyEvaluationError(PolicyError):
 
 
 class PolicyProfile(StrEnum):
+    PROTECTED_DEVELOPMENT = "PROTECTED_DEVELOPMENT"
     BASIC_DEVELOPMENT = "BASIC_DEVELOPMENT"
     CONSERVATIVE_SECURITY = "CONSERVATIVE_SECURITY"
     FREE_DEVELOPMENT = "FREE_DEVELOPMENT"
@@ -52,6 +53,7 @@ class PolicyProfile(StrEnum):
 
 POLICY_PROFILE_DISPLAY_NAMES: Mapping[PolicyProfile, str] = MappingProxyType(
     {
+        PolicyProfile.PROTECTED_DEVELOPMENT: "보호 우선 개발형",
         PolicyProfile.BASIC_DEVELOPMENT: "기본 개발형",
         PolicyProfile.CONSERVATIVE_SECURITY: "보수적 보안형",
         PolicyProfile.FREE_DEVELOPMENT: "자유 개발형",
@@ -1017,6 +1019,7 @@ load_korean_policy = load_policy
 
 _BUILTIN_PROFILE_FILES: Mapping[PolicyProfile, str] = MappingProxyType(
     {
+        PolicyProfile.PROTECTED_DEVELOPMENT: "보호-우선-개발형.ko.json",
         PolicyProfile.BASIC_DEVELOPMENT: "기본-개발형.ko.json",
         PolicyProfile.CONSERVATIVE_SECURITY: "보수적-보안형.ko.json",
         PolicyProfile.FREE_DEVELOPMENT: "자유-개발형.ko.json",

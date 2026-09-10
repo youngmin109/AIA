@@ -168,6 +168,9 @@ class RunApplicationService:
     @staticmethod
     def policy_profiles() -> list[dict[str, str]]:
         descriptions = {
+            PolicyProfile.PROTECTED_DEVELOPMENT: (
+                "민감정보 읽기와 대표적인 파괴 명령을 기본 차단하고, 그 밖의 개발 행위는 기록합니다."
+            ),
             PolicyProfile.BASIC_DEVELOPMENT: (
                 "일반 개발 작업을 허용하면서 .env 삭제와 위험한 데이터베이스·Git 명령을 통제합니다."
             ),
@@ -188,6 +191,7 @@ class RunApplicationService:
                 "description": descriptions[profile],
             }
             for profile in (
+                PolicyProfile.PROTECTED_DEVELOPMENT,
                 PolicyProfile.BASIC_DEVELOPMENT,
                 PolicyProfile.CONSERVATIVE_SECURITY,
                 PolicyProfile.FREE_DEVELOPMENT,

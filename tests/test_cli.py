@@ -529,6 +529,18 @@ def test_policy_evaluate_parser_supports_path_and_operation() -> None:
     assert args.json is True
 
 
+def test_product_commands_default_to_protected_development_profile() -> None:
+    evaluate_args = _parser().parse_args(
+        ["policy", "evaluate", "--operation", "READ", "--path", ".env"]
+    )
+    init_args = _parser().parse_args(["policy", "init", "policy.json"])
+    protect_args = _parser().parse_args(["protect", "."])
+
+    assert evaluate_args.profile == "PROTECTED_DEVELOPMENT"
+    assert init_args.profile == "PROTECTED_DEVELOPMENT"
+    assert protect_args.profile == "PROTECTED_DEVELOPMENT"
+
+
 def test_policy_evaluate_uses_resolved_profile_without_running_target(capsys) -> None:
     exit_code = main(
         [

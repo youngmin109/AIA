@@ -106,8 +106,9 @@ def _parser() -> argparse.ArgumentParser:
     init_policy.add_argument("path", type=Path)
     init_policy.add_argument(
         "--profile",
-        default="BASIC_DEVELOPMENT",
+        default="PROTECTED_DEVELOPMENT",
         choices=(
+            "PROTECTED_DEVELOPMENT",
             "BASIC_DEVELOPMENT",
             "CONSERVATIVE_SECURITY",
             "FREE_DEVELOPMENT",
@@ -132,8 +133,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     policy_evaluate.add_argument(
         "--profile",
-        default="BASIC_DEVELOPMENT",
+        default="PROTECTED_DEVELOPMENT",
         choices=(
+            "PROTECTED_DEVELOPMENT",
             "BASIC_DEVELOPMENT",
             "CONSERVATIVE_SECURITY",
             "FREE_DEVELOPMENT",
@@ -231,7 +233,7 @@ def _parser() -> argparse.ArgumentParser:
     protect.add_argument("--policy", type=Path, help="custom policy JSON path")
     protect.add_argument(
         "--profile",
-        default="BASIC_DEVELOPMENT",
+        default="PROTECTED_DEVELOPMENT",
         help="policy profile name",
     )
     protect.add_argument("--model")
@@ -1229,6 +1231,7 @@ def _validate_policy(args: argparse.Namespace) -> int:
 
 def _policy_profiles(args: argparse.Namespace) -> int:
     descriptions = {
+        PolicyProfile.PROTECTED_DEVELOPMENT: "민감정보와 대표적인 파괴 명령을 기본 차단하는 보호 우선 정책",
         PolicyProfile.BASIC_DEVELOPMENT: "일반적인 개발 작업과 기본적인 보호를 함께 제공",
         PolicyProfile.CONSERVATIVE_SECURITY: "중요 자산 변경을 더 보수적으로 제한",
         PolicyProfile.FREE_DEVELOPMENT: "개발 자유도를 우선하고 관찰 중심으로 운용",
@@ -1242,6 +1245,7 @@ def _policy_profiles(args: argparse.Namespace) -> int:
             "editable": profile is not PolicyProfile.CUSTOM,
         }
         for profile in (
+            PolicyProfile.PROTECTED_DEVELOPMENT,
             PolicyProfile.BASIC_DEVELOPMENT,
             PolicyProfile.CONSERVATIVE_SECURITY,
             PolicyProfile.FREE_DEVELOPMENT,

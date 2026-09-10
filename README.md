@@ -93,6 +93,11 @@ uv run aia hook status
 OBSERVED_FROM_RUN`일 때만 과거 실행에서 AIA Session에 연결된 Hook이 확인됐다는
 뜻입니다. 설치만 되어 있고 Event가 없으면 보호 성공으로 해석하지 않습니다.
 
+처음 실행할 때 AIA는 `PROTECTED_DEVELOPMENT` 프로필을 기본 사용합니다. 이 프로필은
+`.env` 같은 비밀정보 읽기와 대표적인 파괴 명령을 기본 차단하고, 일반 소스 변경은
+기록합니다. 개발 흐름을 더 넓게 허용하려면 보호 실행에서 다른 프로필을 명시적으로
+선택할 수 있습니다.
+
 사용자 정책을 직접 작성했다면 보호 실행 전에 Strict Validation을 실행합니다.
 
 ```powershell

@@ -549,6 +549,7 @@ def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
     try:
         profiles = service.policy_profiles()
         assert {item["value"] for item in profiles} == {
+            "PROTECTED_DEVELOPMENT",
             "BASIC_DEVELOPMENT",
             "CONSERVATIVE_SECURITY",
             "FREE_DEVELOPMENT",

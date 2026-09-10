@@ -75,6 +75,11 @@ uv run aia doctor
 uv run aia protect C:\workspace\my-project
 ```
 
+보호 실행과 정책 미리보기의 기본값은 `PROTECTED_DEVELOPMENT`입니다. `.env` 같은
+비밀정보 읽기와 대표적인 파괴 명령은 기본 차단하고 일반 소스 변경은 기록합니다.
+더 넓은 개발 허용 범위가 필요하면 `--profile BASIC_DEVELOPMENT` 또는
+`--profile FREE_DEVELOPMENT`를 명시하십시오.
+
 실행 중 Codex 화면에서 작업을 입력하고 Codex를 종료하면 AIA가 결과 Bundle을
 확정한다. 한 번의 요청만 전달하려면 `--task`를 사용한다.
 
