@@ -35,6 +35,17 @@ uv run aia hook verify
 `VERIFIED`가 표시된다. `MODIFIED`, `UNTRUSTED`, `NOT_VISIBLE`이면 Probe를
 실행하지 않고 Codex `/hooks`에서 검토·Trust해야 할 내용을 알려준다.
 
+설치된 제품 경로에서 실제 Bash 사전 차단을 한 번 확인하려면 다음을 실행한다.
+
+```powershell
+uv run aia proof
+```
+
+이 명령은 disposable Workspace에서 실제 Codex를 실행하고, Canary 미생성과
+`Bundle VALID`까지 확인한다. Hook Trust가 확인되지 않으면 Codex 도구를 실행하지
+않고 실패 원인과 artifact 경로만 남긴다. 실제 Codex 실행을 소비하므로 일반 회귀
+테스트마다 반복하지 않는다.
+
 ## 4. 보호 실행 시작
 
 먼저 실제 프로젝트 대신 복사본이나 테스트 프로젝트를 사용한다.

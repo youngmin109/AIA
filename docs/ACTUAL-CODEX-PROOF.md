@@ -103,8 +103,12 @@ Codex가 같은 `tool_use_id`의 동일한 `PreToolUse` callback을 반복 전�
 나오면 제품 Result Bundle까지 `BLOCKED / SUCCEEDED`가 전달된 것이다.
 
 ```powershell
-uv run python scripts/product_e2e_smoke.py --scenario block-canary
+uv run aia proof
 ```
+
+호환성을 위해 `uv run python scripts/product_e2e_smoke.py --scenario block-canary`도
+동일한 구현을 호출한다. 제품 증명은 실행 전에 현재 Codex Hook Trust와 Session-bound
+Hook Event 검증을 수행하며, 검증이 실패하면 Codex 도구를 실행하지 않는다.
 
 ## 보호 범위
 

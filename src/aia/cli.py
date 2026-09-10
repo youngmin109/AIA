@@ -203,6 +203,28 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help=argparse.SUPPRESS,
     )
+    proof = commands.add_parser(
+        "proof",
+        help="run an opt-in real Codex pretool proof in a disposable Workspace",
+    )
+    proof.add_argument(
+        "--scenario",
+        choices=("normal", "block-canary", "block-apply-patch"),
+        default="block-canary",
+        help="proof scenario; block-canary is the default safety demonstration",
+    )
+    proof.add_argument(
+        "--output",
+        type=Path,
+        default=Path("evaluation") / "product-e2e",
+        help="directory where the disposable proof artifact is written",
+    )
+    proof.add_argument(
+        "--timeout",
+        type=float,
+        default=180.0,
+        help="maximum wait in seconds",
+    )
     return parser
 
 
@@ -1457,6 +1479,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _hook_verify(args)
         if args.command == "protect":
             return _run_protected(args)
+        if args.command == "proof":
+            if args.timeout <= 0:
+                raise ApplicationValidationError("timeout must be positive")
+            from aia.product_e2e import main as product_e2e_main
+
+            return product_e2e_main(
+                [
+                    "--scenario",
+                    args.scenario,
+                    "--output",
+                    str(args.output),
+                    "--timeout",
+                    str(args.timeout),
+                ]
+            )
         raise ApplicationValidationError("unknown command")
     except (ApplicationValidationError, CodexHookInstallationError, OSError, ValueError) as error:
         print(f"AIA error: {error}")

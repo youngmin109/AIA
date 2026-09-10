@@ -78,6 +78,11 @@ Enforcement Gate
 `COMPLETED_DEGRADED`가 기록되며, Canary 파일이 없어도 제품 차단 성공으로
 인정하지 않는다.
 
+같은 증명은 설치된 제품 CLI의 `uv run aia proof`로도 실행할 수 있다. 이 명령은
+실제 시나리오 전에 현재 Hook Trust와 Session-bound Hook을 확인하고, 검증이 실패하면
+Codex 도구를 실행하지 않는다. 결과 artifact에는 Hook 검증 결과와 실제 Protected Run
+결과를 함께 남긴다.
+
 이 분리는 결과를 약하게 보이게 하려는 것이 아니라, “차단 응답을 만들었다”와
 “도구가 실행되지 않았다”를 같은 사실로 잘못 기록하지 않기 위한 제품 계약이다.
 

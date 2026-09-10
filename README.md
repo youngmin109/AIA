@@ -193,6 +193,15 @@ OS 전체 Writer를 보호한다고 주장하지 않으며, 제한사항은 [doc
 실행한다. 이 명령은 실제 Codex 실행을 시작하므로 일반 회귀 테스트에는 포함하지 않는다.
 
 ```powershell
+uv run aia proof
+```
+
+기본값은 실제 `Bash PreToolUse → deny → Canary 미생성`을 확인하는 차단 증명이다.
+이 명령은 시작 전에 현재 Hook Trust와 Session-bound Hook 연결을 다시 검증한다.
+검증에 실패하면 Codex를 실행하지 않고 원인과 artifact 경로를 남긴다. 기존 스크립트
+경로도 호환성을 위해 유지한다.
+
+```powershell
 uv run python scripts/product_e2e_smoke.py
 uv run python scripts/product_e2e_smoke.py --scenario block-canary
 ```
