@@ -7,6 +7,7 @@ import pytest
 from aia import CodexHookInstaller
 from aia.cli import (
     _extract_session_id,
+    _live_hook_proof_is_valid,
     _parser,
     _protected_run_preflight,
     _recent_run_diagnostic,
@@ -189,6 +190,24 @@ def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:
 def test_hook_verify_extracts_protected_run_session_id() -> None:
     assert _extract_session_id("Phase: READY\nAIA Protected Run: abc-123\n") == "abc-123"
     assert _extract_session_id("Hook was not started\n") is None
+
+
+def test_live_hook_proof_requires_session_event_and_verified_bundle() -> None:
+    assert _live_hook_proof_is_valid(
+        hook_event_count=1,
+        protection_state="COMPLETED_VERIFIED",
+        bundle_status="VALID",
+    ) is True
+    assert _live_hook_proof_is_valid(
+        hook_event_count=0,
+        protection_state="COMPLETED_DEGRADED",
+        bundle_status="VALID",
+    ) is False
+    assert _live_hook_proof_is_valid(
+        hook_event_count=1,
+        protection_state="COMPLETED_VERIFIED",
+        bundle_status="INVALID",
+    ) is False
 
 
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:

@@ -556,6 +556,22 @@ def _extract_session_id(output: str) -> str | None:
     return None
 
 
+def _live_hook_proof_is_valid(
+    *,
+    hook_event_count: object,
+    protection_state: object,
+    bundle_status: object,
+) -> bool:
+    """Require a session-bound event and a committed verified run."""
+
+    return bool(
+        isinstance(hook_event_count, int)
+        and hook_event_count > 0
+        and protection_state in {"COMPLETED_VERIFIED", "ABORTED_VERIFIED"}
+        and bundle_status == "VALID"
+    )
+
+
 def _hook_verify(args: argparse.Namespace) -> int:
     """Verify the user-level Hook through the normal product launch path."""
 
@@ -615,6 +631,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
     ]
     payload: dict[str, object] = {
         "verified": False,
+        "protection_claim": "PROTECTION_NOT_PROVEN",
         "reason": "HOOK_EVENT_NOT_OBSERVED",
         "codex_executable": str(executable),
         "hook_path": str(installer.path),
@@ -666,15 +683,13 @@ def _hook_verify(args: argparse.Namespace) -> int:
                 else None
             )
             payload["probe_marker_created"] = marker.exists()
-            if (
-                payload["hook_event_count"]
-                and payload["protection_state"] in {
-                    "COMPLETED_VERIFIED",
-                    "ABORTED_VERIFIED",
-                }
-                and payload["bundle_status"] == "VALID"
+            if _live_hook_proof_is_valid(
+                hook_event_count=payload["hook_event_count"],
+                protection_state=payload["protection_state"],
+                bundle_status=payload["bundle_status"],
             ):
                 payload["verified"] = True
+                payload["protection_claim"] = "PROTECTION_PROVEN"
                 payload["reason"] = "SESSION_BOUND_HOOK_EVENT_OBSERVED"
                 try:
                     HookVerificationStore(control_root).write_verified(
@@ -720,6 +735,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
     else:
         print("AIA Hook 실시간 검증")
         print(f"결과: {'VERIFIED' if payload['verified'] else 'NOT_VERIFIED'}")
+        print(f"보호 주장: {payload['protection_claim']}")
         print(f"이유: {payload['reason']}")
         print(f"Hook Events: {payload['hook_event_count']}")
         print(f"Protection: {payload['protection_state']}")
@@ -737,6 +753,11 @@ def _hook_verify(args: argparse.Namespace) -> int:
                 print(
                     "[다음] Codex의 sandbox/approval 설정을 확인하고, "
                     "AIA가 요청한 workspace-write/on-request가 적용되는 환경에서 다시 실행하세요."
+                )
+            elif payload["reason"] == "HOOK_NOT_OBSERVED_PROBE_EXECUTED":
+                print(
+                    "[위험] Probe 명령은 실행됐지만 AIA Hook이 관찰되지 않았습니다. "
+                    "이 실행은 보호·차단 증명이 아닙니다. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요."
                 )
             else:
                 print("[다음] Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요.")

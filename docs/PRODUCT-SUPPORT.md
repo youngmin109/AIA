@@ -69,6 +69,9 @@ Bundle은 Control Root에 남는다. `NOT_VERIFIED`이면 사용자는 Codex `/h
 AIA Hook을 검토·신뢰한 뒤 다시 검증해야 한다. `CODEX_EXECUTION_POLICY_DOWNGRADED`가
 나오면 현재 Codex 실행 환경이 AIA가 요청한 sandbox 또는 approval 설정을 적용하지
 않은 상태이므로, 보호 실행을 시작하지 않고 실행 환경을 먼저 고쳐야 한다.
+Probe 파일이 생성됐지만 Hook Event가 0건이면 Probe가 실행된 것일 뿐 AIA 보호가
+증명된 것이 아니다. 이 경우 AIA는 `PROTECTION_NOT_PROVEN`으로 표시하고 보호 실행을
+성공으로 인정하지 않는다.
 
 비대화형 Protected Run은 현재 Codex CLI가 제공하는 `--approve-for-me` 경로를 통해
 `workspace-write`와 `on-request` 실행 정책을 요청한다. Result Bundle의 실제 실행
