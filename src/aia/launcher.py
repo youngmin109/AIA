@@ -641,13 +641,15 @@ class ProtectedLauncher:
                         "stderr": subprocess.DEVNULL,
                     }
                 )
+            child_environment: dict[str, str] = self._child_environment({})
             if self.hook_broker_factory is not None:
                 broker = self.hook_broker_factory(launch_id, self.hook_bridge)
                 if broker is None:
                     raise _LaunchStepError("HOOK_BROKER_UNAVAILABLE")
                 broker.start()
                 self._hook_broker = broker
-                popen_kwargs["env"] = self._child_environment(broker.environment)
+                child_environment = self._child_environment(broker.environment)
+            popen_kwargs["env"] = child_environment
             spawned_perf = time.perf_counter()
             spawned_at = _now_utc()
             process = self.popen_factory(

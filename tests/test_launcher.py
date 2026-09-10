@@ -180,8 +180,10 @@ def test_prompt_is_dispatched_only_after_running_and_hook_bridge_ready(
 
 def test_launcher_uses_shell_false_and_canonical_workspace(
     readiness_inputs: dict,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     values = readiness_inputs
+    monkeypatch.setenv("CODEX_SESSION_ID", "outer-session")
     captured: dict = {}
 
     def recording_popen(argv, **kwargs):
@@ -197,6 +199,7 @@ def test_launcher_uses_shell_false_and_canonical_workspace(
         assert captured["cwd"] == str(values["session"].workspace)
         assert captured["stdout"] is subprocess.DEVNULL
         assert captured["stderr"] is subprocess.DEVNULL
+        assert "CODEX_SESSION_ID" not in captured["env"]
     finally:
         cleanup_running_launcher(values, launcher)
 
