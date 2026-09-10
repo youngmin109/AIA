@@ -50,10 +50,14 @@ Enforcement Gate
 
 첫 번째는 AIA가 실행 전에 차단 결정을 내렸다는 뜻이다. 두 번째는 실제 도구가
 실행되지 않았다는 확인까지 연결됐다는 뜻이다. `scripts/product_e2e_smoke.py
---scenario block-canary`는 실제 제품 CLI 경로에서 이 두 결과를 모두 확인하고,
+--scenario block-canary`는 실제 제품 CLI 경로에서 이 두 결과를 확인하도록 구성되어
+있으며,
 `CANARY_NO_SIDE_EFFECT`와 `confirmed_block_count`를 함께 표시한다. Codex 출력이
 지원되는 native block 문장을 제공하지 않거나 실행 확인이 모호하면 AIA는 Gate
-결과만 남기고 `BLOCKED / SUCCEEDED`를 만들지 않는다.
+결과만 남기고 `BLOCKED / SUCCEEDED`를 만들지 않는다. Hook 신뢰가 standalone
+`codex exec`에 적용되지 않은 환경에서는 `hook_event_count=0`과
+`COMPLETED_DEGRADED`가 기록되며, Canary 파일이 없어도 제품 차단 성공으로
+인정하지 않는다.
 
 이 분리는 결과를 약하게 보이게 하려는 것이 아니라, “차단 응답을 만들었다”와
 “도구가 실행되지 않았다”를 같은 사실로 잘못 기록하지 않기 위한 제품 계약이다.
