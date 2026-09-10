@@ -78,6 +78,7 @@ class CodexAdapter:
         executable_name: str = "codex",
         hook_command: str | None = None,
         allow_hook_trust_bypass: bool = False,
+        enable_hooks: bool = False,
     ) -> None:
         if not isinstance(executable_name, str) or not executable_name.strip():
             raise AdapterError("executable_name must be non-empty")
@@ -86,6 +87,9 @@ class CodexAdapter:
             raise AdapterError("hook_command must be non-empty when provided")
         self.hook_command = hook_command
         self.allow_hook_trust_bypass = allow_hook_trust_bypass
+        if not isinstance(enable_hooks, bool):
+            raise AdapterError("enable_hooks must be a boolean")
+        self.enable_hooks = enable_hooks
 
     @property
     def name(self) -> str:
@@ -202,6 +206,11 @@ class CodexAdapter:
         if request.model is not None:
             argv.extend(("--model", request.model))
         self._append_options(argv, options)
+        if self.enable_hooks and self.hook_command is None:
+            # Product launches use the installed user-level Hook definition.
+            # Enable the Codex Hook feature explicitly without changing the
+            # user's Hook entries or bypassing Codex trust.
+            argv.extend(("-c", "features.hooks=true"))
         if self.hook_command is not None:
             argv.extend(
                 (

@@ -696,7 +696,7 @@ class RunApplicationService:
                 checkpoint,
                 filesystem,
                 hook,
-                adapter=CodexAdapter(),
+                adapter=CodexAdapter(enable_hooks=True),
                 lease_manager=manager,
                 hook_bridge=bridge,
                 hook_broker_factory=broker_factory,

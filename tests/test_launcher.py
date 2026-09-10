@@ -421,6 +421,23 @@ def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> Non
     assert "--dangerously-bypass-hook-trust" in spec.argv
 
 
+def test_codex_product_adapter_enables_installed_hooks_without_trust_bypass(
+    tmp_path: Path,
+) -> None:
+    adapter = CodexAdapter(enable_hooks=True)
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="run the task",
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert "features.hooks=true" in spec.argv
+    assert "--dangerously-bypass-hook-trust" not in spec.argv
+
+
 def test_codex_adapter_can_register_one_narrow_stdio_mcp_server(tmp_path: Path) -> None:
     adapter = CodexAdapter(
         hook_command="python -m aia.codex_hook_runtime",
