@@ -228,12 +228,49 @@ class RunApplicationService:
             )
 
         required = [item for item in checks if not item.get("optional")]
+        recent_verified = [
+            item
+            for item in self.list_runs()
+            if item.get("hook_event_count", 0) > 0
+            and item.get("protection_state")
+            in {"ACTIVE_VERIFIED", "COMPLETED_VERIFIED", "ABORTED_VERIFIED"}
+        ]
+        recent_verified.sort(
+            key=lambda item: str(item.get("created_at") or ""),
+            reverse=True,
+        )
+        last_verified = recent_verified[0] if recent_verified else None
         return {
             "ready": all(bool(item["ok"]) for item in required),
             "checks": checks,
             "hook_trust": {
                 "status": "MANUAL_REVIEW_REQUIRED",
                 "detail": "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다.",
+            },
+            "hook_activation": {
+                "status": "OBSERVED_FROM_RUN" if last_verified else "NOT_OBSERVED",
+                "detail": (
+                    "최근 보호 실행에서 AIA Session에 연결된 Hook Event가 관찰되었습니다."
+                    if last_verified
+                    else "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
+                ),
+                "last_verified_run": (
+                    {
+                        "session_id": last_verified.get("session_id"),
+                        "created_at": last_verified.get("created_at"),
+                        "protection_state": last_verified.get("protection_state"),
+                        "hook_event_count": last_verified.get("hook_event_count", 0),
+                    }
+                    if last_verified
+                    else None
+                ),
+            },
+            "protection_claim": {
+                "status": "CLAIM_ALLOWED_AFTER_SESSION_EVENT",
+                "detail": (
+                    "사전 조건 READY만으로 보호 성공을 주장하지 않습니다. "
+                    "각 Protected Run에서 Hook Event가 확인된 뒤에만 보호 상태를 검증합니다."
+                ),
             },
             "next_steps": [
                 "PreToolUse Hook이 없으면 'uv run aia setup'을 실행합니다.",

@@ -102,6 +102,13 @@ def _parser() -> argparse.ArgumentParser:
         help="remove only the AIA Hook definition",
     )
     uninstall.add_argument("--path", type=Path, help="hooks.json path")
+    hook_status = hook_commands.add_parser(
+        "status",
+        help="show Hook installation and last observed protected-run activation",
+    )
+    hook_status.add_argument("--json", action="store_true", help="print machine-readable output")
+    hook_status.add_argument("--path", type=Path, help="hooks.json path")
+    hook_status.add_argument("--control-root", type=Path, help="AIA control root")
 
     setup = commands.add_parser(
         "setup",
@@ -297,6 +304,60 @@ def _setup(args: argparse.Namespace) -> int:
         print("[다음] uv run aia doctor")
         print("[실행] uv run aia protect C:\\workspace\\my-project")
     return 0
+
+
+def _hook_status(args: argparse.Namespace) -> int:
+    """Show the difference between an installed Hook and an observed Hook."""
+
+    installer = CodexHookInstaller(args.path)
+    service = RunApplicationService(_control_root(args.control_root))
+    try:
+        runs = service.list_runs()
+    finally:
+        service.shutdown()
+    verified = [
+        item
+        for item in runs
+        if item.get("hook_event_count", 0) > 0
+        and item.get("protection_state")
+        in {"ACTIVE_VERIFIED", "COMPLETED_VERIFIED", "ABORTED_VERIFIED"}
+    ]
+    verified.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    last_verified = verified[0] if verified else None
+    payload = {
+        "hook_path": str(installer.path),
+        "pretool_installed": installer.is_installed(),
+        "posttool_installed": installer.is_posttool_installed(),
+        "trust_status": "MANUAL_REVIEW_REQUIRED",
+        "activation_status": "OBSERVED_FROM_RUN" if last_verified else "NOT_OBSERVED",
+        "last_verified_run": (
+            {
+                "session_id": last_verified.get("session_id"),
+                "created_at": last_verified.get("created_at"),
+                "protection_state": last_verified.get("protection_state"),
+                "hook_event_count": last_verified.get("hook_event_count", 0),
+            }
+            if last_verified
+            else None
+        ),
+        "claim_rule": "A Protected Run is verified only after a session-bound Hook Event is observed.",
+    }
+    if args.json:
+        print(_json_text(payload))
+    else:
+        print("AIA Hook 상태")
+        print(f"경로: {payload['hook_path']}")
+        print(f"PreToolUse 설치: {'YES' if payload['pretool_installed'] else 'NO'}")
+        print(f"PostToolUse 설치: {'YES' if payload['posttool_installed'] else 'NO'}")
+        print("Codex 신뢰: MANUAL_REVIEW_REQUIRED (/hooks에서 검토·신뢰 필요)")
+        print(f"실제 Hook 관찰: {payload['activation_status']}")
+        if last_verified:
+            print(f"최근 검증 실행: {last_verified.get('session_id')}")
+            print(f"Hook Events: {last_verified.get('hook_event_count', 0)}")
+        else:
+            print("최근에 Session에 연결된 Hook Event가 없습니다.")
+        print("주의: 설치됨은 실제 보호 활성화를 의미하지 않습니다.")
+    return 0 if payload["pretool_installed"] else 1
 
 
 def _protected_run_preflight() -> tuple[bool, list[str]]:
@@ -646,6 +707,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "setup":
             return _setup(args)
+        if args.command == "hook" and args.hook_command == "status":
+            return _hook_status(args)
         if args.command == "protect":
             return _run_protected(args)
         raise ApplicationValidationError("unknown command")

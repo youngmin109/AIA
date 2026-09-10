@@ -40,6 +40,26 @@ def test_hook_uninstall_parser_supports_custom_hook_path(tmp_path) -> None:
     assert args.path == tmp_path / "hooks.json"
 
 
+def test_hook_status_parser_supports_json_and_control_root(tmp_path) -> None:
+    args = _parser().parse_args(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(tmp_path / "hooks.json"),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    assert args.command == "hook"
+    assert args.hook_command == "status"
+    assert args.json is True
+    assert args.path == tmp_path / "hooks.json"
+    assert args.control_root == tmp_path / "control"
+
+
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: "codex.exe")
     monkeypatch.setattr("aia.cli.CodexHookInstaller.is_installed", lambda _installer: False)

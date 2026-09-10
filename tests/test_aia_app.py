@@ -405,6 +405,8 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         result = service.preflight()
         assert result["ready"] is True
         assert result["hook_trust"]["status"] == "MANUAL_REVIEW_REQUIRED"
+        assert result["hook_activation"]["status"] == "NOT_OBSERVED"
+        assert result["protection_claim"]["status"] == "CLAIM_ALLOWED_AFTER_SESSION_EVENT"
         checks = {item["name"]: item for item in result["checks"]}
         assert checks["pretool_hook"]["ok"] is True
         assert checks["posttool_hook"]["optional"] is True

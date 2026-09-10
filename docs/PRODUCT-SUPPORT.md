@@ -35,6 +35,17 @@ uv run aia policy validate C:\workspace\policies\my-policy.json
 함께 설치한다. 기존 PreToolUse만 설치된 설정도 보호 실행은 계속 사용할 수 있지만,
 PostToolUse가 없으면 실제 도구 실행 여부를 확인하는 증거가 줄어든다.
 
+설치 상태와 실제 실행 활성화 상태는 별도로 확인한다.
+
+```powershell
+uv run aia hook status
+```
+
+`PreToolUse 설치: YES`는 Hook 설정이 존재한다는 뜻이다. `실제 Hook 관찰:
+OBSERVED_FROM_RUN`은 과거 Protected Run에서 Session에 연결된 Hook Event가 실제로
+들어왔다는 뜻이다. 설치만 되어 있거나 `NOT_OBSERVED`이면 해당 실행을 보호 성공으로
+해석하지 않는다.
+
 AIA를 제거하거나 Hook 설정을 되돌릴 때는 다음 명령을 사용한다. AIA가 추가한
 Handler만 제거하고 다른 사용자 Hook은 보존한다.
 
