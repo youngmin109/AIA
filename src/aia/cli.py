@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -17,10 +18,23 @@ from aia import (
     CodexAdapter,
     CodexHookInstallationError,
     CodexHookInstaller,
+    CheckpointValidity,
+    EvidenceRecordType,
+    EvidenceSource,
+    ObservationStage,
     PolicyProfile,
+    ProtectedRunSession,
+    RawEvidenceRecord,
+    RawEvidenceStore,
     POLICY_PROFILE_DISPLAY_NAMES,
     ResolvedPolicy,
+    SafeCheckpointManager,
+    SessionEndReason,
+    SessionMode,
+    SessionStatus,
+    WorkspaceLeaseManager,
     load_policy,
+    prepare_protection,
     policy_content_sha256,
     resolve_profile,
 )
@@ -48,6 +62,11 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true", help="print machine-readable output")
     doctor.add_argument("--hook-path", type=Path, help="hooks.json path")
     doctor.add_argument("--control-root", type=Path, help="AIA control root")
+    self_test = commands.add_parser(
+        "self-test",
+        help="run a disposable AIA Core self-test without starting Codex",
+    )
+    self_test.add_argument("--json", action="store_true", help="print machine-readable output")
     runs = commands.add_parser(
         "runs",
         help="list protected-run history from the local Control Root",
@@ -479,6 +498,134 @@ def _doctor(args: argparse.Namespace) -> int:
             print(f"[다음] {recent_run['next_step']}")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
+
+
+def _self_test(args: argparse.Namespace) -> int:
+    """Exercise the disposable Core contracts without claiming live Codex proof."""
+
+    checks: list[dict[str, object]] = []
+    workspace_root = Path(tempfile.mkdtemp(prefix="aia-self-test-workspace-"))
+    control_root = Path(tempfile.mkdtemp(prefix="aia-self-test-control-"))
+    session: ProtectedRunSession | None = None
+    lease_manager = WorkspaceLeaseManager(control_root)
+    lease = None
+
+    def passed(name: str, detail: str) -> None:
+        checks.append({"name": name, "status": "PASS", "detail": detail})
+
+    try:
+        (workspace_root / "README.md").write_text(
+            "AIA disposable self-test\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        resolved = resolve_profile(PolicyProfile.BASIC_DEVELOPMENT)
+        passed(
+            "policy_profile_resolution",
+            f"{resolved.policy_id} v{resolved.policy_version} / {len(resolved.policy.rules)} rules",
+        )
+
+        session = ProtectedRunSession(
+            workspace=workspace_root,
+            agent="codex",
+            mode=SessionMode.ENFORCE,
+            policy_id=resolved.policy_id,
+            policy_version=resolved.policy_version,
+        )
+        session.transition(SessionStatus.PREPARING)
+        passed("workspace_validation", str(session.workspace))
+
+        context = prepare_protection(
+            session,
+            resolved,
+            control_root,
+            lease_manager=lease_manager,
+        )
+        lease = context.workspace_lease
+        passed("active_policy_freeze", str(context.active_policy.artifact_path))
+        passed("workspace_lease", f"LIVE_MATCH / {lease.artifact_path}")
+
+        checkpoint = SafeCheckpointManager().create(
+            session,
+            context,
+            lease_manager=lease_manager,
+        )
+        validation = SafeCheckpointManager().validate(checkpoint)
+        if validation.validity is not CheckpointValidity.VALID:
+            raise RuntimeError(f"checkpoint validation returned {validation.validity}")
+        passed("safe_checkpoint", f"VALID / {checkpoint.checkpoint_id}")
+
+        evidence = RawEvidenceStore.for_session(control_root, session.session_id)
+        evidence.append(
+            RawEvidenceRecord(
+                session_id=session.session_id,
+                source=EvidenceSource.FILESYSTEM_WATCHER,
+                record_type=EvidenceRecordType.FILESYSTEM_EVENT,
+                captured_at=datetime.now(timezone.utc),
+                observation_stage=ObservationStage.POST_ACTION,
+                payload={"event_type": "self_test", "path": "README.md"},
+                evidence_id="self-test-evidence",
+            )
+        )
+        seal = evidence.seal()
+        index = evidence.build_index()
+        if seal.line_count != 1 or "self-test-evidence" not in index.entries:
+            raise RuntimeError("Raw Evidence seal/index verification failed")
+        passed("raw_evidence_seal", f"SEALED / {seal.sha256}")
+
+        session.transition(
+            SessionStatus.ABORTED,
+            end_reason=SessionEndReason.USER_ABORT,
+        )
+        lease_manager.release(lease)
+        lease = None
+        passed("lifecycle_cleanup", f"{session.status.value} / lease released")
+        payload: dict[str, object] = {
+            "self_test": "AIA_CORE",
+            "passed": True,
+            "codex_live_proof": "NOT_RUN",
+            "workspace": str(workspace_root),
+            "control_root": str(control_root),
+            "checks": checks,
+            "next_step": "실제 Codex 보호는 aia hook verify 후 aia protect로 별도 검증하세요.",
+        }
+        exit_code = 0
+    except Exception as error:
+        checks.append(
+            {
+                "name": "core_self_test",
+                "status": "FAIL",
+                "detail": f"{type(error).__name__}: {error}",
+            }
+        )
+        payload = {
+            "self_test": "AIA_CORE",
+            "passed": False,
+            "codex_live_proof": "NOT_RUN",
+            "checks": checks,
+            "error": f"{type(error).__name__}: {error}",
+            "next_step": "실패한 Core 점검의 detail을 확인하세요.",
+        }
+        exit_code = 1
+    finally:
+        if lease is not None:
+            try:
+                lease_manager.release(lease)
+            except (OSError, ValueError):
+                pass
+        shutil.rmtree(workspace_root, ignore_errors=True)
+        shutil.rmtree(control_root, ignore_errors=True)
+
+    if args.json:
+        print(_json_text(payload))
+    else:
+        print("AIA Core Self-Test")
+        for item in payload["checks"]:
+            print(f"[{item['status']}] {item['name']}: {item['detail']}")
+        print(f"결과: {'PASS' if payload['passed'] else 'FAIL'}")
+        print("실제 Codex Hook 증명: 별도 실행 필요")
+        print(f"[다음] {payload['next_step']}")
+    return exit_code
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -1277,6 +1424,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "doctor":
             return _doctor(args)
+        if args.command == "self-test":
+            return _self_test(args)
         if args.command == "runs":
             return _list_runs(args)
         if args.command == "status":

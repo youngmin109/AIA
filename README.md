@@ -63,6 +63,14 @@ uv run aia doctor
 실행에서 AIA Hook이 동작했다는 증명이 없다는 뜻입니다. 아래 설정과 실제 검증을
 완료한 뒤에만 보호 실행을 시작할 수 있습니다.
 
+AIA 설치와 Core 자체가 정상인지 먼저 확인하려면 다음 명령을 실행합니다. 이
+점검은 임시 Workspace와 Control Root를 사용한 뒤 삭제하며 Codex를 실행하지
+않습니다. 따라서 `PASS`여도 실제 Codex Hook 연결이 증명된 것은 아닙니다.
+
+```powershell
+uv run aia self-test
+```
+
 처음 설치하는 사용자는 다음 한 명령으로 AIA Hook을 추가할 수 있습니다.
 
 ```powershell

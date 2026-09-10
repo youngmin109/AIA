@@ -22,6 +22,16 @@ uv run aia hook install
 uv run aia policy validate C:\workspace\policies\protected-policy.json
 ```
 
+설치 직후 Codex를 실행하지 않고 AIA Core만 점검하려면 다음을 사용한다.
+
+```powershell
+uv run aia self-test
+```
+
+이 점검은 임시 Workspace에서 정책 프로필, Active Policy Freeze, Workspace Lease,
+Safe Checkpoint, Raw Evidence Seal을 확인하고 임시 산출물을 삭제한다. `PASS`는
+Core 정상 상태를 뜻하며, 실제 Codex Hook 연결 증명은 포함하지 않는다.
+
 처음 `aia doctor`에서 `hook_verification`이 실패하는 것은 정상이다. Codex에서
 Hook을 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해 실제 연결을 확인해야
 `aia protect`를 시작할 수 있다.

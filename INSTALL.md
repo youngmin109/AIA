@@ -52,6 +52,18 @@ uv run aia hook verify
 `NOT_VISIBLE`이면 임시 Probe를 실행하지 않고 즉시 원인과 다음 단계를 출력한다.
 Codex `/hooks`에서 AIA PreToolUse Hook을 직접 검토·신뢰한 뒤 다시 실행한다.
 
+Codex를 실행하기 전에 AIA Core 자체를 확인하려면 다음을 실행한다. 임시 Workspace와
+Control Root를 사용하고 모두 삭제하므로 사용자 Workspace와 Codex에는 영향을 주지
+않는다.
+
+```powershell
+uv run aia self-test
+```
+
+이 명령의 `PASS`는 정책·Lease·Checkpoint·Raw Evidence 핵심 계약이 정상이라는
+뜻이다. 실제 Codex Hook 연결은 별도로 `/hooks` 신뢰와 `uv run aia hook verify`가
+필요하다.
+
 `VERIFIED`가 표시된 뒤 다음 명령으로 전체 준비 상태가 `READY`인지 확인할 수
 있다.
 

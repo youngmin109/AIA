@@ -38,6 +38,31 @@ def test_doctor_parser_supports_machine_readable_preflight() -> None:
     assert args.json is True
 
 
+def test_self_test_parser_supports_machine_readable_output() -> None:
+    args = _parser().parse_args(["self-test", "--json"])
+
+    assert args.command == "self-test"
+    assert args.json is True
+
+
+def test_self_test_exercises_core_contracts_without_codex(capsys) -> None:
+    exit_code = main(["self-test", "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["passed"] is True
+    assert payload["codex_live_proof"] == "NOT_RUN"
+    assert {item["name"] for item in payload["checks"]} >= {
+        "policy_profile_resolution",
+        "active_policy_freeze",
+        "workspace_lease",
+        "safe_checkpoint",
+        "raw_evidence_seal",
+        "lifecycle_cleanup",
+    }
+
+
 def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:
     args = _parser().parse_args(["setup", "--json", "--path", str(tmp_path / "hooks.json")])
 
