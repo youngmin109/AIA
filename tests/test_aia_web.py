@@ -12,6 +12,24 @@ class FakeService:
     def policy_profiles(self):
         return [{"value": "BASIC_DEVELOPMENT", "label": "Basic Development"}]
 
+    def preview_policy(self, payload):
+        if payload.get("path") == "invalid":
+            raise ValueError("policy preview failed")
+        return {
+            "policy_id": "basic",
+            "policy_version": "1.0",
+            "profile": payload.get("policy_profile", "BASIC_DEVELOPMENT"),
+            "operation": payload["operation"],
+            "target_kind": "COMMAND" if payload["operation"] == "EXECUTE" else "PATH",
+            "policy_decision": "VIOLATION",
+            "operation_effect": "DENY",
+            "asset_type": "SECRET",
+            "matched_rule_ids": ["secret-files"],
+            "audit_record": False,
+            "reason": None,
+            "limitation": None,
+        }
+
     def list_runs(self):
         return []
 
@@ -173,6 +191,26 @@ def test_console_maps_validation_errors_to_bad_request() -> None:
     assert "workspace validation failed" in response.json()["error"]
 
 
+def test_console_policy_preview_is_non_executing_and_returns_decision() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    response = client.post(
+        "/api/policy/preview",
+        json={"operation": "READ", "path": ".env"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["policy_decision"] == "VIOLATION"
+    assert response.json()["asset_type"] == "SECRET"
+
+    invalid = client.post(
+        "/api/policy/preview",
+        json={"operation": "READ", "path": "invalid"},
+    )
+    assert invalid.status_code == 400
+    assert "policy preview failed" in invalid.json()["error"]
+
+
 def test_console_supports_session_first_interactive_run() -> None:
     service = FakeService()
     client = TestClient(create_app(service))
@@ -204,3 +242,5 @@ def test_console_reveals_custom_policy_path_for_custom_profile() -> None:
     assert 'option value="CUSTOM"' in page.text
     assert "updateCustomPolicyField" in page.text
     assert "CUSTOM" in page.text
+    assert "정책 미리보기" in page.text
+    assert "/api/policy/preview" in page.text

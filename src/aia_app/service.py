@@ -26,6 +26,7 @@ from aia import (
     HookTrustStatus,
     HookEnforcementBridge,
     Normalizer,
+    Operation,
     PolicyProfile,
     ProcessIdentityStatus,
     ProcessManager,
@@ -50,7 +51,7 @@ from aia.readiness import ProtectionReadinessBarrier
 from aia.hook_verification import HookVerificationStore
 from aia.codex_hook_trust import inspect_codex_hook_trust
 
-from .dto import CreateRunRequest, DTOValidationError
+from .dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
 from .presenters import action_view, incident_view, incident_views_for_result, result_view
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
@@ -198,6 +199,67 @@ class RunApplicationService:
                 PolicyProfile.CUSTOM,
             )
         ]
+
+    def preview_policy(
+        self,
+        request: PolicyPreviewRequest | dict[str, Any],
+    ) -> dict[str, Any]:
+        """Evaluate one target without starting an agent or touching a workspace."""
+
+        if isinstance(request, dict):
+            try:
+                request = PolicyPreviewRequest.from_mapping(request)
+            except DTOValidationError as error:
+                raise ApplicationValidationError(str(error)) from error
+        if not isinstance(request, PolicyPreviewRequest):
+            raise ApplicationValidationError("policy preview request is invalid")
+
+        try:
+            profile = PolicyProfile.from_value(request.policy_profile)
+            resolved = resolve_profile(
+                profile,
+                policy_source=(
+                    Path(request.custom_policy_path)
+                    if request.custom_policy_path is not None
+                    else None
+                ),
+            )
+            operation = Operation(request.operation)
+            if operation is Operation.EXECUTE:
+                evaluation = resolved.evaluate_target(
+                    operation=operation,
+                    raw_command=request.command,
+                )
+                target_kind = "COMMAND"
+            else:
+                evaluation = resolved.evaluate_target(
+                    operation=operation,
+                    path=request.path,
+                )
+                target_kind = "PATH"
+        except (OSError, ValueError) as error:
+            raise ApplicationValidationError(f"policy preview failed: {error}") from error
+
+        return {
+            "policy_id": resolved.policy_id,
+            "policy_version": resolved.policy_version,
+            "profile": resolved.profile.value,
+            "operation": operation.value,
+            "target_kind": target_kind,
+            "policy_decision": evaluation.policy_decision.value,
+            "operation_effect": (
+                evaluation.operation_effect.value
+                if evaluation.operation_effect is not None
+                else None
+            ),
+            "asset_type": (
+                evaluation.asset_type.value if evaluation.asset_type is not None else None
+            ),
+            "matched_rule_ids": list(evaluation.matched_rule_ids),
+            "audit_record": evaluation.audit_record,
+            "reason": evaluation.reason,
+            "limitation": evaluation.limitation,
+        }
 
     def preflight(self) -> dict[str, Any]:
         """Report local prerequisites without starting a Protected Run."""

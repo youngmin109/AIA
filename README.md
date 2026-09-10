@@ -46,6 +46,10 @@ uv run aia console --open
 
 콘솔은 로컬 단일 사용자 P1 도구다. 외부 bind/로그인/원격 접근/Database를 제공하지 않으며, Core의 보안 판정과 Result Bundle을 화면에 표시하는 역할만 한다. 화면에는 raw command와 evidence payload 값이 노출되지 않는다. 자세한 범위와 HTTP 계약은 [EPIC-019 문서](docs/epics/EPIC-019-LOCAL-SECURITY-CONSOLE.md)를 참조한다.
 
+새 보호 실행 화면의 `정책 미리보기`에서는 실제 실행 전에 파일 경로 또는 명령을
+넣어 선택한 정책의 판정·Effect·보안 자산·적용 Rule을 확인할 수 있다. 미리보기는
+Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
+
 외부 Network에 노출하지 마십시오.
 
 ## 라이선스

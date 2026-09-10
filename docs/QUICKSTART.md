@@ -68,6 +68,11 @@ uv run aia policy evaluate --operation READ --path .env
 uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 ```
 
+웹 콘솔을 사용하는 경우에도 `정책 미리보기`에서 행위 종류와 파일 경로 또는 명령을
+입력해 같은 확인을 할 수 있습니다. `차단 대상`, `허용·기록 대상`, `판정 불가` 중
+하나의 결과와 적용된 Rule을 보여주며, 이 단계에서는 Codex·파일·명령을 실행하지
+않습니다. 정책을 바꾼 뒤에는 실행 화면의 미리보기 결과도 다시 확인하세요.
+
 ## 4. 보호 실행 시작
 
 먼저 실제 프로젝트 대신 복사본이나 테스트 프로젝트를 사용한다.

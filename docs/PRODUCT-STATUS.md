@@ -43,6 +43,9 @@ PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUC
 활성화를 점검한다.
 정책을 실제 Agent 없이 확인하는 `aia policy evaluate`도 제공하므로, 사용자는
 보호 실행 전에 특정 경로·명령이 어떤 Rule과 Effect로 판정되는지 확인할 수 있다.
+웹 콘솔의 `정책 미리보기`에서도 같은 Resolved Policy 판정을 실행 없이 확인할 수
+있다. 미리보기는 Codex를 시작하거나 Workspace에 접근하지 않고, 최종 판정·Effect·
+보안 자산·적용 Rule만 보여준다.
 
 일반 Protected Run은 실제 Codex Hook 연결 검증을 통과해야 시작한다. 즉 Hook 설정
 파일이 존재하는 것만으로는 충분하지 않으며, `aia hook verify`가 Session-bound

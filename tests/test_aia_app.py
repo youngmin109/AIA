@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from aia_app.dto import CreateRunRequest, DTOValidationError
+from aia_app.dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
 from aia_app.presenters import action_view, incident_view, result_view
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
@@ -66,6 +66,26 @@ def test_create_request_can_explicitly_open_interactive_session() -> None:
 
     assert request.interactive is True
     assert request.task == ""
+
+
+def test_policy_preview_request_validates_target_shape_and_unknown_fields() -> None:
+    request = PolicyPreviewRequest.from_mapping(
+        {"operation": "read", "path": ".env"}
+    )
+    assert request.operation == "READ"
+    assert request.path == ".env"
+    assert request.policy_profile == "PROTECTED_DEVELOPMENT"
+
+    with pytest.raises(DTOValidationError, match="unknown request fields"):
+        PolicyPreviewRequest.from_mapping(
+            {"operation": "READ", "path": ".env", "asset_type": "WORKSPACE"}
+        )
+    with pytest.raises(DTOValidationError, match="accepts path"):
+        PolicyPreviewRequest.from_mapping(
+            {"operation": "READ", "path": ".env", "command": "type .env"}
+        )
+    with pytest.raises(DTOValidationError, match="requires command"):
+        PolicyPreviewRequest.from_mapping({"operation": "EXECUTE"})
 
 
 def test_registry_snapshot_excludes_runtime_and_isolated_lists(tmp_path) -> None:
@@ -556,6 +576,26 @@ def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
             "CUSTOM",
         }
         assert all(item["description"] for item in profiles)
+    finally:
+        service.shutdown()
+
+
+def test_application_policy_preview_uses_resolved_protected_profile(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        blocked = service.preview_policy({"operation": "READ", "path": ".env"})
+        assert blocked["policy_decision"] == "VIOLATION"
+        assert blocked["operation_effect"] == "DENY"
+        assert blocked["asset_type"] == "SECRET"
+        assert blocked["matched_rule_ids"] == ["protected-secret-files"]
+
+        allowed = service.preview_policy(
+            {"operation": "MODIFY", "path": "src/app.py"}
+        )
+        assert allowed["policy_decision"] == "COMPLIANT"
+        assert allowed["operation_effect"] == "AUDIT"
+        assert allowed["asset_type"] is None
+        assert allowed["matched_rule_ids"] == []
     finally:
         service.shutdown()
 

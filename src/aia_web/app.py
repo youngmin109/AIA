@@ -72,6 +72,15 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())
 
+    @app.post("/api/policy/preview")
+    async def preview_policy(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            preview = app.state.service.preview_policy(payload)
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(preview)
+
     @app.get("/api/preflight")
     def preflight() -> JSONResponse:
         return JSONResponse(app.state.service.preflight())

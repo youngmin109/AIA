@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from aia import PolicyProfile
+from aia import Operation, PolicyProfile
 
 
 class DTOValidationError(ValueError):
@@ -26,6 +26,16 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "mode",
         "interactive",
         "task",
+    }
+)
+
+_ALLOWED_PREVIEW_KEYS = frozenset(
+    {
+        "policy_profile",
+        "custom_policy_path",
+        "operation",
+        "path",
+        "command",
     }
 )
 
@@ -99,3 +109,66 @@ class CreateRunRequest:
             "interactive": self.interactive,
             "workspace": self.workspace,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyPreviewRequest:
+    """A non-executing request to inspect one resolved policy decision."""
+
+    operation: str
+    path: str | None = None
+    command: str | None = None
+    policy_profile: str = PolicyProfile.PROTECTED_DEVELOPMENT.value
+    custom_policy_path: str | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "PolicyPreviewRequest":
+        if not isinstance(value, Mapping):
+            raise DTOValidationError("request body must be a JSON object")
+        unknown = set(value) - _ALLOWED_PREVIEW_KEYS
+        if unknown:
+            raise DTOValidationError(
+                "unknown request fields: " + ", ".join(sorted(map(str, unknown)))
+            )
+
+        operation = _required_text(value.get("operation"), "operation").upper()
+        try:
+            normalized_operation = Operation(operation)
+        except ValueError as error:
+            raise DTOValidationError(f"unsupported operation: {operation!r}") from error
+
+        profile = _required_text(
+            value.get("policy_profile", PolicyProfile.PROTECTED_DEVELOPMENT.value),
+            "policy_profile",
+        )
+        custom_policy_path = value.get("custom_policy_path")
+        if custom_policy_path is not None:
+            custom_policy_path = _required_text(custom_policy_path, "custom_policy_path")
+
+        path = value.get("path")
+        command = value.get("command")
+        if path is not None:
+            path = _required_text(path, "path")
+        if command is not None:
+            command = _required_text(command, "command")
+            if len(command) > 50_000:
+                raise DTOValidationError("command is too large")
+
+        if normalized_operation is Operation.EXECUTE:
+            if path is not None:
+                raise DTOValidationError("EXECUTE preview accepts command, not path")
+            if command is None:
+                raise DTOValidationError("EXECUTE preview requires command")
+        else:
+            if command is not None:
+                raise DTOValidationError("file operation preview accepts path, not command")
+            if path is None:
+                raise DTOValidationError("file operation preview requires path")
+
+        return cls(
+            operation=normalized_operation.value,
+            path=path,
+            command=command,
+            policy_profile=profile,
+            custom_policy_path=custom_policy_path,
+        )
