@@ -98,6 +98,7 @@ class ResultBundleReader:
                 continue
             if verification is None:
                 continue
+            hook_event_count = self.hook_event_count(candidate.name)
             completed.append(
                 {
                     "session_id": candidate.name,
@@ -109,6 +110,10 @@ class ResultBundleReader:
                     "policy": result.get("policy", {}),
                     "run_classification": result.get("run_classification"),
                     "bundle_status": verification.status.value,
+                    "protection_state": (
+                        "COMPLETED_VERIFIED" if hook_event_count else "COMPLETED_DEGRADED"
+                    ),
+                    "hook_event_count": hook_event_count,
                     "incident_count": sum(
                         1
                         for item in result.get("action_outcomes", ())
@@ -121,6 +126,16 @@ class ResultBundleReader:
             completed,
             key=lambda item: str(item.get("ended_at") or item.get("created_at") or ""),
             reverse=True,
+        )
+
+    def hook_event_count(self, session_id: str) -> int:
+        """Count verified PreTool records without exposing their payloads."""
+
+        return sum(
+            1
+            for item in self.read_evidence_metadata(session_id)
+            if item.get("source") == "AGENT_HOOK"
+            and item.get("record_type") == "PRETOOL_REQUEST"
         )
 
     def _require_valid(self, session_id: str) -> None:

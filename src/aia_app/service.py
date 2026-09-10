@@ -216,6 +216,7 @@ class RunApplicationService:
                 "incident_count": len(record.incidents),
                 "result_url": f"/runs/{record.session_id}/result",
                 "protection_state": record.protection_state,
+                "hook_event_count": record.hook_event_count,
             }
         for item in self.reader.list_completed():
             values.setdefault(item["session_id"], item)
@@ -447,7 +448,9 @@ class RunApplicationService:
                 result=result_mapping,
                 bundle_status=verification.status.value,
                 protection_state=(
-                    "COMPLETED_VERIFIED" if not controller.errors else "COMPLETED_DEGRADED"
+                    "COMPLETED_VERIFIED"
+                    if controller.events and not controller.errors
+                    else "COMPLETED_DEGRADED"
                 ),
                 hook_event_count=len(controller.events),
                 sensor_health={
@@ -612,18 +615,17 @@ class RunApplicationService:
             "phase": view["session_status"],
             "result_path": str(self.result_directory_for(session_id)),
             "protection": {
-                "state": "COMPLETED_DEGRADED"
-                if any(
-                    item.get("runtime_health_before_stop") == "FAILED"
-                    for item in result.get("sensor_summary", [])
-                    if isinstance(item, dict)
-                )
-                else "COMPLETED_VERIFIED",
-                "hook_events": sum(
-                    1
-                    for item in result.get("evidence_references", [])
-                    if item.get("source") == "CODEX_HOOK"
+                "state": (
+                    "COMPLETED_VERIFIED"
+                    if self.reader.hook_event_count(session_id) > 0
+                    and not any(
+                        item.get("runtime_health_before_stop") == "FAILED"
+                        for item in result.get("sensor_summary", [])
+                        if isinstance(item, dict)
+                    )
+                    else "COMPLETED_DEGRADED"
                 ),
+                "hook_events": self.reader.hook_event_count(session_id),
             },
             "policy": view["policy"],
             "result_available": True,
