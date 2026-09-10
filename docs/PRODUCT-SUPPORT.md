@@ -18,10 +18,13 @@ Control Root: Workspace 밖의 사용자별 AIA control directory
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -SkipDoctor
-uv run aia doctor
-uv run aia policy validate C:\workspace\policies\protected-policy.json
 uv run aia hook install
+uv run aia policy validate C:\workspace\policies\protected-policy.json
 ```
+
+처음 `aia doctor`에서 `hook_verification`이 실패하는 것은 정상이다. Codex에서
+Hook을 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해 실제 연결을 확인해야
+`aia protect`를 시작할 수 있다.
 
 정책을 새로 만들 때는 기본 프로필을 복사한 뒤 수정합니다.
 

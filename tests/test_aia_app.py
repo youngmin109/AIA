@@ -445,6 +445,53 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         service.shutdown()
 
 
+def test_application_preflight_requires_live_hook_verification_when_enabled(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(
+        tmp_path / "control",
+        require_hook_verification=True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_installed",
+        lambda _installer: True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_posttool_installed",
+        lambda _installer: True,
+    )
+    try:
+        result = service.preflight()
+        assert result["ready"] is False
+        checks = {item["name"]: item for item in result["checks"]}
+        assert checks["hook_verification"]["ok"] is False
+        assert "hook verify" in checks["hook_verification"]["detail"]
+    finally:
+        service.shutdown()
+
+
+def test_application_rejects_run_without_live_hook_verification(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(
+        tmp_path / "control",
+        require_hook_verification=True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    try:
+        with pytest.raises(ApplicationValidationError, match="Hook 검증"):
+            service.create_protected_run(
+                {"workspace": str(tmp_path), "task": "inspect"}
+            )
+    finally:
+        service.shutdown()
+
+
 def test_application_rejects_invalid_workspace_before_background_launch(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     try:

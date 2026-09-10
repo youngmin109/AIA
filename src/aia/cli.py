@@ -24,6 +24,7 @@ from aia import (
     policy_content_sha256,
     resolve_profile,
 )
+from aia.hook_verification import HookVerificationStore
 from aia_app import ApplicationValidationError, RunApplicationService
 from aia_app.readers import ResultBundleReader
 
@@ -161,6 +162,11 @@ def _parser() -> argparse.ArgumentParser:
         default=3600.0,
         help="maximum wait in seconds",
     )
+    protect.add_argument(
+        "--_allow-unverified-hook",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
@@ -189,6 +195,7 @@ def _doctor(args: argparse.Namespace) -> int:
     )
 
     adapter = CodexAdapter()
+    executable: Path | None = None
     try:
         executable = adapter.discover()
         checks.append(
@@ -226,6 +233,23 @@ def _doctor(args: argparse.Namespace) -> int:
     )
 
     control_root = _control_root(args.control_root)
+    hook_verified = bool(
+        hook_installed
+        and executable is not None
+        and HookVerificationStore(control_root).is_current(installer, executable)
+    )
+    checks.append(
+        {
+            "name": "hook_verification",
+            "ok": hook_verified,
+            "value": str(HookVerificationStore(control_root).path),
+            "detail": (
+                "Live Codex Hook Event verification is current"
+                if hook_verified
+                else "Run 'aia hook verify' after reviewing the Hook in Codex"
+            ),
+        }
+    )
     try:
         control_root.mkdir(parents=True, exist_ok=True)
         probe = control_root / ".aia-doctor-write-test"
@@ -443,6 +467,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
         str(control_root),
         "--timeout",
         str(args.timeout),
+        "--_allow-unverified-hook",
     ]
     payload: dict[str, object] = {
         "verified": False,
@@ -500,6 +525,19 @@ def _hook_verify(args: argparse.Namespace) -> int:
             ):
                 payload["verified"] = True
                 payload["reason"] = "SESSION_BOUND_HOOK_EVENT_OBSERVED"
+                try:
+                    HookVerificationStore(control_root).write_verified(
+                        installer=installer,
+                        executable=executable,
+                        session_id=str(session_id),
+                        hook_event_count=int(payload["hook_event_count"]),
+                    )
+                    payload["verification_path"] = str(
+                        HookVerificationStore(control_root).path
+                    )
+                except OSError as error:
+                    payload["verified"] = False
+                    payload["reason"] = f"HOOK_VERIFICATION_PERSIST_FAILED:{type(error).__name__}"
             elif payload["hook_event_count"] == 0:
                 payload["reason"] = "HOOK_EVENT_NOT_OBSERVED"
             else:
@@ -527,7 +565,11 @@ def _hook_verify(args: argparse.Namespace) -> int:
     return 0 if payload["verified"] else 1
 
 
-def _protected_run_preflight() -> tuple[bool, list[str]]:
+def _protected_run_preflight(
+    control_root: Path | None = None,
+    *,
+    allow_unverified_hook: bool = False,
+) -> tuple[bool, list[str]]:
     """Return actionable local checks before creating a Protected Run."""
 
     failures: list[str] = []
@@ -540,6 +582,19 @@ def _protected_run_preflight() -> tuple[bool, list[str]]:
         failures.append(
             "AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 'uv run aia setup'을 실행하세요."
         )
+    elif not allow_unverified_hook:
+        resolved_control_root = control_root or _control_root(None)
+        try:
+            executable = CodexAdapter().discover()
+        except Exception:
+            executable = None
+        if executable is None or not HookVerificationStore(resolved_control_root).is_current(
+            installer,
+            executable,
+        ):
+            failures.append(
+                "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+            )
     return not failures, failures
 
 
@@ -754,14 +809,23 @@ def _run_protected(args: argparse.Namespace) -> int:
             "provide --task for non-interactive execution"
         )
         return 2
-    ready, failures = _protected_run_preflight()
+    ready, failures = _protected_run_preflight(
+        _control_root(args.control_root),
+        allow_unverified_hook=args._allow_unverified_hook,
+    )
     if not ready:
         print("AIA 보호 실행을 시작하지 않았습니다.")
         for failure in failures:
             print(f"[FAIL] {failure}")
-        print("[다음] uv run aia setup")
+        if any("hook verify" in failure for failure in failures):
+            print("[다음] uv run aia hook verify")
+        else:
+            print("[다음] uv run aia setup")
         return 2
-    service = RunApplicationService(_control_root(args.control_root))
+    service = RunApplicationService(
+        _control_root(args.control_root),
+        require_hook_verification=not args._allow_unverified_hook,
+    )
     try:
         created = service.create_protected_run(
             {

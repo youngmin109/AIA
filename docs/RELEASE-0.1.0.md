@@ -46,11 +46,18 @@ Windows 소스 체크아웃에서는 [INSTALL.md](../INSTALL.md)의 설치 스�
 
 ```powershell
 uv sync
-uv run aia doctor
 uv run aia hook install
+uv run aia hook verify
+uv run aia doctor
 ```
 
 Codex에서 `/hooks`를 열어 AIA Hook을 검토·신뢰한 뒤 다음을 실행한다.
+
+```powershell
+uv run aia doctor
+```
+
+`READY`가 확인된 뒤에만 보호 실행을 시작한다.
 
 ```powershell
 uv run aia protect C:\workspace\my-project

@@ -46,6 +46,7 @@ from aia import (
 )
 from aia.session import SessionEndReason, WorkspaceValidationError
 from aia.readiness import ProtectionReadinessBarrier
+from aia.hook_verification import HookVerificationStore
 
 from .dto import CreateRunRequest, DTOValidationError
 from .presenters import action_view, incident_view, incident_views_for_result, result_view
@@ -112,10 +113,12 @@ class RunApplicationService:
         *,
         registry: RunRegistry | None = None,
         max_workers: int = 4,
+        require_hook_verification: bool = False,
     ) -> None:
         self.control_root = Path(control_root).expanduser().resolve(strict=False)
         self.registry = registry or RunRegistry()
         self.reader = ResultBundleReader(self.control_root)
+        self.require_hook_verification = require_hook_verification
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="aia-console-run",
@@ -204,6 +207,29 @@ class RunApplicationService:
             }
         )
 
+        if self.require_hook_verification:
+            hook_verified = False
+            try:
+                executable = CodexAdapter().discover()
+                hook_verified = HookVerificationStore(self.control_root).is_current(
+                    installer,
+                    executable,
+                )
+            except Exception:
+                hook_verified = False
+            checks.append(
+                {
+                    "name": "hook_verification",
+                    "label": "실시간 Hook 검증",
+                    "ok": hook_verified,
+                    "detail": (
+                        "최근 실제 Codex Probe에서 Session-bound Hook Event 확인"
+                        if hook_verified
+                        else "uv run aia hook verify 필요"
+                    ),
+                }
+            )
+
         try:
             self.control_root.mkdir(parents=True, exist_ok=True)
             probe = self.control_root / ".aia-preflight-write-test"
@@ -287,6 +313,21 @@ class RunApplicationService:
                 raise ApplicationValidationError(str(error)) from error
         if not isinstance(request, CreateRunRequest):
             raise ApplicationValidationError("request is invalid")
+        if self.require_hook_verification:
+            installer = CodexHookInstaller()
+            try:
+                executable = CodexAdapter().discover()
+            except Exception as error:
+                raise ApplicationValidationError(
+                    "Codex 실행 파일을 찾을 수 없습니다"
+                ) from error
+            if not HookVerificationStore(self.control_root).is_current(
+                installer,
+                executable,
+            ):
+                raise ApplicationValidationError(
+                    "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+                )
         workspace = self._validate_workspace(request.workspace)
         if not request.interactive and not request.task.strip():
             raise ApplicationValidationError(

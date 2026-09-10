@@ -26,7 +26,10 @@ def default_control_root() -> Path:
 
 
 def create_app(service: RunApplicationService | None = None) -> FastAPI:
-    active_service = service or RunApplicationService(default_control_root())
+    active_service = service or RunApplicationService(
+        default_control_root(),
+        require_hook_verification=True,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):

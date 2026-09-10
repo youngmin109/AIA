@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from aia import CodexHookInstaller
+from aia.hook_verification import HookVerificationStore
 
 
 def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
@@ -100,3 +101,47 @@ def test_codex_hook_uninstall_removes_only_aia_handlers(tmp_path: Path) -> None:
         {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
     ]
     assert updated["hooks"]["PostToolUse"] == []
+
+
+def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(tmp_path: Path) -> None:
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    assert store.is_current(installer, executable) is True
+    document = store.read()
+    assert document is not None
+    assert document["schema_version"] == "aia-hook-verification-1"
+    assert document["session_id"] == "session-1"
+
+    hook_path.write_text(hook_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    assert store.is_current(installer, executable) is False
+
+
+def test_hook_verification_is_invalid_after_codex_executable_changes(tmp_path: Path) -> None:
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    executable.write_bytes(b"codex-test-build-2")
+
+    assert store.is_current(installer, executable) is False

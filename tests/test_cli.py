@@ -96,6 +96,26 @@ def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
     assert any("PreToolUse Hook" in item for item in failures)
 
 
+def test_protected_run_preflight_requires_live_hook_proof_when_hook_is_installed(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: "codex.exe")
+    monkeypatch.setattr("aia.cli.CodexHookInstaller.is_installed", lambda _installer: True)
+
+    ready, failures = _protected_run_preflight(tmp_path / "control")
+
+    assert ready is False
+    assert any("hook verify" in item for item in failures)
+
+    ready, failures = _protected_run_preflight(
+        tmp_path / "control",
+        allow_unverified_hook=True,
+    )
+
+    assert ready is True
+    assert failures == []
+
+
 def test_policy_validate_parser_keeps_policy_path_and_json_flag(tmp_path) -> None:
     path = tmp_path / "policy.json"
     args = _parser().parse_args(["policy", "validate", str(path), "--json"])

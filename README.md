@@ -54,14 +54,17 @@ uv run aia-web
 uv run aia doctor
 ```
 
+처음 실행하면 `hook_verification`이 `FAIL`일 수 있습니다. 아직 실제 Codex
+실행에서 AIA Hook이 동작했다는 증명이 없다는 뜻입니다. 아래 설정과 실제 검증을
+완료한 뒤에만 보호 실행을 시작할 수 있습니다.
+
 처음 설치하는 사용자는 다음 한 명령으로 AIA Hook을 추가할 수 있습니다.
 
 ```powershell
 uv run aia setup
 ```
 
-그다음 Codex에서 `/hooks`를 열어 AIA Hook을 직접 검토·신뢰하고, 다시
-`uv run aia doctor`를 실행합니다. `aia protect`는 PreToolUse Hook이 설치되지
+그다음 Codex에서 `/hooks`를 열어 AIA Hook을 직접 검토·신뢰합니다. `aia protect`는 PreToolUse Hook이 설치되지
 않은 상태에서는 Protected Run을 만들지 않고 즉시 다음 조치를 안내합니다.
 설치 여부와 실제 보호 실행에서 Hook Event가 관찰됐는지는 다음 명령으로 구분해
 확인할 수 있습니다.
@@ -113,6 +116,10 @@ uv run aia hook verify
 `VERIFIED`와 Session-bound Hook Event가 확인될 때만 일반 보호 실행을 검증된
 상태로 해석합니다. `NOT_VERIFIED`이면 Codex `/hooks`에서 AIA Hook을 검토·신뢰한
 뒤 다시 실행합니다.
+
+`VERIFIED`가 된 뒤 `uv run aia doctor`를 다시 실행하면 `READY`가 되어야 합니다.
+검증 파일은 현재 Hook 설정과 Codex 실행 파일에 묶여 있으므로, 둘 중 하나가
+바뀌면 다시 `aia hook verify`를 실행해야 합니다.
 
 ```powershell
 uv run aia protect C:\workspace\my-project

@@ -34,6 +34,12 @@ PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUC
 `aia hook verify`는 임시 Workspace의 실제 Codex 실행으로 Session-bound Hook
 활성화를 점검한다.
 
+일반 Protected Run은 실제 Codex Hook 연결 검증을 통과해야 시작한다. 즉 Hook 설정
+파일이 존재하는 것만으로는 충분하지 않으며, `aia hook verify`가 Session-bound
+Hook Event를 확인하고 현재 Hook 설정·Codex 실행 파일에 대한 검증 기록을 만든
+뒤에만 `aia protect`와 콘솔 실행 버튼이 열리는 구조다. 검증 기록이 오래됐거나
+실행 파일·Hook 설정이 바뀌면 다시 검증해야 한다.
+
 Process Manager 자체는 Codex 실행 환경의 Job Object 영향을 피한 별도 Windows
 PowerShell smoke에서도 `Root → Child → Grandchild = TERMINATED / SUCCEEDED`,
 unrelated process = `LIVE_MATCH`로 확인했다. 이 결과는 관리된 프로세스 종료 계약의
