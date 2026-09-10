@@ -124,9 +124,16 @@ uv run python scripts/product_e2e_smoke.py
 uv run python scripts/product_e2e_smoke.py --scenario block-canary
 ```
 
+`apply_patch` 경로까지 실제로 확인하려면 다음을 실행합니다.
+
+```powershell
+uv run python scripts/product_e2e_smoke.py --scenario block-apply-patch
+```
+
 `normal`은 실제 `aia protect` 경로의 정상 완료와 결과 Bundle을 확인합니다.
-`block-canary`는 실제 Codex `PreToolUse`에서 정책 위반 관문이 `CONTAIN /
-PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 확인합니다. 제품 서비스는
+`block-canary`와 `block-apply-patch`는 실제 Codex `PreToolUse`에서 정책 위반 관문이
+`CONTAIN / PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 각각 확인합니다.
+제품 서비스는
 Hook deny만으로 실행 성공을 주장하지 않으므로, 이 smoke의 결과에는
 `CANARY_NO_SIDE_EFFECT`와 `confirmed_block_count`가 따로 표시됩니다.
 

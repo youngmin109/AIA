@@ -30,6 +30,15 @@ Hook이 설치되지 않았거나 사용자가 검토·신뢰하지 않은 상�
 uv run python scripts/actual_codex_pretool_smoke.py
 ```
 
+실제 `apply_patch` 경로도 별도로 확인할 수 있다.
+
+```powershell
+uv run python scripts/actual_codex_pretool_smoke.py --scenario apply-patch
+```
+
+이 시나리오는 patch 원문에 포함된 파일명을 명령 Rule로 평가하고, 실제 파일이
+생성되지 않은 경우에만 `BLOCKED / SUCCEEDED`로 확정한다.
+
 `.env`를 shell 명령으로 읽는 경로도 별도 실행할 수 있다.
 
 ```powershell
@@ -43,7 +52,7 @@ uv run python scripts/actual_codex_pretool_smoke.py --scenario env
 증명 스크립트의 성공 조건은 다음과 같다.
 
 - 실제 Codex `PreToolUse` Payload가 수신된다.
-- `tool_name=Bash`와 `tool_input.command` 원문이 Raw Evidence에 저장된다.
+- `tool_name=Bash` 또는 `tool_name=apply_patch`와 해당 command/patch 원문이 Raw Evidence에 저장된다.
 - 정책 결과가 `VIOLATION`이고 Gate 결과가 `CONTAIN / PRETOOL_BLOCK`이다.
 - AIA가 Codex 형식의 `permissionDecision=deny`를 반환한다.
 - `AIA_CANARY_EXECUTED`가 생성되지 않는다.
