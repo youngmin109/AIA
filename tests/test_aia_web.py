@@ -27,6 +27,13 @@ class FakeService:
                 "status": "MANUAL_REVIEW_REQUIRED",
                 "detail": "Codex에서 /hooks를 검토하세요.",
             },
+            "codex_hook_trust": {
+                "available": True,
+                "hooks": [
+                    {"event": "preToolUse", "trust_status": "MODIFIED"},
+                    {"event": "postToolUse", "trust_status": "UNTRUSTED"},
+                ],
+            },
             "next_steps": [],
         }
 
@@ -126,6 +133,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "보호 실행 시작" in new_run.text
     assert "작업 폴더 선택" in new_run.text
     assert "AIA는 실제 도구 요청을 관찰·통제합니다" in new_run.text
+    assert "Codex 실제 Hook Trust" in new_run.text
+    assert "preToolUse=MODIFIED" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/workspaces/validate", params={"path": "C:/workspace"}).json()["valid"] is True
     created = client.post("/api/runs", json={"workspace": "C:/workspace", "task": "inspect"})

@@ -29,6 +29,15 @@
     {% endfor %}
   </div>
   <div class="notice warning preflight-trust">{{ preflight.hook_trust.detail }}</div>
+  <div id="codex-hook-trust" class="notice warning">
+    <strong>Codex 실제 Hook Trust:</strong>
+    {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
+    {% if trust_hooks %}
+      {% for hook in trust_hooks %}{{ hook.event }}={{ hook.trust_status }}{% if not loop.last %} · {% endif %}{% endfor %}
+    {% else %}
+      확인할 수 없음
+    {% endif %}
+  </div>
   <div class="notice preflight-claim">
     <strong>보호 성공 판정 규칙:</strong>
     {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
@@ -97,6 +106,7 @@ const preflightChecks = document.getElementById('preflight-checks');
 const preflightError = document.getElementById('preflight-error');
 const submitRun = document.getElementById('submit-run');
 const hookActivation = document.getElementById('hook-activation');
+const codexHookTrust = document.getElementById('codex-hook-trust');
 const profileDescriptions = {{ profiles|tojson }};
 function updateProfileDescription() {
   const selected = profileDescriptions.find((item) => item.value === profile.value);
@@ -124,6 +134,12 @@ function renderPreflight(payload) {
   const activation = payload.hook_activation || {};
   hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
   hookActivation.textContent = `실제 Hook 관찰: ${activation.detail || '상태를 확인할 수 없습니다.'}`;
+  const trust = payload.codex_hook_trust || {};
+  const trustHooks = Array.isArray(trust.hooks) ? trust.hooks : [];
+  const trustSummary = trustHooks.map((hook) => `${hook.event}=${hook.trust_status}`).join(' · ');
+  const preToolTrust = trustHooks.find((hook) => hook.event === 'preToolUse')?.trust_status;
+  codexHookTrust.className = `notice ${['TRUSTED', 'MANAGED'].includes(preToolTrust) ? 'success' : 'warning'}`;
+  codexHookTrust.textContent = `Codex 실제 Hook Trust: ${trustSummary || '확인할 수 없음'}`;
   submitRun.disabled = !payload.ready;
 }
 document.getElementById('refresh-preflight').addEventListener('click', async () => {
