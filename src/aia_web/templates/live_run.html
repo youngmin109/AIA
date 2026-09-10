@@ -18,6 +18,10 @@
   <div class="metric"><span>사건 수</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
 </section>
 
+<div id="interactive-instructions" class="notice success" {% if not status.interactive %}hidden{% endif %}>
+  <strong>대화형 보호 세션:</strong> Codex 창이 열리면 그 안에서 작업을 입력하세요. 작업을 마치면 Codex를 종료하면 AIA가 결과를 확정합니다.
+</div>
+
 <section class="panel">
   <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted"></span></div>
   <div id="protection-note" class="notice warning" hidden></div>
@@ -50,6 +54,7 @@ async function poll() {
     document.getElementById('lease').textContent = status.lease || 'PENDING';
     document.getElementById('incident-count').textContent = status.incident_count;
     const protection = status.protection || {};
+    document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
     const protectionNote = document.getElementById('protection-note');
     const notes = {

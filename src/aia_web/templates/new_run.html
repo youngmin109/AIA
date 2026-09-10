@@ -84,8 +84,15 @@
       <label class="field">보호 모드
         <select name="mode"><option value="ENFORCE">ENFORCE · 위반 차단</option><option value="AUDIT">AUDIT · 관찰만</option></select>
       </label>
-      <label class="field field-wide">작업 요청
-        <textarea name="task" rows="6" required placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
+      <fieldset class="field field-wide run-mode-field">
+        <legend>작업 시작 방식</legend>
+        <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
+        <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
+        <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
+        <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
+      </fieldset>
+      <label class="field field-wide" id="task-field" hidden>작업 요청
+        <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
         <span class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다. 명령을 실행할지 여부는 Codex가 결정하며, AIA는 실제 도구 요청을 관찰·통제합니다.</span>
       </label>
     </div>
@@ -108,6 +115,17 @@ const submitRun = document.getElementById('submit-run');
 const hookActivation = document.getElementById('hook-activation');
 const codexHookTrust = document.getElementById('codex-hook-trust');
 const profileDescriptions = {{ profiles|tojson }};
+const taskField = document.getElementById('task-field');
+const taskInput = document.getElementById('task-input');
+const runModeInputs = [...form.querySelectorAll('input[name="run_mode"]')];
+function updateRunMode() {
+  const interactive = form.elements.run_mode.value === 'interactive';
+  taskField.hidden = interactive;
+  taskInput.required = !interactive;
+  if (interactive) taskInput.value = '';
+}
+runModeInputs.forEach((input) => input.addEventListener('change', updateRunMode));
+updateRunMode();
 function updateProfileDescription() {
   const selected = profileDescriptions.find((item) => item.value === profile.value);
   document.getElementById('policy-description').textContent = selected?.description || '';
@@ -159,6 +177,9 @@ form.addEventListener('submit', async (event) => {
   errorBox.hidden = true;
   const data = Object.fromEntries(new FormData(form).entries());
   data.agent = data.agent.toLowerCase();
+  data.interactive = data.run_mode === 'interactive';
+  delete data.run_mode;
+  if (data.interactive) data.task = '';
   if (!data.model) delete data.model;
   if (!data.custom_policy_path) delete data.custom_policy_path;
   try {

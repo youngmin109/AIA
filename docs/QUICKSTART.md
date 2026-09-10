@@ -63,6 +63,11 @@ Workspace 확인
 uv run aia protect "C:\workspace\my-project" --task "README.md를 읽고 한 문장으로 요약해줘"
 ```
 
+웹 콘솔(`uv run aia console`)에서도 작업 시작 방식을 선택할 수 있다. 기본값인
+`대화형 보호 세션`을 선택하면 AIA가 먼저 보호된 Codex 세션을 열고, 열린 Codex
+화면에서 사용자가 작업을 입력한다. `한 번의 작업 실행`을 선택하면 작업 요청을
+미리 입력해 보호 준비가 끝난 뒤 한 번 전달한다.
+
 ## 5. 결과 확인
 
 `AIA Protected Run: ...` 뒤에 표시된 Session ID를 사용한다.

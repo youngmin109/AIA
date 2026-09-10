@@ -6,6 +6,9 @@ from aia_web.app import create_app
 
 
 class FakeService:
+    def __init__(self):
+        self.created_payloads = []
+
     def policy_profiles(self):
         return [{"value": "BASIC_DEVELOPMENT", "label": "Basic Development"}]
 
@@ -38,6 +41,7 @@ class FakeService:
         }
 
     def create_protected_run(self, payload):
+        self.created_payloads.append(payload)
         if payload.get("workspace") == "invalid":
             raise ValueError("workspace validation failed")
         return {"redirect_url": "/runs/run-1", "session_id": "run-1", "status": "CREATED"}
@@ -165,3 +169,20 @@ def test_console_maps_validation_errors_to_bad_request() -> None:
     response = client.post("/api/runs", json={"workspace": "invalid", "task": "inspect"})
     assert response.status_code == 400
     assert "workspace validation failed" in response.json()["error"]
+
+
+def test_console_supports_session_first_interactive_run() -> None:
+    service = FakeService()
+    client = TestClient(create_app(service))
+
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "대화형 보호 세션" in page.text
+    assert "세션 안에서 원하는 작업을 입력합니다" in page.text
+
+    created = client.post(
+        "/api/runs",
+        json={"workspace": "C:/workspace", "interactive": True},
+    )
+    assert created.status_code == 202
+    assert service.created_payloads[-1]["interactive"] is True
