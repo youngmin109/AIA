@@ -1554,6 +1554,9 @@ def _run_protected(args: argparse.Namespace) -> int:
                     "완전한 보호 성공으로 해석하지 마세요."
                 )
         return 0 if final_status == "COMPLETED" and protection_state != "COMPLETED_DEGRADED" else 1
+    except KeyboardInterrupt:
+        print("\nAIA 보호 실행 중지를 요청했습니다. 관리 중인 Codex를 정리하는 중입니다.")
+        return 130
     finally:
         service.shutdown()
 

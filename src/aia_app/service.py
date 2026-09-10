@@ -673,6 +673,24 @@ class RunApplicationService:
         }
 
     def shutdown(self, wait: bool = True) -> None:
+        """Stop live Protected Runs before closing the application service.
+
+        A console process can be interrupted while a Codex child is still
+        running.  Leaving the executor to shut down by itself would close the
+        AIA coordinator while the managed Agent remains alive.  Requesting a
+        user abort first lets the existing identity-safe launcher cleanup path
+        terminate the registered tree and finalize the run honestly.
+        """
+
+        for record in self.registry.snapshots():
+            if record.status in {"COMPLETED", "ABORTED", "FAILED"}:
+                continue
+            try:
+                self.request_stop(record.session_id)
+            except (KeyError, OSError, ValueError):
+                # The worker may have finalized between the snapshot and the
+                # stop request.  Its own finalization remains authoritative.
+                continue
         self._executor.shutdown(wait=wait, cancel_futures=False)
 
     @staticmethod

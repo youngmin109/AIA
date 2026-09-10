@@ -629,6 +629,22 @@ def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> No
         service.shutdown()
 
 
+def test_shutdown_requests_stop_for_live_run_before_executor_closes(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "READY"
+    record.phase = "READY"
+    service.registry.add(record)
+    try:
+        service.shutdown(wait=True)
+        assert record.stop_requested is True
+        assert record.protection_state == "STOP_REQUESTED"
+    finally:
+        # The shutdown above is intentionally part of the assertion.  This
+        # second call keeps the test safe if setup fails before that point.
+        service.shutdown(wait=True)
+
+
 def test_request_stop_reports_persisted_terminal_run(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(tmp_path / "control")
     try:
