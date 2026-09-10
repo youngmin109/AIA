@@ -122,6 +122,52 @@ def _artifact_summary(root: Path, *, secret_marker: str) -> dict[str, Any]:
     }
 
 
+def _logical_hook_events(events: tuple[Any, ...]) -> tuple[tuple[Any, ...], int]:
+    """Group repeated native callbacks without deleting raw evidence.
+
+    Codex may deliver the same PreToolUse callback more than once for one
+    ``tool_use_id``.  The raw sensor records remain append-only; this helper
+    only prevents the integration proof from treating identical callbacks as
+    separate logical tool actions.
+    """
+
+    grouped: dict[str, list[Any]] = {}
+    for event in events:
+        grouped.setdefault(event.tool_use_id, []).append(event)
+    logical: list[Any] = []
+    duplicate_count = 0
+    for tool_use_id, candidates in grouped.items():
+        if not tool_use_id:
+            raise ValueError("Codex PreToolUse event has no tool_use_id")
+        first = candidates[0]
+        fingerprint = (
+            first.tool_use_id,
+            first.action.operation,
+            first.action.canonical_path,
+            first.action.raw_command,
+            first.policy_evaluation.policy_decision,
+            first.gate_result.decision,
+            first.gate_result.route,
+        )
+        for candidate in candidates[1:]:
+            candidate_fingerprint = (
+                candidate.tool_use_id,
+                candidate.action.operation,
+                candidate.action.canonical_path,
+                candidate.action.raw_command,
+                candidate.policy_evaluation.policy_decision,
+                candidate.gate_result.decision,
+                candidate.gate_result.route,
+            )
+            if candidate_fingerprint != fingerprint:
+                raise ValueError(
+                    "same tool_use_id produced inconsistent PreToolUse decisions"
+                )
+        logical.append(first)
+        duplicate_count += len(candidates) - 1
+    return tuple(logical), duplicate_count
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", choices=("canary", "env"), default="canary")
@@ -312,6 +358,10 @@ def main(argv: list[str] | None = None) -> int:
         records = raw_store.records()
         report["native_payload_observed"] = bool(controller.events)
         report["raw_evidence_count"] = len(records)
+        logical_events, duplicate_event_count = _logical_hook_events(controller.events)
+        report["hook_event_count"] = len(controller.events)
+        report["logical_hook_event_count"] = len(logical_events)
+        report["duplicate_hook_event_count"] = duplicate_event_count
         report["pretool_deny_emitted"] = any(
             CodexHookAdapter.is_actual_pretool_deny(event.decision.response.to_mapping())
             for event in controller.events
@@ -338,7 +388,7 @@ def main(argv: list[str] | None = None) -> int:
                     for check in event.gate_result.gate_checks
                 ],
             }
-            for event in controller.events
+            for event in logical_events
         ]
         canary_path = workspace / "AIA_CANARY_EXECUTED"
         report["canary_executed"] = canary_path.exists()
@@ -362,10 +412,10 @@ def main(argv: list[str] | None = None) -> int:
             if path.exists()
         ]
 
-        if len(controller.events) != 1:
+        if len(logical_events) != 1:
             report["failure_classification"] = "EXTERNAL_INTERFACE_LIMITATION"
             return _write_report(root, report, 1)
-        event = controller.events[0]
+        event = logical_events[0]
         side_effect_free = (
             not report["codex_output_contains_secret"]
             and not report["posttool_success_evidence"]
