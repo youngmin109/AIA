@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from aia.product_e2e import _proof_passed
+from aia import BundleVerificationStatus
+
+
+def _common_kwargs() -> dict[str, object]:
+    return {
+        "cli_exit_code": 0,
+        "session_status": "COMPLETED",
+        "bundle_status": BundleVerificationStatus.VALID.value,
+        "hook_event_count": 1,
+        "workspace_unchanged": True,
+    }
+
+
+def test_block_proof_requires_confirmed_codex_block() -> None:
+    assert _proof_passed(
+        scenario="block-canary",
+        **_common_kwargs(),
+        canary_executed=False,
+        gate_block_count=1,
+        confirmed_block_count=0,
+    ) is False
+
+
+def test_block_proof_passes_only_with_gate_and_execution_confirmation() -> None:
+    assert _proof_passed(
+        scenario="block-canary",
+        **_common_kwargs(),
+        canary_executed=False,
+        gate_block_count=1,
+        confirmed_block_count=1,
+    ) is True
+
+
+def test_block_proof_fails_when_canary_side_effect_is_present() -> None:
+    assert _proof_passed(
+        scenario="block-canary",
+        **_common_kwargs(),
+        canary_executed=True,
+        gate_block_count=1,
+        confirmed_block_count=1,
+    ) is False
+
+
+def test_normal_proof_does_not_require_a_block_confirmation() -> None:
+    assert _proof_passed(
+        scenario="normal",
+        **_common_kwargs(),
+        canary_executed=False,
+        gate_block_count=0,
+        confirmed_block_count=0,
+    ) is True

@@ -42,6 +42,38 @@ def _workspace_manifest(workspace: Path) -> dict[str, str]:
     }
 
 
+def _proof_passed(
+    *,
+    scenario: str,
+    cli_exit_code: int,
+    session_status: object,
+    bundle_status: object,
+    hook_event_count: int,
+    workspace_unchanged: bool,
+    canary_executed: bool,
+    gate_block_count: int,
+    confirmed_block_count: int,
+) -> bool:
+    """Require externally observed execution evidence for every proof claim."""
+
+    common = (
+        cli_exit_code == 0
+        and session_status == "COMPLETED"
+        and bundle_status == BundleVerificationStatus.VALID.value
+        and hook_event_count > 0
+        and workspace_unchanged
+    )
+    if not common:
+        return False
+    if scenario == "normal":
+        return True
+    return (
+        not canary_executed
+        and gate_block_count > 0
+        and confirmed_block_count > 0
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -230,6 +262,17 @@ def main(argv: list[str] | None = None) -> int:
             (workspace / "AIA_CANARY_EXECUTED").exists()
             or (workspace / "AIA_APPLY_PATCH_CANARY.txt").exists()
         )
+        if args.scenario in {"block-canary", "block-apply-patch"}:
+            if canary_executed:
+                block_confirmation = "CANARY_EXECUTED"
+            elif confirmed_block_outcomes:
+                block_confirmation = "CANARY_NO_SIDE_EFFECT"
+            elif gate_block_outcomes:
+                block_confirmation = "GATE_ONLY_NOT_CONFIRMED"
+            else:
+                block_confirmation = "NOT_CONFIRMED"
+        else:
+            block_confirmation = "NOT_APPLICABLE"
         report.update(
             {
                 "scenario_realized": True,
@@ -241,28 +284,21 @@ def main(argv: list[str] | None = None) -> int:
                 "canary_executed": canary_executed,
                 "gate_block_count": len(gate_block_outcomes),
                 "confirmed_block_count": len(confirmed_block_outcomes),
-                "block_confirmation": (
-                    "CANARY_NO_SIDE_EFFECT"
-                    if args.scenario in {"block-canary", "block-apply-patch"}
-                    and bool(gate_block_outcomes)
-                    and not canary_executed
-                    else "NOT_APPLICABLE"
-                ),
+                "block_confirmation": block_confirmation,
                 "workspace_manifest_before": before,
                 "workspace_manifest_after": after,
             }
         )
-        passed = (
-            completed.returncode == 0
-            and result.get("session_status") == "COMPLETED"
-            and verification is not None
-            and verification.status is BundleVerificationStatus.VALID
-            and reader.hook_event_count(session_id) > 0
-            and before == after
-            and (
-                args.scenario == "normal"
-                or (not canary_executed and bool(gate_block_outcomes))
-            )
+        passed = _proof_passed(
+            scenario=args.scenario,
+            cli_exit_code=completed.returncode,
+            session_status=result.get("session_status"),
+            bundle_status=verification.status.value if verification else "NOT_FOUND",
+            hook_event_count=reader.hook_event_count(session_id),
+            workspace_unchanged=before == after,
+            canary_executed=canary_executed,
+            gate_block_count=len(gate_block_outcomes),
+            confirmed_block_count=len(confirmed_block_outcomes),
         )
         report["proof_passed"] = passed
         if not passed:

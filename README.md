@@ -226,8 +226,10 @@ uv run python scripts/product_e2e_smoke.py --scenario block-apply-patch
 `block-canary`와 `block-apply-patch`는 실제 Codex `PreToolUse`에서 정책 위반 관문이
 `CONTAIN / PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 각각 확인합니다.
 제품 서비스는 Hook deny만으로 실행 성공을 주장하지 않으므로, 결과에서
-`CANARY_NO_SIDE_EFFECT`와 `confirmed_block_count`가 함께 확인될 때만 제품
-경로의 사전 차단 성공으로 해석합니다. Hook 신뢰가 적용되지 않은 환경에서는
+`block_confirmation=CANARY_NO_SIDE_EFFECT`, `confirmed_block_count` 1 이상,
+`canary_executed=false`가 함께 확인될 때만 제품 경로의 사전 차단 성공으로
+해석합니다. Gate만 생성되고 실제 Codex 차단 확인이 없으면 proof는 실패합니다.
+Hook 신뢰가 적용되지 않은 환경에서는
 `COMPLETED_DEGRADED`가 기록되며 파일이 생성되지 않았다는 사실만으로 성공
 처리하지 않습니다.
 
