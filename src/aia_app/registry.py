@@ -71,33 +71,7 @@ class RunRegistry:
             record = self._records.get(session_id)
             if record is None:
                 return None
-            clone = RunRecord(
-                session_id=record.session_id,
-                workspace=record.workspace,
-                agent=record.agent,
-                model=record.model,
-                policy_profile=record.policy_profile,
-                policy_id=record.policy_id,
-                policy_version=record.policy_version,
-                mode=record.mode,
-                task=record.task,
-                interactive=record.interactive,
-                created_at=record.created_at,
-                status=record.status,
-                phase=record.phase,
-                protection_state=record.protection_state,
-                hook_event_count=record.hook_event_count,
-                error=record.error,
-                result_path=record.result_path,
-                checkpoint=record.checkpoint,
-                lease=record.lease,
-                sensor_health=dict(record.sensor_health),
-                actions=[dict(item) for item in record.actions],
-                incidents=[dict(item) for item in record.incidents],
-                result=dict(record.result) if record.result is not None else None,
-                bundle_status=record.bundle_status,
-            )
-            return clone
+            return self._snapshot_record(record)
 
     def snapshots(self) -> tuple[RunRecord, ...]:
         with self._lock:
