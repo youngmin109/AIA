@@ -48,6 +48,10 @@ uv run aia hook verify
 `VERIFIED`가 표시될 때 보호 실행을 시작한다. `NOT_VERIFIED`이면 Codex에서
 `/hooks`를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행한다.
 
+검증 명령은 먼저 Codex PreToolUse Trust를 확인한다. `MODIFIED`, `UNTRUSTED` 또는
+`NOT_VISIBLE`이면 임시 Probe를 실행하지 않고 즉시 원인과 다음 단계를 출력한다.
+Codex `/hooks`에서 AIA PreToolUse Hook을 직접 검토·신뢰한 뒤 다시 실행한다.
+
 `VERIFIED`가 표시된 뒤 다음 명령으로 전체 준비 상태가 `READY`인지 확인할 수
 있다.
 

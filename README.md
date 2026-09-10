@@ -122,6 +122,12 @@ uv run aia hook verify
 상태로 해석합니다. `NOT_VERIFIED`이면 Codex `/hooks`에서 AIA Hook을 검토·신뢰한
 뒤 다시 실행합니다.
 
+`aia hook verify`는 먼저 Codex의 현재 PreToolUse Trust 상태를 확인합니다. 상태가
+`MODIFIED`, `UNTRUSTED` 또는 `NOT_VISIBLE`이면 실제 Probe를 시작하지 않고 즉시
+원인과 다음 단계를 출력합니다. Codex `/hooks`에서 AIA PreToolUse Hook을 직접
+검토·신뢰한 뒤 다시 실행합니다. 이 점검은 Hook을 자동으로 신뢰하지 않으며,
+신뢰된 경우에도 실제 Session-bound Hook Event가 확인될 때만 `VERIFIED`가 됩니다.
+
 `VERIFIED`가 된 뒤 `uv run aia doctor`를 다시 실행하면 `READY`가 되어야 합니다.
 검증 파일은 현재 Hook 설정과 Codex 실행 파일에 묶여 있으므로, 둘 중 하나가
 바뀌면 다시 `aia hook verify`를 실행해야 합니다.

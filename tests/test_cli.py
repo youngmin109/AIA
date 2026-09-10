@@ -188,6 +188,106 @@ def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:
     assert args.timeout == 30
 
 
+def test_hook_verify_fails_before_probe_when_codex_hook_is_untrusted(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"}
+                    ],
+                }
+            },
+        )(),
+    )
+
+    def fail_if_probe_starts(*args, **kwargs):
+        raise AssertionError("untrusted Hook must not start a live probe")
+
+    monkeypatch.setattr("aia.cli.subprocess.run", fail_if_probe_starts)
+
+    exit_code = main(
+        [
+            "hook",
+            "verify",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert payload["verified"] is False
+    assert payload["reason"] == "CODEX_HOOK_TRUST_REQUIRED"
+    assert payload["trust_status"] == "MODIFIED"
+    assert payload["probe_started"] is False
+
+
+def test_hook_verify_fails_before_probe_when_codex_does_not_show_aia_pretool(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [],
+                }
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "aia.cli.subprocess.run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("missing PreToolUse must not start a live probe")
+        ),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "verify",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert payload["reason"] == "CODEX_PRETOOL_HOOK_NOT_VISIBLE"
+    assert payload["trust_status"] == "NOT_VISIBLE"
+    assert payload["probe_started"] is False
+
+
 def test_hook_verify_extracts_protected_run_session_id() -> None:
     assert _extract_session_id("Phase: READY\nAIA Protected Run: abc-123\n") == "abc-123"
     assert _extract_session_id("Hook was not started\n") is None

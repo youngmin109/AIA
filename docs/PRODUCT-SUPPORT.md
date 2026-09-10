@@ -56,6 +56,10 @@ Codex 설정 파일, AIA Hook 런타임 코드 지문이 모두 일치하는 실
 `MISSING_OR_STALE`이면
 `uv run aia hook verify`를 다시 실행해야 한다.
 
+검증 명령은 먼저 Codex PreToolUse Trust를 확인한다. `MODIFIED`, `UNTRUSTED` 또는
+`NOT_VISIBLE`이면 임시 Probe를 실행하지 않고 즉시 종료하며, AIA Hook을 자동으로
+신뢰하지 않는다. Codex `/hooks`에서 Hook을 직접 검토·신뢰한 뒤 다시 검증해야 한다.
+
 같은 명령의 `Codex 실제 Trust`는 Codex가 현재 읽은 AIA Hook의 신뢰 상태다.
 `TRUSTED`가 아닌 `MODIFIED` 또는 `UNTRUSTED`가 보이면 Hook 파일이 설치되어
 있어도 Codex가 실행하지 않는다. AIA는 이 상태를 자동으로 신뢰 처리하지 않으며,

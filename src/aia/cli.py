@@ -693,6 +693,53 @@ def _hook_verify(args: argparse.Namespace) -> int:
             print("Hook 검증 실패: Codex 실행 파일을 찾을 수 없습니다.")
         return 2
 
+    # Trust is a user-controlled security boundary.  Do not start a disposable
+    # Protected Run when Codex already reports that the AIA PreToolUse Hook is
+    # untrusted or missing.  The app-server inspection starts only a short-lived
+    # diagnostic process; it does not start an Agent run or execute a tool.
+    codex_hook_trust = inspect_codex_hook_trust(
+        executable,
+        hook_path=installer.path,
+        cwd=Path.cwd(),
+        timeout=min(8.0, args.timeout),
+    ).to_mapping()
+    trust_entries = codex_hook_trust.get("hooks") or []
+    pretool_trust_status = next(
+        (
+            item.get("trust_status")
+            for item in trust_entries
+            if isinstance(item, dict) and item.get("event") == "preToolUse"
+        ),
+        None,
+    )
+    if codex_hook_trust.get("available") and pretool_trust_status not in {
+        "TRUSTED",
+        "MANAGED",
+    }:
+        reason = (
+            "CODEX_PRETOOL_HOOK_NOT_VISIBLE"
+            if pretool_trust_status is None
+            else "CODEX_HOOK_TRUST_REQUIRED"
+        )
+        payload = {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": reason,
+            "trust_status": pretool_trust_status or "NOT_VISIBLE",
+            "codex_hook_trust": codex_hook_trust,
+            "codex_executable": str(executable),
+            "hook_path": str(installer.path),
+            "probe_started": False,
+            "next_step": "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 다시 실행하세요.",
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print("AIA Hook 검증을 시작하지 않았습니다.")
+            print(f"Codex 실제 PreToolUse Trust: {payload['trust_status']}")
+            print(payload["next_step"])
+        return 2
+
     control_root = _control_root(args.control_root)
     probe_workspace = Path(tempfile.mkdtemp(prefix="aia-hook-verify-"))
     marker = probe_workspace / "AIA_HOOK_PROBE_MARKER.txt"
@@ -731,8 +778,11 @@ def _hook_verify(args: argparse.Namespace) -> int:
         "protection_state": None,
         "bundle_status": None,
         "probe_marker_created": False,
+        "probe_started": False,
+        "codex_hook_trust": codex_hook_trust,
     }
     try:
+        payload["probe_started"] = True
         completed = subprocess.run(
             command,
             cwd=Path(__file__).resolve().parents[2],
