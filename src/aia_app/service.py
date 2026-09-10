@@ -47,6 +47,7 @@ from aia import (
 from aia.session import SessionEndReason, WorkspaceValidationError
 from aia.readiness import ProtectionReadinessBarrier
 from aia.hook_verification import HookVerificationStore
+from aia.codex_hook_trust import inspect_codex_hook_trust
 
 from .dto import CreateRunRequest, DTOValidationError
 from .presenters import action_view, incident_view, incident_views_for_result, result_view
@@ -158,6 +159,7 @@ class RunApplicationService:
         """Report local prerequisites without starting a Protected Run."""
 
         checks: list[dict[str, Any]] = []
+        executable: Path | None = None
         try:
             executable = CodexAdapter().discover()
             checks.append(
@@ -206,6 +208,42 @@ class RunApplicationService:
                 ),
             }
         )
+
+        codex_hook_trust: dict[str, object] = {
+            "available": False,
+            "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
+            "hooks": [],
+        }
+        if executable is not None and pretool_installed:
+            codex_hook_trust = inspect_codex_hook_trust(
+                executable,
+                hook_path=installer.path,
+                cwd=Path.cwd(),
+                timeout=8.0,
+            ).to_mapping()
+            trust_entries = codex_hook_trust.get("hooks") or []
+            pretool_status = next(
+                (
+                    item.get("trust_status")
+                    for item in trust_entries
+                    if isinstance(item, dict) and item.get("event") == "preToolUse"
+                ),
+                None,
+            )
+            trust_ok = pretool_status in {"TRUSTED", "MANAGED"}
+            checks.append(
+                {
+                    "name": "codex_hook_trust",
+                    "label": "Codex Hook Trust",
+                    "ok": trust_ok,
+                    "optional": True,
+                    "detail": (
+                        f"PreToolUse={pretool_status}"
+                        if pretool_status is not None
+                        else "Codex에서 AIA PreToolUse Trust 상태를 확인할 수 없음"
+                    ),
+                }
+            )
 
         hook_verified = False
         if self.require_hook_verification:
@@ -285,8 +323,13 @@ class RunApplicationService:
             "checks": checks,
             "hook_trust": {
                 "status": "MANUAL_REVIEW_REQUIRED",
-                "detail": "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다.",
+                "detail": (
+                    "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다."
+                    if not codex_hook_trust.get("available")
+                    else "Codex의 실제 Hook Trust 상태를 확인했습니다. TRUSTED가 아니면 /hooks에서 다시 검토·신뢰하세요."
+                ),
             },
+            "codex_hook_trust": codex_hook_trust,
             "hook_activation": {
                 "status": hook_activation_status,
                 "detail": hook_activation_detail,

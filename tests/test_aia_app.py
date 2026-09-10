@@ -454,6 +454,22 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         "aia_app.service.CodexHookInstaller.is_posttool_installed",
         lambda _installer: False,
     )
+    monkeypatch.setattr(
+        "aia_app.service.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                    ],
+                }
+            },
+        )(),
+    )
     try:
         result = service.preflight()
         assert result["ready"] is True
@@ -464,6 +480,9 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         assert checks["pretool_hook"]["ok"] is True
         assert checks["posttool_hook"]["optional"] is True
         assert checks["posttool_hook"]["ok"] is False
+        assert checks["codex_hook_trust"]["optional"] is True
+        assert checks["codex_hook_trust"]["ok"] is False
+        assert result["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
     finally:
         service.shutdown()
 
