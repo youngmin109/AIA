@@ -15,6 +15,7 @@
   <div class="metric"><span>Checkpoint</span><strong id="checkpoint">{{ status.checkpoint or 'PENDING' }}</strong></div>
   <div class="metric"><span>Workspace Lease</span><strong id="lease">{{ status.lease or 'PENDING' }}</strong></div>
   <div class="metric"><span>보호 상태</span><strong id="protection-state">{{ status.protection.state if status.protection else 'UNKNOWN' }}</strong></div>
+  <div class="metric"><span>Hook Broker</span><strong id="hook-broker-health">{{ status.protection.hook_broker if status.protection else 'NOT_STARTED' }}</strong></div>
   <div class="metric"><span>사건 수</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
 </section>
 
@@ -56,6 +57,7 @@ async function poll() {
     const protection = status.protection || {};
     document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
+    document.getElementById('hook-broker-health').textContent = protection.hook_broker || 'NOT_STARTED';
     const protectionNote = document.getElementById('protection-note');
     const notes = {
       'READY_UNVERIFIED': 'Codex가 아직 시작되지 않았거나, Hook 이벤트가 아직 확인되지 않았습니다.',

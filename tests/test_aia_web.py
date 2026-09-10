@@ -62,7 +62,7 @@ class FakeService:
             "lease": "ACTIVE",
             "mode": "ENFORCE",
             "phase": "RUNNING",
-            "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1},
+            "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1, "hook_broker": "HEALTHY"},
             "stop": {"requested": False, "error": None},
             "policy": {"id": "basic", "profile": "BASIC_DEVELOPMENT", "version": "1.0"},
             "result_available": True,
@@ -147,6 +147,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     live = client.get("/runs/run-1")
     assert live.status_code == 200
     assert "보호 실행 상태" in live.text
+    assert "Hook Broker" in live.text
+    assert "HEALTHY" in live.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.post("/api/runs/run-1/stop").status_code == 202
     assert client.post("/api/runs/missing/stop").status_code == 404
