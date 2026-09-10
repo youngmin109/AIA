@@ -217,7 +217,7 @@ class SessionResult:
         return self.aia_session_id
 
     def to_mapping(self) -> dict[str, Any]:
-        return {
+        mapping = {
             "action_outcomes": [item.to_mapping() for item in self.action_outcomes],
             "agent": self.agent,
             "agent_native_session_id": self.agent_native_session_id,
@@ -239,7 +239,6 @@ class SessionResult:
             "policy_evaluations": [_json_safe(item) for item in self.policy_evaluations],
             "prior_session_id": self.prior_session_id,
             "process_termination_result": _json_safe(self.process_termination_result) if self.process_termination_result is not None else None,
-            "user_abort_termination_result": _json_safe(self.user_abort_termination_result) if self.user_abort_termination_result is not None else None,
             "recovery_result": _json_safe(self.recovery_result) if self.recovery_result is not None else None,
             "result_id": self.result_id,
             "review_required": self.review_required,
@@ -251,6 +250,11 @@ class SessionResult:
             "started_at": self.started_at.isoformat() if self.started_at is not None else None,
             "workspace": self.workspace,
         }
+        # Keep the canonical bytes of pre-user-abort Result Bundles stable.
+        # The field is present only when a user stop actually occurred.
+        if self.user_abort_termination_result is not None:
+            mapping["user_abort_termination_result"] = _json_safe(self.user_abort_termination_result)
+        return mapping
 
     def to_json_bytes(self) -> bytes:
         return (json.dumps(self.to_mapping(), ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")

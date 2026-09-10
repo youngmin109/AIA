@@ -172,6 +172,7 @@ def test_normal_exit_completes_and_commits_bundle(tmp_path: Path):
     assert result.bundle_valid
     assert verify_evidence_bundle(result.bundle.result_directory).is_valid
     assert result.result.schema_version == "aia-result-1"
+    assert "user_abort_termination_result" not in result.result.to_mapping()
 
 
 def test_security_containment_is_aborted_even_after_successful_recovery_axis(tmp_path: Path):
