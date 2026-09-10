@@ -102,6 +102,13 @@ class ResultBundleReader:
             posttool_event_count = self.posttool_event_count(candidate.name)
             session_status = result.get("session_status")
             session_end_reason = result.get("session_end_reason")
+            protection_downgraded = any(
+                item in {
+                    "CODEX_SANDBOX_DOWNGRADED",
+                    "CODEX_APPROVAL_POLICY_DOWNGRADED",
+                }
+                for item in result.get("limitations", ())
+            )
             completed.append(
                 {
                     "session_id": candidate.name,
@@ -118,11 +125,12 @@ class ResultBundleReader:
                         if session_status == "ABORTED"
                         and session_end_reason == "USER_ABORT"
                         and hook_event_count
+                        and not protection_downgraded
                         else "ABORTED_DEGRADED"
                         if session_status == "ABORTED"
                         and session_end_reason == "USER_ABORT"
                         else "COMPLETED_VERIFIED"
-                        if hook_event_count
+                        if hook_event_count and not protection_downgraded
                         else "COMPLETED_DEGRADED"
                     ),
                     "hook_event_count": hook_event_count,

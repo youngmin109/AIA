@@ -372,6 +372,36 @@ def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_p
         reader.read_result("missing-session")
 
 
+def test_result_bundle_reader_preserves_protection_downgrade_in_history(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    session_dir = tmp_path / "sessions" / "session-1"
+    session_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        reader,
+        "read_result",
+        lambda _session_id: {
+            "session_status": "COMPLETED",
+            "session_end_reason": "AGENT_EXITED",
+            "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+            "action_outcomes": [],
+        },
+    )
+    monkeypatch.setattr(
+        reader,
+        "verification",
+        lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
+    )
+    monkeypatch.setattr(reader, "hook_event_count", lambda _session_id: 1)
+    monkeypatch.setattr(reader, "posttool_event_count", lambda _session_id: 0)
+
+    runs = reader.list_completed()
+
+    assert runs[0]["protection_state"] == "COMPLETED_DEGRADED"
+
+
 def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     try:
