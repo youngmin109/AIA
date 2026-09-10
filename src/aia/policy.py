@@ -1028,11 +1028,16 @@ class ProfileResolver:
     """Resolve a profile selection into one traceable SecurityAssetPolicy."""
 
     def __init__(self, profile_directory: str | Path | None = None) -> None:
-        self.profile_directory = (
-            Path(profile_directory)
-            if profile_directory is not None
-            else Path(__file__).resolve().parents[2] / "policies" / "profiles"
-        )
+        if profile_directory is not None:
+            self.profile_directory = Path(profile_directory)
+        else:
+            repository_profiles = Path(__file__).resolve().parents[2] / "policies" / "profiles"
+            packaged_profiles = Path(__file__).resolve().parent / "data" / "profiles"
+            self.profile_directory = (
+                repository_profiles
+                if repository_profiles.is_dir()
+                else packaged_profiles
+            )
 
     def resolve(
         self,
