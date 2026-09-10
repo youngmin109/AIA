@@ -498,6 +498,12 @@ def _hook_status(args: argparse.Namespace) -> int:
         and executable is not None
         and verification_store.is_current(installer, executable)
     )
+    if verification_current:
+        activation_status = "CURRENTLY_VERIFIED"
+    elif last_verified:
+        activation_status = "OBSERVED_IN_PAST"
+    else:
+        activation_status = "NOT_OBSERVED"
     payload = {
         "hook_path": str(installer.path),
         "pretool_installed": installer.is_installed(),
@@ -506,7 +512,7 @@ def _hook_status(args: argparse.Namespace) -> int:
         "verification_path": str(verification_store.path),
         "ready": verification_current,
         "trust_status": "MANUAL_REVIEW_REQUIRED",
-        "activation_status": "OBSERVED_FROM_RUN" if last_verified else "NOT_OBSERVED",
+        "activation_status": activation_status,
         "last_verified_run": (
             {
                 "session_id": last_verified.get("session_id"),
@@ -527,13 +533,15 @@ def _hook_status(args: argparse.Namespace) -> int:
         print(f"PreToolUse 설치: {'YES' if payload['pretool_installed'] else 'NO'}")
         print(f"PostToolUse 설치: {'YES' if payload['posttool_installed'] else 'NO'}")
         print("Codex 신뢰: MANUAL_REVIEW_REQUIRED (/hooks에서 검토·신뢰 필요)")
-        print(f"실제 Hook 관찰: {payload['activation_status']}")
+        print(f"Hook 관찰 상태: {payload['activation_status']}")
         print(f"현재 검증 증명: {payload['verification_status']}")
         if last_verified:
             print(f"최근 검증 실행: {last_verified.get('session_id')}")
             print(f"Hook Events: {last_verified.get('hook_event_count', 0)}")
         else:
             print("최근에 Session에 연결된 Hook Event가 없습니다.")
+        if payload["activation_status"] == "OBSERVED_IN_PAST":
+            print("주의: 과거 관찰 기록만 있으며 현재 검증 증명은 없습니다.")
         print("주의: CURRENT가 아니면 aia protect는 보호 실행을 시작하지 않습니다.")
     return 0 if payload["ready"] else 1
 

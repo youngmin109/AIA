@@ -207,8 +207,8 @@ class RunApplicationService:
             }
         )
 
+        hook_verified = False
         if self.require_hook_verification:
-            hook_verified = False
             try:
                 executable = CodexAdapter().discover()
                 hook_verified = HookVerificationStore(self.control_root).is_current(
@@ -266,6 +266,20 @@ class RunApplicationService:
             reverse=True,
         )
         last_verified = recent_verified[0] if recent_verified else None
+        if hook_verified:
+            hook_activation_status = "CURRENTLY_VERIFIED"
+            hook_activation_detail = (
+                "현재 Hook 설정과 Codex 실행 파일에 대한 실제 Session-bound Hook Event가 검증되었습니다."
+            )
+        elif last_verified:
+            hook_activation_status = "OBSERVED_IN_PAST"
+            hook_activation_detail = (
+                "과거 실행에서 Hook Event가 관찰되었지만 현재 검증 증명이 만료되었거나 없습니다. "
+                "aia hook verify를 다시 실행하세요."
+            )
+        else:
+            hook_activation_status = "NOT_OBSERVED"
+            hook_activation_detail = "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
         return {
             "ready": all(bool(item["ok"]) for item in required),
             "checks": checks,
@@ -274,12 +288,8 @@ class RunApplicationService:
                 "detail": "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다.",
             },
             "hook_activation": {
-                "status": "OBSERVED_FROM_RUN" if last_verified else "NOT_OBSERVED",
-                "detail": (
-                    "최근 보호 실행에서 AIA Session에 연결된 Hook Event가 관찰되었습니다."
-                    if last_verified
-                    else "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
-                ),
+                "status": hook_activation_status,
+                "detail": hook_activation_detail,
                 "last_verified_run": (
                     {
                         "session_id": last_verified.get("session_id"),

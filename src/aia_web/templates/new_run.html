@@ -33,7 +33,7 @@
     <strong>보호 성공 판정 규칙:</strong>
     {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
   </div>
-  <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'OBSERVED_FROM_RUN' %}success{% else %}warning{% endif %}">
+  <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}success{% else %}warning{% endif %}">
     <strong>실제 Hook 관찰:</strong> {{ (preflight.get('hook_activation') or {}).get('detail', '아직 실제 보호 실행 Hook Event가 관찰되지 않았습니다.') }}
   </div>
   <div id="preflight-error" class="error" {% if preflight.ready %}hidden{% endif %}>
@@ -122,7 +122,7 @@ function renderPreflight(payload) {
   });
   preflightError.hidden = payload.ready;
   const activation = payload.hook_activation || {};
-  hookActivation.className = `notice ${activation.status === 'OBSERVED_FROM_RUN' ? 'success' : 'warning'}`;
+  hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
   hookActivation.textContent = `실제 Hook 관찰: ${activation.detail || '상태를 확인할 수 없습니다.'}`;
   submitRun.disabled = !payload.ready;
 }
