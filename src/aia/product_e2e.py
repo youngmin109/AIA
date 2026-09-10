@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
                                 )
                             ),
                             "우선순위": 1000,
-                            "자산유형": "작업공간",
+                            "자산유형": "비밀정보" if args.scenario == "block-env" else "작업공간",
                             "명령패턴": [
                                 "*AIA_BLOCK_CANARY.py*"
                                 if args.scenario == "block-canary"

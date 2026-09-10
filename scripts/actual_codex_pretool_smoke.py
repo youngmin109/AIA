@@ -75,7 +75,11 @@ def _policy(scenario: str) -> ResolvedPolicy:
     rule = PolicyRule(
         rule_id=rule_id,
         priority=1000,
-        asset_type=SecurityAssetType.WORKSPACE,
+        asset_type=(
+            SecurityAssetType.SECRET
+            if scenario == "env"
+            else SecurityAssetType.WORKSPACE
+        ),
         path_patterns=(".env",) if scenario == "mcp-read" else (),
         command_patterns=command_patterns,
         operation_effects={
