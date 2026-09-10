@@ -13,7 +13,8 @@ from typing import Any
 from .codex_installation import CodexHookInstaller
 
 
-_SCHEMA_VERSION = "aia-hook-verification-1"
+_SCHEMA_VERSION = "aia-hook-verification-2"
+_RUNTIME_PATH = (Path(__file__).resolve().parent / "codex_hook_runtime.py").resolve()
 
 
 class HookVerificationStore:
@@ -43,7 +44,8 @@ class HookVerificationStore:
         hook_path = installer.path.resolve(strict=False)
         executable_path = Path(executable).expanduser().resolve(strict=False)
         hook_sha256 = cls._sha256(hook_path)
-        if hook_sha256 is None:
+        runtime_sha256 = cls._sha256(_RUNTIME_PATH)
+        if hook_sha256 is None or runtime_sha256 is None:
             return None
         try:
             stat = executable_path.stat()
@@ -52,6 +54,8 @@ class HookVerificationStore:
         return {
             "hook_path": str(hook_path),
             "hook_sha256": hook_sha256,
+            "aia_hook_runtime": str(_RUNTIME_PATH),
+            "aia_hook_runtime_sha256": runtime_sha256,
             "codex_executable": str(executable_path),
             "codex_size": stat.st_size,
             "codex_mtime_ns": stat.st_mtime_ns,
