@@ -17,7 +17,7 @@ Control Root: Workspace 밖의 사용자별 AIA control directory
 ## 시작하기
 
 ```powershell
-uv sync
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -SkipDoctor
 uv run aia doctor
 uv run aia policy validate C:\workspace\policies\protected-policy.json
 uv run aia hook install
