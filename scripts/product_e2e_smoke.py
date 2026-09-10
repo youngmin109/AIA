@@ -255,7 +255,9 @@ def _write_report(root: Path, report: dict[str, Any], exit_code: int) -> int:
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2))
+    # Windows PowerShell may expose CP949 stdout.  Keep the artifact readable
+    # in UTF-8 while making the terminal report encoding-independent.
+    print(json.dumps(report, ensure_ascii=True, sort_keys=True, indent=2))
     return exit_code
 
 
