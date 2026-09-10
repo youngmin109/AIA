@@ -788,6 +788,10 @@ class RunApplicationService:
                 manager,
             )
             adapter_options: dict[str, Any] = {
+                # Do not inherit a user's global Codex approval/sandbox
+                # policy. Authentication remains available through CODEX_HOME,
+                # while the protected contract below is applied explicitly.
+                "ignore_user_config": True,
                 "approval_policy": "on-request",
                 "sandbox": "workspace-write",
             }
