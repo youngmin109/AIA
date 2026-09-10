@@ -382,10 +382,14 @@ class RunApplicationService:
     def get_result(self, session_id: str) -> dict[str, Any]:
         record = self.registry.snapshot(session_id)
         if record is not None and record.result is not None and record.bundle_status is not None:
-            return result_view(record.result, record.bundle_status)
+            view = result_view(record.result, record.bundle_status)
+            view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
+            return view
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
-        return result_view(result, verification.status.value if verification else "NOT_FOUND")
+        view = result_view(result, verification.status.value if verification else "NOT_FOUND")
+        view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
+        return view
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)

@@ -204,6 +204,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "integrity": result.get("integrity_result"),
         "limitations": limitations,
         "mode": result.get("mode"),
+        "posttool_event_count": int(result.get("posttool_event_count") or 0),
         "policy": result.get("policy"),
         "policy_id": policy.get("policy_id") or policy.get("id"),
         "policy_version": policy.get("policy_version") or policy.get("version"),

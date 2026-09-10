@@ -99,6 +99,7 @@ class ResultBundleReader:
             if verification is None:
                 continue
             hook_event_count = self.hook_event_count(candidate.name)
+            posttool_event_count = self.posttool_event_count(candidate.name)
             session_status = result.get("session_status")
             session_end_reason = result.get("session_end_reason")
             completed.append(
@@ -125,6 +126,7 @@ class ResultBundleReader:
                         else "COMPLETED_DEGRADED"
                     ),
                     "hook_event_count": hook_event_count,
+                    "posttool_event_count": posttool_event_count,
                     "incident_count": sum(
                         1
                         for item in result.get("action_outcomes", ())
@@ -147,6 +149,16 @@ class ResultBundleReader:
             for item in self.read_evidence_metadata(session_id)
             if item.get("source") == "AGENT_HOOK"
             and item.get("record_type") == "PRETOOL_REQUEST"
+        )
+
+    def posttool_event_count(self, session_id: str) -> int:
+        """Count bounded PostTool observations without exposing tool output."""
+
+        return sum(
+            1
+            for item in self.read_evidence_metadata(session_id)
+            if item.get("source") == "AGENT_HOOK"
+            and item.get("record_type") == "POSTTOOL_OBSERVED"
         )
 
     def _require_valid(self, session_id: str) -> None:
