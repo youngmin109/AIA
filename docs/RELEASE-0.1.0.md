@@ -62,6 +62,12 @@ uv run aia doctor
 uv run aia proof
 ```
 
+`.env` 읽기 차단과 secret marker 비유출을 확인하려면 다음을 실행한다.
+
+```powershell
+uv run aia proof --scenario block-env
+```
+
 Codex에서 `/hooks`를 열어 AIA Hook을 검토·신뢰한 뒤 다음을 실행한다.
 
 ```powershell

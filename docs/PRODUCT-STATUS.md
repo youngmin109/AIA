@@ -26,6 +26,9 @@ Workspace 선택
 PreToolUse다. 실제 Codex Bash, `apply_patch`, MCP 파일 읽기 Canary에 대해
 `permissionDecision=deny`와 파일 미생성을 확인했고,
 정상 읽기 실행에 대해서는 실제 Hook Evidence와 `Bundle VALID`를 확인했다.
+제품 증명 명령에는 disposable Workspace의 `.env` 읽기 시도를 다루는
+`block-env` 시나리오도 있으며, deny·부작용 없음·secret marker 비유출을 함께
+확인한다.
 비대화형 `aia protect --task` 경로에서는 Codex의 제한된 native block 결과와
 PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUCCEEDED`를
 기록한다. 이때 Codex 출력 원문은 저장하지 않고 SHA-256과 판정 메타데이터만

@@ -258,7 +258,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     proof.add_argument(
         "--scenario",
-        choices=("normal", "block-canary", "block-apply-patch"),
+        choices=("normal", "block-canary", "block-apply-patch", "block-env"),
         default="block-canary",
         help="proof scenario; block-canary is the default safety demonstration",
     )

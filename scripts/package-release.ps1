@@ -127,7 +127,11 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
    aia proof
 
-7. Start the local console or a protected run from any Workspace:
+7. Optionally prove `.env` secret-read blocking and marker non-disclosure:
+
+   aia proof --scenario block-env
+
+8. Start the local console or a protected run from any Workspace:
 
    aia console --open
    aia protect C:\workspace\my-project

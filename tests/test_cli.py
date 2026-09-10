@@ -40,6 +40,12 @@ def test_product_proof_parser_defaults_to_disposable_block_canary() -> None:
     assert args.timeout == 180.0
 
 
+def test_product_proof_parser_supports_env_secret_block() -> None:
+    args = _parser().parse_args(["proof", "--scenario", "block-env"])
+
+    assert args.scenario == "block-env"
+
+
 def test_cli_version_uses_package_version(capsys) -> None:
     with pytest.raises(SystemExit) as error:
         _parser().parse_args(["--version"])

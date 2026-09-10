@@ -109,6 +109,15 @@ CANARY_NO_SIDE_EFFECT`, `bundle_status=VALID`가 함께 나와야 제품 Result 
 uv run aia proof
 ```
 
+`.env` 읽기 경로를 별도로 확인하려면 다음 시나리오를 사용한다.
+
+```powershell
+uv run aia proof --scenario block-env
+```
+
+이 시나리오는 Bash가 `.env`를 읽으려는 실제 PreToolUse 요청을 차단하고,
+Codex 출력·Evidence·Result에 secret marker가 나타나지 않는지 추가로 검사한다.
+
 호환성을 위해 `uv run python scripts/product_e2e_smoke.py --scenario block-canary`도
 동일한 구현을 호출한다. 제품 증명은 실행 전에 현재 Codex Hook Trust와 Session-bound
 Hook Event 검증을 수행하며, 검증이 실패하면 Codex 도구를 실행하지 않는다.

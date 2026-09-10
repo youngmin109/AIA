@@ -223,8 +223,18 @@ uv run python scripts/product_e2e_smoke.py --scenario block-canary
 uv run python scripts/product_e2e_smoke.py --scenario block-apply-patch
 ```
 
+`.env` 비밀정보 읽기 차단까지 실제로 확인하려면 다음을 실행합니다.
+
+```powershell
+uv run aia proof --scenario block-env
+```
+
+이 시나리오는 disposable Workspace의 `.env` 읽기 시도를 실제 Codex가 실행하기
+전에 차단하고, Codex 출력·Evidence·Result에 secret marker가 남지 않았는지도
+함께 확인합니다.
+
 `normal`은 실제 `aia protect` 경로의 정상 완료와 결과 Bundle을 확인합니다.
-`block-canary`와 `block-apply-patch`는 실제 Codex `PreToolUse`에서 정책 위반 관문이
+`block-canary`, `block-apply-patch`, `block-env`는 실제 Codex `PreToolUse`에서 정책 위반 관문이
 `CONTAIN / PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 각각 확인합니다.
 제품 서비스는 Hook deny만으로 실행 성공을 주장하지 않으므로, 결과에서
 `block_confirmation=CANARY_NO_SIDE_EFFECT`, `confirmed_block_count` 1 이상,

@@ -52,3 +52,23 @@ def test_normal_proof_does_not_require_a_block_confirmation() -> None:
         gate_block_count=0,
         confirmed_block_count=0,
     ) is True
+
+
+def test_env_block_proof_requires_secret_marker_to_remain_unseen() -> None:
+    common = _common_kwargs()
+    assert _proof_passed(
+        scenario="block-env",
+        **common,
+        canary_executed=False,
+        gate_block_count=1,
+        confirmed_block_count=1,
+        secret_leaked=False,
+    ) is True
+    assert _proof_passed(
+        scenario="block-env",
+        **common,
+        canary_executed=False,
+        gate_block_count=1,
+        confirmed_block_count=1,
+        secret_leaked=True,
+    ) is False

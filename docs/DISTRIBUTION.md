@@ -81,6 +81,12 @@ aia proof
 이 명령은 현재 Hook Trust와 Session-bound Hook을 먼저 검증하며, 검증에 실패하면
 Codex 도구를 실행하지 않는다.
 
+`.env` 읽기 차단과 secret marker 비유출을 별도로 확인하려면 다음을 사용한다.
+
+```powershell
+aia proof --scenario block-env
+```
+
 업데이트는 다음처럼 수행한다.
 
 ```powershell
