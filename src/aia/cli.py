@@ -195,6 +195,74 @@ def _control_root(value: Path | None) -> Path:
     return (Path.home() / ".aia" / "control").resolve(strict=False)
 
 
+def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
+    """Return safe metadata from the most recent committed Protected Run."""
+
+    reader = ResultBundleReader(control_root)
+    try:
+        runs = reader.list_completed()
+    except (OSError, ValueError, KeyError):
+        return None
+    if not runs:
+        return None
+
+    latest = runs[0]
+    session_id = latest.get("session_id")
+    if not isinstance(session_id, str):
+        return None
+    try:
+        result = reader.read_result(session_id)
+    except (OSError, ValueError, KeyError):
+        return None
+
+    limitations = tuple(
+        str(item)
+        for item in (result.get("limitations") or ())
+        if isinstance(item, str) and item
+    )
+    execution = result.get("agent_execution")
+    observation = execution.get("output_observation") if isinstance(execution, dict) else None
+    effective_sandbox = None
+    effective_approval_policy = None
+    if isinstance(observation, dict):
+        sandbox = observation.get("effective_sandbox")
+        approval = observation.get("effective_approval_policy")
+        effective_sandbox = str(sandbox) if isinstance(sandbox, str) and sandbox else None
+        effective_approval_policy = (
+            str(approval) if isinstance(approval, str) and approval else None
+        )
+
+    if {
+        "CODEX_SANDBOX_DOWNGRADED",
+        "CODEX_APPROVAL_POLICY_DOWNGRADED",
+    }.intersection(limitations):
+        next_step = (
+            "Codex가 AIA가 요청한 실행 정책보다 약한 설정을 적용했습니다. "
+            "sandbox/approval 설정을 확인한 뒤 다시 Hook 검증을 실행하세요."
+        )
+    elif not latest.get("hook_event_count"):
+        next_step = (
+            "Session에 연결된 Codex Hook Event가 없습니다. Codex에서 Hook을 검토·신뢰한 "
+            "뒤 aia hook verify를 다시 실행하세요."
+        )
+    elif str(latest.get("protection_state", "")).endswith("DEGRADED"):
+        next_step = "보호 경계가 완전히 검증되지 않았습니다. Result Bundle의 제한사항을 확인하세요."
+    else:
+        next_step = "최근 실행의 Hook 계보와 Result Bundle이 확인되었습니다."
+
+    return {
+        "session_id": session_id,
+        "ended_at": latest.get("ended_at"),
+        "protection_state": latest.get("protection_state"),
+        "bundle_status": latest.get("bundle_status"),
+        "hook_event_count": latest.get("hook_event_count", 0),
+        "limitations": list(limitations),
+        "effective_sandbox": effective_sandbox,
+        "effective_approval_policy": effective_approval_policy,
+        "next_step": next_step,
+    }
+
+
 def _doctor(args: argparse.Namespace) -> int:
     """Check prerequisites without starting a Protected Run."""
 
@@ -249,6 +317,7 @@ def _doctor(args: argparse.Namespace) -> int:
     )
 
     control_root = _control_root(args.control_root)
+    recent_run = _recent_run_diagnostic(control_root)
     hook_verified = bool(
         hook_installed
         and executable is not None
@@ -262,7 +331,14 @@ def _doctor(args: argparse.Namespace) -> int:
             "detail": (
                 "Live Codex Hook Event verification is current"
                 if hook_verified
-                else "Run 'aia hook verify' after reviewing the Hook in Codex"
+                else (
+                    "Run 'aia hook verify' after reviewing the Hook in Codex"
+                    + (
+                        f"; recent run: {recent_run['next_step']}"
+                        if recent_run is not None
+                        else ""
+                    )
+                )
             ),
         }
     )
@@ -299,6 +375,7 @@ def _doctor(args: argparse.Namespace) -> int:
                 ),
             }
         },
+        "recent_protected_run": recent_run,
         "limitations": [
             "Hook trust is reviewed in Codex and cannot be proven by this local preflight command.",
             "The protected scope is Windows 11 + Codex CLI + supported PreToolUse matchers.",
@@ -319,6 +396,18 @@ def _doctor(args: argparse.Namespace) -> int:
             f"{'설치됨' if posttool_installed else '선택 기능 미설치'}"
         )
         print("[INFO] AIA는 지원 범위 밖의 실행을 보호 실행으로 주장하지 않습니다.")
+        if recent_run is not None:
+            print(
+                "최근 Protected Run: "
+                f"{recent_run['protection_state']} / Bundle {recent_run['bundle_status']}"
+            )
+            if recent_run["effective_sandbox"] or recent_run["effective_approval_policy"]:
+                print(
+                    "최근 Codex 실행 정책: "
+                    f"sandbox={recent_run['effective_sandbox'] or 'unknown'}, "
+                    f"approval={recent_run['effective_approval_policy'] or 'unknown'}"
+                )
+            print(f"[다음] {recent_run['next_step']}")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
 

@@ -5,7 +5,13 @@ import json
 import pytest
 
 from aia import CodexHookInstaller
-from aia.cli import _extract_session_id, _parser, _protected_run_preflight, main
+from aia.cli import (
+    _extract_session_id,
+    _parser,
+    _protected_run_preflight,
+    _recent_run_diagnostic,
+    main,
+)
 from aia_web.__main__ import run as run_console, validate_local_bind
 
 
@@ -111,6 +117,52 @@ def test_hook_status_is_not_ready_when_only_the_definition_is_installed(
     assert payload["pretool_installed"] is True
     assert payload["verification_status"] == "MISSING_OR_STALE"
     assert payload["ready"] is False
+
+
+def test_recent_run_diagnostic_explains_downgraded_codex_execution(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "aia.cli.ResultBundleReader.list_completed",
+        lambda _reader: [
+            {
+                "session_id": "session-1",
+                "ended_at": "2026-09-10T12:00:00Z",
+                "protection_state": "COMPLETED_DEGRADED",
+                "bundle_status": "VALID",
+                "hook_event_count": 0,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "aia.cli.ResultBundleReader.read_result",
+        lambda _reader, _session_id: {
+            "limitations": [
+                "CODEX_SANDBOX_DOWNGRADED",
+                "CODEX_APPROVAL_POLICY_DOWNGRADED",
+            ],
+            "agent_execution": {
+                "output_observation": {
+                    "effective_sandbox": "read-only",
+                    "effective_approval_policy": "never",
+                }
+            },
+        },
+    )
+
+    diagnostic = _recent_run_diagnostic(tmp_path / "control")
+
+    assert diagnostic is not None
+    assert diagnostic["protection_state"] == "COMPLETED_DEGRADED"
+    assert diagnostic["effective_sandbox"] == "read-only"
+    assert diagnostic["effective_approval_policy"] == "never"
+    assert "실행 정책보다 약한" in diagnostic["next_step"]
+
+
+def test_recent_run_diagnostic_is_empty_without_committed_runs(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("aia.cli.ResultBundleReader.list_completed", lambda _reader: [])
+
+    assert _recent_run_diagnostic(tmp_path / "control") is None
 
 
 def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:
