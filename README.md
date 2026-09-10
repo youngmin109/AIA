@@ -11,6 +11,8 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 릴리스 wheel·sdist와 SHA-256 manifest 생성 방법은 [배포 패키지 가이드](docs/DISTRIBUTION.md)를 참조한다.
 
 새 Windows 환경에서 설치하려면 [설치 가이드](INSTALL.md)를 먼저 읽는다.
+처음 실제 실행까지는 [빠른 시작](docs/QUICKSTART.md)을 따른다. 오류가 발생하면
+[문제 해결](docs/TROUBLESHOOTING.md)을 확인한다.
 
 릴리스 ZIP을 사용하는 경우에는 압축을 푼 폴더에서 포함된 `install.ps1`을 실행하면
 wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는
