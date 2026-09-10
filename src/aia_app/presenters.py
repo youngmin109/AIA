@@ -182,6 +182,14 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     policy = result.get("policy") or {}
     recovery = result.get("recovery_result") or {}
     integrity = result.get("integrity_result") or {}
+    agent_execution = result.get("agent_execution") or {}
+    output_observation = agent_execution.get("output_observation") or {}
+    if output_observation.get("block_confirmation_available") is True:
+        codex_block_confirmation = "BLOCK_CONFIRMED"
+    elif output_observation:
+        codex_block_confirmation = "NOT_CONFIRMED"
+    else:
+        codex_block_confirmation = "NOT_AVAILABLE"
     limitations = list(result.get("limitations") or [])
     limitations.extend(
         item
@@ -198,6 +206,8 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "agent": result.get("agent"),
         "attribution_results": list(result.get("attribution_results") or []),
         "bundle_status": bundle_status,
+        "codex_block_confirmation": codex_block_confirmation,
+        "codex_block_confirmation_reason": output_observation.get("reason"),
         "ended_at": result.get("ended_at"),
         "enforcement_results": list(result.get("enforcement_results") or []),
         "incidents": incidents,

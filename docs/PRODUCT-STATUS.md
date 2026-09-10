@@ -25,6 +25,10 @@ Workspace 선택
 `Bash`, `apply_patch`, `Edit`, `Write` 계열의 PreToolUse 경로다. 실제 Codex
 Bash Canary에 대해 `permissionDecision=deny`와 Canary 파일 미생성을 확인했고,
 정상 읽기 실행에 대해서는 실제 Hook Evidence와 `Bundle VALID`를 확인했다.
+비대화형 `aia protect --task` 경로에서는 Codex의 제한된 native block 결과와
+PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUCCEEDED`를
+기록한다. 이때 Codex 출력 원문은 저장하지 않고 SHA-256과 판정 메타데이터만
+보존한다.
 
 ## 현재 결과를 읽는 방법
 
@@ -39,11 +43,11 @@ Enforcement Gate
 ```
 
 첫 번째는 AIA가 실행 전에 차단 결정을 내렸다는 뜻이다. 두 번째는 실제 도구가
-실행되지 않았다는 확인까지 연결됐다는 뜻이다. 일반 제품 서비스는 deny 응답만으로
-두 번째 결과를 만들어내지 않는다. `scripts/product_e2e_smoke.py --scenario
-block-canary`는 Canary 파일의 부재와 Hook 결과를 함께 확인하고
-`CANARY_NO_SIDE_EFFECT`로 표시한다. 저수준 Actual Codex 증명 harness에서는
-추가 확인을 연결한 `BLOCKED / SUCCEEDED` 결과도 검증한다.
+실행되지 않았다는 확인까지 연결됐다는 뜻이다. `scripts/product_e2e_smoke.py
+--scenario block-canary`는 실제 제품 CLI 경로에서 이 두 결과를 모두 확인하고,
+`CANARY_NO_SIDE_EFFECT`와 `confirmed_block_count`를 함께 표시한다. Codex 출력이
+지원되는 native block 문장을 제공하지 않거나 실행 확인이 모호하면 AIA는 Gate
+결과만 남기고 `BLOCKED / SUCCEEDED`를 만들지 않는다.
 
 이 분리는 결과를 약하게 보이게 하려는 것이 아니라, “차단 응답을 만들었다”와
 “도구가 실행되지 않았다”를 같은 사실로 잘못 기록하지 않기 위한 제품 계약이다.
@@ -51,7 +55,7 @@ block-canary`는 Canary 파일의 부재와 Hook 결과를 함께 확인하고
 ## 아직 제품으로서 부족한 부분
 
 - 구조화된 Codex file-read와 MCP를 포함한 전체 도구 범위는 아직 검증하지 않았다.
-- 모든 PreTool 차단에 대해 실제 실행 결과 확인을 일반화한 통합 경로가 더 필요하다.
+- 대화형 세션과 Codex 버전·출력 형식별 실행 결과 확인을 더 넓게 검증해야 한다.
 - Actual Codex destructive Process Tree termination은 아직 제품 지원 주장으로
   완료하지 않았다.
 - Hook 신뢰 검토는 Codex 화면에서 사용자가 직접 수행해야 하며 AIA가 자동 증명하지
@@ -65,9 +69,9 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 ## 다음 제품화 우선순위
 
-1. 실제 Codex PreTool 차단 확인을 일반 제품 Result Bundle까지 연결한다.
-2. Hook 설치·신뢰·지원 도구 범위를 한 번에 점검하는 온보딩을 만든다.
-3. Bash, apply_patch, 구조화 READ, MCP 경로를 각각 실제 E2E로 분리 검증한다.
+1. Hook 설치·신뢰·지원 도구 범위를 한 번에 점검하는 온보딩을 만든다.
+2. Bash, apply_patch, 구조화 READ, MCP 경로를 각각 실제 E2E로 분리 검증한다.
+3. Actual Codex Process Tree termination과 Recovery/Integrity 연계를 검증한다.
 4. 개인 사용자가 한 명령으로 설치·정책 선택·보호 실행을 시작하도록 배포 UX를
    정리한다.
 5. 성능 평가 결과와 제한사항을 제품 화면에서 함께 보여준다.

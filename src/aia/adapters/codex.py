@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -15,6 +17,30 @@ from ..launcher import (
     AgentRuntimeMetadata,
     ProtectedLaunchRequest,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class CodexExecutionObservation:
+    """Bounded, non-sensitive classification of one Codex output stream."""
+
+    output_sha256: str
+    output_bytes: int
+    block_message_count: int
+    no_run_message_count: int
+    block_confirmation_available: bool
+    reason: str
+
+    def to_mapping(self) -> dict[str, object]:
+        """Return only safe metadata suitable for a Result Bundle."""
+
+        return {
+            "block_confirmation_available": self.block_confirmation_available,
+            "block_message_count": self.block_message_count,
+            "no_run_message_count": self.no_run_message_count,
+            "output_bytes": self.output_bytes,
+            "output_sha256": self.output_sha256,
+            "reason": self.reason,
+        }
 
 
 class CodexAdapter:
@@ -274,5 +300,64 @@ class CodexAdapter:
 
         return None
 
+    @staticmethod
+    def classify_execution_output(
+        stdout: bytes,
+        stderr: bytes,
+        *,
+        posttool_observed: bool,
+    ) -> CodexExecutionObservation:
+        """Classify native Codex block output without retaining its raw text.
 
-__all__ = ["CodexAdapter"]
+        The confirmation contract is deliberately narrow: Codex must report a
+        PreToolUse block and that the command did not run, the matching
+        PostToolUse event must be absent, and the caller must separately verify
+        the agent process exited normally.  This helper only supplies the
+        bounded output evidence; it never emits an enforcement result itself.
+        """
+
+        combined = bytes(stdout) + b"\0" + bytes(stderr)
+        digest = hashlib.sha256(combined).hexdigest()
+        # Keep classification bounded even if an Agent prints a very large
+        # response.  Both ends cover Codex's header and final result message.
+        sample_limit = 262_144
+        sample = (
+            combined
+            if len(combined) <= sample_limit * 2
+            else combined[:sample_limit] + combined[-sample_limit:]
+        )
+        text = sample.decode("utf-8", errors="replace").casefold()
+        block_markers = (
+            "command was blocked by the pretooluse hook",
+            "command blocked by the pretooluse hook",
+            "tool call was blocked by the pretooluse hook",
+            "hook: pretooluse blocked",
+        )
+        no_run_markers = ("it did not run", "did not run")
+        block_count = sum(text.count(marker) for marker in block_markers)
+        no_run_count = sum(text.count(marker) for marker in no_run_markers)
+        if posttool_observed:
+            reason = "POSTTOOL_OBSERVED"
+        elif block_count == 0:
+            reason = "CODEX_BLOCK_MESSAGE_MISSING"
+        elif no_run_count == 0 and "hook: pretooluse blocked" in text:
+            reason = "CODEX_HOOK_BLOCKED_EVENT"
+        elif no_run_count == 0:
+            reason = "CODEX_NO_RUN_MESSAGE_MISSING"
+        else:
+            reason = "CODEX_BLOCK_AND_NO_RUN_MESSAGE"
+        return CodexExecutionObservation(
+            output_sha256=digest,
+            output_bytes=len(combined),
+            block_message_count=block_count,
+            no_run_message_count=no_run_count,
+            block_confirmation_available=(
+                block_count > 0
+                and (no_run_count > 0 or "hook: pretooluse blocked" in text)
+                and not posttool_observed
+            ),
+            reason=reason,
+        )
+
+
+__all__ = ["CodexAdapter", "CodexExecutionObservation"]

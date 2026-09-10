@@ -396,3 +396,38 @@ def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> Non
     assert "commandWindows=\"python -m aia.codex_hook_runtime\"" in config
     assert any(argument.startswith("hooks.PostToolUse") for argument in spec.argv)
     assert "--dangerously-bypass-hook-trust" in spec.argv
+
+
+def test_codex_adapter_classifies_native_block_confirmation_without_raw_output() -> None:
+    observation = CodexAdapter.classify_execution_output(
+        b"The command was blocked by the PreToolUse hook. It did not run.\n",
+        b"",
+        posttool_observed=False,
+    )
+
+    assert observation.block_confirmation_available is True
+    assert observation.reason == "CODEX_BLOCK_AND_NO_RUN_MESSAGE"
+    assert observation.output_bytes > 0
+    assert "blocked" not in repr(observation)
+
+
+def test_codex_adapter_does_not_confirm_when_posttool_was_observed() -> None:
+    observation = CodexAdapter.classify_execution_output(
+        b"The command was blocked by the PreToolUse hook. It did not run.\n",
+        b"",
+        posttool_observed=True,
+    )
+
+    assert observation.block_confirmation_available is False
+    assert observation.reason == "POSTTOOL_OBSERVED"
+
+
+def test_codex_adapter_accepts_native_hook_block_event_without_raw_tool_output() -> None:
+    observation = CodexAdapter.classify_execution_output(
+        b"hook: PreToolUse Blocked\n",
+        b"",
+        posttool_observed=False,
+    )
+
+    assert observation.block_confirmation_available is True
+    assert observation.reason == "CODEX_HOOK_BLOCKED_EVENT"

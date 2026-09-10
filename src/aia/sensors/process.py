@@ -518,12 +518,12 @@ class ProcessRuntimeSensor:
                 self._poll_once(initial=False)
             except ProcessEvidenceStoreError:
                 return
-            except Exception:
+            except Exception as error:
                 with self._lock:
                     if self._status is not SensorStatus.FAILED:
                         self._set_health(
                             SensorStatus.FAILED,
-                            "OBSERVER_FAILURE",
+                            self._failure_reason(error, "OBSERVER_FAILURE"),
                             append=True,
                         )
                 return
@@ -820,7 +820,7 @@ class ProcessRuntimeSensor:
     def _failure_reason(self, error: Exception, fallback: str) -> str:
         if isinstance(error, SensorError):
             return getattr(error, "code", fallback)
-        return fallback
+        return f"{fallback}:{type(error).__name__}"
 
 
 __all__ = [

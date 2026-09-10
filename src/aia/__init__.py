@@ -226,6 +226,7 @@ from .pretool_enforcement import (
 )
 from .adapters import (
     CodexAdapter,
+    CodexExecutionObservation,
     CodexHookAdapter,
     CodexHookPayloadError,
     CodexPreToolPayload,
@@ -571,6 +572,7 @@ __all__ = [
     "AgentLaunchSpec",
     "AgentRuntimeMetadata",
     "CodexAdapter",
+    "CodexExecutionObservation",
     "CodexHookBroker",
     "CodexHookInstallationError",
     "CodexHookInstaller",

@@ -132,6 +132,27 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["bundle_status"] == "VALID"
 
 
+def test_result_presenter_exposes_codex_block_confirmation() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "agent_execution": {
+                "output_observation": {
+                    "block_confirmation_available": True,
+                    "reason": "CODEX_HOOK_BLOCKED_EVENT",
+                }
+            },
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+
+    assert view["codex_block_confirmation"] == "BLOCK_CONFIRMED"
+    assert view["codex_block_confirmation_reason"] == "CODEX_HOOK_BLOCKED_EVENT"
+
+
 def test_result_presenter_marks_action_incidents_for_result_links() -> None:
     view = result_view(
         {

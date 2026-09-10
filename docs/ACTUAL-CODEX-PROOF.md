@@ -58,6 +58,14 @@ Codex가 같은 `tool_use_id`의 동일한 `PreToolUse` callback을 반복 전�
 
 결과는 `evaluation/actual-codex/pretool-block/<timestamp>/run.json`과 Session Control Root에 저장되며 각 artifact의 SHA-256이 보고된다. Checkpoint는 복구 기준점이므로 Workspace baseline의 `.env`가 포함될 수 있다. Secret 비노출 판정은 Hook, Evidence, Result artifact에 대해 별도로 수행한다.
 
+동일한 확인 경로는 비대화형 제품 CLI에도 연결되어 있다. 다음 명령의 결과에서
+`confirmed_block_count=1`, `canary_executed=false`, `bundle_status=VALID`가 함께
+나오면 제품 Result Bundle까지 `BLOCKED / SUCCEEDED`가 전달된 것이다.
+
+```powershell
+uv run python scripts/product_e2e_smoke.py --scenario block-canary
+```
+
 ## 보호 범위
 
 현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Bash 및 `apply_patch`/Edit/Write matcher를 연결한다. MCP tool은 Hook adapter가 공식 Payload를 받는 경우에만 별도 검증 대상이다.

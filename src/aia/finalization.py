@@ -193,6 +193,7 @@ class SessionFinalizer:
         agent_exit_code: int | None = None,
         agent_end_observed_at: datetime | None = None,
         agent_end_verification: str | None = None,
+        agent_output_observation: Any | None = None,
     ) -> SessionFinalizationResult:
         session = session or self.session
         if not isinstance(session, ProtectedRunSession):
@@ -325,6 +326,21 @@ class SessionFinalizer:
             all_limitations,
         )
         result_id = str(uuid5(NAMESPACE_URL, f"{session.session_id}:{RESULT_SCHEMA_VERSION}"))
+        agent_execution: dict[str, Any] | None = None
+        if any(
+            value is not None
+            for value in (agent_exit_code, agent_end_observed_at, agent_end_verification, agent_output_observation)
+        ):
+            agent_execution = {
+                "agent_end_observed_at": agent_end_observed_at,
+                "agent_end_verification": agent_end_verification,
+                "agent_exit_code": agent_exit_code,
+            }
+            if agent_output_observation is not None:
+                if hasattr(agent_output_observation, "to_mapping"):
+                    agent_execution["output_observation"] = agent_output_observation.to_mapping()
+                elif isinstance(agent_output_observation, Mapping):
+                    agent_execution["output_observation"] = dict(agent_output_observation)
         result = SessionResult(
             schema_version=RESULT_SCHEMA_VERSION,
             result_id=result_id,
@@ -356,11 +372,7 @@ class SessionFinalizer:
             review_required=review_required,
             run_classification=run_classification,
             prior_session_id=prior_session_id,
-            agent_execution={
-                "agent_end_observed_at": agent_end_observed_at,
-                "agent_end_verification": agent_end_verification,
-                "agent_exit_code": agent_exit_code,
-            } if any(value is not None for value in (agent_exit_code, agent_end_observed_at, agent_end_verification)) else None,
+            agent_execution=agent_execution,
         )
         report_text = self.report_generator.render(result)
         audit_records = self._audit_records(

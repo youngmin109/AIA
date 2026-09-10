@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 import json
 import subprocess
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from uuid import UUID
@@ -428,6 +429,7 @@ class RunApplicationService:
         lease = None
         sensors: tuple[Any, ...] = ()
         finalization_done = False
+        codex_output_handles: list[Any] = []
         try:
             self._phase(record, "PREPARING", SessionStatus.PREPARING)
             record.protection_state = "PREPARING"
@@ -513,6 +515,23 @@ class RunApplicationService:
                     handler=controller.handle,
                 )
 
+            def capture_popen(argv: list[str], **kwargs: Any) -> Any:
+                """Capture non-interactive Codex output in temporary handles only."""
+
+                if record.interactive:
+                    return subprocess.Popen(argv, **kwargs)
+                stdout_stream = tempfile.TemporaryFile(mode="w+b")
+                stderr_stream = tempfile.TemporaryFile(mode="w+b")
+                codex_output_handles.extend((stdout_stream, stderr_stream))
+                kwargs["stdout"] = stdout_stream
+                kwargs["stderr"] = stderr_stream
+                try:
+                    return subprocess.Popen(argv, **kwargs)
+                except Exception:
+                    stdout_stream.close()
+                    stderr_stream.close()
+                    raise
+
             if not CodexHookInstaller().is_installed():
                 raise RuntimeError(
                     "CODEX_HOOK_NOT_INSTALLED: run 'aia hook install' and review/trust the Hook"
@@ -528,6 +547,7 @@ class RunApplicationService:
                 lease_manager=manager,
                 hook_bridge=bridge,
                 hook_broker_factory=broker_factory,
+                popen_factory=capture_popen,
                 launch_context_callback=lambda context: launch_holder.update(
                     {"context": context}
                 ),
@@ -588,6 +608,8 @@ class RunApplicationService:
             exit_code = self._wait_for_agent(record, process, launcher)
             record.runtime["exit_code"] = exit_code
             launcher.stop_hook_broker()
+            self._capture_codex_execution_observation(record, codex_output_handles)
+            self._confirm_codex_blocks(record)
             self._process_evidence(record)
             raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
             process_identity = launch.context.root_process_identity
@@ -622,6 +644,7 @@ class RunApplicationService:
                 agent_exit_code=exit_code,
                 agent_end_observed_at=_now(),
                 agent_end_verification="PROCESS_GONE",
+                agent_output_observation=record.runtime.get("codex_output_observation"),
                 limitations=limitations,
             )
             finalization_done = True
@@ -663,6 +686,11 @@ class RunApplicationService:
             if launcher is not None:
                 try:
                     launcher.stop_hook_broker()
+                except Exception:
+                    pass
+            for handle in codex_output_handles:
+                try:
+                    handle.close()
                 except Exception:
                     pass
             if not finalization_done:
@@ -865,6 +893,64 @@ class RunApplicationService:
         )
         incidents = [item for item in (incident_view(item) for item in action_views) if item]
         self.registry.update(record.session_id, actions=action_views, incidents=incidents)
+
+    def _capture_codex_execution_observation(
+        self,
+        record: RunRecord,
+        handles: list[Any],
+    ) -> None:
+        """Classify bounded Codex output without persisting the raw stream."""
+
+        if len(handles) != 2:
+            return
+        streams: list[bytes] = []
+        for handle in handles:
+            try:
+                handle.flush()
+                handle.seek(0)
+                streams.append(handle.read(8 * 1024 * 1024))
+            except (OSError, ValueError):
+                streams.append(b"")
+        observation = CodexAdapter.classify_execution_output(
+            streams[0],
+            streams[1],
+            posttool_observed=False,
+        )
+        record.runtime["codex_output_observation"] = observation
+
+    def _confirm_codex_blocks(self, record: RunRecord) -> None:
+        """Attach a BLOCKED result only to a native, unambiguous Codex block."""
+
+        observation = record.runtime.get("codex_output_observation")
+        if observation is None or not observation.block_confirmation_available:
+            return
+        if record.runtime.get("exit_code") != 0:
+            return
+        controller = record.runtime.get("codex_controller")
+        if controller is None:
+            return
+        raw_store = RawEvidenceStore.for_session(
+            self.control_root,
+            record.session_id,
+        )
+        posttool_ids = {
+            item.payload.get("tool_use_id")
+            for item in raw_store.records()
+            if item.record_type.value == "POSTTOOL_OBSERVED"
+            and isinstance(item.payload.get("tool_use_id"), str)
+        }
+        candidates = [
+            event
+            for event in controller.events
+            if event.confirmed_block is None
+            and event.tool_use_id not in posttool_ids
+            and event.gate_result.decision.value == "CONTAIN"
+            and event.gate_result.route.value == "PRETOOL_BLOCK"
+        ]
+        if not candidates or observation.block_message_count < len(candidates):
+            return
+        for event in candidates:
+            controller.confirm_block(event.tool_use_id, True)
 
     def _refresh_protection_state(self, record: RunRecord) -> None:
         if record.status in {"COMPLETED", "FAILED", "ABORTED"}:
