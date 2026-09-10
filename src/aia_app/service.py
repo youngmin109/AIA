@@ -1002,10 +1002,18 @@ class RunApplicationService:
                 streams.append(handle.read(8 * 1024 * 1024))
             except (OSError, ValueError):
                 streams.append(b"")
+        raw_store = RawEvidenceStore.for_session(
+            self.control_root,
+            record.session_id,
+        )
+        posttool_observed = any(
+            item.record_type.value == "POSTTOOL_OBSERVED"
+            for item in raw_store.records()
+        )
         observation = CodexAdapter.classify_execution_output(
             streams[0],
             streams[1],
-            posttool_observed=False,
+            posttool_observed=posttool_observed,
         )
         record.runtime["codex_output_observation"] = observation
 

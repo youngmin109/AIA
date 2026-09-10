@@ -182,9 +182,16 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     policy = result.get("policy") or {}
     recovery = result.get("recovery_result") or {}
     integrity = result.get("integrity_result") or {}
+    action_outcomes = result.get("action_outcomes") or []
     agent_execution = result.get("agent_execution") or {}
     output_observation = agent_execution.get("output_observation") or {}
-    if output_observation.get("block_confirmation_available") is True:
+    verified_block = any(
+        isinstance(item, Mapping)
+        and item.get("enforcement_action") == "BLOCKED"
+        and item.get("execution_result") == "SUCCEEDED"
+        for item in action_outcomes
+    )
+    if verified_block:
         codex_block_confirmation = "BLOCK_CONFIRMED"
     elif output_observation:
         codex_block_confirmation = "NOT_CONFIRMED"

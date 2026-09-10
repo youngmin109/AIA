@@ -144,13 +144,43 @@ def test_result_presenter_exposes_codex_block_confirmation() -> None:
                     "reason": "CODEX_HOOK_BLOCKED_EVENT",
                 }
             },
-            "action_outcomes": [],
+            "action_outcomes": [
+                {
+                    "enforcement_action": "BLOCKED",
+                    "execution_result": "SUCCEEDED",
+                }
+            ],
         },
         "VALID",
     )
 
     assert view["codex_block_confirmation"] == "BLOCK_CONFIRMED"
     assert view["codex_block_confirmation_reason"] == "CODEX_HOOK_BLOCKED_EVENT"
+
+
+def test_result_presenter_does_not_confirm_from_output_metadata_alone() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "agent_execution": {
+                "output_observation": {
+                    "block_confirmation_available": True,
+                    "reason": "CODEX_BLOCK_AND_NO_RUN_MESSAGE",
+                }
+            },
+            "action_outcomes": [
+                {
+                    "enforcement_action": "NONE",
+                    "execution_result": "FAILED",
+                }
+            ],
+        },
+        "VALID",
+    )
+
+    assert view["codex_block_confirmation"] == "NOT_CONFIRMED"
 
 
 def test_result_presenter_marks_action_incidents_for_result_links() -> None:
