@@ -69,6 +69,11 @@ AIA Hook을 검토·신뢰한 뒤 다시 검증해야 한다. `CODEX_EXECUTION_P
 나오면 현재 Codex 실행 환경이 AIA가 요청한 sandbox 또는 approval 설정을 적용하지
 않은 상태이므로, 보호 실행을 시작하지 않고 실행 환경을 먼저 고쳐야 한다.
 
+비대화형 Protected Run은 현재 Codex CLI가 제공하는 `--approve-for-me` 경로를 통해
+`workspace-write`와 `on-request` 실행 정책을 요청한다. Result Bundle의 실제 실행
+정책이 이 요청과 다르면 AIA는 실행을 성공한 보호 실행으로 포장하지 않고
+`COMPLETED_DEGRADED`로 기록한다.
+
 AIA를 제거하거나 Hook 설정을 되돌릴 때는 다음 명령을 사용한다. AIA가 추가한
 Handler만 제거하고 다른 사용자 Hook은 보존한다.
 

@@ -787,13 +787,21 @@ class RunApplicationService:
                 launcher.managed_process_registry,
                 manager,
             )
-            adapter_options: dict[str, Any] = {
-                "approval_policy": "on-request",
-                "sandbox": "workspace-write",
-            }
+            adapter_options: dict[str, Any] = {}
             if record.interactive:
+                adapter_options.update(
+                    {
+                        "approval_policy": "on-request",
+                        "sandbox": "workspace-write",
+                    }
+                )
                 adapter_options["interactive"] = True
             else:
+                # Codex CLI's current exec contract applies the supported
+                # workspace-write/on-request policy through --approve-for-me.
+                # Passing -c approval_policy=on-request alone is silently
+                # reported as approval=never on some Windows installations.
+                adapter_options["approve_for_me"] = True
                 adapter_options["skip_git_repo_check"] = True
             if record.stop_requested:
                 self._finalize_user_abort_before_launch(

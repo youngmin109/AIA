@@ -560,6 +560,36 @@ def test_codex_adapter_can_pin_a_safe_approval_policy(tmp_path: Path) -> None:
     assert 'approval_policy="on-request"' in spec.argv
 
 
+def test_codex_adapter_uses_codex_safe_exec_approval_mode(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="run",
+        adapter_options={"approve_for_me": True},
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert "--approve-for-me" in spec.argv
+    assert "--dangerously-bypass-approvals-and-sandbox" not in spec.argv
+
+
+def test_codex_adapter_rejects_safe_exec_mode_with_explicit_sandbox(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="run",
+        adapter_options={"approve_for_me": True, "sandbox": "workspace-write"},
+    )
+
+    with pytest.raises(AdapterError, match="cannot be combined"):
+        adapter.build_launch(request, Path(sys.executable))
+
+
 def test_codex_adapter_rejects_never_approval_policy(tmp_path: Path) -> None:
     adapter = CodexAdapter()
     request = ProtectedLaunchRequest(

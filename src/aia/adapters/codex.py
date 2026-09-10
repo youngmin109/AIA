@@ -55,6 +55,7 @@ class CodexAdapter:
     _ALLOWED_OPTIONS = frozenset(
         {
             "add_dir",
+            "approve_for_me",
             "approval_policy",
             "color",
             "ignore_rules",
@@ -69,7 +70,6 @@ class CodexAdapter:
     )
     _FORBIDDEN_OPTIONS = frozenset(
         {
-            "approve_for_me",
             "dangerously_bypass_approvals_and_sandbox",
             "dangerously_bypass_hook_trust",
             "full_access",
@@ -337,6 +337,19 @@ class CodexAdapter:
             import json
 
             argv.extend(("-c", f"approval_policy={json.dumps(value)}"))
+        if "approve_for_me" in options:
+            value = options["approve_for_me"]
+            if not isinstance(value, bool):
+                raise AdapterError("Codex approve_for_me option is invalid")
+            if value:
+                if "sandbox" in options:
+                    raise AdapterError(
+                        "Codex approve_for_me cannot be combined with explicit approval or sandbox"
+                    )
+                # Current Codex CLI exposes the safe workspace-write +
+                # on-request execution contract through this flag.  Keep the
+                # dangerous full-access bypass options rejected above.
+                argv.append("--approve-for-me")
         if "mcp_server" in options:
             CodexAdapter._append_mcp_server(argv, options["mcp_server"])
         bool_flags = {
