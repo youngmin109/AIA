@@ -53,6 +53,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
 릴리스 디렉터리의 `INSTALL-FROM-WHEEL.md`에 기록된 순서를 따른다. 개인이 실제로
 사용하는 설치 경로는 `uv tool install`이다. 이렇게 설치하면 저장소 폴더 안에서만
 `uv run`을 붙여 실행하지 않아도 어느 Workspace에서든 `aia` 명령을 사용할 수 있다.
+릴리스 폴더의 `install.ps1 -SetupHook`은 새 `aia`가 현재 PowerShell의 `PATH`에
+아직 반영되지 않은 경우에도 uv의 실행 파일 경로를 직접 찾아 첫 Hook 설정을
+완료한다. 설치 후 터미널에서 `aia`를 직접 입력할 때는 새 PowerShell 창을 연다.
 
 ```powershell
 uv tool install --force .\packages\aia_mvp-0.1.0-py3-none-any.whl

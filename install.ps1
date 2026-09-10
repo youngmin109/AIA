@@ -8,6 +8,30 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Find-AiaExecutable {
+    $command = Get-Command aia -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    # uv may have installed the shim successfully while the current
+    # PowerShell has not refreshed PATH yet. Resolve uv's configured bin
+    # directory directly so first-run setup can continue in this window.
+    $binOutput = & uv tool dir --bin 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $binDirectory = ($binOutput | Select-Object -Last 1).ToString().Trim()
+        if (-not [string]::IsNullOrWhiteSpace($binDirectory)) {
+            foreach ($name in @("aia.exe", "aia")) {
+                $candidate = Join-Path $binDirectory $name
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                    return (Resolve-Path -LiteralPath $candidate).Path
+                }
+            }
+        }
+    }
+    return $null
+}
+
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $scriptPath = $MyInvocation.MyCommand.Path
     if (-not [string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -47,11 +71,11 @@ try {
     if ($SetupHook) {
         Write-Host "[AIA] Installing the AIA Codex Hook definition..."
         if ($InstallTool) {
-            $aiaCommand = Get-Command aia -ErrorAction SilentlyContinue
-            if ($null -eq $aiaCommand) {
-                throw "The aia command is not on PATH after uv tool install. Open a new PowerShell window and run 'aia setup'."
+            $aiaExecutable = Find-AiaExecutable
+            if ($null -eq $aiaExecutable) {
+                throw "The aia command was installed, but its executable could not be found. Run 'uv tool dir --bin', open a new PowerShell window, and run 'aia setup'."
             }
-            & $aiaCommand.Source setup
+            & $aiaExecutable setup
         }
         else {
             & uv run aia setup
@@ -64,14 +88,27 @@ try {
     if (-not $SkipDoctor) {
         Write-Host "[AIA] Checking the local protected-run prerequisites..."
         if ($InstallTool) {
-            & aia doctor
+            $aiaExecutable = Find-AiaExecutable
+            if ($null -eq $aiaExecutable) {
+                Write-Warning "The aia command is not available in this PowerShell window. Open a new PowerShell window and run 'aia doctor'."
+                $doctorExitCode = 1
+            }
+            else {
+                & $aiaExecutable doctor
+                $doctorExitCode = $LASTEXITCODE
+            }
         }
         else {
             & uv run aia doctor
+            $doctorExitCode = $LASTEXITCODE
         }
-        $doctorExitCode = $LASTEXITCODE
         if ($doctorExitCode -ne 0) {
-            Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Run 'uv run aia doctor' for details."
+            if ($InstallTool) {
+                Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Open a new PowerShell window and run 'aia doctor' for details."
+            }
+            else {
+                Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Run 'uv run aia doctor' for details."
+            }
         }
     }
 

@@ -6,6 +6,30 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Find-AiaExecutable {
+    $command = Get-Command aia -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    # uv may have installed the shim successfully while the current
+    # PowerShell has not refreshed PATH yet. Resolve uv's configured bin
+    # directory directly so first-run setup can continue in this window.
+    $binOutput = & uv tool dir --bin 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $binDirectory = ($binOutput | Select-Object -Last 1).ToString().Trim()
+        if (-not [string]::IsNullOrWhiteSpace($binDirectory)) {
+            foreach ($name in @("aia.exe", "aia")) {
+                $candidate = Join-Path $binDirectory $name
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                    return (Resolve-Path -LiteralPath $candidate).Path
+                }
+            }
+        }
+    }
+    return $null
+}
+
 $uv = Get-Command uv -ErrorAction SilentlyContinue
 if ($null -eq $uv) {
     throw "uv is required. Install uv and run this script again."
@@ -40,17 +64,17 @@ if ($LASTEXITCODE -ne 0) {
     throw "uv tool install failed with exit code $LASTEXITCODE"
 }
 
-$aiaCommand = Get-Command aia -ErrorAction SilentlyContinue
-if ($null -eq $aiaCommand) {
+$aiaExecutable = Find-AiaExecutable
+if ($null -eq $aiaExecutable) {
     if ($SetupHook) {
-        throw "The aia command is not on PATH in this PowerShell window. Open a new PowerShell window and run 'aia setup'."
+        throw "The aia command was installed, but its executable could not be found. Run 'uv tool dir --bin', open a new PowerShell window, and run 'aia setup'."
     }
     Write-Warning "The aia command is not on PATH in this PowerShell window. Open a new PowerShell window and run 'aia --version'."
 }
 else {
-    & $aiaCommand.Source --version
+    & $aiaExecutable --version
     if ($SetupHook) {
-        & $aiaCommand.Source setup
+        & $aiaExecutable setup
         if ($LASTEXITCODE -ne 0) {
             throw "AIA Hook setup failed with exit code $LASTEXITCODE"
         }

@@ -28,6 +28,9 @@ aia --version
 
 `-InstallTool`은 현재 저장소 내용을 `uv` 사용자 도구로 설치한다. 저장소에서
 개발을 계속하는 경우에는 기본 설치 명령과 `uv run aia` 경로를 사용한다.
+새로 설치한 `aia`가 현재 PowerShell의 `PATH`에 아직 반영되지 않은 경우에도 설치
+스크립트는 uv가 설치한 실행 파일을 직접 찾아 Hook 설정을 계속한다. 설치 후
+`aia`를 직접 입력할 때는 새 PowerShell 창을 열거나 사용자 PATH를 갱신한다.
 
 ## Codex Hook 신뢰
 
