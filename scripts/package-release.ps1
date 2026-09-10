@@ -80,8 +80,7 @@ $supportFiles = @(
     "ARCHITECTURE.md",
     "AGENTS.md",
     "pyproject.toml",
-    "uv.lock",
-    "install.ps1"
+    "uv.lock"
 )
 foreach ($relativePath in $supportFiles) {
     $source = Join-Path $repositoryRoot $relativePath
@@ -94,15 +93,16 @@ foreach ($relativePath in $supportFiles) {
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "docs") -Destination (Join-Path $releaseDirectory "docs") -Recurse
 New-Item -ItemType Directory -Path (Join-Path $releaseDirectory "scripts") -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-release.ps1") -Destination (Join-Path $releaseDirectory "scripts\verify-release.ps1")
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\install-wheel.ps1") -Destination (Join-Path $releaseDirectory "install.ps1")
 
 $installGuide = @"
 # AIA $version wheel installation
 
 This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
-1. Install the wheel as a user-level command:
+1. From the release folder, run the included installer:
 
-   uv tool install --force .\packages\aia_mvp-$version-py3-none-any.whl
+   powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 2. Confirm the command is available:
 

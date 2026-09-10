@@ -21,6 +21,7 @@ dist/release/aia-<version>/
 ├─ packages/
 │  ├─ aia_mvp-<version>-py3-none-any.whl
 │  └─ aia_mvp-<version>.tar.gz
+├─ install.ps1
 ├─ INSTALL-FROM-WHEEL.md
 ├─ SHA256SUMS.txt
 ├─ release-manifest.json
