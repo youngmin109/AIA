@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `d43ff7f` |
+| 코드 기준 | `1c31dfe` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **502 passed, 3 skipped** |
+| 전체 pytest | **504 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -45,6 +45,8 @@
 - Actual Codex PreTool proof도 차단 판정에 종료 직전 Broker 생존 확인을 요구한다.
 - 제품 CLI의 `aia proof --scenario block-env`는 실제 Codex `.env` 읽기 차단과
   secret marker 비유출 확인을 별도 제품 증명 시나리오로 제공한다.
+- 신규 보호 실행과 정책 미리보기의 기본 프로필은 `PROTECTED_DEVELOPMENT`이며,
+  `.env` 읽기와 대표적인 파괴 명령을 기본 `VIOLATION / DENY`로 평가한다.
 
 ## 해석상 제한
 
