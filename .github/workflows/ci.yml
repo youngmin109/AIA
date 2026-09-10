@@ -41,6 +41,28 @@ jobs:
           $bundle = Get-ChildItem $output -Directory | Select-Object -First 1
           pwsh -NoProfile -File .\scripts\verify-release.ps1 -BundlePath $bundle.FullName
 
+      - name: Smoke test release installer before PATH refresh
+        shell: pwsh
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP "aia-installer-path"
+          $toolDir = Join-Path $probe "tools"
+          $binDir = Join-Path $probe "bin"
+          $codexHome = Join-Path $probe "codex"
+          New-Item -ItemType Directory -Force -Path $toolDir, $binDir, $codexHome | Out-Null
+          $env:UV_TOOL_DIR = $toolDir
+          $env:UV_TOOL_BIN_DIR = $binDir
+          $env:CODEX_HOME = $codexHome
+          $bundle = Get-ChildItem (Join-Path $env:RUNNER_TEMP "aia-release") -Directory | Select-Object -First 1
+          pwsh -NoProfile -File (Join-Path $bundle.FullName "install.ps1") -SetupHook
+          $aia = Join-Path $binDir "aia.exe"
+          if (-not (Test-Path -LiteralPath $aia -PathType Leaf)) {
+            throw "The release installer did not create the uv tool executable in the configured bin directory."
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $codexHome "hooks.json") -PathType Leaf)) {
+            throw "The release installer did not configure the AIA Hook."
+          }
+          & $aia --version
+
       - name: Install wheel smoke
         shell: pwsh
         run: |
