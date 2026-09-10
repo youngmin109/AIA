@@ -78,6 +78,8 @@ foreach ($relativePath in $supportFiles) {
 }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "docs") -Destination (Join-Path $releaseDirectory "docs") -Recurse
+New-Item -ItemType Directory -Path (Join-Path $releaseDirectory "scripts") -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-release.ps1") -Destination (Join-Path $releaseDirectory "scripts\verify-release.ps1")
 
 $installGuide = @"
 # AIA $version wheel installation
