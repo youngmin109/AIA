@@ -22,3 +22,13 @@ def test_doctor_parser_supports_machine_readable_preflight() -> None:
 
     assert args.command == "doctor"
     assert args.json is True
+
+
+def test_policy_validate_parser_keeps_policy_path_and_json_flag(tmp_path) -> None:
+    path = tmp_path / "policy.json"
+    args = _parser().parse_args(["policy", "validate", str(path), "--json"])
+
+    assert args.command == "policy"
+    assert args.policy_command == "validate"
+    assert args.path == path
+    assert args.json is True

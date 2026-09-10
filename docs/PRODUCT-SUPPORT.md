@@ -17,6 +17,7 @@ Control Root: Workspace 밖의 사용자별 AIA control directory
 ```powershell
 uv sync
 uv run aia doctor
+uv run aia policy validate C:\workspace\policies\protected-policy.json
 uv run aia hook install
 ```
 

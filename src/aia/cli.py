@@ -10,7 +10,15 @@ import sys
 import time
 from typing import Sequence
 
-from aia import CodexAdapter, CodexHookInstallationError, CodexHookInstaller
+from aia import (
+    CodexAdapter,
+    CodexHookInstallationError,
+    CodexHookInstaller,
+    PolicyProfile,
+    ResolvedPolicy,
+    load_policy,
+    policy_content_sha256,
+)
 from aia_app import ApplicationValidationError, RunApplicationService
 
 
@@ -25,6 +33,14 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true", help="print machine-readable output")
     doctor.add_argument("--hook-path", type=Path, help="hooks.json path")
     doctor.add_argument("--control-root", type=Path, help="AIA control root")
+    policy = commands.add_parser("policy", help="validate and inspect a policy")
+    policy_commands = policy.add_subparsers(dest="policy_command", required=True)
+    validate = policy_commands.add_parser(
+        "validate",
+        help="strictly validate a Korean or canonical policy JSON",
+    )
+    validate.add_argument("path", type=Path)
+    validate.add_argument("--json", action="store_true", help="print machine-readable output")
     hook = commands.add_parser("hook", help="manage the stable Codex Hook Adapter")
     hook_commands = hook.add_subparsers(dest="hook_command", required=True)
     install = hook_commands.add_parser("install", help="install the AIA Hook definition")
@@ -165,6 +181,51 @@ def _doctor(args: argparse.Namespace) -> int:
     return 0 if payload["ready"] else 1
 
 
+def _validate_policy(args: argparse.Namespace) -> int:
+    """Validate a policy before a Protected Run freezes it."""
+
+    try:
+        policy = load_policy(args.path)
+        resolved = ResolvedPolicy(
+            profile=policy.profile or PolicyProfile.CUSTOM,
+            policy_id=policy.policy_id,
+            policy_version=policy.policy_version,
+            source=str(args.path),
+            policy=policy,
+        )
+    except (OSError, ValueError) as error:
+        if args.json:
+            print(
+                json.dumps(
+                    {"valid": False, "path": str(args.path), "error": str(error)},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(f"정책 검증 실패: {error}")
+        return 2
+
+    payload = {
+        "valid": True,
+        "path": str(args.path.expanduser().resolve(strict=False)),
+        "policy_id": resolved.policy_id,
+        "policy_version": resolved.policy_version,
+        "profile": resolved.profile.value,
+        "rule_count": len(resolved.policy.rules),
+        "sha256": policy_content_sha256(resolved),
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("정책 검증 성공")
+        print(f"정책 ID: {payload['policy_id']}")
+        print(f"버전: {payload['policy_version']}")
+        print(f"Rule 수: {payload['rule_count']}")
+        print(f"SHA-256: {payload['sha256']}")
+    return 0
+
+
 def _run_protected(args: argparse.Namespace) -> int:
     if args.timeout <= 0:
         raise ApplicationValidationError("timeout must be positive")
@@ -253,6 +314,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "doctor":
             return _doctor(args)
+        if args.command == "policy" and args.policy_command == "validate":
+            return _validate_policy(args)
         if args.command == "hook" and args.hook_command == "install":
             path = CodexHookInstaller(args.path).install()
             print(f"Codex Hook installed: {path}")

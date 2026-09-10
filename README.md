@@ -43,6 +43,12 @@ uv run aia-web
 uv run aia doctor
 ```
 
+사용자 정책을 직접 작성했다면 보호 실행 전에 Strict Validation을 실행합니다.
+
+```powershell
+uv run aia policy validate C:\workspace\policies\protected-policy.json
+```
+
 `READY`가 나오면 Hook을 한 번 설치합니다. 설치 명령은 기존 Codex Hook 설정을
 덮어쓰지 않고 AIA의 PreToolUse 항목만 추가합니다.
 
