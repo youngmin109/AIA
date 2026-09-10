@@ -206,6 +206,14 @@ class SessionFinalizer:
         enforcement_items = tuple(item for item in _items(enforcement_results, "results"))
         if not enforcement_items:
             enforcement_items = gates
+        elif not gates:
+            # The application service historically passed Gate results through
+            # ``enforcement_results``. Keep the action-level correlation
+            # authoritative regardless of which equivalent input name a
+            # caller used.
+            gates = tuple(
+                item for item in enforcement_items if isinstance(item, EnforcementGateResult)
+            )
         limitations = tuple(limitations)
         store = evidence_store or self.evidence_store
         sensors_to_stop = tuple(self.sensors if sensors is None else sensors)

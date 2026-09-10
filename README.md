@@ -7,6 +7,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
 현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.0 릴리스 기준](docs/RELEASE-0.1.0.md)에서 확인할 수 있다.
+현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
 
 사용자 지원 범위와 상태 해석은 [제품 지원 범위](docs/PRODUCT-SUPPORT.md),
 보안 문제 보고 절차는 [SECURITY.md](SECURITY.md), 기여 규칙은
@@ -107,4 +108,11 @@ OS 전체 Writer를 보호한다고 주장하지 않으며, 제한사항은 [doc
 
 ```powershell
 uv run python scripts/product_e2e_smoke.py
+uv run python scripts/product_e2e_smoke.py --scenario block-canary
 ```
+
+`normal`은 실제 `aia protect` 경로의 정상 완료와 결과 Bundle을 확인합니다.
+`block-canary`는 실제 Codex `PreToolUse`에서 정책 위반 관문이 `CONTAIN /
+PRETOOL_BLOCK`으로 결정되고 Canary 부작용이 없는지 확인합니다. 제품 서비스는
+Hook deny만으로 실행 성공을 주장하지 않으므로, 이 smoke의 결과에는
+`CANARY_NO_SIDE_EFFECT`와 `confirmed_block_count`가 따로 표시됩니다.

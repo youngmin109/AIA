@@ -213,6 +213,29 @@ def test_blocked_and_process_refuse_do_not_abort_session(tmp_path: Path):
     assert "허용" not in refused.report_text
 
 
+def test_enforcement_results_are_correlated_into_action_outcomes(tmp_path: Path):
+    session, store, action = _session(tmp_path)
+    blocked = SessionFinalizer(evidence_store=store).finalize(
+        session,
+        process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+        enforcement_results=(
+            _gate(
+                session,
+                decision=EnforcementDecision.CONTAIN,
+                action=EnforcementAction.BLOCKED,
+                execution=EnforcementExecutionResult.SUCCEEDED,
+                route=EnforcementRoute.PRETOOL_BLOCK,
+            ),
+        ),
+        actions=(action,),
+        policy_evaluations=(_policy(session, action, decision=PolicyDecision.VIOLATION),),
+    )
+
+    assert blocked.result.action_outcomes[0].enforcement_decision == "CONTAIN"
+    assert blocked.result.action_outcomes[0].enforcement_action == "BLOCKED"
+    assert blocked.result.action_outcomes[0].execution_result == "SUCCEEDED"
+
+
 def test_live_root_cannot_be_claimed_as_normal_completion(tmp_path: Path):
     session, store, _ = _session(tmp_path)
     with pytest.raises(FinalizationRefused):
