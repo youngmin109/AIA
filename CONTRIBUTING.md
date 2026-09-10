@@ -17,6 +17,17 @@ uv sync
 uv run pytest
 ```
 
+GitHub Actions는 동일한 Windows 기반 잠금 환경에서 이 회귀 테스트와 wheel·source
+distribution 빌드를 자동으로 다시 실행한다. 로컬에서는 배포 후보까지 확인하려면
+다음 명령을 추가로 실행한다.
+
+```powershell
+uv lock --check
+uv build
+powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePath .\dist\release\aia-0.1.0
+```
+
 Codex Hook 또는 Process Manager 변경은 disposable Workspace에서 실제 증명을
 추가한다. 테스트가 실행 환경 제약으로 `skip`되는 경우에는 그 이유와 보안 주장
 범위를 문서에 남긴다.
