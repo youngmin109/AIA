@@ -42,6 +42,9 @@ if ($LASTEXITCODE -ne 0) {
 
 $aiaCommand = Get-Command aia -ErrorAction SilentlyContinue
 if ($null -eq $aiaCommand) {
+    if ($SetupHook) {
+        throw "The aia command is not on PATH in this PowerShell window. Open a new PowerShell window and run 'aia setup'."
+    }
     Write-Warning "The aia command is not on PATH in this PowerShell window. Open a new PowerShell window and run 'aia --version'."
 }
 else {
