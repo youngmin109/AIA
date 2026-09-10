@@ -40,6 +40,13 @@ Hook Event를 확인하고 현재 Hook 설정·Codex 실행 파일에 대한 검
 뒤에만 `aia protect`와 콘솔 실행 버튼이 열리는 구조다. 검증 기록이 오래됐거나
 실행 파일·Hook 설정이 바뀌면 다시 검증해야 한다.
 
+처음 설치한 사용자는 `aia self-test`로 Codex를 실행하지 않고 Core 자체를 점검할
+수 있다. 이 명령은 임시 Workspace에서 정책 프로필, Active Policy Freeze,
+Workspace Lease, Safe Checkpoint, Raw Evidence Seal을 확인하고 임시 산출물을
+삭제한다. `PASS`는 Core 정상 상태를 뜻하며 실제 Codex Hook 보호 증명은 별도로
+`aia hook verify`에서 수행한다. `aia hook verify`는 Codex PreToolUse Trust가
+`MODIFIED`, `UNTRUSTED` 또는 `NOT_VISIBLE`이면 Probe를 실행하지 않고 종료한다.
+
 Process Manager 자체는 별도 Windows PowerShell smoke에서 `Root → Child →
 Grandchild = TERMINATED / SUCCEEDED`, unrelated process = `LIVE_MATCH`로 확인했다.
 추가로 실제 Codex가 생성한 동일한 트리를 사용자가 중지하는 경로에서도 세 프로세스
