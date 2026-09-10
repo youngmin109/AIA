@@ -30,7 +30,15 @@ Hook을 덮어쓰지 않는다. Hook을 추가하지 않고 Python 환경만 준
 uv run aia doctor
 ```
 
-`READY`가 표시되면 보호 실행을 시작할 수 있다.
+그 다음 실제 Hook 연결을 확인한다. 이 명령은 임시 Workspace에서 무해한 Probe를
+실행하고, Probe Workspace는 삭제한다.
+
+```powershell
+uv run aia hook verify
+```
+
+`VERIFIED`가 표시될 때 보호 실행을 시작한다. `NOT_VERIFIED`이면 Codex에서
+`/hooks`를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행한다.
 
 ```powershell
 uv run aia protect C:\workspace\my-project
