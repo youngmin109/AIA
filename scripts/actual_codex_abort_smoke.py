@@ -232,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 adapter_options={
                     "ignore_user_config": True,
+                    "approval_policy": "on-request",
                     "sandbox": "workspace-write",
                     "skip_git_repo_check": True,
                 },

@@ -31,12 +31,16 @@ class CodexExecutionObservation:
     no_run_message_count: int
     block_confirmation_available: bool
     reason: str
+    effective_approval_policy: str | None = None
+    effective_sandbox: str | None = None
 
     def to_mapping(self) -> dict[str, object]:
         """Return only safe metadata suitable for a Result Bundle."""
 
         return {
             "block_confirmation_available": self.block_confirmation_available,
+            "effective_approval_policy": self.effective_approval_policy,
+            "effective_sandbox": self.effective_sandbox,
             "block_message_count": self.block_message_count,
             "no_run_message_count": self.no_run_message_count,
             "output_bytes": self.output_bytes,
@@ -51,6 +55,7 @@ class CodexAdapter:
     _ALLOWED_OPTIONS = frozenset(
         {
             "add_dir",
+            "approval_policy",
             "color",
             "ignore_rules",
             "ignore_user_config",
@@ -96,24 +101,41 @@ class CodexAdapter:
         return "codex"
 
     def discover(self) -> Path:
-        candidates = []
+        candidates: list[Path] = []
         if self.executable_name.lower().endswith(".exe"):
-            candidates.append(self.executable_name)
+            lookup_names = (self.executable_name,)
         else:
-            candidates.extend((f"{self.executable_name}.exe", self.executable_name))
-        for candidate in candidates:
+            lookup_names = (f"{self.executable_name}.exe", self.executable_name)
+        for candidate in lookup_names:
             resolved = shutil.which(candidate)
             if resolved is None:
                 continue
             path = Path(resolved).expanduser().resolve(strict=False)
             if path.is_file() and path.suffix.lower() == ".exe":
-                return path
-            if path.is_file() and path.suffix.lower() not in {".cmd", ".bat", ".ps1"}:
-                return path
-        for path in self._windows_install_candidates():
-            if path.is_file():
-                return path
+                candidates.append(path)
+            elif path.is_file() and path.suffix.lower() not in {".cmd", ".bat", ".ps1"}:
+                candidates.append(path)
+        candidates.extend(self._windows_install_candidates())
+        unique: list[Path] = []
+        seen: set[Path] = set()
+        for path in candidates:
+            resolved = Path(path).expanduser().resolve(strict=False)
+            if not resolved.is_file() or resolved in seen:
+                continue
+            seen.add(resolved)
+            unique.append(resolved)
+        if unique:
+            return max(unique, key=self._discovery_sort_key)
         raise AdapterUnavailableError("Codex executable is unavailable")
+
+    @classmethod
+    def _discovery_sort_key(cls, path: Path) -> float:
+        """Prefer the most recently installed Codex CLI when several exist."""
+
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
 
     def _windows_install_candidates(self) -> tuple[Path, ...]:
         """Find the per-user Windows Codex install when it is outside PATH."""
@@ -292,6 +314,13 @@ class CodexAdapter:
                 raise AdapterError("add_dir must contain path strings")
             for value in values:
                 argv.extend(("--add-dir", value))
+        if "approval_policy" in options:
+            value = options["approval_policy"]
+            if value not in {"on-request", "on-failure", "untrusted"}:
+                raise AdapterError("Codex approval policy is not allowed for protected launches")
+            import json
+
+            argv.extend(("-c", f"approval_policy={json.dumps(value)}"))
         if "mcp_server" in options:
             CodexAdapter._append_mcp_server(argv, options["mcp_server"])
         bool_flags = {
@@ -375,6 +404,10 @@ class CodexAdapter:
             else combined[:sample_limit] + combined[-sample_limit:]
         )
         text = sample.decode("utf-8", errors="replace").casefold()
+        approval_match = re.search(r"\bapproval:\s*([^\r\n]+)", text)
+        sandbox_match = re.search(r"\bsandbox:\s*([^\r\n]+)", text)
+        effective_approval_policy = approval_match.group(1).strip() if approval_match else None
+        effective_sandbox = sandbox_match.group(1).strip() if sandbox_match else None
         block_markers = (
             "command was blocked by the pretooluse hook",
             "command blocked by the pretooluse hook",
@@ -405,6 +438,8 @@ class CodexAdapter:
                 and not posttool_observed
             ),
             reason=reason,
+            effective_approval_policy=effective_approval_policy,
+            effective_sandbox=effective_sandbox,
         )
 
 

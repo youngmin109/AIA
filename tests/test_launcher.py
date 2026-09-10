@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import subprocess
 import sys
 import time
@@ -200,6 +201,27 @@ def test_launcher_uses_shell_false_and_canonical_workspace(
         cleanup_running_launcher(values, launcher)
 
 
+def test_protected_codex_child_does_not_inherit_outer_session_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODEX_HOME", "C:\\Users\\tester\\.codex")
+    monkeypatch.setenv("CODEX_SESSION_ID", "outer-session")
+    monkeypatch.setenv("CODEX_THREAD_ID", "outer-thread")
+    monkeypatch.setenv("CODEX_PERMISSION_PROFILE", ":danger-full-access")
+    monkeypatch.setenv("CODEX_CI", "1")
+
+    child = ProtectedLauncher._child_environment(
+        {"AIA_SESSION_ID": "aia-session", "AIA_LAUNCH_ID": "launch-1"}
+    )
+
+    assert child["CODEX_HOME"] == "C:\\Users\\tester\\.codex"
+    assert "CODEX_SESSION_ID" not in child
+    assert "CODEX_THREAD_ID" not in child
+    assert "CODEX_PERMISSION_PROFILE" not in child
+    assert "CODEX_CI" not in child
+    assert child["AIA_SESSION_ID"] == "aia-session"
+
+
 def test_launch_requires_ready_session(readiness_inputs: dict) -> None:
     values = readiness_inputs
     launcher = ProtectedLauncher(
@@ -393,9 +415,32 @@ def test_codex_adapter_finds_windows_install_outside_path(
     executable.parent.mkdir(parents=True)
     executable.write_bytes(b"")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.delenv("APPDATA", raising=False)
     monkeypatch.setattr(codex_module.shutil, "which", lambda _: None)
 
     assert CodexAdapter().discover() == executable.resolve()
+
+
+def test_codex_adapter_prefers_newer_codex_install_when_multiple_exist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old = tmp_path / "old" / "codex.exe"
+    new = tmp_path / "new" / "codex.exe"
+    old.parent.mkdir(parents=True)
+    new.parent.mkdir(parents=True)
+    old.write_bytes(b"old")
+    new.write_bytes(b"new")
+    monkeypatch.setattr(codex_module.shutil, "which", lambda _: None)
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_windows_install_candidates",
+        lambda _adapter: (old, new),
+    )
+    old_time = old.stat().st_mtime
+    os.utime(new, (old_time + 10, old_time + 10))
+
+    assert CodexAdapter().discover() == new.resolve()
 
 
 def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:
@@ -461,6 +506,35 @@ def test_codex_adapter_can_register_one_narrow_stdio_mcp_server(tmp_path: Path) 
 
     assert 'mcp_servers.filesystem.command="python.exe"' in spec.argv
     assert 'mcp_servers.filesystem.args=["server.py"]' in spec.argv
+
+
+def test_codex_adapter_can_pin_a_safe_approval_policy(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="run",
+        adapter_options={"approval_policy": "on-request"},
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert 'approval_policy="on-request"' in spec.argv
+
+
+def test_codex_adapter_rejects_never_approval_policy(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="run",
+        adapter_options={"approval_policy": "never"},
+    )
+
+    with pytest.raises(AdapterError):
+        adapter.build_launch(request, Path(sys.executable))
 
 
 def test_codex_adapter_normalizes_windows_mcp_script_path_for_toml_array(
@@ -535,6 +609,18 @@ def test_codex_adapter_does_not_confirm_when_posttool_was_observed() -> None:
 
     assert observation.block_confirmation_available is False
     assert observation.reason == "POSTTOOL_OBSERVED"
+
+
+def test_codex_adapter_records_effective_sandbox_from_native_startup_output() -> None:
+    observation = CodexAdapter.classify_execution_output(
+        b"",
+        b"approval: never\nsandbox: read-only\n",
+        posttool_observed=False,
+    )
+
+    assert observation.effective_approval_policy == "never"
+    assert observation.effective_sandbox == "read-only"
+    assert observation.to_mapping()["effective_sandbox"] == "read-only"
 
 
 def test_codex_adapter_accepts_native_hook_block_event_without_raw_tool_output() -> None:

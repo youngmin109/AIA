@@ -746,7 +746,10 @@ class RunApplicationService:
                 launcher.managed_process_registry,
                 manager,
             )
-            adapter_options: dict[str, Any] = {"sandbox": "workspace-write"}
+            adapter_options: dict[str, Any] = {
+                "approval_policy": "on-request",
+                "sandbox": "workspace-write",
+            }
             if record.interactive:
                 adapter_options["interactive"] = True
             else:
@@ -827,6 +830,8 @@ class RunApplicationService:
             )
             if record.runtime.get("post_action_containment_errors"):
                 limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
+            if record.runtime.get("codex_sandbox_downgraded"):
+                limitations.append("CODEX_SANDBOX_DOWNGRADED")
             if recovery_verification is not None and not recovery_verification.verified_recovery_success:
                 limitations.append("RECOVERY_NOT_VERIFIED")
             final = SessionFinalizer(
@@ -879,10 +884,12 @@ class RunApplicationService:
                     and not record.stop_error
                     and controller.events
                     and not controller.errors
+                    and not record.runtime.get("codex_sandbox_downgraded")
                     else "ABORTED_DEGRADED"
                     if final.result.session_status is SessionStatus.ABORTED
                     else "COMPLETED_VERIFIED"
                     if controller.events and not controller.errors
+                    and not record.runtime.get("codex_sandbox_downgraded")
                     else "COMPLETED_DEGRADED"
                 ),
                 hook_event_count=len(controller.events),
@@ -1223,6 +1230,11 @@ class RunApplicationService:
             posttool_observed=posttool_observed,
         )
         record.runtime["codex_output_observation"] = observation
+        if (
+            observation.effective_sandbox is not None
+            and observation.effective_sandbox.casefold().startswith("read-only")
+        ):
+            record.runtime["codex_sandbox_downgraded"] = True
 
     def _confirm_codex_blocks(self, record: RunRecord) -> None:
         """Attach a BLOCKED result only to a native, unambiguous Codex block."""

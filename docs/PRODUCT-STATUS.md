@@ -97,3 +97,10 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 현재 온보딩에는 `aia setup`, `aia doctor`, 웹 콘솔의 실행 전 사전 점검이 포함된다.
 이 점검은 Hook 설치 여부를 확인하지만 Codex의 Hook 신뢰는 자동으로 증명하지 않으며,
 사용자가 Codex `/hooks` 화면에서 직접 검토해야 한다.
+
+Protected Launcher는 제품 실행에 `workspace-write` Sandbox와 `on-request`
+Approval Policy를 요청하고, 바깥 Codex의 일시적인 세션·권한 환경값을 자식 Codex로
+전달하지 않는다. 실제 Codex가 보고한 실행 Sandbox와 Approval Policy는 Result
+Bundle에 제한된 메타데이터로 남긴다. 실행 환경이 `read-only`로 강등되거나 보호
+설정이 제품 요청과 다르게 적용되면 실행은 성공으로 포장하지 않고
+`COMPLETED_DEGRADED`와 제한사항을 남긴다.

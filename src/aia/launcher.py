@@ -647,9 +647,7 @@ class ProtectedLauncher:
                     raise _LaunchStepError("HOOK_BROKER_UNAVAILABLE")
                 broker.start()
                 self._hook_broker = broker
-                child_environment = os.environ.copy()
-                child_environment.update(broker.environment)
-                popen_kwargs["env"] = child_environment
+                popen_kwargs["env"] = self._child_environment(broker.environment)
             spawned_perf = time.perf_counter()
             spawned_at = _now_utc()
             process = self.popen_factory(
@@ -823,6 +821,25 @@ class ProtectedLauncher:
             self.readiness_context.process_observer_capability,
             lease_manager=self.lease_manager,
         )
+
+    @staticmethod
+    def _child_environment(broker_environment: Mapping[str, str]) -> dict[str, str]:
+        """Build an isolated Codex environment for a Protected Run.
+
+        AIA may itself be started from a Codex terminal.  In that case the
+        parent environment can contain the outer Codex session identity and
+        permission profile.  Passing those values through would let the
+        protected child inherit the wrong session boundary.  ``CODEX_HOME``
+        remains available for the user's authentication, Hook configuration,
+        and profiles; the transient ``CODEX_*`` control values are removed.
+        """
+
+        child_environment = os.environ.copy()
+        for key in tuple(child_environment):
+            if key.startswith("CODEX_") and key != "CODEX_HOME":
+                child_environment.pop(key, None)
+        child_environment.update(broker_environment)
+        return child_environment
 
     def _validate_request(self, request: ProtectedLaunchRequest) -> None:
         if not isinstance(request, ProtectedLaunchRequest):

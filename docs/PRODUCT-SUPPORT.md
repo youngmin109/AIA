@@ -107,6 +107,9 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 ## AIA가 현재 증명하는 것
 
 - 보호 실행 시작 전에 Workspace, 정책, Lease, Checkpoint를 준비한다.
+- Protected Launcher는 바깥 Codex의 일시적 Session ID·권한 Profile을 자식 실행에
+  전달하지 않고, 제품이 요청한 Sandbox·Approval 설정과 실제 Codex 시작 메타데이터를
+  비교할 수 있게 한다.
 - Active Policy를 하나의 Protected Run에 고정한다.
 - 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
 - 명시적으로 등록된 파일 읽기 MCP 이름은 `READ`로 정규화하며, 실제 MCP 서버
@@ -139,6 +142,9 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
   완료될 때까지 지원 주장으로 승격하지 않는다.
 - 등록되지 않은 MCP 도구와 지원 범위 밖 MCP 서버의 보편적 보호
 - 대규모 Workspace에 대한 성능 SLA
+- 실행 환경이 제품이 요청한 Sandbox보다 약한 경우의 완전한 보호 보장. 이 경우
+  Result Bundle은 `COMPLETED_DEGRADED`로 남으며 실행을 검증된 보호 성공으로
+  해석하지 않는다.
 
 자세한 제한사항과 평가 결과는 [LIMITATIONS.md](LIMITATIONS.md),
 [CLAIM-MATRIX.md](validation/CLAIM-MATRIX.md),
