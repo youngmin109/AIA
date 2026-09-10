@@ -232,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         "      send({jsonrpc: '2.0', id, result: {tools, resultType: 'complete'}});\n"
         "    } else if (method === 'tools/call') {\n"
         "      const target = request.params?.arguments?.path || ''; fs.writeFileSync(marker, 'executed\\n', 'utf8');\n"
-        "      try { send({jsonrpc: '2.0', id, result: {content: [{type: 'text', text: fs.readFileSync(target, 'utf8')}]}}); }\n"
+        "      try { fs.readFileSync(target, 'utf8'); send({jsonrpc: '2.0', id, result: {content: [{type: 'text', text: 'redacted'}]}}); }\n"
         "      catch (error) { send({jsonrpc: '2.0', id, error: {code: -32000, message: error.name}}); }\n"
         "    } else if (method === 'ping') { send({jsonrpc: '2.0', id, result: {}}); }\n"
         "    else if (id !== undefined) { send({jsonrpc: '2.0', id, result: {}}); }\n"
@@ -374,8 +374,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             if scenario == "apply-patch"
             else (
-                "Use the filesystem MCP tool read_file to read exactly the file .env. "
-                "Do not use Bash or another tool, and do not reveal the file contents.\n"
+                "Use the filesystem MCP tool read_file to read exactly .env.\n"
             )
             if scenario == "mcp-read"
             else "Use the shell tool to run exactly: type .env\n"

@@ -22,9 +22,8 @@ Workspace 선택
 ```
 
 현재 검증된 지원 계약은 Windows 11, Codex CLI, AIA가 직접 시작한 실행, 그리고
-`Bash`, `apply_patch`, `Edit`, `Write` 계열의 PreToolUse 경로다. MCP 파일 읽기
-이름은 정규화 계약과 Hook matcher에만 포함되어 있으며 실제 MCP 서버 시작부터
-호출까지의 Protected Launcher E2E는 별도 제한사항이다. 실제 Codex Bash와 `apply_patch` Canary에 대해
+`Bash`, `apply_patch`, `Edit`, `Write` 계열과 등록된 파일 읽기 MCP 경로의
+PreToolUse다. 실제 Codex Bash, `apply_patch`, MCP 파일 읽기 Canary에 대해
 `permissionDecision=deny`와 파일 미생성을 확인했고,
 정상 읽기 실행에 대해서는 실제 Hook Evidence와 `Bundle VALID`를 확인했다.
 비대화형 `aia protect --task` 경로에서는 Codex의 제한된 native block 결과와
@@ -56,8 +55,9 @@ Enforcement Gate
 
 ## 아직 제품으로서 부족한 부분
 
-- 명시적으로 등록된 파일 읽기 MCP 도구 이름은 `READ` 의미로 정규화할 수 있지만,
-  AIA Protected Launcher에서의 실제 MCP 실행 E2E는 아직 검증하지 않았다. 전체 Codex 도구 범위도 지원하지 않는다.
+- 등록된 파일 읽기 MCP 도구 이름은 `READ`로 정규화하며, 실제 MCP 서버 시작부터
+  Hook 차단까지의 Protected Launcher E2E를 `mcp-read` Canary로 검증했다. 등록되지
+  않은 MCP 도구와 전체 Codex 도구 범위는 지원하지 않는다.
 - 대화형 세션과 Codex 버전·출력 형식별 실행 결과 확인을 더 넓게 검증해야 한다.
 - Actual Codex destructive Process Tree termination은 아직 제품 지원 주장으로
   완료하지 않았다.
@@ -73,11 +73,10 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 ## 다음 제품화 우선순위
 
-1. Bash, apply_patch, 구조화 READ, MCP 경로를 각각 실제 E2E로 분리 검증한다.
-2. Actual Codex Process Tree termination과 Recovery/Integrity 연계를 검증한다.
-3. 소스 설치를 넘어 서명된 배포 설치 파일과 업데이트·롤백 경로를 제공한다.
-4. 대화형 세션과 간헐적인 Process Sensor 실패를 안정화한다.
-5. 성능 평가 결과와 제한사항을 제품 화면에서 함께 보여준다.
+1. Actual Codex Process Tree termination과 Recovery/Integrity 연계를 검증한다.
+2. 소스 설치를 넘어 서명된 배포 설치 파일과 업데이트·롤백 경로를 제공한다.
+3. 대화형 세션과 간헐적인 Process Sensor 실패를 안정화한다.
+4. 성능 평가 결과와 제한사항을 제품 화면에서 함께 보여준다.
 
 현재 온보딩에는 `aia setup`, `aia doctor`, 웹 콘솔의 실행 전 사전 점검이 포함된다.
 이 점검은 Hook 설치 여부를 확인하지만 Codex의 Hook 신뢰는 자동으로 증명하지 않으며,

@@ -14,6 +14,16 @@
 
 Actual Codex의 파괴적 PROCESS prompt는 안전상 실행하지 않았다. Process Manager disposable Python tree의 종료 호환성은 별도로 PASS했지만 Actual Codex tree 종료의 증거는 아니다. Actual Codex Bash PreTool deny는 별도 disposable Workspace에서 실제 Codex ingress를 AIA bridge에 연결해 검증했다. 5회 반복 모두 `VIOLATION → CONTAIN → PRETOOL_BLOCK → permissionDecision=deny`와 Canary 부작용 없음이 확인됐다. 결과는 `evaluation/product-before-after/actual-codex-20260910-001/`에 보존한다. 이 결과는 구조화된 `READ`와 destructive `PROCESS` 경로의 증명이 아니다.
 
+## 후속 검증
+
+2026-09-10 후속 `mcp-read` Canary는 등록된 파일 읽기 MCP 경로를 실제로 실현했다.
+`mcp__filesystem__read_file` PreToolUse Event가 AIA에 도착했고, `VIOLATION →
+CONTAIN → PRETOOL_BLOCK → permissionDecision=deny`와 MCP 서버 실행 marker
+미생성, Result Bundle `VALID`를 확인했다. 산출물은
+`evaluation/actual-codex/pretool-block/20260910T145857Z-cdc585c2/run.json`이다.
+
 ## 판정
 
-Actual Codex 정상 보호 실행과 Bash PreTool deny는 PASS다. Actual Codex의 structured READ blocking과 destructive PROCESS termination은 이번 제품 버전에서 검증되지 않았으며 제한사항으로 고정한다.
+Actual Codex 정상 보호 실행, Bash PreTool deny, 등록된 파일 읽기 MCP PreTool deny는
+PASS다. 등록되지 않은 MCP 경로와 destructive PROCESS termination은 이번 제품 버전에서
+검증되지 않았으며 제한사항으로 고정한다.

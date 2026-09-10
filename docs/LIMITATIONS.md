@@ -5,7 +5,9 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - `PROCESS` 증거는 정확한 파일 Writer를 증명하지 않는다.
 - 사후 파일시스템 감지는 사전 예방이 아니다.
 - Hook 실패 시 Agent가 계속 실행될 수 있다.
-- 현재 Actual Codex 경로에서는 구조화된 `READ .env → BLOCKED`를 검증하지 못했다. 실제 시험은 Shell `EXECUTE` 경로로 관찰됐다.
+- 등록된 파일 읽기 MCP 경로의 `.env READ → BLOCKED`는 실제 Codex Protected Launcher
+  Canary로 검증했지만, 등록되지 않은 MCP 도구와 모든 구조화 READ 경로를 보편적으로
+  보호한다고 주장하지 않는다.
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.
 - OS 수준의 파일 Writer 귀속은 제공하지 않는다.

@@ -47,6 +47,18 @@ uv run python scripts/actual_codex_pretool_smoke.py --scenario env
 
 이 시나리오는 `type .env`를 실제 Codex에 요청하고, Hook deny와 함께 Codex stdout/stderr에 secret marker가 없는지 검사한다. 이는 구조화된 `READ .env` 도구 계약을 대신하지 않으며, 현재 Windows Codex CLI의 Shell 경로 증명이다.
 
+등록된 파일 읽기 MCP 경로는 다음처럼 실제 MCP 서버와 함께 검증한다.
+
+```powershell
+uv run python scripts/actual_codex_pretool_smoke.py --scenario mcp-read
+```
+
+이 시나리오는 임시 MCP 서버의 `read_file` 호출을 실제 Codex에 요청한다. 성공 조건은
+`tool_name=mcp__filesystem__read_file`이 AIA에 도착하고, `VIOLATION → CONTAIN →
+PRETOOL_BLOCK`이 기록되며, MCP 서버의 실행 marker가 생성되지 않고, Result Bundle이
+`VALID`인 것이다. MCP fixture는 secret 원문을 반환하지 않고 `redacted`만 반환하도록
+구성되어 있어, 차단 검증이 실패해도 시험 자체가 비밀값을 출력하지 않는다.
+
 자동화 증명은 disposable Workspace에서만 수행하며, Hook trust 확인을 위해 `--dangerously-bypass-hook-trust`를 사용한다. 이 플래그는 일반 제품 사용 경로가 아니다.
 
 증명 스크립트의 성공 조건은 다음과 같다.
@@ -77,7 +89,7 @@ uv run python scripts/product_e2e_smoke.py --scenario block-canary
 
 ## 보호 범위
 
-현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Bash 및 `apply_patch`/Edit/Write matcher를 연결한다. MCP tool은 Hook adapter가 공식 Payload를 받는 경우에만 별도 검증 대상이다.
+현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Bash, `apply_patch`/Edit/Write, 그리고 명시적으로 등록된 파일 읽기 MCP matcher를 연결한다. 등록되지 않은 MCP 도구와 Hook을 우회하는 경로는 지원 범위 밖이다.
 
 Hook을 거치지 않는 특수 도구, Hosted tool, 외부 Agent, 사용자가 Hook을 비활성화한 실행, 보호 실행 밖의 수동 작업은 AIA가 `PROTECTED` 또는 `BLOCKED`로 주장하지 않는다. Codex 공식 문서가 설명하듯 일부 특수 도구 경로는 기본 Hook 경로를 사용하지 않을 수 있으므로, Hook은 현재 제품의 지원 범위 안에서 검증하는 통제 지점이다.
 

@@ -10,7 +10,7 @@
 | Agent | Codex CLI |
 | 시작 방식 | AIA Protected Run에서 AIA가 실행한 Codex |
 | 사전 통제 지점 | Codex `PreToolUse` Hook |
-| 지원 matcher | Bash, `apply_patch`, Edit, Write 계열; 파일 읽기 MCP matcher는 정규화 계약만 검증 |
+| 지원 matcher | Bash, `apply_patch`, Edit, Write 계열, 등록된 파일 읽기 MCP matcher |
 | 저장 위치 | Workspace 밖의 사용자별 AIA Control Root |
 | 결과 | 검증된 Evidence Bundle과 보안 결과 |
 
@@ -25,7 +25,9 @@
 - 실제 Hook Event: `tool_name`, 원문 command, `tool_use_id`와 AIA Session 연결
 - 선택적 PostToolUse Event: 도구 출력 원문을 저장하지 않고 실행 확인용 digest만 보존
 - 실제 `aia protect` CLI 경로: disposable Workspace에서 `COMPLETED`와 `Bundle VALID` 확인
-- 명시적으로 등록된 파일 읽기 MCP 도구 이름은 `READ` 의미로 평가할 수 있으며, 등록되지 않은 MCP 도구는 추측하지 않는다. Protected Launcher MCP E2E는 아직 미검증이다.
+- 명시적으로 등록된 파일 읽기 MCP 도구 이름은 `READ` 의미로 평가하며, 실제 MCP
+  서버 시작·호출과 `.env` PreToolUse 차단을 `mcp-read` Canary로 검증했다. 등록되지
+  않은 MCP 도구는 추측하지 않는다.
 - `VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED/SUCCEEDED` 결과 기록
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분
@@ -64,7 +66,6 @@ uv run aia-web
 
 다음 항목은 실패를 숨기지 않고 현재 릴리스의 제한사항으로 남긴다.
 
-- Codex의 구조화된 file-read 도구에 대한 `.env READ → BLOCKED` 실제 증명
 - 실제 Codex destructive Process Tree termination
 - 지원 범위 밖 MCP·Hosted tool·외부 Agent·사용자 수동 실행
 - Hook 장애가 발생한 모든 경로의 OS 수준 fail-closed 보장
