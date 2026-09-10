@@ -25,11 +25,11 @@ evaluation = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.141.1" },
-    { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "psutil", specifier = ">=7.2.2" },
-    { name = "uvicorn", specifier = ">=0.52.4" },
-    { name = "watchdog", specifier = ">=6.0.0" },
+    { name = "fastapi", specifier = "==0.141.1" },
+    { name = "jinja2", specifier = "==3.1.6" },
+    { name = "psutil", specifier = "==7.2.2" },
+    { name = "uvicorn", specifier = "==0.52.4" },
+    { name = "watchdog", specifier = "==6.0.0" },
 ]
 
 [package.metadata.requires-dev]
