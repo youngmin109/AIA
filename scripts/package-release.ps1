@@ -124,8 +124,8 @@ The product scope is Windows 11 + Codex CLI + AIA Protected Run + supported
 PreToolUse matchers. Read docs\PRODUCT-SUPPORT.md and docs\LIMITATIONS.md
 before making a security claim.
 
-To update, repeat the `uv tool install --force` command. To remove AIA, run
-`uv tool uninstall aia-mvp`.
+To update, repeat the uv tool install --force command. To remove AIA, run
+uv tool uninstall aia-mvp.
 "@
 Set-Content -LiteralPath (Join-Path $releaseDirectory "INSTALL-FROM-WHEEL.md") -Value $installGuide -Encoding UTF8
 
