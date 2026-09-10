@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `cb13777` |
+| 코드 기준 | `e109098` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **490 passed, 3 skipped** |
+| 전체 pytest | **494 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -33,6 +33,8 @@
 - 실제 Codex 사전 차단 proof는 Gate `CONTAIN`만으로 통과하지 않는다.
 - `BLOCKED / SUCCEEDED`, Canary 무부작용, 유효한 Result Bundle이 함께 확인되어야
   차단 proof를 PASS로 기록한다.
+- `COMPLETED_VERIFIED`와 `ABORTED_VERIFIED`는 Hook Event만으로 결정하지 않으며,
+  모든 런타임 센서가 실행 중 `HEALTHY`이고 종료 시 `STOPPED`여야 한다.
 - 웹 콘솔에서 `CUSTOM` 정책을 선택하면 사용자 정책 JSON 경로를 입력할 수 있다.
 - 로컬 콘솔은 `aia console --open`으로 기본 브라우저에서 열 수 있다.
 
