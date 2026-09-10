@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import os
 from pathlib import Path
 import shutil
 from typing import Any
@@ -75,7 +76,48 @@ class CodexAdapter:
                 return path
             if path.is_file() and path.suffix.lower() not in {".cmd", ".bat", ".ps1"}:
                 return path
+        for path in self._windows_install_candidates():
+            if path.is_file():
+                return path
         raise AdapterUnavailableError("Codex executable is unavailable")
+
+    def _windows_install_candidates(self) -> tuple[Path, ...]:
+        """Find the per-user Windows Codex install when it is outside PATH."""
+
+        if os.name != "nt" or self.executable_name.lower() not in {"codex", "codex.exe"}:
+            return ()
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if not local_app_data:
+            local_app_data = str(Path.home() / "AppData" / "Local")
+        roots = [Path(local_app_data) / "OpenAI" / "Codex" / "bin"]
+        app_data = os.environ.get("APPDATA")
+        if app_data:
+            roots.append(
+                Path(app_data)
+                / "npm"
+                / "node_modules"
+                / "@openai"
+                / "codex"
+                / "node_modules"
+                / "@openai"
+                / "codex-win32-x64"
+                / "vendor"
+                / "x86_64-pc-windows-msvc"
+                / "bin"
+            )
+        candidates: list[Path] = []
+        for root in roots:
+            if root.name == "bin" and root.parent.name == "Codex":
+                candidates.extend(root.glob("*/codex.exe"))
+            else:
+                candidates.append(root / "codex.exe")
+        return tuple(
+            sorted(
+                (path.resolve(strict=False) for path in candidates),
+                key=lambda path: path.stat().st_mtime if path.is_file() else 0,
+                reverse=True,
+            )
+        )
 
     def build_launch(
         self,

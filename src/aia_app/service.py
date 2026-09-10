@@ -529,7 +529,7 @@ class RunApplicationService:
 
     def _fail_record(self, record: RunRecord, error: Exception) -> None:
         record.status = "FAILED"
-        record.phase = record.phase or "FAILED"
+        record.phase = "FAILED"
         record.error = f"{type(error).__name__}: {error}"
         record.lease = "FAILED" if record.lease == "ACTIVE" else record.lease
 

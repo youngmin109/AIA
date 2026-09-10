@@ -4,6 +4,7 @@ import sys
 import time
 
 import pytest
+from aia.adapters import codex as codex_module
 
 from aia import (
     AdapterError,
@@ -322,6 +323,20 @@ def test_codex_adapter_rejects_permission_bypass_option(tmp_path: Path) -> None:
 def test_codex_adapter_missing_executable_is_explicit() -> None:
     with pytest.raises(AdapterUnavailableError):
         CodexAdapter(executable_name="aia-command-that-does-not-exist").discover()
+
+
+def test_codex_adapter_finds_windows_install_outside_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install = tmp_path / "OpenAI" / "Codex" / "bin" / "version-1"
+    executable = install / "codex.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(codex_module.shutil, "which", lambda _: None)
+
+    assert CodexAdapter().discover() == executable.resolve()
 
 
 def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:

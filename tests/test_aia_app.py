@@ -139,3 +139,16 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         assert created["redirect_url"].endswith(created["session_id"])
     finally:
         service.shutdown()
+
+
+def test_application_failure_moves_phase_to_terminal_failed(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.phase = "READY"
+    try:
+        service._fail_record(record, RuntimeError("launch failed"))
+        assert record.status == "FAILED"
+        assert record.phase == "FAILED"
+        assert "launch failed" in record.error
+    finally:
+        service.shutdown()
