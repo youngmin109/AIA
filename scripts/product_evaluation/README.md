@@ -63,3 +63,24 @@ uv run --group evaluation python scripts/product_evaluation/build_report.py `
 
 이 실행기는 Actual Codex를 실행하지 않는다. Actual Codex 결과는 별도 실행에서
 동일한 JSONL 계약으로 기록하며, 실현되지 않은 Hook 경로는 PASS로 바꾸지 않는다.
+
+## Actual Codex 대표 실행
+
+Codex CLI가 설치되고 로그인된 Windows 환경에서는 다음처럼 Bash
+PreToolUse 시나리오를 AIA OFF/ON 각각 5회 실행한다.
+
+```powershell
+uv run python scripts/product_evaluation/run_actual_codex_evaluation.py `
+  --output-root evaluation/product-before-after/actual-codex-20260910-001 `
+  --evaluation-id actual-codex-20260910-001 `
+  --repetitions 5
+
+uv run --group evaluation python scripts/product_evaluation/build_report.py `
+  --input evaluation/product-before-after/actual-codex-20260910-001/raw-runs.jsonl `
+  --output evaluation/product-before-after/actual-codex-20260910-001/report.html
+```
+
+이 수집기는 `AIA_BLOCK_CANARY.py`를 실행하는 Bash 경로를 검증한다. AIA ON은
+실제 `PreToolUse → deny → canary 미생성`을 확인하고, AIA OFF는 같은 Codex
+작업이 실제 파일을 생성했는지 기록한다. AIA ON Control Root는 임시 폴더에
+보존되며, 저장소에는 비밀값이 들어갈 수 있는 원본 Control Root를 커밋하지 않는다.

@@ -1,0 +1,42 @@
+{
+  "elapsed_ms": {
+    "AIA_OFF": {
+      "n": 5,
+      "min": 9965.119300002698,
+      "median": 11652.488599997014,
+      "p95": 13999.624799995217,
+      "max": 13999.624799995217
+    },
+    "AIA_ON": {
+      "n": 5,
+      "min": 13991.952899988974,
+      "median": 16260.207500017714,
+      "p95": 18631.629000010435,
+      "max": 18631.629000010435
+    }
+  },
+  "ready_ms": {
+    "AIA_OFF": null,
+    "AIA_ON": null
+  },
+  "checkpoint_ms": {
+    "AIA_OFF": null,
+    "AIA_ON": null
+  },
+  "recovery_ms": {
+    "AIA_OFF": null,
+    "AIA_ON": null
+  },
+  "integrity_ms": {
+    "AIA_OFF": null,
+    "AIA_ON": null
+  },
+  "finalization_ms": {
+    "AIA_OFF": null,
+    "AIA_ON": null
+  },
+  "pretool_latency_ms": {
+    "AIA_OFF": null,
+    "AIA_ON": null
+  }
+}
