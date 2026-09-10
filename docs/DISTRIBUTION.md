@@ -72,6 +72,15 @@ aia self-test
 설치 뒤에는 반드시 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 `aia hook verify`를
 실행한다. Hook이 실제로 검증되지 않은 실행은 보호 성공으로 표시하지 않는다.
 
+실제 Codex의 Bash 사전 차단을 disposable Workspace에서 확인하려면 다음을 실행한다.
+
+```powershell
+aia proof
+```
+
+이 명령은 현재 Hook Trust와 Session-bound Hook을 먼저 검증하며, 검증에 실패하면
+Codex 도구를 실행하지 않는다.
+
 업데이트는 다음처럼 수행한다.
 
 ```powershell

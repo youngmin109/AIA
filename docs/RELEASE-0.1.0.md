@@ -55,6 +55,13 @@ uv run aia hook verify
 uv run aia doctor
 ```
 
+검증된 설치에서 실제 Bash PreToolUse 차단과 부작용 부재를 확인하려면 다음을
+사용한다. 이 명령은 disposable Workspace를 만들고 실제 Codex 실행을 소비한다.
+
+```powershell
+uv run aia proof
+```
+
 Codex에서 `/hooks`를 열어 AIA Hook을 검토·신뢰한 뒤 다음을 실행한다.
 
 ```powershell

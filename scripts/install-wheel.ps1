@@ -83,4 +83,5 @@ else {
 
 Write-Host "[AIA] Installation complete."
 Write-Host "Next: open Codex /hooks, review and trust the AIA Hook, then run 'aia hook verify'."
+Write-Host "Prove a disposable Codex block with: aia proof"
 Write-Host "Start a protected run with: aia protect C:\workspace\my-project"
