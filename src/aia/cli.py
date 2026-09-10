@@ -367,11 +367,12 @@ def _setup(args: argparse.Namespace) -> int:
 def _run_console(args: argparse.Namespace) -> int:
     """Start the local console through the same product CLI as other commands."""
 
-    if not 1 <= args.port <= 65_535:
-        raise ApplicationValidationError("port must be between 1 and 65535")
-    if not args.host.strip():
-        raise ApplicationValidationError("host must not be empty")
-    from aia_web.__main__ import run
+    from aia_web.__main__ import run, validate_local_bind
+
+    try:
+        validate_local_bind(args.host, args.port)
+    except ValueError as error:
+        raise ApplicationValidationError(str(error)) from error
 
     print(f"AIA 로컬 보안 콘솔: http://{args.host}:{args.port}")
     print("종료하려면 Ctrl+C를 누르세요.")

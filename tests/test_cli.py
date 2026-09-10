@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from aia import CodexHookInstaller
 from aia.cli import _extract_session_id, _parser, _protected_run_preflight, main
+from aia_web.__main__ import run as run_console, validate_local_bind
 
 
 def test_protect_without_task_selects_interactive_mode() -> None:
@@ -41,6 +44,16 @@ def test_console_parser_supports_explicit_bind_values() -> None:
     assert args.command == "console"
     assert args.host == "127.0.0.1"
     assert args.port == 8799
+
+
+def test_console_rejects_non_loopback_host() -> None:
+    with pytest.raises(ValueError, match="local-only"):
+        run_console(host="0.0.0.0", port=8799)
+
+
+def test_console_bind_validation_rejects_invalid_port() -> None:
+    with pytest.raises(ValueError, match="port"):
+        validate_local_bind("127.0.0.1", 65_536)
 
 
 def test_hook_uninstall_parser_supports_custom_hook_path(tmp_path) -> None:
