@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import time
@@ -272,6 +273,8 @@ class ProtectedLauncher:
         process_factory: Callable[[int], Any] = psutil.Process,
         process_sensor_factory: Callable[..., ProcessRuntimeSensor] = ProcessRuntimeSensor,
         popen_factory: Callable[..., Any] = subprocess.Popen,
+        hook_broker_factory: Callable[[str, HookEnforcementBridge], Any] | None = None,
+        launch_context_callback: Callable[[ProtectedLaunchContext], None] | None = None,
     ) -> None:
         self.session = session
         self.readiness_context = readiness_context
@@ -288,9 +291,12 @@ class ProtectedLauncher:
         self.process_factory = process_factory
         self.process_sensor_factory = process_sensor_factory
         self.popen_factory = popen_factory
+        self.hook_broker_factory = hook_broker_factory
+        self.launch_context_callback = launch_context_callback
         self._status = LaunchStatus.NOT_STARTED
         self._process_handle: Any | None = None
         self._process_sensor: ProcessRuntimeSensor | None = None
+        self._hook_broker: Any | None = None
         self._last_result: ProtectedLaunchResult | None = None
 
     @property
@@ -304,6 +310,17 @@ class ProtectedLauncher:
     @property
     def process_sensor(self) -> ProcessRuntimeSensor | None:
         return self._process_sensor
+
+    @property
+    def hook_broker(self) -> Any | None:
+        return self._hook_broker
+
+    def stop_hook_broker(self) -> None:
+        """Stop the per-launch local Hook transport after the Agent exits."""
+
+        broker, self._hook_broker = self._hook_broker, None
+        if broker is not None:
+            broker.stop()
 
     def launch(self, request: ProtectedLaunchRequest) -> ProtectedLaunchResult:
         launch_id = str(uuid4())
@@ -331,15 +348,33 @@ class ProtectedLauncher:
             adapter = self.adapter or self._default_adapter()
             executable = adapter.discover()
             spec = adapter.build_launch(request, executable)
+            hook_enforcement_ready_at = self.hook_bridge.prepare(
+                aia_session_id=self.session.session_id,
+                launch_id=launch_id,
+                workspace=self.session.workspace,
+                control_directory=self.preparation_context.control_directory,
+            )
+            popen_kwargs: dict[str, Any] = {
+                "shell": False,
+                "cwd": str(self.session.workspace),
+                "stdin": subprocess.PIPE,
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+            }
+            if self.hook_broker_factory is not None:
+                broker = self.hook_broker_factory(launch_id, self.hook_bridge)
+                if broker is None:
+                    raise _LaunchStepError("HOOK_BROKER_UNAVAILABLE")
+                broker.start()
+                self._hook_broker = broker
+                child_environment = os.environ.copy()
+                child_environment.update(broker.environment)
+                popen_kwargs["env"] = child_environment
             spawned_perf = time.perf_counter()
             spawned_at = _now_utc()
             process = self.popen_factory(
                 list(spec.argv),
-                shell=False,
-                cwd=str(self.session.workspace),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                **popen_kwargs,
             )
             self._process_handle = process
 
@@ -380,13 +415,6 @@ class ProtectedLauncher:
                 )
             except ManagedRootConflictError as error:
                 raise _LaunchStepError("MANAGED_ROOT_CONFLICT") from error
-
-            hook_enforcement_ready_at = self.hook_bridge.prepare(
-                aia_session_id=self.session.session_id,
-                launch_id=launch_id,
-                workspace=self.session.workspace,
-                control_directory=self.preparation_context.control_directory,
-            )
 
             final_revalidation = self._readiness_barrier().revalidate_ready_context(
                 self.readiness_context
@@ -437,6 +465,8 @@ class ProtectedLauncher:
                 ),
             )
             self._status = LaunchStatus.RUNNING
+            if self.launch_context_callback is not None:
+                self.launch_context_callback(context)
             # A spawned process is not an activated protected task.  The task
             # prompt is released only after identity, sensors, bridge, and
             # Session RUNNING have all been established.
@@ -452,11 +482,14 @@ class ProtectedLauncher:
             self._last_result = result
             return result
         except AdapterUnavailableError as error:
+            self.stop_hook_broker()
             return self._failed_result(launch_id, error.code, cleanup=False)
         except AdapterError:
+            self.stop_hook_broker()
             return self._failed_result(launch_id, "ADAPTER_LAUNCH_FAILED", cleanup=False)
         except _LaunchStepError as error:
             cleanup_status = self._startup_cleanup(sensor, identity)
+            self.stop_hook_broker()
             if cleanup_status is LaunchCleanupStatus.FAILED:
                 self._mark_session_failed()
                 return self._failed_result(
@@ -473,6 +506,7 @@ class ProtectedLauncher:
             )
         except Exception:
             cleanup_status = self._startup_cleanup(sensor, identity)
+            self.stop_hook_broker()
             if cleanup_status is LaunchCleanupStatus.FAILED:
                 self._mark_session_failed()
                 return self._failed_result(

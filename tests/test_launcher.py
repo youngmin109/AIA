@@ -322,3 +322,23 @@ def test_codex_adapter_rejects_permission_bypass_option(tmp_path: Path) -> None:
 def test_codex_adapter_missing_executable_is_explicit() -> None:
     with pytest.raises(AdapterUnavailableError):
         CodexAdapter(executable_name="aia-command-that-does-not-exist").discover()
+
+
+def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:
+    adapter = CodexAdapter(
+        hook_command="python -m aia.codex_hook_runtime",
+        allow_hook_trust_bypass=True,
+    )
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="run the task",
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    config = next(argument for argument in spec.argv if argument.startswith("hooks.PreToolUse"))
+    assert "command=\"python -m aia.codex_hook_runtime\"" in config
+    assert "commandWindows=\"python -m aia.codex_hook_runtime\"" in config
+    assert "--dangerously-bypass-hook-trust" in spec.argv

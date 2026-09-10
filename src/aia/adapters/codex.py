@@ -22,7 +22,6 @@ class CodexAdapter:
     _ALLOWED_OPTIONS = frozenset(
         {
             "add_dir",
-            "ask_for_approval",
             "color",
             "ignore_rules",
             "ignore_user_config",
@@ -42,10 +41,20 @@ class CodexAdapter:
         }
     )
 
-    def __init__(self, *, executable_name: str = "codex") -> None:
+    def __init__(
+        self,
+        *,
+        executable_name: str = "codex",
+        hook_command: str | None = None,
+        allow_hook_trust_bypass: bool = False,
+    ) -> None:
         if not isinstance(executable_name, str) or not executable_name.strip():
             raise AdapterError("executable_name must be non-empty")
         self.executable_name = executable_name
+        if hook_command is not None and (not isinstance(hook_command, str) or not hook_command.strip()):
+            raise AdapterError("hook_command must be non-empty when provided")
+        self.hook_command = hook_command
+        self.allow_hook_trust_bypass = allow_hook_trust_bypass
 
     @property
     def name(self) -> str:
@@ -99,6 +108,17 @@ class CodexAdapter:
         if request.model is not None:
             argv.extend(("--model", request.model))
         self._append_options(argv, options)
+        if self.hook_command is not None:
+            argv.extend(
+                (
+                    "-c",
+                    "features.hooks=true",
+                    "-c",
+                    self._hook_config(self.hook_command),
+                )
+            )
+            if self.allow_hook_trust_bypass:
+                argv.append("--dangerously-bypass-hook-trust")
         # ``-`` is the documented exec prompt form; the prompt is kept on
         # stdin instead of being exposed in the process command line.
         argv.append("-")
@@ -110,11 +130,22 @@ class CodexAdapter:
         )
 
     @staticmethod
+    def _hook_config(command: str) -> str:
+        """Build the smallest inline TOML override for the AIA Hook."""
+
+        import json
+
+        encoded = json.dumps(command, ensure_ascii=False)
+        return (
+            "hooks.PreToolUse=[{matcher=\"Bash|apply_patch|Edit|Write\","
+            f"hooks=[{{type=\"command\",command={encoded},commandWindows={encoded}}}]}}]"
+        )
+
+    @staticmethod
     def _append_options(argv: list[str], options: Mapping[str, Any]) -> None:
         scalar_flags = {
             "profile": "--profile",
             "sandbox": "--sandbox",
-            "ask_for_approval": "--ask-for-approval",
             "color": "--color",
         }
         for key, flag in scalar_flags.items():

@@ -17,6 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
+aia = "aia.cli:main"
 aia-web = "aia_web.__main__:main"
 
 [dependency-groups]

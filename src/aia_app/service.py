@@ -11,11 +11,15 @@ from typing import Any
 from aia import (
     AttributionEngine,
     CodexAdapter,
+    CodexHookBroker,
+    CodexHookInstaller,
+    CodexPreToolController,
     EnforcementGate,
     EnforcementGateInput,
     FilesystemSensor,
     HookSensor,
     HookTrustStatus,
+    HookEnforcementBridge,
     Normalizer,
     PolicyProfile,
     ProcessIdentityStatus,
@@ -286,6 +290,36 @@ class RunApplicationService:
                 raise RuntimeError("readiness barrier failed")
             self._phase(record, "READY", SessionStatus.READY)
 
+            launch_holder: dict[str, Any] = {}
+            bridge = HookEnforcementBridge()
+            launcher: ProtectedLauncher
+            controller = CodexPreToolController(
+                session,
+                preparation,
+                filesystem,
+                hook,
+                checkpoint=checkpoint,
+                lease_manager=manager,
+                bridge=bridge,
+                launch_context_provider=lambda: launch_holder.get("context"),
+                process_sensor_provider=lambda: launcher.process_sensor,
+            )
+
+            def broker_factory(launch_id: str, prepared_bridge: HookEnforcementBridge) -> CodexHookBroker:
+                if prepared_bridge is not bridge:
+                    raise RuntimeError("Hook bridge identity changed")
+                return CodexHookBroker(
+                    capability_secret=prepared_bridge.capability_secret or "",
+                    session_id=session.session_id,
+                    launch_id=launch_id,
+                    control_root=preparation.control_directory,
+                    handler=controller.evaluate,
+                )
+
+            if not CodexHookInstaller().is_installed():
+                raise RuntimeError(
+                    "CODEX_HOOK_NOT_INSTALLED: run 'aia hook install' and review/trust the Hook"
+                )
             launcher = ProtectedLauncher(
                 session,
                 readiness.readiness_context,
@@ -295,6 +329,11 @@ class RunApplicationService:
                 hook,
                 adapter=CodexAdapter(),
                 lease_manager=manager,
+                hook_bridge=bridge,
+                hook_broker_factory=broker_factory,
+                launch_context_callback=lambda context: launch_holder.update(
+                    {"context": context}
+                ),
             )
             launch = launcher.launch(
                 ProtectedLaunchRequest(
@@ -304,13 +343,14 @@ class RunApplicationService:
                     model=record.model,
                     prompt=record.task,
                     adapter_options={
-                        "ignore_user_config": True,
                         "sandbox": "workspace-write",
                         "skip_git_repo_check": True,
                     },
                 )
             )
-            record.runtime.update({"launcher": launcher, "launch": launch})
+            record.runtime.update(
+                {"launcher": launcher, "launch": launch, "codex_controller": controller}
+            )
             if launch.context is None or launch.status.value != "RUNNING":
                 raise RuntimeError(launch.failure_code or "Codex launch failed")
             process_sensor = launcher.process_sensor
@@ -320,6 +360,7 @@ class RunApplicationService:
             process = launcher.process_handle
             exit_code = process.wait(timeout=3600)
             record.runtime["exit_code"] = exit_code
+            launcher.stop_hook_broker()
             self._process_evidence(record)
             raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
             process_identity = launch.context.root_process_identity
@@ -366,6 +407,12 @@ class RunApplicationService:
         except Exception as error:
             self._fail_record(record, error)
         finally:
+            launcher = record.runtime.get("launcher")
+            if launcher is not None:
+                try:
+                    launcher.stop_hook_broker()
+                except Exception:
+                    pass
             if not finalization_done:
                 for sensor in sensors:
                     try:
@@ -394,25 +441,41 @@ class RunApplicationService:
         attribution_results = []
         gate_results = []
         action_views = []
+        codex_controller = record.runtime.get("codex_controller")
+        codex_events = tuple(codex_controller.events) if codex_controller is not None else ()
+
+        def matching_codex_event(action: Any) -> Any | None:
+            action_evidence_ids = set(action.evidence_ids)
+            for event in codex_events:
+                if action_evidence_ids == set(event.action.evidence_ids):
+                    return event
+            return None
+
         for action in normalized.actions:
             policy_result = evaluator.evaluate(action)
             attribution_result = attribution_engine.attribute(action)
             sensors = record.runtime.get("sensors", ())
             sensor_health = tuple(sensor.health for sensor in sensors if sensor is not None)
-            gate_result = gate.evaluate(
-                EnforcementGateInput(
-                    action=action,
-                    policy_evaluation=policy_result,
-                    attribution=attribution_result,
-                    session=session,
-                    active_policy=preparation.active_policy,
-                    launch_context=launch_context,
-                    workspace_lease=preparation.workspace_lease,
-                    sensor_health=sensor_health,
-                    hook_trust_status=HookTrustStatus.UNVERIFIED,
-                    checked_at=_now(),
+            codex_event = matching_codex_event(action)
+            if codex_event is not None:
+                policy_result = codex_event.policy_evaluation
+                attribution_result = codex_event.attribution
+                gate_result = codex_event.gate_result
+            else:
+                gate_result = gate.evaluate(
+                    EnforcementGateInput(
+                        action=action,
+                        policy_evaluation=policy_result,
+                        attribution=attribution_result,
+                        session=session,
+                        active_policy=preparation.active_policy,
+                        launch_context=launch_context,
+                        workspace_lease=preparation.workspace_lease,
+                        sensor_health=sensor_health,
+                        hook_trust_status=HookTrustStatus.UNVERIFIED,
+                        checked_at=_now(),
+                    )
                 )
-            )
             policy_results.append(policy_result)
             attribution_results.append(attribution_result)
             gate_results.append(gate_result)

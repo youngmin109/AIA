@@ -72,6 +72,8 @@ _ALLOWED_TOP_LEVEL_KEYS = frozenset(
         "aia_session_id",
         "agent",
         "agent_native_session_id",
+        "ingress_status",
+        "ingress_verified",
         "turn_id",
         "tool_use_id",
         "tool_name",
@@ -329,6 +331,14 @@ def validate_hook_input(
         turn_id = _required_text(turn_id, field_name="turn_id")
     tool_input, raw_command, _ = _select_tool_input(value["tool_input"])
     source_metadata = _select_source_metadata(value.get("source_metadata"))
+    ingress_verified = value.get("ingress_verified", False)
+    if not isinstance(ingress_verified, bool):
+        raise HookInputError("ingress_verified must be a bool")
+    ingress_status = value.get("ingress_status")
+    if ingress_status is not None and ingress_status not in {"VERIFIED", "UNVERIFIED"}:
+        raise HookInputError("ingress_status must be VERIFIED or UNVERIFIED")
+    if ingress_status == "VERIFIED" and not ingress_verified:
+        raise HookInputError("VERIFIED ingress_status requires ingress_verified=true")
     return ValidatedHookRequest(
         aia_session_id=aia_session_id,
         agent=agent,
@@ -340,6 +350,7 @@ def validate_hook_input(
         raw_command=raw_command,
         hook_event_name=event_name,
         source_metadata=source_metadata,
+        ingress_verified=ingress_verified,
     )
 
 
@@ -531,8 +542,10 @@ class HookSensor:
                 raw_command = request.raw_command
                 if isinstance(raw_command, str):
                     command_payload: dict[str, Any] = {
-                        "ingress_status": "UNVERIFIED",
-                        "ingress_verified": False,
+                        "ingress_status": (
+                            "VERIFIED" if request.ingress_verified else "UNVERIFIED"
+                        ),
+                        "ingress_verified": request.ingress_verified,
                         "parent_evidence_id": pretool_record.evidence_id,
                         "raw_command": raw_command,
                         "tool_use_id": request.tool_use_id,

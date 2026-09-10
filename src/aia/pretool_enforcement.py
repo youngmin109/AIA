@@ -142,6 +142,18 @@ class HookEnforcementBridge:
     def native_session_id(self) -> str | None:
         return self._native_session_id
 
+    @property
+    def capability_secret(self) -> str | None:
+        """Return the launch-scoped secret to an in-process AIA broker only.
+
+        The secret is never included in evidence or user-facing results.  A
+        broker uses it to authenticate the local Codex Hook process before it
+        forwards a native PreToolUse payload to the trusted bridge.
+        """
+
+        with self._lock:
+            return self._capability._secret if self._capability is not None else None
+
     def prepare(
         self,
         *,
