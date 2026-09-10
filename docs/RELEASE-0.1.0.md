@@ -90,3 +90,4 @@ uv run aia-web
 - [ ] 실제 Codex Canary와 `.env` Shell 시나리오 재실행
 - [ ] 지원 범위 밖 동작을 `PROTECTED`로 표시하지 않는지 확인
 - [ ] 보안 문제는 [SECURITY.md](../SECURITY.md) 절차로 접수
+- [ ] `scripts/package-release.ps1`로 wheel·sdist·SHA-256 manifest를 생성하고 압축 해제 검증

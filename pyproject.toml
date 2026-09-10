@@ -33,6 +33,14 @@ evaluation = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/aia", "src/aia_app", "src/aia_web"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/evaluation",
+    "/.tmp-build",
+    "/aia-functional-architecture.png",
+    "/aia-system-architecture.png",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

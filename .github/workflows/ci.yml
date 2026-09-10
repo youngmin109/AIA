@@ -32,3 +32,9 @@ jobs:
 
       - name: Check package build
         run: uv build
+
+      - name: Check release bundle
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "aia-release"
+          pwsh -NoProfile -File .\scripts\package-release.ps1 -OutputRoot $output
