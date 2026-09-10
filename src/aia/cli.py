@@ -25,6 +25,7 @@ from aia import (
     resolve_profile,
 )
 from aia.hook_verification import HookVerificationStore
+from aia.codex_hook_trust import inspect_codex_hook_trust
 from aia_app import ApplicationValidationError, RunApplicationService
 from aia_app.readers import ResultBundleReader
 
@@ -504,6 +505,15 @@ def _hook_status(args: argparse.Namespace) -> int:
         activation_status = "OBSERVED_IN_PAST"
     else:
         activation_status = "NOT_OBSERVED"
+    codex_trust = (
+        inspect_codex_hook_trust(
+            executable,
+            hook_path=installer.path,
+            cwd=Path.cwd(),
+        ).to_mapping()
+        if executable is not None
+        else {"available": False, "reason": "CODEX_EXECUTABLE_UNAVAILABLE", "hooks": []}
+    )
     payload = {
         "hook_path": str(installer.path),
         "pretool_installed": installer.is_installed(),
@@ -513,6 +523,7 @@ def _hook_status(args: argparse.Namespace) -> int:
         "ready": verification_current,
         "trust_status": "MANUAL_REVIEW_REQUIRED",
         "activation_status": activation_status,
+        "codex_hook_trust": codex_trust,
         "last_verified_run": (
             {
                 "session_id": last_verified.get("session_id"),
@@ -534,6 +545,16 @@ def _hook_status(args: argparse.Namespace) -> int:
         print(f"PostToolUse 설치: {'YES' if payload['posttool_installed'] else 'NO'}")
         print("Codex 신뢰: MANUAL_REVIEW_REQUIRED (/hooks에서 검토·신뢰 필요)")
         print(f"Hook 관찰 상태: {payload['activation_status']}")
+        trust_entries = codex_trust.get("hooks") or []
+        if codex_trust.get("available"):
+            trust_summary = ", ".join(
+                f"{item.get('event')}={item.get('trust_status')}"
+                for item in trust_entries
+                if isinstance(item, dict)
+            ) or "AIA Hook 항목을 찾지 못함"
+            print(f"Codex 실제 Trust: {trust_summary}")
+        else:
+            print(f"Codex 실제 Trust: 확인 불가 ({codex_trust.get('reason')})")
         print(f"현재 검증 증명: {payload['verification_status']}")
         if last_verified:
             print(f"최근 검증 실행: {last_verified.get('session_id')}")

@@ -56,6 +56,11 @@ Codex 설정 파일, AIA Hook 런타임 코드 지문이 모두 일치하는 실
 `MISSING_OR_STALE`이면
 `uv run aia hook verify`를 다시 실행해야 한다.
 
+같은 명령의 `Codex 실제 Trust`는 Codex가 현재 읽은 AIA Hook의 신뢰 상태다.
+`TRUSTED`가 아닌 `MODIFIED` 또는 `UNTRUSTED`가 보이면 Hook 파일이 설치되어
+있어도 Codex가 실행하지 않는다. AIA는 이 상태를 자동으로 신뢰 처리하지 않으며,
+Codex `/hooks`에서 내용을 검토한 뒤 사용자가 직접 Trust해야 한다.
+
 처음 사용하거나 Hook 설정을 변경한 뒤에는 다음 명령으로 실제 Codex 연결을
 확인한다.
 

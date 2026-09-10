@@ -13,6 +13,7 @@ from aia.cli import (
     _recent_run_diagnostic,
     main,
 )
+from aia.codex_hook_trust import summarize_aia_hooks
 from aia_web.__main__ import run as run_console, validate_local_bind
 
 
@@ -203,6 +204,45 @@ def test_live_hook_proof_requires_session_event_and_verified_bundle() -> None:
         protection_state="COMPLETED_DEGRADED",
         bundle_status="VALID",
     ) is False
+
+
+def test_codex_hook_trust_summary_exposes_modified_and_untrusted_entries(tmp_path) -> None:
+    path = tmp_path / "hooks.json"
+    inspection = summarize_aia_hooks(
+        {
+            "result": {
+                "data": [
+                    {
+                        "cwd": str(tmp_path),
+                        "hooks": [
+                            {
+                                "sourcePath": str(path),
+                                "eventName": "preToolUse",
+                                "enabled": True,
+                                "trustStatus": "modified",
+                                "matcher": "Bash",
+                                "command": "python -m aia.codex_hook_runtime",
+                                "key": "hook:pre",
+                            },
+                            {
+                                "sourcePath": str(path),
+                                "eventName": "postToolUse",
+                                "enabled": True,
+                                "trustStatus": "untrusted",
+                                "matcher": "Bash",
+                                "command": "python -m aia.codex_hook_runtime",
+                                "key": "hook:post",
+                            },
+                        ],
+                    }
+                ]
+            }
+        },
+        hook_path=path,
+    )
+
+    assert inspection.available is True
+    assert [item["trust_status"] for item in inspection.hooks] == ["MODIFIED", "UNTRUSTED"]
     assert _live_hook_proof_is_valid(
         hook_event_count=1,
         protection_state="COMPLETED_VERIFIED",
