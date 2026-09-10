@@ -130,7 +130,13 @@ function updateProfileDescription() {
   const selected = profileDescriptions.find((item) => item.value === profile.value);
   document.getElementById('policy-description').textContent = selected?.description || '';
 }
-profile.addEventListener('change', () => { customField.hidden = profile.value !== 'custom'; updateProfileDescription(); });
+function updateCustomPolicyField() {
+  const custom = profile.value === 'CUSTOM';
+  customField.hidden = !custom;
+  form.elements.custom_policy_path.required = custom;
+}
+profile.addEventListener('change', () => { updateCustomPolicyField(); updateProfileDescription(); });
+updateCustomPolicyField();
 updateProfileDescription();
 function renderPreflight(payload) {
   preflightChecks.replaceChildren();

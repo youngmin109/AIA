@@ -129,7 +129,7 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
 7. Start the local console or a protected run from any Workspace:
 
-   aia console
+   aia console --open
    aia protect C:\workspace\my-project
 
 The product scope is Windows 11 + Codex CLI + AIA Protected Run + supported

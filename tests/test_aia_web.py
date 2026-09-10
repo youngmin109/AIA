@@ -186,3 +186,19 @@ def test_console_supports_session_first_interactive_run() -> None:
     )
     assert created.status_code == 202
     assert service.created_payloads[-1]["interactive"] is True
+
+
+def test_console_reveals_custom_policy_path_for_custom_profile() -> None:
+    service = FakeService()
+    service.policy_profiles = lambda: [
+        {"value": "BASIC_DEVELOPMENT", "label": "Basic Development"},
+        {"value": "CUSTOM", "label": "사용자 정책"},
+    ]
+    client = TestClient(create_app(service))
+
+    page = client.get("/")
+
+    assert page.status_code == 200
+    assert 'option value="CUSTOM"' in page.text
+    assert "updateCustomPolicyField" in page.text
+    assert "CUSTOM" in page.text

@@ -11,8 +11,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from typing import Sequence
+import webbrowser
 
 from aia import (
     CodexAdapter,
@@ -210,6 +212,11 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=int(os.environ.get("AIA_WEB_PORT", "8787")),
         help="local HTTP port",
+    )
+    console.add_argument(
+        "--open",
+        action="store_true",
+        help="open the local console in the default browser",
     )
 
     protect = commands.add_parser(
@@ -743,7 +750,15 @@ def _run_console(args: argparse.Namespace) -> int:
     except ValueError as error:
         raise ApplicationValidationError(str(error)) from error
 
-    print(f"AIA 로컬 보안 콘솔: http://{args.host}:{args.port}")
+    url = f"http://{args.host}:{args.port}"
+    print(f"AIA 로컬 보안 콘솔: {url}")
+    if args.open:
+        # Let uvicorn bind the loopback port before asking the browser to load
+        # the page; otherwise the first navigation can race server startup.
+        browser_timer = threading.Timer(0.5, webbrowser.open, args=(url,), kwargs={"new": 2})
+        browser_timer.daemon = True
+        browser_timer.start()
+        print("서버가 시작되면 기본 브라우저에서 콘솔을 엽니다.")
     print("종료하려면 Ctrl+C를 누르세요.")
     run(host=args.host, port=args.port)
     return 0

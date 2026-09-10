@@ -140,7 +140,7 @@ Raw Evidence
 
 ```powershell
 cd "C:\workspace\01_projects\aia-mvp"
-uv run aia console
+uv run aia console --open
 ```
 
 그 다음 브라우저에서 `http://127.0.0.1:8787`을 연다. Console은 로컬 사용을 위한 P1 Application Layer이고, 보안 판단의 권위는 계속 AIA Core에 있다.

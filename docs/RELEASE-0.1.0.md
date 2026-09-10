@@ -79,7 +79,7 @@ uv run aia protect C:\workspace\my-project
 ```powershell
 uv run aia runs
 uv run aia status <SESSION_ID>
-uv run aia console
+uv run aia console --open
 ```
 
 ## 현재 미완료 검증

@@ -89,11 +89,14 @@ def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:
 
 
 def test_console_parser_supports_explicit_bind_values() -> None:
-    args = _parser().parse_args(["console", "--host", "127.0.0.1", "--port", "8799"])
+    args = _parser().parse_args(
+        ["console", "--host", "127.0.0.1", "--port", "8799", "--open"]
+    )
 
     assert args.command == "console"
     assert args.host == "127.0.0.1"
     assert args.port == 8799
+    assert args.open is True
 
 
 def test_console_rejects_non_loopback_host() -> None:
