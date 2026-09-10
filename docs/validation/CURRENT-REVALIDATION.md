@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `f09072c` |
+| 코드 기준 | `ed5a0e8` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **499 passed, 3 skipped** |
+| 전체 pytest | **501 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -43,6 +43,8 @@
   종료 결과를 `*_VERIFIED`로 표시하지 않는다.
 - Live Run 화면과 API에서 per-run Hook Broker 상태를 별도 표시한다.
 - Actual Codex PreTool proof도 차단 판정에 종료 직전 Broker 생존 확인을 요구한다.
+- 제품 CLI의 `aia proof --scenario block-env`는 실제 Codex `.env` 읽기 차단과
+  secret marker 비유출 확인을 별도 제품 증명 시나리오로 제공한다.
 
 ## 해석상 제한
 
