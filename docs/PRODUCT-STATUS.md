@@ -30,6 +30,9 @@ PreToolUse다. 실제 Codex Bash, `apply_patch`, MCP 파일 읽기 Canary에 대
 PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUCCEEDED`를
 기록한다. 이때 Codex 출력 원문은 저장하지 않고 SHA-256과 판정 메타데이터만
 보존한다.
+설치된 wheel에서도 기본 한국어 정책 프로필을 패키지 데이터에서 해석할 수 있으며,
+`aia hook verify`는 임시 Workspace의 실제 Codex 실행으로 Session-bound Hook
+활성화를 점검한다.
 
 Process Manager 자체는 Codex 실행 환경의 Job Object 영향을 피한 별도 Windows
 PowerShell smoke에서도 `Root → Child → Grandchild = TERMINATED / SUCCEEDED`,
