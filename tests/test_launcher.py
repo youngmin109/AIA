@@ -392,10 +392,87 @@ def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> Non
     spec = adapter.build_launch(request, Path(sys.executable))
 
     config = next(argument for argument in spec.argv if argument.startswith("hooks.PreToolUse"))
+    assert "mcp__filesystem__read_file" in config
+    assert "mcp__fs__read" in config
     assert "command=\"python -m aia.codex_hook_runtime\"" in config
     assert "commandWindows=\"python -m aia.codex_hook_runtime\"" in config
     assert any(argument.startswith("hooks.PostToolUse") for argument in spec.argv)
     assert "--dangerously-bypass-hook-trust" in spec.argv
+
+
+def test_codex_adapter_can_register_one_narrow_stdio_mcp_server(tmp_path: Path) -> None:
+    adapter = CodexAdapter(
+        hook_command="python -m aia.codex_hook_runtime",
+        allow_hook_trust_bypass=True,
+    )
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="read",
+        adapter_options={
+            "mcp_server": {
+                "name": "filesystem",
+                "command": "python.exe",
+                "args": ["server.py"],
+            }
+        },
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert 'mcp_servers.filesystem.command="python.exe"' in spec.argv
+    assert 'mcp_servers.filesystem.args=["server.py"]' in spec.argv
+
+
+def test_codex_adapter_normalizes_windows_mcp_script_path_for_toml_array(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(codex_module.os, "name", "nt")
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="read",
+        adapter_options={
+            "mcp_server": {
+                "name": "filesystem",
+                "command": r"C:\Program Files\nodejs\node.exe",
+                "args": [r"C:\workspace\server.cjs"],
+            }
+        },
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert 'mcp_servers.filesystem.args=["C:/workspace/server.cjs"]' in spec.argv
+
+
+@pytest.mark.parametrize(
+    "mcp_server",
+    [
+        {"name": "filesystem.bad", "command": "python.exe"},
+        {"name": "filesystem", "command": "python.exe", "args": [1]},
+        {"name": "filesystem", "command": "", "args": []},
+    ],
+)
+def test_codex_adapter_rejects_unsafe_mcp_server_config(
+    tmp_path: Path,
+    mcp_server: dict[str, object],
+) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="read",
+        adapter_options={"mcp_server": mcp_server},
+    )
+
+    with pytest.raises(AdapterError):
+        adapter.build_launch(request, Path(sys.executable))
 
 
 def test_codex_adapter_classifies_native_block_confirmation_without_raw_output() -> None:

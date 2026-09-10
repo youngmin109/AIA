@@ -16,16 +16,19 @@ class CodexHookInstallationError(ValueError):
     """Raised when the stable Codex Hook definition cannot be managed safely."""
 
 
+AIA_CODEX_HOOK_MATCHER = (
+    "Bash|apply_patch|Edit|Write|"
+    "mcp__filesystem__read_file|mcp__fs__read"
+)
+
+
 class CodexHookInstaller:
     """Manage one explicit user-level Hook entry without changing other hooks."""
 
     # Keep the matcher explicit. These are the Codex tool names for which
     # AIA has an explicit semantic contract. Unknown MCP tools are not treated
     # as file operations by name alone.
-    _MATCHER = (
-        "Bash|apply_patch|Edit|Write|"
-        "mcp__filesystem__read_file|mcp__fs__read"
-    )
+    _MATCHER = AIA_CODEX_HOOK_MATCHER
     _EVENTS = ("PreToolUse", "PostToolUse")
 
     def __init__(
@@ -242,4 +245,8 @@ class CodexHookInstaller:
         return value
 
 
-__all__ = ["CodexHookInstallationError", "CodexHookInstaller"]
+__all__ = [
+    "AIA_CODEX_HOOK_MATCHER",
+    "CodexHookInstallationError",
+    "CodexHookInstaller",
+]

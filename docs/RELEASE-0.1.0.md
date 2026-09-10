@@ -10,7 +10,7 @@
 | Agent | Codex CLI |
 | 시작 방식 | AIA Protected Run에서 AIA가 실행한 Codex |
 | 사전 통제 지점 | Codex `PreToolUse` Hook |
-| 지원 matcher | Bash, `apply_patch`, Edit, Write 계열, 명시적으로 등록된 파일 읽기 MCP matcher |
+| 지원 matcher | Bash, `apply_patch`, Edit, Write 계열; 파일 읽기 MCP matcher는 정규화 계약만 검증 |
 | 저장 위치 | Workspace 밖의 사용자별 AIA Control Root |
 | 결과 | 검증된 Evidence Bundle과 보안 결과 |
 
@@ -25,7 +25,7 @@
 - 실제 Hook Event: `tool_name`, 원문 command, `tool_use_id`와 AIA Session 연결
 - 선택적 PostToolUse Event: 도구 출력 원문을 저장하지 않고 실행 확인용 digest만 보존
 - 실제 `aia protect` CLI 경로: disposable Workspace에서 `COMPLETED`와 `Bundle VALID` 확인
-- 명시적으로 등록된 파일 읽기 MCP 도구는 `READ` 의미로 평가하고, 등록되지 않은 MCP 도구는 추측하지 않는다.
+- 명시적으로 등록된 파일 읽기 MCP 도구 이름은 `READ` 의미로 평가할 수 있으며, 등록되지 않은 MCP 도구는 추측하지 않는다. Protected Launcher MCP E2E는 아직 미검증이다.
 - `VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED/SUCCEEDED` 결과 기록
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분

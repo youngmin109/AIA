@@ -237,7 +237,11 @@ from .codex_runtime import (
     CodexPreToolEvent,
     send_hook_payload,
 )
-from .codex_installation import CodexHookInstallationError, CodexHookInstaller
+from .codex_installation import (
+    AIA_CODEX_HOOK_MATCHER,
+    CodexHookInstallationError,
+    CodexHookInstaller,
+)
 from .attribution import (
     AttributionBatchResult,
     AttributionEngine,
@@ -576,6 +580,7 @@ __all__ = [
     "CodexHookBroker",
     "CodexHookInstallationError",
     "CodexHookInstaller",
+    "AIA_CODEX_HOOK_MATCHER",
     "CodexHookAdapter",
     "CodexHookPayloadError",
     "CodexPreToolController",

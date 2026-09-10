@@ -96,7 +96,8 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - 보호 실행 시작 전에 Workspace, 정책, Lease, Checkpoint를 준비한다.
 - Active Policy를 하나의 Protected Run에 고정한다.
 - 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
-- 명시적으로 지원하는 파일 읽기 MCP 도구는 `READ`로 정규화해 정책 평가한다.
+- 명시적으로 등록된 파일 읽기 MCP 이름은 `READ`로 정규화할 수 있는 계약을 갖는다.
+  실제 MCP 서버 시작·호출을 AIA Protected Launcher에서 완료했다는 의미는 아니다.
 - 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
 - Session, Evidence, Result Bundle을 별도로 저장하고 Bundle 무결성을 검증한다.
@@ -111,6 +112,7 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - 모든 OS 프로세스의 종료 또는 사용자의 수동 작업 통제
 - Network와 Database 상태 보안
 - Actual Codex의 구조화된 `.env READ`와 destructive Process Tree termination
+- AIA Protected Launcher에서의 MCP 서버 시작·호출 E2E
 - 대규모 Workspace에 대한 성능 SLA
 
 자세한 제한사항과 평가 결과는 [LIMITATIONS.md](LIMITATIONS.md),
