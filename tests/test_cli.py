@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aia.cli import _parser, _protected_run_preflight, main
+from aia.cli import _extract_session_id, _parser, _protected_run_preflight, main
 
 
 def test_protect_without_task_selects_interactive_mode() -> None:
@@ -58,6 +58,32 @@ def test_hook_status_parser_supports_json_and_control_root(tmp_path) -> None:
     assert args.json is True
     assert args.path == tmp_path / "hooks.json"
     assert args.control_root == tmp_path / "control"
+
+
+def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:
+    args = _parser().parse_args(
+        [
+            "hook",
+            "verify",
+            "--json",
+            "--path",
+            str(tmp_path / "hooks.json"),
+            "--control-root",
+            str(tmp_path / "control"),
+            "--timeout",
+            "30",
+        ]
+    )
+
+    assert args.command == "hook"
+    assert args.hook_command == "verify"
+    assert args.json is True
+    assert args.timeout == 30
+
+
+def test_hook_verify_extracts_protected_run_session_id() -> None:
+    assert _extract_session_id("Phase: READY\nAIA Protected Run: abc-123\n") == "abc-123"
+    assert _extract_session_id("Hook was not started\n") is None
 
 
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:

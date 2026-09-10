@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from typing import Sequence
 
@@ -23,6 +25,7 @@ from aia import (
     resolve_profile,
 )
 from aia_app import ApplicationValidationError, RunApplicationService
+from aia_app.readers import ResultBundleReader
 
 
 def _json_text(value: object, *, default: object | None = None) -> str:
@@ -109,6 +112,19 @@ def _parser() -> argparse.ArgumentParser:
     hook_status.add_argument("--json", action="store_true", help="print machine-readable output")
     hook_status.add_argument("--path", type=Path, help="hooks.json path")
     hook_status.add_argument("--control-root", type=Path, help="AIA control root")
+    hook_verify = hook_commands.add_parser(
+        "verify",
+        help="verify the installed Hook with one disposable live Codex run",
+    )
+    hook_verify.add_argument("--json", action="store_true", help="print machine-readable output")
+    hook_verify.add_argument("--path", type=Path, help="hooks.json path")
+    hook_verify.add_argument("--control-root", type=Path, help="AIA control root")
+    hook_verify.add_argument(
+        "--timeout",
+        type=float,
+        default=180.0,
+        help="maximum wait in seconds",
+    )
 
     setup = commands.add_parser(
         "setup",
@@ -293,7 +309,8 @@ def _setup(args: argparse.Namespace) -> int:
         "next_steps": [
             "Codex에서 /hooks를 열고 AIA Hook을 검토합니다.",
             "AIA Hook을 신뢰한 뒤 aia doctor를 실행합니다.",
-            "검사 결과가 READY이면 aia protect <workspace>를 실행합니다.",
+            "aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
         ],
     }
     if args.json:
@@ -302,6 +319,7 @@ def _setup(args: argparse.Namespace) -> int:
         print(f"AIA Hook 설정 완료: {path}")
         print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
         print("[다음] uv run aia doctor")
+        print("[검증] uv run aia hook verify")
         print("[실행] uv run aia protect C:\\workspace\\my-project")
     return 0
 
@@ -358,6 +376,155 @@ def _hook_status(args: argparse.Namespace) -> int:
             print("최근에 Session에 연결된 Hook Event가 없습니다.")
         print("주의: 설치됨은 실제 보호 활성화를 의미하지 않습니다.")
     return 0 if payload["pretool_installed"] else 1
+
+
+def _extract_session_id(output: str) -> str | None:
+    for line in output.splitlines():
+        prefix = "AIA Protected Run:"
+        if line.startswith(prefix):
+            value = line[len(prefix) :].strip()
+            if value:
+                return value
+    return None
+
+
+def _hook_verify(args: argparse.Namespace) -> int:
+    """Verify the user-level Hook through the normal product launch path."""
+
+    installer = CodexHookInstaller(args.path)
+    if args.timeout <= 0:
+        raise ApplicationValidationError("timeout must be positive")
+    if not installer.is_installed():
+        payload = {
+            "verified": False,
+            "reason": "PRETOOL_HOOK_NOT_INSTALLED",
+            "hook_path": str(installer.path),
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
+            print("[다음] uv run aia setup")
+        return 2
+    try:
+        executable = CodexAdapter().discover()
+    except Exception as error:
+        payload = {
+            "verified": False,
+            "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
+            "error": type(error).__name__,
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print("Hook 검증 실패: Codex 실행 파일을 찾을 수 없습니다.")
+        return 2
+
+    control_root = _control_root(args.control_root)
+    probe_workspace = Path(tempfile.mkdtemp(prefix="aia-hook-verify-"))
+    marker = probe_workspace / "AIA_HOOK_PROBE_MARKER.txt"
+    task = (
+        "Use the Bash tool to run exactly: "
+        "python -c \"from pathlib import Path; "
+        "Path('AIA_HOOK_PROBE_MARKER.txt').write_text('ok', encoding='utf-8')\". "
+        "Do not use another tool."
+    )
+    command = [
+        sys.executable,
+        "-m",
+        "aia.cli",
+        "protect",
+        str(probe_workspace),
+        "--task",
+        task,
+        "--profile",
+        "FREE_DEVELOPMENT",
+        "--control-root",
+        str(control_root),
+        "--timeout",
+        str(args.timeout),
+    ]
+    payload: dict[str, object] = {
+        "verified": False,
+        "reason": "HOOK_EVENT_NOT_OBSERVED",
+        "codex_executable": str(executable),
+        "hook_path": str(installer.path),
+        "workspace": str(probe_workspace),
+        "control_root": str(control_root),
+        "session_id": None,
+        "hook_event_count": 0,
+        "protection_state": None,
+        "bundle_status": None,
+        "probe_marker_created": False,
+    }
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=args.timeout + 60.0,
+            check=False,
+        )
+        session_id = _extract_session_id(completed.stdout)
+        payload["session_id"] = session_id
+        payload["cli_exit_code"] = completed.returncode
+        if session_id is None:
+            payload["reason"] = "PROTECTED_RUN_SESSION_NOT_CREATED"
+        else:
+            reader = ResultBundleReader(control_root)
+            reader.read_result(session_id)
+            entries = [
+                item
+                for item in reader.list_completed()
+                if item.get("session_id") == session_id
+            ]
+            history = entries[0] if entries else {}
+            payload["hook_event_count"] = reader.hook_event_count(session_id)
+            payload["protection_state"] = history.get("protection_state")
+            payload["bundle_status"] = (
+                reader.verification(session_id).status.value
+                if reader.verification(session_id) is not None
+                else None
+            )
+            payload["probe_marker_created"] = marker.exists()
+            if (
+                payload["hook_event_count"]
+                and payload["protection_state"] in {
+                    "COMPLETED_VERIFIED",
+                    "ABORTED_VERIFIED",
+                }
+                and payload["bundle_status"] == "VALID"
+            ):
+                payload["verified"] = True
+                payload["reason"] = "SESSION_BOUND_HOOK_EVENT_OBSERVED"
+            elif payload["hook_event_count"] == 0:
+                payload["reason"] = "HOOK_EVENT_NOT_OBSERVED"
+            else:
+                payload["reason"] = "PROTECTED_RUN_DEGRADED"
+            # Keep the result Bundle in the user's Control Root, but do not
+            # retain the disposable probe Workspace.
+    except subprocess.TimeoutExpired:
+        payload["reason"] = "HOOK_VERIFY_TIMEOUT"
+    except (OSError, ValueError, KeyError) as error:
+        payload["reason"] = f"HOOK_VERIFY_ERROR:{type(error).__name__}"
+    finally:
+        shutil.rmtree(probe_workspace, ignore_errors=True)
+
+    if args.json:
+        print(_json_text(payload))
+    else:
+        print("AIA Hook 실시간 검증")
+        print(f"결과: {'VERIFIED' if payload['verified'] else 'NOT_VERIFIED'}")
+        print(f"이유: {payload['reason']}")
+        print(f"Hook Events: {payload['hook_event_count']}")
+        print(f"Protection: {payload['protection_state']}")
+        print("임시 Probe Workspace: 삭제됨")
+        if not payload["verified"]:
+            print("[다음] Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요.")
+    return 0 if payload["verified"] else 1
 
 
 def _protected_run_preflight() -> tuple[bool, list[str]]:
@@ -709,6 +876,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _setup(args)
         if args.command == "hook" and args.hook_command == "status":
             return _hook_status(args)
+        if args.command == "hook" and args.hook_command == "verify":
+            return _hook_verify(args)
         if args.command == "protect":
             return _run_protected(args)
         raise ApplicationValidationError("unknown command")

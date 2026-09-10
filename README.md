@@ -102,6 +102,18 @@ PostToolUse 항목을 추가합니다. PreToolUse는 실행 전 정책 관문이
 uv run aia hook install
 ```
 
+실제 사용 전에 현재 Codex가 AIA Hook을 실행할 수 있는지 확인하려면 다음을
+실행합니다. 임시 Workspace에서 무해한 Probe를 한 번 실행하고, 결과 Bundle은
+Control Root에 보존하며 임시 Workspace는 삭제합니다.
+
+```powershell
+uv run aia hook verify
+```
+
+`VERIFIED`와 Session-bound Hook Event가 확인될 때만 일반 보호 실행을 검증된
+상태로 해석합니다. `NOT_VERIFIED`이면 Codex `/hooks`에서 AIA Hook을 검토·신뢰한
+뒤 다시 실행합니다.
+
 ```powershell
 uv run aia protect C:\workspace\my-project
 ```
