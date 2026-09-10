@@ -12,6 +12,10 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 새 Windows 환경에서 설치하려면 [설치 가이드](INSTALL.md)를 먼저 읽는다.
 
+릴리스 ZIP을 사용하는 경우에는 압축을 푼 폴더에서 포함된 `install.ps1`을 실행하면
+wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는
+`uv run aia` 경로를 사용한다.
+
 사용자 지원 범위와 상태 해석은 [제품 지원 범위](docs/PRODUCT-SUPPORT.md),
 보안 문제 보고 절차는 [SECURITY.md](SECURITY.md), 기여 규칙은
 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조한다.
