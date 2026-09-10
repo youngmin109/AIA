@@ -386,6 +386,7 @@ def test_codex_adapter_builds_interactive_terminal_launch_without_prompt(
     assert spec.argv[0] == str(sys.executable)
     assert spec.argv[1] == "-C"
     assert "exec" not in spec.argv
+    assert "--color" not in spec.argv
     assert "-" not in spec.argv
     assert spec.stdin_bytes == b""
 

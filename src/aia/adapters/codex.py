@@ -228,8 +228,6 @@ class CodexAdapter:
                 str(executable),
                 "-C",
                 str(request.workspace),
-                "--color",
-                "never",
             ]
         else:
             argv = [
