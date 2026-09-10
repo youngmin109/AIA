@@ -101,20 +101,20 @@ class CodexAdapter:
         return "codex"
 
     def discover(self) -> Path:
+        configured = os.environ.get("CODEX_CLI_PATH")
+        if configured:
+            configured_path = Path(configured).expanduser().resolve(strict=False)
+            if self._is_executable_candidate(configured_path):
+                return configured_path
+
+        # PATH is the user's active Codex selection. Prefer it over another
+        # side-by-side installation so the executable used for Hook trust is
+        # the same one the user starts from their terminal/Codex setup.
+        for candidate in self._path_candidates():
+            if self._is_executable_candidate(candidate):
+                return candidate
+
         candidates: list[Path] = []
-        if self.executable_name.lower().endswith(".exe"):
-            lookup_names = (self.executable_name,)
-        else:
-            lookup_names = (f"{self.executable_name}.exe", self.executable_name)
-        for candidate in lookup_names:
-            resolved = shutil.which(candidate)
-            if resolved is None:
-                continue
-            path = Path(resolved).expanduser().resolve(strict=False)
-            if path.is_file() and path.suffix.lower() == ".exe":
-                candidates.append(path)
-            elif path.is_file() and path.suffix.lower() not in {".cmd", ".bat", ".ps1"}:
-                candidates.append(path)
         candidates.extend(self._windows_install_candidates())
         unique: list[Path] = []
         seen: set[Path] = set()
@@ -127,6 +127,22 @@ class CodexAdapter:
         if unique:
             return max(unique, key=self._discovery_sort_key)
         raise AdapterUnavailableError("Codex executable is unavailable")
+
+    def _path_candidates(self) -> tuple[Path, ...]:
+        if self.executable_name.lower().endswith(".exe"):
+            lookup_names = (self.executable_name,)
+        else:
+            lookup_names = (f"{self.executable_name}.exe", self.executable_name)
+        candidates: list[Path] = []
+        for candidate in lookup_names:
+            resolved = shutil.which(candidate)
+            if resolved is not None:
+                candidates.append(Path(resolved).expanduser().resolve(strict=False))
+        return tuple(candidates)
+
+    @staticmethod
+    def _is_executable_candidate(path: Path) -> bool:
+        return path.is_file() and path.suffix.lower() not in {".cmd", ".bat", ".ps1"}
 
     @classmethod
     def _discovery_sort_key(cls, path: Path) -> float:

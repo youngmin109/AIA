@@ -424,6 +424,40 @@ def test_codex_adapter_finds_windows_install_outside_path(
     assert CodexAdapter().discover() == executable.resolve()
 
 
+def test_codex_adapter_prefers_path_selection_over_side_by_side_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path_executable = tmp_path / "path" / "codex.exe"
+    side_by_side = tmp_path / "OpenAI" / "Codex" / "bin" / "version-1" / "codex.exe"
+    path_executable.parent.mkdir(parents=True)
+    side_by_side.parent.mkdir(parents=True)
+    path_executable.write_bytes(b"path")
+    side_by_side.write_bytes(b"installed")
+    monkeypatch.delenv("CODEX_CLI_PATH", raising=False)
+    monkeypatch.setattr(codex_module.shutil, "which", lambda _name: str(path_executable))
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_windows_install_candidates",
+        lambda _adapter: (side_by_side,),
+    )
+
+    assert CodexAdapter().discover() == path_executable.resolve()
+
+
+def test_codex_adapter_honors_explicit_cli_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured = tmp_path / "configured" / "codex.exe"
+    configured.parent.mkdir(parents=True)
+    configured.write_bytes(b"configured")
+    monkeypatch.setenv("CODEX_CLI_PATH", str(configured))
+    monkeypatch.setattr(codex_module.shutil, "which", lambda _name: None)
+
+    assert CodexAdapter().discover() == configured.resolve()
+
+
 def test_codex_adapter_prefers_newer_codex_install_when_multiple_exist(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
