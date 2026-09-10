@@ -106,6 +106,50 @@ def test_unbound_hook_failure_remains_neutral(
     assert capsys.readouterr().out == ""
 
 
+def test_bound_pretool_normalization_failure_does_not_fall_through_to_allow(
+    monkeypatch,
+) -> None:
+    controller = object.__new__(CodexPreToolController)
+    controller.session = SimpleNamespace(
+        session_id="aia-session",
+        workspace=Path("C:/workspace/demo"),
+        agent="codex",
+    )
+    controller.bridge = SimpleNamespace(capability_secret="capability")
+    controller.launch_context_provider = lambda: None
+    controller.hook_sensor = SimpleNamespace(observe=lambda payload: ())
+    controller._lock = RLock()
+    controller._errors = []
+
+    monkeypatch.setattr(
+        codex_runtime.CodexHookAdapter,
+        "verify_ingress",
+        staticmethod(
+            lambda payload, **kwargs: SimpleNamespace(
+                status=codex_runtime.HookTrustStatus.VERIFIED,
+                reason="",
+                agent_native_session_id="native-session",
+                turn_id="turn-1",
+                tool_use_id="tool-1",
+                tool_name="Bash",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        codex_runtime,
+        "normalize_evidence",
+        lambda *args, **kwargs: SimpleNamespace(actions=()),
+    )
+
+    result = controller.evaluate(_native_hook_payload())
+
+    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "PRETOOL_NORMALIZATION_FAILED" in result["reason"]
+    assert controller._errors == [
+        "PRETOOL_NORMALIZATION_DID_NOT_PRODUCE_ONE_ACTION"
+    ]
+
+
 def test_codex_hook_broker_round_trip_is_capability_authenticated(
     tmp_path: Path,
     monkeypatch,

@@ -164,7 +164,10 @@ class CodexPreToolController:
             actions = tuple(normalized.actions)
             if len(actions) != 1:
                 self._record_error("PRETOOL_NORMALIZATION_DID_NOT_PRODUCE_ONE_ACTION")
-                return {}
+                # An empty response is Codex hook success and therefore
+                # continues the tool call.  A bound Protected Run must not
+                # turn an unclassifiable PreTool event into that fall-through.
+                return protected_pretool_deny("PRETOOL_NORMALIZATION_FAILED")
             action = actions[0]
             launch_context = self.launch_context_provider()
             attribution = AttributionEngine(
