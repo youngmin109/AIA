@@ -97,6 +97,11 @@ def _parser() -> argparse.ArgumentParser:
     hook_commands = hook.add_subparsers(dest="hook_command", required=True)
     install = hook_commands.add_parser("install", help="install the AIA Hook definition")
     install.add_argument("--path", type=Path, help="hooks.json path")
+    uninstall = hook_commands.add_parser(
+        "uninstall",
+        help="remove only the AIA Hook definition",
+    )
+    uninstall.add_argument("--path", type=Path, help="hooks.json path")
 
     setup = commands.add_parser(
         "setup",
@@ -621,6 +626,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             path = CodexHookInstaller(args.path).install()
             print(f"Codex Hook installed: {path}")
             print("Review and trust this Hook in Codex before starting a protected run.")
+            return 0
+        if args.command == "hook" and args.hook_command == "uninstall":
+            path = CodexHookInstaller(args.path).uninstall()
+            print(f"AIA Codex Hook removed (other Hooks preserved): {path}")
             return 0
         if args.command == "setup":
             return _setup(args)

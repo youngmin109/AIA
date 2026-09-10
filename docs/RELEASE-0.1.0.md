@@ -36,6 +36,10 @@
 
 ## 사용 시작
 
+Windows 소스 체크아웃에서는 [INSTALL.md](../INSTALL.md)의 설치 스크립트로
+잠금된 환경을 준비할 수 있다. AIA가 추가한 Hook만 되돌릴 때는
+`uv run aia hook uninstall`을 사용한다.
+
 ```powershell
 uv sync
 uv run aia doctor

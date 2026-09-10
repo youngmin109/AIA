@@ -62,3 +62,25 @@ def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path)
         "mcp__filesystem__read_file|mcp__fs__read"
     )
     assert updated["hooks"]["PreToolUse"][1]["matcher"] == "Bash"
+
+
+def test_codex_hook_uninstall_removes_only_aia_handlers(tmp_path: Path) -> None:
+    path = tmp_path / "hooks.json"
+    python_executable = tmp_path / "python.exe"
+    installer = CodexHookInstaller(path, python_executable=python_executable)
+    installer.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    )
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    installer.uninstall()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    assert installer.is_installed() is False
+    assert installer.is_posttool_installed() is False
+    assert updated["hooks"]["PreToolUse"] == [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    ]
+    assert updated["hooks"]["PostToolUse"] == []

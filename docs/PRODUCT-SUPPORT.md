@@ -35,6 +35,13 @@ uv run aia policy validate C:\workspace\policies\my-policy.json
 함께 설치한다. 기존 PreToolUse만 설치된 설정도 보호 실행은 계속 사용할 수 있지만,
 PostToolUse가 없으면 실제 도구 실행 여부를 확인하는 증거가 줄어든다.
 
+AIA를 제거하거나 Hook 설정을 되돌릴 때는 다음 명령을 사용한다. AIA가 추가한
+Handler만 제거하고 다른 사용자 Hook은 보존한다.
+
+```powershell
+uv run aia hook uninstall
+```
+
 Codex의 `/hooks` 화면에서 AIA Hook을 직접 검토하고 신뢰한 다음 보호 실행을
 시작한다.
 

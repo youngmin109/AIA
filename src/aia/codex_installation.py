@@ -128,6 +128,54 @@ class CodexHookInstaller:
                         for handler in (entry.get("hooks") or ())
                     ):
                         entry["matcher"] = self._MATCHER
+        self._write(document)
+        return self.path
+
+    def uninstall(self) -> Path:
+        """Remove only AIA's Hook handlers and preserve all user Hooks."""
+
+        if not self.path.exists():
+            return self.path
+        document = self._read()
+        hooks = document.get("hooks")
+        if not isinstance(hooks, dict):
+            return self.path
+
+        changed = False
+        for event in self._EVENTS:
+            entries = hooks.get(event)
+            if not isinstance(entries, list):
+                continue
+            retained_entries: list[Any] = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    retained_entries.append(entry)
+                    continue
+                handlers = entry.get("hooks")
+                if not isinstance(handlers, list):
+                    retained_entries.append(entry)
+                    continue
+                retained_handlers = [
+                    handler for handler in handlers if not self._is_aia_handler(handler)
+                ]
+                if len(retained_handlers) != len(handlers):
+                    changed = True
+                if retained_handlers:
+                    entry["hooks"] = retained_handlers
+                    retained_entries.append(entry)
+                elif handlers:
+                    changed = True
+                else:
+                    retained_entries.append(entry)
+            if len(retained_entries) != len(entries):
+                changed = True
+            hooks[event] = retained_entries
+
+        if changed:
+            self._write(document)
+        return self.path
+
+    def _write(self, document: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         encoded = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
         temporary_path: Path | None = None
@@ -152,9 +200,16 @@ class CodexHookInstaller:
                 except OSError:
                     pass
             raise CodexHookInstallationError(
-                f"could not install Codex Hook at {self.path}"
+                f"could not update Codex Hook at {self.path}"
             ) from error
-        return self.path
+
+    def _is_aia_handler(self, handler: object) -> bool:
+        return (
+            isinstance(handler, Mapping)
+            and handler.get("type") == "command"
+            and handler.get("command") == self.command
+            and handler.get("commandWindows", self.command) == self.command
+        )
 
     def _is_event_installed(self, hooks: Mapping[str, Any], event: str) -> bool:
         entries = hooks.get(event)
