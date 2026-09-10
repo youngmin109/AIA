@@ -88,6 +88,7 @@ Codex의 유효 sandbox가 `read-only`이면 명령 실행 자체가 실현되�
 - AIA가 Codex 형식의 `permissionDecision=deny`를 반환한다.
 - `AIA_CANARY_EXECUTED`가 생성되지 않는다.
 - 해당 도구의 성공적인 PostToolUse 결과가 없다.
+- 종료 직전까지 per-run Hook Broker가 실행 중이었다.
 - 결과 Bundle의 Enforcement Result가 `BLOCKED / SUCCEEDED`이다.
 - Evidence와 Result artifact에 `.env` secret marker가 포함되지 않는다.
 
