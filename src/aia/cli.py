@@ -515,13 +515,20 @@ def _hook_verify(args: argparse.Namespace) -> int:
             payload["reason"] = "PROTECTED_RUN_SESSION_NOT_CREATED"
         else:
             reader = ResultBundleReader(control_root)
-            reader.read_result(session_id)
+            result = reader.read_result(session_id)
             entries = [
                 item
                 for item in reader.list_completed()
                 if item.get("session_id") == session_id
             ]
             history = entries[0] if entries else {}
+            payload["limitations"] = list(result.get("limitations") or ())
+            observation = result.get("agent_output_observation")
+            if isinstance(observation, dict):
+                payload["effective_approval_policy"] = observation.get(
+                    "effective_approval_policy"
+                )
+                payload["effective_sandbox"] = observation.get("effective_sandbox")
             payload["hook_event_count"] = reader.hook_event_count(session_id)
             payload["protection_state"] = history.get("protection_state")
             payload["bundle_status"] = (
@@ -554,11 +561,20 @@ def _hook_verify(args: argparse.Namespace) -> int:
                     payload["verified"] = False
                     payload["reason"] = f"HOOK_VERIFICATION_PERSIST_FAILED:{type(error).__name__}"
             elif payload["hook_event_count"] == 0:
-                payload["reason"] = (
-                    "HOOK_NOT_OBSERVED_PROBE_EXECUTED"
-                    if payload["probe_marker_created"]
-                    else "HOOK_EVENT_NOT_OBSERVED"
-                )
+                if any(
+                    item in payload.get("limitations", ())
+                    for item in (
+                        "CODEX_SANDBOX_DOWNGRADED",
+                        "CODEX_APPROVAL_POLICY_DOWNGRADED",
+                    )
+                ):
+                    payload["reason"] = "CODEX_EXECUTION_POLICY_DOWNGRADED"
+                else:
+                    payload["reason"] = (
+                        "HOOK_NOT_OBSERVED_PROBE_EXECUTED"
+                        if payload["probe_marker_created"]
+                        else "HOOK_EVENT_NOT_OBSERVED"
+                    )
             else:
                 payload["reason"] = "PROTECTED_RUN_DEGRADED"
             # Keep the result Bundle in the user's Control Root, but do not
@@ -578,9 +594,23 @@ def _hook_verify(args: argparse.Namespace) -> int:
         print(f"이유: {payload['reason']}")
         print(f"Hook Events: {payload['hook_event_count']}")
         print(f"Protection: {payload['protection_state']}")
+        if payload.get("effective_sandbox") or payload.get("effective_approval_policy"):
+            print(
+                "Codex 실행 정책: "
+                f"sandbox={payload.get('effective_sandbox') or 'unknown'}, "
+                f"approval={payload.get('effective_approval_policy') or 'unknown'}"
+            )
+        if payload.get("limitations"):
+            print(f"제한사항: {', '.join(str(item) for item in payload['limitations'])}")
         print("임시 Probe Workspace: 삭제됨")
         if not payload["verified"]:
-            print("[다음] Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요.")
+            if payload["reason"] == "CODEX_EXECUTION_POLICY_DOWNGRADED":
+                print(
+                    "[다음] Codex의 sandbox/approval 설정을 확인하고, "
+                    "AIA가 요청한 workspace-write/on-request가 적용되는 환경에서 다시 실행하세요."
+                )
+            else:
+                print("[다음] Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요.")
     return 0 if payload["verified"] else 1
 
 

@@ -64,7 +64,9 @@ uv run aia hook verify
 이 명령은 임시 Workspace에서 무해한 Probe를 실행하고, Session-bound Hook Event와
 유효한 Result Bundle을 확인한다. Probe Workspace는 검증 뒤 삭제되며, 검증 결과
 Bundle은 Control Root에 남는다. `NOT_VERIFIED`이면 사용자는 Codex `/hooks`에서
-AIA Hook을 검토·신뢰한 뒤 다시 검증해야 한다.
+AIA Hook을 검토·신뢰한 뒤 다시 검증해야 한다. `CODEX_EXECUTION_POLICY_DOWNGRADED`가
+나오면 현재 Codex 실행 환경이 AIA가 요청한 sandbox 또는 approval 설정을 적용하지
+않은 상태이므로, 보호 실행을 시작하지 않고 실행 환경을 먼저 고쳐야 한다.
 
 AIA를 제거하거나 Hook 설정을 되돌릴 때는 다음 명령을 사용한다. AIA가 추가한
 Handler만 제거하고 다른 사용자 Hook은 보존한다.
