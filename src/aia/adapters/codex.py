@@ -178,10 +178,10 @@ class CodexAdapter:
                 (
                     "-c",
                     "features.hooks=true",
-                    "-c",
-                    self._hook_config(self.hook_command),
                 )
             )
+            for hook_config in self._hook_configs(self.hook_command):
+                argv.extend(("-c", hook_config))
             if self.allow_hook_trust_bypass:
                 argv.append("--dangerously-bypass-hook-trust")
         stdin_bytes = b""
@@ -213,6 +213,22 @@ class CodexAdapter:
         return (
             "hooks.PreToolUse=[{matcher=\"Bash|apply_patch|Edit|Write\","
             f"hooks=[{{type=\"command\",command={encoded},commandWindows={encoded}}}]}}]"
+        )
+
+    @classmethod
+    def _hook_configs(cls, command: str) -> tuple[str, ...]:
+        """Build the enforcement and post-tool observation overrides."""
+
+        import json
+
+        encoded = json.dumps(command, ensure_ascii=False)
+        handler = (
+            "[{matcher=\"Bash|apply_patch|Edit|Write\","
+            f"hooks=[{{type=\"command\",command={encoded},commandWindows={encoded}}}]}}]"
+        )
+        return (
+            f"hooks.PreToolUse={handler}",
+            f"hooks.PostToolUse={handler}",
         )
 
     @staticmethod

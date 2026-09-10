@@ -277,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
                 session_id=session.session_id,
                 launch_id=launch_id,
                 control_root=preparation.control_directory,
-                handler=controller.evaluate,
+                handler=controller.handle,
             )
 
         def capture_popen(argv: list[str], **kwargs: Any) -> Any:
@@ -392,9 +392,13 @@ def main(argv: list[str] | None = None) -> int:
         ]
         canary_path = workspace / "AIA_CANARY_EXECUTED"
         report["canary_executed"] = canary_path.exists()
+        report["posttool_observation_count"] = sum(
+            1
+            for record in records
+            if record.record_type.value == "POSTTOOL_OBSERVED"
+        )
         report["posttool_success_evidence"] = any(
-            record.record_type.value == "POSTTOOL_RESULT"
-            and record.payload.get("success") is True
+            record.record_type.value == "POSTTOOL_OBSERVED"
             for record in records
         )
         for stream in output_handles:

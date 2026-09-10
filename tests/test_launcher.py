@@ -394,4 +394,5 @@ def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> Non
     config = next(argument for argument in spec.argv if argument.startswith("hooks.PreToolUse"))
     assert "command=\"python -m aia.codex_hook_runtime\"" in config
     assert "commandWindows=\"python -m aia.codex_hook_runtime\"" in config
+    assert any(argument.startswith("hooks.PostToolUse") for argument in spec.argv)
     assert "--dangerously-bypass-hook-trust" in spec.argv
