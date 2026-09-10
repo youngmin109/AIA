@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `e109098` |
+| 코드 기준 | `9f34806` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **494 passed, 3 skipped** |
+| 전체 pytest | **498 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -37,6 +37,8 @@
   모든 런타임 센서가 실행 중 `HEALTHY`이고 종료 시 `STOPPED`여야 한다.
 - 웹 콘솔에서 `CUSTOM` 정책을 선택하면 사용자 정책 JSON 경로를 입력할 수 있다.
 - 로컬 콘솔은 `aia console --open`으로 기본 브라우저에서 열 수 있다.
+- 보호 실행에 바인딩된 PreToolUse Hook은 Broker·Capability 오류와 내부 정규화
+  실패를 빈 응답으로 통과시키지 않고 Codex blocking exit path로 처리한다.
 
 ## 해석상 제한
 
