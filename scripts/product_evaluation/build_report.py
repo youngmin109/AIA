@@ -44,6 +44,7 @@ REQUIRED_FIELDS = {
 NUMERIC_FIELDS = {
     "elapsed_ms",
     "ready_ms",
+    "codex_start_ms",
     "checkpoint_ms",
     "recovery_ms",
     "integrity_ms",
@@ -288,6 +289,7 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for field in (
             "elapsed_ms",
             "ready_ms",
+            "codex_start_ms",
             "checkpoint_ms",
             "recovery_ms",
             "integrity_ms",
@@ -552,6 +554,67 @@ def _number(value: float | None, suffix: str = "") -> str:
     return f"{value:.1f}{suffix}"
 
 
+_PERFORMANCE_ROWS = (
+    ("elapsed_ms", "전체 작업 시간", "보호 실행 시작부터 작업 종료까지"),
+    ("ready_ms", "AIA 보호 준비 시간", "PREPARING에서 READY까지"),
+    ("codex_start_ms", "Codex 시작 시간", "READY에서 Codex 프로세스가 실행될 때까지"),
+    ("checkpoint_ms", "Safe Checkpoint 시간", "Workspace 기준점 생성과 검증"),
+    ("pretool_latency_ms", "PreTool 판단 지연", "Hook 입력부터 정책·Gate 판정까지"),
+    ("recovery_ms", "Recovery 시간", "복원 작업 자체에 걸린 시간"),
+    ("integrity_ms", "Integrity 검증 시간", "복원 후 경로·존재·SHA-256 검증"),
+    ("finalization_ms", "결과 확정 시간", "Evidence Bundle과 감사 결과 확정"),
+)
+
+
+def _timing_cell(metric: dict[str, Any] | None) -> str:
+    if not metric:
+        return '<span class="na">미측정</span>'
+    return (
+        f"<div><b>N={metric['n']}</b></div>"
+        f"<div>최소 {metric['min']:.1f} ms</div>"
+        f"<div>중앙값 {metric['median']:.1f} ms</div>"
+        f"<div>P95 {metric['p95']:.1f} ms</div>"
+        f"<div>최대 {metric['max']:.1f} ms</div>"
+    )
+
+
+def _delta_cell(delta: dict[str, float] | None) -> str:
+    if not delta:
+        return '<span class="na">비교 불가</span>'
+    return (
+        f"<div>중앙값 {delta['median_ms']:+.1f} ms</div>"
+        f"<div>P95 {delta['p95_ms']:+.1f} ms</div>"
+    )
+
+
+def _performance_table(summary: dict[str, Any]) -> str:
+    rows: list[str] = []
+    timings = summary.get("timings", {})
+    deltas = summary.get("timing_deltas", {})
+    for field, label, definition in _PERFORMANCE_ROWS:
+        metric = timings.get(field) or {}
+        off = metric.get("AIA_OFF")
+        on = metric.get("AIA_ON")
+        rows.append(
+            "<tr>"
+            f"<th scope=\"row\">{escape(label)}<small>{escape(definition)}</small></th>"
+            f"<td>{_timing_cell(off)}</td>"
+            f"<td>{_timing_cell(on)}</td>"
+            f"<td>{_delta_cell(deltas.get(field))}</td>"
+            "</tr>"
+        )
+    return (
+        '<section class="performance">'
+        '<h2>성능 평가 항목</h2>'
+        '<p class="table-note">각 조건의 실제 기록 수(N), 최소값, 중앙값, P95, 최대값을 표시합니다. '
+        'AIA OFF에 해당하지 않는 보호 단계는 미측정으로 표시합니다. 변화량은 AIA ON − AIA OFF입니다.</p>'
+        '<div class="table-wrap"><table class="performance-table">'
+        '<thead><tr><th>측정 항목</th><th>AIA OFF</th><th>AIA ON</th><th>변화량</th></tr></thead>'
+        f"<tbody>{''.join(rows)}</tbody>"
+        '</table></div></section>'
+    )
+
+
 def _rate_value(summary: dict[str, Any], metric: str, condition: str) -> float | None:
     item = summary["security"][metric].get(condition)
     return item["rate"] if item else None
@@ -644,6 +707,18 @@ h1 {{ margin: 0 0 8px; font-size: 30px; }}
 .limitations h2 {{ margin-top: 0; font-size: 20px; }}
 .limitations li {{ margin: 7px 0; }}
 .method {{ background: #eaf2ff; border: 1px solid #b9d1ff; border-radius: 14px; padding: 18px 24px; margin-top: 22px; }}
+.performance {{ background: white; border: 1px solid #dde4ef; border-radius: 14px; padding: 22px; margin: 18px 0; }}
+.performance h2 {{ margin: 0 0 8px; font-size: 20px; }}
+.table-note {{ color: #5b667a; margin: 0 0 16px; }}
+.performance-table {{ width: 100%; border-collapse: collapse; min-width: 840px; }}
+.performance-table th, .performance-table td {{ border-bottom: 1px solid #e5eaf2; padding: 12px 14px; text-align: left; vertical-align: top; }}
+.performance-table thead th {{ background: #f1f5fa; color: #526078; font-size: 12px; }}
+.performance-table tbody th {{ color: #172033; min-width: 180px; }}
+.performance-table tbody th small {{ display: block; color: #64748b; font-weight: 400; margin-top: 4px; }}
+.performance-table td {{ color: #334155; line-height: 1.5; }}
+.performance-table td:nth-child(2) {{ background: #f7f8f9; }}
+.performance-table td:nth-child(3) {{ background: #eef4ff; }}
+.na {{ color: #94a3b8; }}
 @media (max-width: 800px) {{ .page {{ padding: 16px; }} h1 {{ font-size: 24px; }} }}
 </style>
 </head>
@@ -652,6 +727,7 @@ h1 {{ margin: 0 0 8px; font-size: 30px; }}
 <h1>AIA 사용 전후 정량 평가</h1>
 <div class="subtitle">평가 ID: {escape(str(summary['evaluation_id']))} · 실행 {summary['run_count']}건 · 시나리오 {summary['scenario_count']}개</div>
 <section class="cards">{card_html}</section>
+{_performance_table(summary)}
 <section class="chart">{chart_html[0]}</section>
 <section class="chart">{chart_html[1]}</section>
 <section class="chart">{chart_html[2]}</section>
@@ -683,6 +759,27 @@ def write_report(input_path: Path, output_path: Path, summary_path: Path | None 
     )
     (charts_path / "latency.json").write_text(
         json.dumps(summary["timings"], ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (charts_path / "performance-table.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "field": field,
+                        "label": label,
+                        "definition": definition,
+                        "AIA_OFF": summary["timings"].get(field, {}).get("AIA_OFF"),
+                        "AIA_ON": summary["timings"].get(field, {}).get("AIA_ON"),
+                        "delta": summary["timing_deltas"].get(field),
+                    }
+                    for field, label, definition in _PERFORMANCE_ROWS
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     (charts_path / "evidence-funnel.json").write_text(

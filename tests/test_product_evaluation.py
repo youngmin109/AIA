@@ -9,6 +9,7 @@ from scripts.product_evaluation.build_report import (
     EvaluationDataError,
     build_summary,
     load_runs,
+    _performance_table,
     statistics_for,
 )
 from scripts.product_evaluation.scenarios import SCENARIOS
@@ -130,6 +131,21 @@ def test_summary_reports_quality_rates_and_timing_delta() -> None:
         "median_ms": 25.0,
         "p95_ms": 25.0,
     }
+
+
+def test_report_contains_readable_performance_table_with_percentiles() -> None:
+    rows = [
+        _run(condition="AIA_OFF", repetition=1, elapsed_ms=100, ready_ms="NOT_APPLICABLE"),
+        _run(condition="AIA_ON", repetition=1, elapsed_ms=125, ready_ms=12),
+    ]
+
+    html = _performance_table(build_summary(rows))
+
+    assert "성능 평가 항목" in html
+    assert "AIA 보호 준비 시간" in html
+    assert "중앙값" in html
+    assert "P95" in html
+    assert "변화량" in html
 
 
 def test_load_runs_rejects_unknown_scenario(tmp_path: Path) -> None:

@@ -72,6 +72,10 @@
       "AIA_OFF": null,
       "AIA_ON": null
     },
+    "codex_start_ms": {
+      "AIA_OFF": null,
+      "AIA_ON": null
+    },
     "checkpoint_ms": {
       "AIA_OFF": null,
       "AIA_ON": null
@@ -99,6 +103,7 @@
       "p95_ms": 4632.004200015217
     },
     "ready_ms": null,
+    "codex_start_ms": null,
     "checkpoint_ms": null,
     "recovery_ms": null,
     "integrity_ms": null,

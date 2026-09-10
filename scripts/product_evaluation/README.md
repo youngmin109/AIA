@@ -40,10 +40,14 @@ summary.json
 charts/summary-metrics.json
 charts/scenario-outcomes.json
 charts/latency.json
+charts/performance-table.json
 charts/evidence-funnel.json
 ```
 
 `report.html`은 Plotly JavaScript를 문서 안에 포함하므로 네트워크 없이 브라우저에서 열 수 있다.
+보고서에는 전체 작업, 보호 준비, Checkpoint, PreTool 판단, Recovery, Integrity,
+결과 확정의 성능 평가 항목별로 AIA OFF/AIA ON의 N·최소값·중앙값·P95·최대값과
+변화량을 표로 표시한다.
 
 ## 결정론적 Fixture 실행
 
