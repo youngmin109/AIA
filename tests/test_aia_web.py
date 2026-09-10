@@ -121,7 +121,11 @@ class FakeService:
 
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
-    assert client.get("/").status_code == 200
+    new_run = client.get("/")
+    assert new_run.status_code == 200
+    assert "보호 실행 시작" in new_run.text
+    assert "작업 폴더 선택" in new_run.text
+    assert "AIA는 실제 도구 요청을 관찰·통제합니다" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/workspaces/validate", params={"path": "C:/workspace"}).json()["valid"] is True
     created = client.post("/api/runs", json={"workspace": "C:/workspace", "task": "inspect"})
