@@ -1,12 +1,20 @@
 [CmdletBinding()]
 param(
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\dist\release"),
+    [string]$OutputRoot = "",
     [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
 
-$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$scriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($scriptRoot)) {
+    $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($scriptRoot)) {
+    throw "The package script directory could not be determined"
+}
+
+$repositoryRoot = (Resolve-Path (Join-Path $scriptRoot "..")).Path
 $pyprojectPath = Join-Path $repositoryRoot "pyproject.toml"
 if (-not (Test-Path -LiteralPath $pyprojectPath)) {
     throw "pyproject.toml was not found: $repositoryRoot"
@@ -19,11 +27,17 @@ if (-not $versionMatch.Success) {
 }
 $version = $versionMatch.Groups[1].Value
 
-$resolvedOutputRoot = if ([IO.Path]::IsPathRooted($OutputRoot)) {
-    [IO.Path]::GetFullPath($OutputRoot)
+$effectiveOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    Join-Path $repositoryRoot "dist\release"
 }
 else {
-    [IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputRoot))
+    $OutputRoot
+}
+$resolvedOutputRoot = if ([IO.Path]::IsPathRooted($effectiveOutputRoot)) {
+    [IO.Path]::GetFullPath($effectiveOutputRoot)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $repositoryRoot $effectiveOutputRoot))
 }
 $releaseName = "aia-$version"
 $releaseDirectory = Join-Path $resolvedOutputRoot $releaseName

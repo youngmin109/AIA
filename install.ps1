@@ -36,14 +36,6 @@ try {
         throw "uv sync failed with exit code $LASTEXITCODE. Close any running aia-web or AIA Python process and run the installer again."
     }
 
-    if ($SetupHook) {
-        Write-Host "[AIA] Installing the AIA Codex Hook definition..."
-        & uv run aia setup
-        if ($LASTEXITCODE -ne 0) {
-            throw "AIA Hook setup failed with exit code $LASTEXITCODE"
-        }
-    }
-
     if ($InstallTool) {
         Write-Host "[AIA] Installing the aia command as a user-level uv tool..."
         & uv tool install --force .
@@ -52,9 +44,31 @@ try {
         }
     }
 
+    if ($SetupHook) {
+        Write-Host "[AIA] Installing the AIA Codex Hook definition..."
+        if ($InstallTool) {
+            $aiaCommand = Get-Command aia -ErrorAction SilentlyContinue
+            if ($null -eq $aiaCommand) {
+                throw "The aia command is not on PATH after uv tool install. Open a new PowerShell window and run 'aia setup'."
+            }
+            & $aiaCommand.Source setup
+        }
+        else {
+            & uv run aia setup
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "AIA Hook setup failed with exit code $LASTEXITCODE"
+        }
+    }
+
     if (-not $SkipDoctor) {
         Write-Host "[AIA] Checking the local protected-run prerequisites..."
-        & uv run aia doctor
+        if ($InstallTool) {
+            & aia doctor
+        }
+        else {
+            & uv run aia doctor
+        }
         $doctorExitCode = $LASTEXITCODE
         if ($doctorExitCode -ne 0) {
             Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Run 'uv run aia doctor' for details."
