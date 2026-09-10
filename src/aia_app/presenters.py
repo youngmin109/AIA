@@ -185,6 +185,27 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     action_outcomes = result.get("action_outcomes") or []
     agent_execution = result.get("agent_execution") or {}
     output_observation = agent_execution.get("output_observation") or {}
+    effective_sandbox = (
+        output_observation.get("effective_sandbox")
+        if isinstance(output_observation, Mapping)
+        else None
+    )
+    effective_approval_policy = (
+        output_observation.get("effective_approval_policy")
+        if isinstance(output_observation, Mapping)
+        else None
+    )
+    requested_sandbox = "workspace-write"
+    requested_approval_policy = "on-request"
+    if effective_sandbox is None and effective_approval_policy is None:
+        execution_policy_status = "NOT_OBSERVED"
+    elif (
+        effective_sandbox == requested_sandbox
+        and effective_approval_policy == requested_approval_policy
+    ):
+        execution_policy_status = "MATCHED"
+    else:
+        execution_policy_status = "DEGRADED"
     verified_block = any(
         isinstance(item, Mapping)
         and item.get("enforcement_action") == "BLOCKED"
@@ -236,6 +257,11 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "bundle_status": bundle_status,
         "codex_block_confirmation": codex_block_confirmation,
         "codex_block_confirmation_reason": output_observation.get("reason"),
+        "execution_policy_status": execution_policy_status,
+        "requested_sandbox": requested_sandbox,
+        "requested_approval_policy": requested_approval_policy,
+        "effective_sandbox": effective_sandbox,
+        "effective_approval_policy": effective_approval_policy,
         "ended_at": result.get("ended_at"),
         "enforcement_results": list(result.get("enforcement_results") or []),
         "incidents": incidents,

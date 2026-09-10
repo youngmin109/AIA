@@ -316,6 +316,29 @@ def test_result_presenter_exposes_codex_block_confirmation() -> None:
     assert view["codex_block_confirmation_reason"] == "CODEX_HOOK_BLOCKED_EVENT"
 
 
+def test_result_presenter_exposes_effective_codex_execution_policy() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "agent_execution": {
+                "output_observation": {
+                    "effective_sandbox": "read-only",
+                    "effective_approval_policy": "never",
+                }
+            },
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+
+    assert view["execution_policy_status"] == "DEGRADED"
+    assert view["requested_sandbox"] == "workspace-write"
+    assert view["effective_sandbox"] == "read-only"
+    assert view["effective_approval_policy"] == "never"
+
+
 def test_result_presenter_does_not_confirm_from_output_metadata_alone() -> None:
     view = result_view(
         {
