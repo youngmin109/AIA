@@ -33,6 +33,7 @@ from aia import (
     ProtectedLauncher,
     ProtectedRunSession,
     RawEvidenceStore,
+    RecoveryCoordinator,
     RuntimePolicyEvaluator,
     SessionFinalizer,
     SessionMode,
@@ -767,6 +768,14 @@ class RunApplicationService:
             self._capture_codex_execution_observation(record, codex_output_handles)
             self._confirm_codex_blocks(record)
             self._process_evidence(record)
+            recovery_verification = self._recover_after_containment(
+                record,
+                session=session,
+                preparation=preparation,
+                checkpoint=checkpoint,
+                lease=lease,
+                launch_context=launch.context,
+            )
             raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
             process_identity = launch.context.root_process_identity
             end_reason = (
@@ -781,6 +790,8 @@ class RunApplicationService:
             )
             if record.runtime.get("post_action_containment_errors"):
                 limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
+            if recovery_verification is not None and not recovery_verification.verified_recovery_success:
+                limitations.append("RECOVERY_NOT_VERIFIED")
             final = SessionFinalizer(
                 evidence_store=raw_store,
                 sensors=sensors,
@@ -796,6 +807,12 @@ class RunApplicationService:
                 attribution_results=record.runtime.get("attribution_results", ()),
                 enforcement_results=record.runtime.get("gate_results", ()),
                 termination_result=record.runtime.get("process_termination_result"),
+                recovery_result=recovery_verification,
+                integrity_result=(
+                    recovery_verification.integrity_result
+                    if recovery_verification is not None
+                    else None
+                ),
                 active_policy=preparation.active_policy,
                 checkpoint=checkpoint,
                 launch_context=launch.context,
@@ -983,6 +1000,57 @@ class RunApplicationService:
         if not candidate.is_relative_to(requests):
             raise ValueError("stop request path escaped control root")
         return candidate
+
+    def _recover_after_containment(
+        self,
+        record: RunRecord,
+        *,
+        session: ProtectedRunSession,
+        preparation: Any,
+        checkpoint: Any,
+        lease: Any,
+        launch_context: Any,
+    ) -> Any | None:
+        """Run Recovery only after a post-action termination attempt.
+
+        A pre-tool deny does not mutate the Workspace and therefore does not
+        trigger Recovery.  Recovery is eligible only for the derived
+        POST_ACTION gate that authorized process termination.  The coordinator
+        independently verifies the termination result, session, lease, and
+        checkpoint before it mutates anything.
+        """
+
+        termination_result = record.runtime.get("process_termination_result")
+        gate_results = tuple(record.runtime.get("post_action_gate_results", ()))
+        if termination_result is None or not gate_results:
+            return None
+        gate_result = next(
+            (
+                item
+                for item in reversed(gate_results)
+                if getattr(getattr(item, "route", None), "value", None)
+                == "PROCESS_TERMINATION"
+            ),
+            None,
+        )
+        if gate_result is None:
+            return None
+        launch_id = getattr(launch_context, "launch_id", None)
+        verification = RecoveryCoordinator(
+            record.runtime["lease_manager"]
+        ).recover(
+            gate_result,
+            termination_result,
+            session=session,
+            checkpoint=checkpoint,
+            workspace_lease=lease,
+            launch_context=launch_context,
+            expected_launch_id=launch_id,
+            workspace=session.workspace,
+        )
+        record.runtime["recovery_verification"] = verification
+        self._persist_runtime_state(record)
+        return verification
 
     def _process_evidence(self, record: RunRecord) -> None:
         session: ProtectedRunSession = record.runtime["session"]

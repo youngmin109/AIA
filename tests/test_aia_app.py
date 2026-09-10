@@ -149,6 +149,77 @@ def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path)
         service.shutdown()
 
 
+def test_recovery_is_requested_only_for_post_action_termination(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.runtime["lease_manager"] = object()
+    termination = object()
+    gate = SimpleNamespace(route=EnforcementRoute.PROCESS_TERMINATION)
+    record.runtime["process_termination_result"] = termination
+    record.runtime["post_action_gate_results"] = (gate,)
+    calls: dict[str, object] = {}
+
+    class FakeRecoveryCoordinator:
+        def __init__(self, lease_manager) -> None:
+            calls["lease_manager"] = lease_manager
+
+        def recover(self, gate_result, termination_result, **kwargs):
+            calls["gate_result"] = gate_result
+            calls["termination_result"] = termination_result
+            calls["kwargs"] = kwargs
+            return SimpleNamespace(
+                verified_recovery_success=True,
+                integrity_result=SimpleNamespace(integrity_status="VERIFIED"),
+            )
+
+    monkeypatch.setattr("aia_app.service.RecoveryCoordinator", FakeRecoveryCoordinator)
+    session = SimpleNamespace(session_id=record.session_id, workspace=tmp_path)
+    launch_context = SimpleNamespace(launch_id="launch-1")
+    try:
+        result = service._recover_after_containment(
+            record,
+            session=session,
+            preparation=object(),
+            checkpoint=object(),
+            lease=object(),
+            launch_context=launch_context,
+        )
+
+        assert result.verified_recovery_success is True
+        assert calls["lease_manager"] is record.runtime["lease_manager"]
+        assert calls["gate_result"] is gate
+        assert calls["termination_result"] is termination
+        assert calls["kwargs"]["expected_launch_id"] == "launch-1"
+        assert record.runtime["recovery_verification"] is result
+    finally:
+        service.shutdown()
+
+
+def test_pretool_only_block_does_not_trigger_recovery(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.runtime["process_termination_result"] = object()
+    record.runtime["post_action_gate_results"] = (
+        SimpleNamespace(route=EnforcementRoute.PRETOOL_BLOCK),
+    )
+    monkeypatch.setattr(
+        "aia_app.service.RecoveryCoordinator",
+        lambda _lease_manager: pytest.fail("Recovery must not run for a pre-tool deny"),
+    )
+    try:
+        result = service._recover_after_containment(
+            record,
+            session=SimpleNamespace(session_id=record.session_id, workspace=tmp_path),
+            preparation=object(),
+            checkpoint=object(),
+            lease=object(),
+            launch_context=SimpleNamespace(launch_id="launch-1"),
+        )
+        assert result is None
+    finally:
+        service.shutdown()
+
+
 def test_presenters_keep_sensitive_target_values_out_of_views() -> None:
     action = {
         "action_id": "a1",
