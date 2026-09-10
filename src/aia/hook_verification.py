@@ -13,7 +13,7 @@ from typing import Any
 from .codex_installation import CodexHookInstaller
 
 
-_SCHEMA_VERSION = "aia-hook-verification-2"
+_SCHEMA_VERSION = "aia-hook-verification-3"
 _RUNTIME_PATH = (Path(__file__).resolve().parent / "codex_hook_runtime.py").resolve()
 
 
@@ -36,6 +36,16 @@ class HookVerificationStore:
             return None
 
     @classmethod
+    def _codex_config_path(cls) -> Path:
+        configured = os.environ.get("CODEX_HOME")
+        root = (
+            Path(configured).expanduser().resolve(strict=False)
+            if configured
+            else (Path.home() / ".codex").resolve(strict=False)
+        )
+        return root / "config.toml"
+
+    @classmethod
     def _fingerprint(
         cls,
         installer: CodexHookInstaller,
@@ -47,6 +57,7 @@ class HookVerificationStore:
         runtime_sha256 = cls._sha256(_RUNTIME_PATH)
         if hook_sha256 is None or runtime_sha256 is None:
             return None
+        config_path = cls._codex_config_path()
         try:
             stat = executable_path.stat()
         except OSError:
@@ -54,6 +65,8 @@ class HookVerificationStore:
         return {
             "hook_path": str(hook_path),
             "hook_sha256": hook_sha256,
+            "codex_config": str(config_path),
+            "codex_config_sha256": cls._sha256(config_path),
             "aia_hook_runtime": str(_RUNTIME_PATH),
             "aia_hook_runtime_sha256": runtime_sha256,
             "codex_executable": str(executable_path),

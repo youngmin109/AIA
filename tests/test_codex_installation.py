@@ -103,7 +103,14 @@ def test_codex_hook_uninstall_removes_only_aia_handlers(tmp_path: Path) -> None:
     assert updated["hooks"]["PostToolUse"] == []
 
 
-def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(tmp_path: Path) -> None:
+def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text("approval_policy = 'on-request'\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
     hook_path = tmp_path / "hooks.json"
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex-test-build-1")
@@ -121,11 +128,38 @@ def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(tmp_path: Pat
     assert store.is_current(installer, executable) is True
     document = store.read()
     assert document is not None
-    assert document["schema_version"] == "aia-hook-verification-2"
+    assert document["schema_version"] == "aia-hook-verification-3"
+    assert document["codex_config_sha256"]
     assert document["aia_hook_runtime_sha256"]
     assert document["session_id"] == "session-1"
 
     hook_path.write_text(hook_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    assert store.is_current(installer, executable) is False
+
+
+def test_hook_verification_is_invalid_after_codex_config_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text("approval_policy = 'on-request'\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    config_path.write_text("approval_policy = 'never'\n", encoding="utf-8")
+
     assert store.is_current(installer, executable) is False
 
 
