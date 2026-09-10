@@ -832,6 +832,8 @@ class RunApplicationService:
                 limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
             if record.runtime.get("codex_sandbox_downgraded"):
                 limitations.append("CODEX_SANDBOX_DOWNGRADED")
+            if record.runtime.get("codex_approval_policy_downgraded"):
+                limitations.append("CODEX_APPROVAL_POLICY_DOWNGRADED")
             if recovery_verification is not None and not recovery_verification.verified_recovery_success:
                 limitations.append("RECOVERY_NOT_VERIFIED")
             final = SessionFinalizer(
@@ -885,11 +887,13 @@ class RunApplicationService:
                     and controller.events
                     and not controller.errors
                     and not record.runtime.get("codex_sandbox_downgraded")
+                    and not record.runtime.get("codex_approval_policy_downgraded")
                     else "ABORTED_DEGRADED"
                     if final.result.session_status is SessionStatus.ABORTED
                     else "COMPLETED_VERIFIED"
                     if controller.events and not controller.errors
                     and not record.runtime.get("codex_sandbox_downgraded")
+                    and not record.runtime.get("codex_approval_policy_downgraded")
                     else "COMPLETED_DEGRADED"
                 ),
                 hook_event_count=len(controller.events),
@@ -1235,6 +1239,11 @@ class RunApplicationService:
             and observation.effective_sandbox.casefold().startswith("read-only")
         ):
             record.runtime["codex_sandbox_downgraded"] = True
+        if (
+            observation.effective_approval_policy is not None
+            and observation.effective_approval_policy.casefold() != "on-request"
+        ):
+            record.runtime["codex_approval_policy_downgraded"] = True
 
     def _confirm_codex_blocks(self, record: RunRecord) -> None:
         """Attach a BLOCKED result only to a native, unambiguous Codex block."""
@@ -1465,6 +1474,13 @@ class RunApplicationService:
             for item in result.get("sensor_summary", [])
             if isinstance(item, dict)
         )
+        protection_downgraded = any(
+            item in {
+                "CODEX_SANDBOX_DOWNGRADED",
+                "CODEX_APPROVAL_POLICY_DOWNGRADED",
+            }
+            for item in result.get("limitations", [])
+        )
         aborted = (
             result.get("session_status") == "ABORTED"
             and result.get("session_end_reason") == "USER_ABORT"
@@ -1472,13 +1488,13 @@ class RunApplicationService:
         if aborted:
             protection_state = (
                 "ABORTED_VERIFIED"
-                if hook_events and not sensor_failed
+                if hook_events and not sensor_failed and not protection_downgraded
                 else "ABORTED_DEGRADED"
             )
         else:
             protection_state = (
                 "COMPLETED_VERIFIED"
-                if hook_events and not sensor_failed
+                if hook_events and not sensor_failed and not protection_downgraded
                 else "COMPLETED_DEGRADED"
             )
         return {
