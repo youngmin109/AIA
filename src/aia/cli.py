@@ -22,6 +22,7 @@ from aia import (
     EvidenceRecordType,
     EvidenceSource,
     ObservationStage,
+    Operation,
     PolicyProfile,
     ProtectedRunSession,
     RawEvidenceRecord,
@@ -118,6 +119,46 @@ def _parser() -> argparse.ArgumentParser:
     )
     validate.add_argument("path", type=Path)
     validate.add_argument("--json", action="store_true", help="print machine-readable output")
+    policy_evaluate = policy_commands.add_parser(
+        "evaluate",
+        help="preview a policy decision without starting an Agent",
+    )
+    policy_evaluate.add_argument(
+        "--policy",
+        type=Path,
+        help="custom Korean or canonical policy JSON path",
+    )
+    policy_evaluate.add_argument(
+        "--profile",
+        default="BASIC_DEVELOPMENT",
+        choices=(
+            "BASIC_DEVELOPMENT",
+            "CONSERVATIVE_SECURITY",
+            "FREE_DEVELOPMENT",
+        ),
+        help="built-in profile used when --policy is omitted",
+    )
+    policy_evaluate.add_argument(
+        "--operation",
+        required=True,
+        choices=tuple(operation.value for operation in Operation),
+        help="mechanical operation to preview",
+    )
+    policy_evaluate.add_argument(
+        "--path",
+        dest="target_path",
+        help="canonical path target for file operations",
+    )
+    policy_evaluate.add_argument(
+        "--command",
+        dest="raw_command",
+        help="raw command target for EXECUTE; the command is not run",
+    )
+    policy_evaluate.add_argument(
+        "--json",
+        action="store_true",
+        help="print machine-readable output",
+    )
     hook = commands.add_parser("hook", help="manage the stable Codex Hook Adapter")
     hook_commands = hook.add_subparsers(dest="hook_command", required=True)
     install = hook_commands.add_parser("install", help="install the AIA Hook definition")
@@ -1225,6 +1266,81 @@ def _init_policy(args: argparse.Namespace) -> int:
     return 0
 
 
+def _policy_evaluate(args: argparse.Namespace) -> int:
+    """Preview one target against an already resolved policy object."""
+
+    try:
+        if args.policy is not None:
+            resolved = resolve_profile(PolicyProfile.CUSTOM, args.policy)
+        else:
+            resolved = resolve_profile(PolicyProfile.from_value(args.profile))
+        operation = Operation(args.operation)
+        if operation is Operation.EXECUTE:
+            if args.target_path is not None:
+                raise ValueError("EXECUTE preview accepts --command, not --path")
+            if not isinstance(args.raw_command, str) or not args.raw_command.strip():
+                raise ValueError("EXECUTE preview requires --command")
+            evaluation = resolved.evaluate_target(
+                operation=operation,
+                raw_command=args.raw_command,
+            )
+            target_kind = "COMMAND"
+        else:
+            if args.raw_command is not None:
+                raise ValueError("file operation preview accepts --path, not --command")
+            if not isinstance(args.target_path, str) or not args.target_path.strip():
+                raise ValueError("file operation preview requires --path")
+            evaluation = resolved.evaluate_target(
+                operation=operation,
+                path=args.target_path,
+            )
+            target_kind = "PATH"
+    except (OSError, ValueError) as error:
+        print(f"정책 미리보기 실패: {error}")
+        return 2
+
+    payload = {
+        "policy_id": resolved.policy_id,
+        "policy_version": resolved.policy_version,
+        "profile": resolved.profile.value,
+        "operation": operation.value,
+        "target_kind": target_kind,
+        "policy_decision": evaluation.policy_decision.value,
+        "operation_effect": (
+            evaluation.operation_effect.value
+            if evaluation.operation_effect is not None
+            else None
+        ),
+        "asset_type": (
+            evaluation.asset_type.value if evaluation.asset_type is not None else None
+        ),
+        "matched_rule_ids": list(evaluation.matched_rule_ids),
+        "audit_record": evaluation.audit_record,
+        "reason": evaluation.reason,
+        "limitation": evaluation.limitation,
+    }
+    if args.json:
+        print(_json_text(payload))
+    else:
+        print("AIA 정책 미리보기")
+        print(f"Policy: {resolved.policy_id} v{resolved.policy_version}")
+        print(f"Profile: {resolved.profile.value}")
+        print(f"Operation: {operation.value}")
+        print(f"Decision: {evaluation.policy_decision.value}")
+        print(f"Effect: {payload['operation_effect'] or 'DEFAULT'}")
+        print(f"Asset Type: {payload['asset_type'] or 'NONE'}")
+        print(
+            "Matched Rules: "
+            + (", ".join(evaluation.matched_rule_ids) or "NONE")
+        )
+        if evaluation.reason:
+            print(f"Reason: {evaluation.reason}")
+        if evaluation.limitation:
+            print(f"Limitation: {evaluation.limitation}")
+        print("실제 Agent나 명령은 실행하지 않았습니다.")
+    return 0
+
+
 def _list_runs(args: argparse.Namespace) -> int:
     if args.limit < 0:
         print("AIA error: limit must be zero or greater")
@@ -1457,6 +1573,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _stop_run(args)
         if args.command == "policy" and args.policy_command == "validate":
             return _validate_policy(args)
+        if args.command == "policy" and args.policy_command == "evaluate":
+            return _policy_evaluate(args)
         if args.command == "policy" and args.policy_command == "profiles":
             return _policy_profiles(args)
         if args.command == "policy" and args.policy_command == "init":

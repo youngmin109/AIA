@@ -501,6 +501,47 @@ def test_policy_validate_parser_keeps_policy_path_and_json_flag(tmp_path) -> Non
     assert args.json is True
 
 
+def test_policy_evaluate_parser_supports_path_and_operation() -> None:
+    args = _parser().parse_args(
+        [
+            "policy",
+            "evaluate",
+            "--operation",
+            "READ",
+            "--path",
+            ".env",
+            "--json",
+        ]
+    )
+
+    assert args.policy_command == "evaluate"
+    assert args.operation == "READ"
+    assert args.target_path == ".env"
+    assert args.json is True
+
+
+def test_policy_evaluate_uses_resolved_profile_without_running_target(capsys) -> None:
+    exit_code = main(
+        [
+            "policy",
+            "evaluate",
+            "--profile",
+            "BASIC_DEVELOPMENT",
+            "--operation",
+            "DELETE",
+            "--path",
+            ".env",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["policy_decision"] == "VIOLATION"
+    assert payload["operation_effect"] == "DENY"
+    assert payload["matched_rule_ids"]
+
+
 def test_policy_profiles_parser_supports_json_output() -> None:
     args = _parser().parse_args(["policy", "profiles", "--json"])
 

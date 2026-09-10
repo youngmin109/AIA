@@ -98,6 +98,16 @@ OBSERVED_FROM_RUN`일 때만 과거 실행에서 AIA Session에 연결된 Hook�
 uv run aia policy validate C:\workspace\policies\protected-policy.json
 ```
 
+실제 Agent를 시작하기 전에 정책 결과를 미리 확인할 수도 있습니다. 이 명령은
+파일이나 명령을 실행하지 않고, 검증된 정책 객체에 대상만 대입해 최종 판정과
+매칭 Rule을 보여줍니다.
+
+```powershell
+uv run aia policy evaluate --operation READ --path .env
+uv run aia policy evaluate --operation EXECUTE --command "python build.py"
+uv run aia policy evaluate --policy C:\workspace\policies\my-policy.json --operation DELETE --path protected\main.py
+```
+
 처음 정책을 만드는 사용자는 검증된 기본 프로필을 복사해서 시작할 수 있습니다.
 
 ```powershell

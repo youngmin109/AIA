@@ -119,11 +119,15 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
    aia hook verify
    aia doctor
 
-5. Optionally prove real PreToolUse blocking in a disposable Workspace:
+5. Preview a policy decision without running an Agent:
+
+   aia policy evaluate --operation READ --path .env
+
+6. Optionally prove real PreToolUse blocking in a disposable Workspace:
 
    aia proof
 
-6. Start the local console or a protected run from any Workspace:
+7. Start the local console or a protected run from any Workspace:
 
    aia console
    aia protect C:\workspace\my-project

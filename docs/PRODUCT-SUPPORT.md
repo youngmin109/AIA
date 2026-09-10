@@ -134,6 +134,16 @@ uv run aia stop <SESSION_ID>
 uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변경 결과를 설명해줘"
 ```
 
+정책을 수정한 뒤에는 실제 실행 전에 다음으로 판정을 미리 확인할 수 있다.
+
+```powershell
+uv run aia policy evaluate --operation READ --path .env
+uv run aia policy evaluate --operation EXECUTE --command "python build.py"
+```
+
+이 명령은 Agent나 대상 명령을 실행하지 않고, 이미 검증된 정책 객체의 판정만
+출력한다.
+
 첫 실행은 실제 Workspace 대신 복사본 또는 disposable Workspace에서 수행한다.
 
 ## 보호 상태 해석

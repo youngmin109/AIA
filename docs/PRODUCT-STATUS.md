@@ -33,6 +33,8 @@ PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUC
 설치된 wheel에서도 기본 한국어 정책 프로필을 패키지 데이터에서 해석할 수 있으며,
 `aia hook verify`는 임시 Workspace의 실제 Codex 실행으로 Session-bound Hook
 활성화를 점검한다.
+정책을 실제 Agent 없이 확인하는 `aia policy evaluate`도 제공하므로, 사용자는
+보호 실행 전에 특정 경로·명령이 어떤 Rule과 Effect로 판정되는지 확인할 수 있다.
 
 일반 Protected Run은 실제 Codex Hook 연결 검증을 통과해야 시작한다. 즉 Hook 설정
 파일이 존재하는 것만으로는 충분하지 않으며, `aia hook verify`가 Session-bound

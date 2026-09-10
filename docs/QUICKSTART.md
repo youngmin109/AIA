@@ -46,6 +46,14 @@ uv run aia proof
 않고 실패 원인과 artifact 경로만 남긴다. 실제 Codex 실행을 소비하므로 일반 회귀
 테스트마다 반복하지 않는다.
 
+실제 Agent를 시작하기 전에 정책 결과를 미리 확인할 수도 있습니다. 정책 미리보기는
+대상 명령을 실행하지 않으며, 선택한 정책의 최종 판정과 매칭 Rule만 출력합니다.
+
+```powershell
+uv run aia policy evaluate --operation READ --path .env
+uv run aia policy evaluate --operation EXECUTE --command "python build.py"
+```
+
 ## 4. 보호 실행 시작
 
 먼저 실제 프로젝트 대신 복사본이나 테스트 프로젝트를 사용한다.
