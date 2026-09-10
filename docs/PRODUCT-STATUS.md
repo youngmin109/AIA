@@ -31,6 +31,11 @@ PostToolUse 부재를 함께 확인한 경우 Result Bundle에도 `BLOCKED / SUC
 기록한다. 이때 Codex 출력 원문은 저장하지 않고 SHA-256과 판정 메타데이터만
 보존한다.
 
+Process Manager 자체는 Codex 실행 환경의 Job Object 영향을 피한 별도 Windows
+PowerShell smoke에서도 `Root → Child → Grandchild = TERMINATED / SUCCEEDED`,
+unrelated process = `LIVE_MATCH`로 확인했다. 이 결과는 관리된 프로세스 종료 계약의
+증거이며, Actual Codex가 생성한 트리의 종료까지 자동으로 증명하는 결과는 아니다.
+
 ## 현재 결과를 읽는 방법
 
 차단 결과는 두 층으로 기록한다.

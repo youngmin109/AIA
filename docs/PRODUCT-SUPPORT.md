@@ -102,6 +102,8 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
 - Session, Evidence, Result Bundle을 별도로 저장하고 Bundle 무결성을 검증한다.
 - Recovery `RESTORED`와 Integrity `VERIFIED`를 독립적으로 표시한다.
+- 독립 Windows Process Manager smoke에서 등록된 프로세스 트리만 종료하고
+  unrelated process를 `LIVE_MATCH`로 보존한다.
 
 ## 현재 주장하지 않는 것
 
