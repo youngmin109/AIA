@@ -6,6 +6,8 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.0 릴리스 기준](docs/RELEASE-0.1.0.md)에서 확인할 수 있다.
+
 사용자 지원 범위와 상태 해석은 [제품 지원 범위](docs/PRODUCT-SUPPORT.md),
 보안 문제 보고 절차는 [SECURITY.md](SECURITY.md), 기여 규칙은
 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조한다.
