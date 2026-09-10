@@ -12,6 +12,24 @@ class FakeService:
     def list_runs(self):
         return []
 
+    def preflight(self):
+        return {
+            "ready": True,
+            "checks": [
+                {
+                    "name": "codex_executable",
+                    "label": "Codex 실행 파일",
+                    "ok": True,
+                    "detail": "codex.exe",
+                }
+            ],
+            "hook_trust": {
+                "status": "MANUAL_REVIEW_REQUIRED",
+                "detail": "Codex에서 /hooks를 검토하세요.",
+            },
+            "next_steps": [],
+        }
+
     def create_protected_run(self, payload):
         if payload.get("workspace") == "invalid":
             raise ValueError("workspace validation failed")
@@ -104,6 +122,7 @@ class FakeService:
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
     assert client.get("/").status_code == 200
+    assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/workspaces/validate", params={"path": "C:/workspace"}).json()["valid"] is True
     created = client.post("/api/runs", json={"workspace": "C:/workspace", "task": "inspect"})
     assert created.status_code == 202

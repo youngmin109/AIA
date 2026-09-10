@@ -7,6 +7,26 @@
   <p class="lede">Codex를 시작하기 전에 Workspace와 정책을 선택합니다. AIA는 실행 중 정책을 고정하고, 허용·차단 결과를 검증 가능한 결과 Bundle로 저장합니다.</p>
 </section>
 
+<section class="panel preflight-panel">
+  <div class="panel-heading">
+    <h2>실행 전 준비 상태</h2>
+    <button id="refresh-preflight" class="button" type="button">다시 검사</button>
+  </div>
+  <div id="preflight-checks" class="preflight-list">
+    {% for check in preflight.checks %}
+    <div class="preflight-row">
+      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ 'PASS' if check.ok else 'FAIL' }}</span>
+      <strong>{{ check.label }}</strong>
+      <span class="hint">{{ check.detail }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="notice warning preflight-trust">{{ preflight.hook_trust.detail }}</div>
+  <div id="preflight-error" class="error" {% if preflight.ready %}hidden{% endif %}>
+    PreToolUse Hook과 Codex 실행 파일이 준비되어야 보호 실행을 시작할 수 있습니다. 먼저 <span class="mono">uv run aia setup</span>을 실행하세요.
+  </div>
+</section>
+
 <section class="panel form-panel">
   <form id="new-run-form">
     <div class="form-grid">
@@ -41,7 +61,7 @@
     <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
     <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · PreToolUse 기반 Bash/apply_patch 계열 도구</div>
     <div id="form-error" class="error" hidden></div>
-    <div class="form-actions"><button class="button primary" type="submit">보호 실행 준비</button></div>
+    <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 준비</button></div>
   </form>
 </section>
 <script>
@@ -51,6 +71,9 @@ const customField = document.getElementById('custom-policy-field');
 const errorBox = document.getElementById('form-error');
 const workspaceInput = form.elements.workspace;
 const workspaceStatus = document.getElementById('workspace-status');
+const preflightChecks = document.getElementById('preflight-checks');
+const preflightError = document.getElementById('preflight-error');
+const submitRun = document.getElementById('submit-run');
 const profileDescriptions = {{ profiles|tojson }};
 function updateProfileDescription() {
   const selected = profileDescriptions.find((item) => item.value === profile.value);
@@ -58,6 +81,29 @@ function updateProfileDescription() {
 }
 profile.addEventListener('change', () => { customField.hidden = profile.value !== 'custom'; updateProfileDescription(); });
 updateProfileDescription();
+function renderPreflight(payload) {
+  preflightChecks.replaceChildren();
+  payload.checks.forEach((check) => {
+    const row = document.createElement('div');
+    row.className = 'preflight-row';
+    const mark = document.createElement('span');
+    mark.className = `preflight-mark ${check.ok ? 'ok' : 'fail'}`;
+    mark.textContent = check.ok ? 'PASS' : 'FAIL';
+    const label = document.createElement('strong');
+    label.textContent = check.label;
+    const detail = document.createElement('span');
+    detail.className = 'hint';
+    detail.textContent = check.detail;
+    row.append(mark, label, detail);
+    preflightChecks.append(row);
+  });
+  preflightError.hidden = payload.ready;
+  submitRun.disabled = !payload.ready;
+}
+document.getElementById('refresh-preflight').addEventListener('click', async () => {
+  const response = await fetch('/api/preflight');
+  if (response.ok) renderPreflight(await response.json());
+});
 workspaceInput.addEventListener('blur', async () => {
   if (!workspaceInput.value.trim()) return;
   workspaceStatus.textContent = 'Checking workspace…';

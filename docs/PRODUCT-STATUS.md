@@ -69,9 +69,12 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 ## 다음 제품화 우선순위
 
-1. Hook 설치·신뢰·지원 도구 범위를 한 번에 점검하는 온보딩을 만든다.
-2. Bash, apply_patch, 구조화 READ, MCP 경로를 각각 실제 E2E로 분리 검증한다.
-3. Actual Codex Process Tree termination과 Recovery/Integrity 연계를 검증한다.
-4. 개인 사용자가 한 명령으로 설치·정책 선택·보호 실행을 시작하도록 배포 UX를
-   정리한다.
+1. Bash, apply_patch, 구조화 READ, MCP 경로를 각각 실제 E2E로 분리 검증한다.
+2. Actual Codex Process Tree termination과 Recovery/Integrity 연계를 검증한다.
+3. 개인 사용자가 설치 파일·업데이트 경로까지 포함한 배포 UX를 사용할 수 있게 한다.
+4. 대화형 세션과 간헐적인 Process Sensor 실패를 안정화한다.
 5. 성능 평가 결과와 제한사항을 제품 화면에서 함께 보여준다.
+
+현재 온보딩에는 `aia setup`, `aia doctor`, 웹 콘솔의 실행 전 사전 점검이 포함된다.
+이 점검은 Hook 설치 여부를 확인하지만 Codex의 Hook 신뢰는 자동으로 증명하지 않으며,
+사용자가 Codex `/hooks` 화면에서 직접 검토해야 한다.

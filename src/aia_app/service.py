@@ -111,6 +111,97 @@ class RunApplicationService:
             )
         ]
 
+    def preflight(self) -> dict[str, Any]:
+        """Report local prerequisites without starting a Protected Run."""
+
+        checks: list[dict[str, Any]] = []
+        try:
+            executable = CodexAdapter().discover()
+            checks.append(
+                {
+                    "name": "codex_executable",
+                    "label": "Codex 실행 파일",
+                    "ok": True,
+                    "detail": str(executable),
+                }
+            )
+        except Exception as error:
+            checks.append(
+                {
+                    "name": "codex_executable",
+                    "label": "Codex 실행 파일",
+                    "ok": False,
+                    "detail": f"찾을 수 없음 ({type(error).__name__})",
+                }
+            )
+
+        installer = CodexHookInstaller()
+        pretool_installed = installer.is_installed()
+        checks.append(
+            {
+                "name": "pretool_hook",
+                "label": "PreToolUse Hook",
+                "ok": pretool_installed,
+                "detail": (
+                    "설치됨 · Codex에서 /hooks 검토 필요"
+                    if pretool_installed
+                    else "설치되지 않음 · aia setup 필요"
+                ),
+            }
+        )
+        posttool_installed = installer.is_posttool_installed()
+        checks.append(
+            {
+                "name": "posttool_hook",
+                "label": "PostToolUse 관찰",
+                "ok": posttool_installed,
+                "optional": True,
+                "detail": (
+                    "설치됨 · 실행 결과 확인 가능"
+                    if posttool_installed
+                    else "선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦"
+                ),
+            }
+        )
+
+        try:
+            self.control_root.mkdir(parents=True, exist_ok=True)
+            probe = self.control_root / ".aia-preflight-write-test"
+            probe.write_text("ok\n", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            checks.append(
+                {
+                    "name": "control_root",
+                    "label": "AIA Control Root",
+                    "ok": True,
+                    "detail": str(self.control_root),
+                }
+            )
+        except OSError as error:
+            checks.append(
+                {
+                    "name": "control_root",
+                    "label": "AIA Control Root",
+                    "ok": False,
+                    "detail": f"쓰기 불가 ({type(error).__name__})",
+                }
+            )
+
+        required = [item for item in checks if not item.get("optional")]
+        return {
+            "ready": all(bool(item["ok"]) for item in required),
+            "checks": checks,
+            "hook_trust": {
+                "status": "MANUAL_REVIEW_REQUIRED",
+                "detail": "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다.",
+            },
+            "next_steps": [
+                "PreToolUse Hook이 없으면 'uv run aia setup'을 실행합니다.",
+                "Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰합니다.",
+                "Workspace와 정책을 선택해 보호 실행을 시작합니다.",
+            ],
+        }
+
     def create_protected_run(self, request: CreateRunRequest | dict[str, Any]) -> dict[str, Any]:
         if isinstance(request, dict):
             try:

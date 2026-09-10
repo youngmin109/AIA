@@ -199,6 +199,32 @@ def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
         service.shutdown()
 
 
+def test_application_preflight_reports_required_and_optional_hook_state(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_installed",
+        lambda _installer: True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_posttool_installed",
+        lambda _installer: False,
+    )
+    try:
+        result = service.preflight()
+        assert result["ready"] is True
+        assert result["hook_trust"]["status"] == "MANUAL_REVIEW_REQUIRED"
+        checks = {item["name"]: item for item in result["checks"]}
+        assert checks["pretool_hook"]["ok"] is True
+        assert checks["posttool_hook"]["optional"] is True
+        assert checks["posttool_hook"]["ok"] is False
+    finally:
+        service.shutdown()
+
+
 def test_application_rejects_invalid_workspace_before_background_launch(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     try:

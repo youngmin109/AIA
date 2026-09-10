@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aia.cli import _parser
+from aia.cli import _parser, _protected_run_preflight
 
 
 def test_protect_without_task_selects_interactive_mode() -> None:
@@ -22,6 +22,24 @@ def test_doctor_parser_supports_machine_readable_preflight() -> None:
 
     assert args.command == "doctor"
     assert args.json is True
+
+
+def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:
+    args = _parser().parse_args(["setup", "--json", "--path", str(tmp_path / "hooks.json")])
+
+    assert args.command == "setup"
+    assert args.json is True
+    assert args.path == tmp_path / "hooks.json"
+
+
+def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: "codex.exe")
+    monkeypatch.setattr("aia.cli.CodexHookInstaller.is_installed", lambda _installer: False)
+
+    ready, failures = _protected_run_preflight()
+
+    assert ready is False
+    assert any("PreToolUse Hook" in item for item in failures)
 
 
 def test_policy_validate_parser_keeps_policy_path_and_json_flag(tmp_path) -> None:

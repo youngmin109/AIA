@@ -47,7 +47,10 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request,
             "new_run.html",
-            {"profiles": app.state.service.policy_profiles()},
+            {
+                "profiles": app.state.service.policy_profiles(),
+                "preflight": app.state.service.preflight(),
+            },
         )
 
     @app.get("/runs", response_class=HTMLResponse)
@@ -65,6 +68,10 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     @app.get("/api/profiles")
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())
+
+    @app.get("/api/preflight")
+    def preflight() -> JSONResponse:
+        return JSONResponse(app.state.service.preflight())
 
     @app.get("/api/workspaces/validate")
     def validate_workspace(path: str) -> JSONResponse:

@@ -52,6 +52,16 @@ uv run aia-web
 uv run aia doctor
 ```
 
+처음 설치하는 사용자는 다음 한 명령으로 AIA Hook을 추가할 수 있습니다.
+
+```powershell
+uv run aia setup
+```
+
+그다음 Codex에서 `/hooks`를 열어 AIA Hook을 직접 검토·신뢰하고, 다시
+`uv run aia doctor`를 실행합니다. `aia protect`는 PreToolUse Hook이 설치되지
+않은 상태에서는 Protected Run을 만들지 않고 즉시 다음 조치를 안내합니다.
+
 사용자 정책을 직접 작성했다면 보호 실행 전에 Strict Validation을 실행합니다.
 
 ```powershell

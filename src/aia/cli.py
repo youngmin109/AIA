@@ -74,6 +74,13 @@ def _parser() -> argparse.ArgumentParser:
     install = hook_commands.add_parser("install", help="install the AIA Hook definition")
     install.add_argument("--path", type=Path, help="hooks.json path")
 
+    setup = commands.add_parser(
+        "setup",
+        help="install the AIA Hook and print the remaining trust steps",
+    )
+    setup.add_argument("--path", type=Path, help="hooks.json path")
+    setup.add_argument("--json", action="store_true", help="print machine-readable output")
+
     protect = commands.add_parser(
         "protect",
         help="run Codex inside an AIA Protected Run",
@@ -222,6 +229,61 @@ def _doctor(args: argparse.Namespace) -> int:
         print("[INFO] AIA는 지원 범위 밖의 실행을 보호 실행으로 주장하지 않습니다.")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
+
+
+def _setup(args: argparse.Namespace) -> int:
+    """Install the stable Hook and make the manual trust boundary explicit."""
+
+    installer = CodexHookInstaller(args.path)
+    try:
+        path = installer.install()
+    except CodexHookInstallationError as error:
+        payload = {
+            "configured": False,
+            "hook_path": str(installer.path),
+            "error": str(error),
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print(f"AIA 설정 실패: {error}")
+        return 2
+    payload = {
+        "configured": True,
+        "hook_path": str(path),
+        "pretool_installed": installer.is_installed(),
+        "posttool_installed": installer.is_posttool_installed(),
+        "trust_status": "MANUAL_REVIEW_REQUIRED",
+        "next_steps": [
+            "Codex에서 /hooks를 열고 AIA Hook을 검토합니다.",
+            "AIA Hook을 신뢰한 뒤 aia doctor를 실행합니다.",
+            "검사 결과가 READY이면 aia protect <workspace>를 실행합니다.",
+        ],
+    }
+    if args.json:
+        print(_json_text(payload))
+    else:
+        print(f"AIA Hook 설정 완료: {path}")
+        print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
+        print("[다음] uv run aia doctor")
+        print("[실행] uv run aia protect C:\\workspace\\my-project")
+    return 0
+
+
+def _protected_run_preflight() -> tuple[bool, list[str]]:
+    """Return actionable local checks before creating a Protected Run."""
+
+    failures: list[str] = []
+    try:
+        CodexAdapter().discover()
+    except Exception:
+        failures.append("Codex executable을 찾을 수 없습니다. Codex 설치를 확인하세요.")
+    installer = CodexHookInstaller()
+    if not installer.is_installed():
+        failures.append(
+            "AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 'uv run aia setup'을 실행하세요."
+        )
+    return not failures, failures
 
 
 def _validate_policy(args: argparse.Namespace) -> int:
@@ -381,6 +443,13 @@ def _run_protected(args: argparse.Namespace) -> int:
             "provide --task for non-interactive execution"
         )
         return 2
+    ready, failures = _protected_run_preflight()
+    if not ready:
+        print("AIA 보호 실행을 시작하지 않았습니다.")
+        for failure in failures:
+            print(f"[FAIL] {failure}")
+        print("[다음] uv run aia setup")
+        return 2
     service = RunApplicationService(_control_root(args.control_root))
     try:
         created = service.create_protected_run(
@@ -471,6 +540,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Codex Hook installed: {path}")
             print("Review and trust this Hook in Codex before starting a protected run.")
             return 0
+        if args.command == "setup":
+            return _setup(args)
         if args.command == "protect":
             return _run_protected(args)
         raise ApplicationValidationError("unknown command")
