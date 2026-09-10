@@ -600,6 +600,19 @@ def _run_protected(args: argparse.Namespace) -> int:
                 )
             )
         protection_state = (status.get("protection") or {}).get("state")
+        protection = status.get("protection") or {}
+        if protection_state == "COMPLETED_DEGRADED":
+            hook_events = protection.get("hook_events", 0)
+            if hook_events == 0:
+                print(
+                    "주의: 검증된 Codex Hook 이벤트가 없습니다. "
+                    "Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요."
+                )
+            else:
+                print(
+                    "주의: 보호 센서 또는 실행 경계에 오류가 있어 결과를 "
+                    "완전한 보호 성공으로 해석하지 마세요."
+                )
         return 0 if final_status == "COMPLETED" and protection_state != "COMPLETED_DEGRADED" else 1
     finally:
         service.shutdown()

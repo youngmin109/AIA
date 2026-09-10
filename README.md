@@ -121,6 +121,11 @@ uv run aia stop <SESSION_ID>
 후자는 성공한 보호 실행으로 해석하지 말고 제한사항을 확인해야 합니다.
 `aia stop`은 정책 위반 집행과 분리된 사용자 취소이며, 결과에는 `USER_ABORT`로 기록됩니다.
 
+AIA를 업데이트한 뒤 matcher가 바뀌어 `aia doctor`가 `NOT_READY`를 보여주면
+`uv run aia hook install`을 다시 실행하고 Codex `/hooks`에서 변경된 Hook을
+다시 검토·신뢰합니다. 검증된 Hook Event가 하나도 없는 실행은
+`COMPLETED_DEGRADED`로 기록되며 보호 성공으로 표시하지 않습니다.
+
 Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 사전 차단 증명은 [docs/ACTUAL-CODEX-PROOF.md](docs/ACTUAL-CODEX-PROOF.md)를 참고한다.
 
 현재 제품이 보장하는 보호 경계는 Windows 11, Codex CLI, AIA Protected Run,
