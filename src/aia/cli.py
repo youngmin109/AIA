@@ -22,6 +22,13 @@ from aia import (
 from aia_app import ApplicationValidationError, RunApplicationService
 
 
+def _json_text(value: object, *, default: object | None = None) -> str:
+    options: dict[str, object] = {"ensure_ascii": True, "indent": 2}
+    if default is not None:
+        options["default"] = default
+    return json.dumps(value, **options)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aia")
     parser.add_argument("--version", action="version", version="AIA 0.1.0")
@@ -33,6 +40,20 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true", help="print machine-readable output")
     doctor.add_argument("--hook-path", type=Path, help="hooks.json path")
     doctor.add_argument("--control-root", type=Path, help="AIA control root")
+    runs = commands.add_parser(
+        "runs",
+        help="list protected-run history from the local Control Root",
+    )
+    runs.add_argument("--json", action="store_true", help="print machine-readable output")
+    runs.add_argument("--limit", type=int, default=20, help="maximum number of runs to show")
+    runs.add_argument("--control-root", type=Path, help="AIA control root")
+    status = commands.add_parser(
+        "status",
+        help="inspect one protected run, including completed runs",
+    )
+    status.add_argument("session_id")
+    status.add_argument("--json", action="store_true", help="print machine-readable output")
+    status.add_argument("--control-root", type=Path, help="AIA control root")
     policy = commands.add_parser("policy", help="validate and inspect a policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     validate = policy_commands.add_parser(
@@ -167,7 +188,7 @@ def _doctor(args: argparse.Namespace) -> int:
         ],
     }
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print(_json_text(payload))
     else:
         print("AIA 환경 점검")
         for item in checks:
@@ -196,11 +217,7 @@ def _validate_policy(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as error:
         if args.json:
             print(
-                json.dumps(
-                    {"valid": False, "path": str(args.path), "error": str(error)},
-                    ensure_ascii=False,
-                    indent=2,
-                )
+                    _json_text({"valid": False, "path": str(args.path), "error": str(error)})
             )
         else:
             print(f"정책 검증 실패: {error}")
@@ -216,13 +233,94 @@ def _validate_policy(args: argparse.Namespace) -> int:
         "sha256": policy_content_sha256(resolved),
     }
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        print(_json_text(payload))
     else:
         print("정책 검증 성공")
         print(f"정책 ID: {payload['policy_id']}")
         print(f"버전: {payload['policy_version']}")
         print(f"Rule 수: {payload['rule_count']}")
         print(f"SHA-256: {payload['sha256']}")
+    return 0
+
+
+def _list_runs(args: argparse.Namespace) -> int:
+    if args.limit < 0:
+        print("AIA error: limit must be zero or greater")
+        return 2
+    service = RunApplicationService(_control_root(args.control_root))
+    try:
+        runs = service.list_runs()[: args.limit]
+    finally:
+        service.shutdown()
+    if args.json:
+        print(_json_text({"runs": runs}))
+        return 0
+    print("AIA 보호 실행 기록")
+    if not runs:
+        print("기록된 보호 실행이 없습니다.")
+        return 0
+    for item in runs:
+        policy = item.get("policy") or {}
+        policy_id = policy.get("id") or policy.get("policy_id") or "—"
+        policy_version = policy.get("version") or policy.get("policy_version") or ""
+        print(f"- {item.get('session_id')}")
+        print(
+            "  상태: "
+            f"{item.get('status', 'UNKNOWN')} / "
+            f"보호: {item.get('protection_state', 'UNKNOWN')} / "
+            f"Bundle: {item.get('bundle_status', 'UNKNOWN')}"
+        )
+        print(f"  Workspace: {item.get('workspace', '-')}")
+        print(
+            f"  Policy: {policy_id} "
+            f"{policy_version} / "
+            f"사건: {item.get('incident_count', 0)} / "
+            f"Hook: {item.get('hook_event_count', 0)}"
+        )
+    return 0
+
+
+def _show_status(args: argparse.Namespace) -> int:
+    service = RunApplicationService(_control_root(args.control_root))
+    try:
+        try:
+            status = service.get_run_status(args.session_id)
+        except (KeyError, ValueError) as error:
+            if args.json:
+                print(
+                    _json_text({"session_id": args.session_id, "error": str(error)})
+                )
+            else:
+                print(f"AIA error: {error}")
+            return 2
+    finally:
+        service.shutdown()
+    if args.json:
+        print(_json_text(status, default=str))
+        return 0
+    session = status.get("session") or {}
+    protection = status.get("protection") or {}
+    policy = status.get("policy") or {}
+    policy_id = policy.get("id") or policy.get("policy_id") or "-"
+    policy_version = policy.get("version") or policy.get("policy_version") or ""
+    print("AIA 보호 실행 상태")
+    print(f"Session: {session.get('session_id', args.session_id)}")
+    print(f"상태: {session.get('status', 'UNKNOWN')} / 단계: {status.get('phase', 'UNKNOWN')}")
+    print(
+        f"보호: {protection.get('state', 'UNKNOWN')} "
+        f"(Hook Events: {protection.get('hook_events', 0)})"
+    )
+    print(f"Workspace: {session.get('workspace', '-')}")
+    print(f"Policy: {policy_id} {policy_version}")
+    print(
+        f"Checkpoint: {status.get('checkpoint', '-')} / "
+        f"Lease: {status.get('lease', '-')} / "
+        f"사건: {status.get('incident_count', 0)}"
+    )
+    if status.get("result_path"):
+        print(f"Result: {status['result_path']}")
+    if status.get("error"):
+        print(f"오류: {status['error']}")
     return 0
 
 
@@ -292,15 +390,14 @@ def _run_protected(args: argparse.Namespace) -> int:
         if status.get("result_available"):
             result = service.get_result(session_id)
             print(
-                json.dumps(
+                _json_text(
                     {
                         "bundle_status": result.get("bundle_status"),
                         "incident_count": len(result.get("incidents", [])),
                         "result_path": status.get("result_path"),
                         "session_status": result.get("session_status"),
                         "protection_state": (status.get("protection") or {}).get("state"),
-                    },
-                    ensure_ascii=False,
+                    }
                 )
             )
         protection_state = (status.get("protection") or {}).get("state")
@@ -314,6 +411,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "doctor":
             return _doctor(args)
+        if args.command == "runs":
+            return _list_runs(args)
+        if args.command == "status":
+            return _show_status(args)
         if args.command == "policy" and args.policy_command == "validate":
             return _validate_policy(args)
         if args.command == "hook" and args.hook_command == "install":

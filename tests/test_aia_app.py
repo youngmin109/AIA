@@ -148,6 +148,7 @@ def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
             "FREE_DEVELOPMENT",
             "CUSTOM",
         }
+        assert all(item["description"] for item in profiles)
     finally:
         service.shutdown()
 

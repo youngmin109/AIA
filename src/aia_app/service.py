@@ -79,8 +79,26 @@ class RunApplicationService:
 
     @staticmethod
     def policy_profiles() -> list[dict[str, str]]:
+        descriptions = {
+            PolicyProfile.BASIC_DEVELOPMENT: (
+                "일반 개발 작업을 허용하면서 .env 삭제와 위험한 데이터베이스·Git 명령을 통제합니다."
+            ),
+            PolicyProfile.CONSERVATIVE_SECURITY: (
+                "비밀정보와 핵심 변경을 더 엄격하게 기록·차단하는 보호 우선 프로필입니다."
+            ),
+            PolicyProfile.FREE_DEVELOPMENT: (
+                "개발 흐름을 가장 넓게 허용하고 위험 행위를 주로 기록하는 프로필입니다."
+            ),
+            PolicyProfile.CUSTOM: (
+                "사용자가 작성한 Strict Validation 통과 정책 JSON을 고정해 사용합니다."
+            ),
+        }
         return [
-            {"value": profile.value, "label": profile.display_name}
+            {
+                "value": profile.value,
+                "label": profile.display_name,
+                "description": descriptions[profile],
+            }
             for profile in (
                 PolicyProfile.BASIC_DEVELOPMENT,
                 PolicyProfile.CONSERVATIVE_SECURITY,

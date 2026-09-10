@@ -25,6 +25,7 @@
         <select name="policy_profile" id="policy-profile">
           {% for profile in profiles %}<option value="{{ profile.value }}">{{ profile.label }}</option>{% endfor %}
         </select>
+        <span id="policy-description" class="hint">선택한 정책의 보호 범위가 표시됩니다.</span>
       </label>
       <label class="field" id="custom-policy-field" hidden>사용자 정책 JSON 경로
         <input name="custom_policy_path" placeholder="C:\\policies\\policy.json">
@@ -50,7 +51,13 @@ const customField = document.getElementById('custom-policy-field');
 const errorBox = document.getElementById('form-error');
 const workspaceInput = form.elements.workspace;
 const workspaceStatus = document.getElementById('workspace-status');
-profile.addEventListener('change', () => { customField.hidden = profile.value !== 'custom'; });
+const profileDescriptions = {{ profiles|tojson }};
+function updateProfileDescription() {
+  const selected = profileDescriptions.find((item) => item.value === profile.value);
+  document.getElementById('policy-description').textContent = selected?.description || '';
+}
+profile.addEventListener('change', () => { customField.hidden = profile.value !== 'custom'; updateProfileDescription(); });
+updateProfileDescription();
 workspaceInput.addEventListener('blur', async () => {
   if (!workspaceInput.value.trim()) return;
   workspaceStatus.textContent = 'Checking workspace…';
