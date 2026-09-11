@@ -115,34 +115,7 @@ class CodexHookInstaller:
             entries = hooks.setdefault(event, [])
             if not isinstance(entries, list):
                 raise CodexHookInstallationError(f"hooks.{event} must be a JSON array")
-            command = self.command
-            installed = any(
-                isinstance(entry, Mapping)
-                and any(
-                    isinstance(handler, Mapping)
-                    and handler.get("type") == "command"
-                    and handler.get("command") == command
-                    and handler.get("commandWindows", command) == command
-                    for handler in (entry.get("hooks") or ())
-                )
-                for entry in entries
-            )
-            if not installed:
-                entries.append(self.hook_entry(event))
-            else:
-                # Migrate only an existing AIA entry. User hooks and unrelated
-                # matcher groups are left untouched.
-                for entry in entries:
-                    if not isinstance(entry, dict):
-                        continue
-                    if any(
-                        isinstance(handler, Mapping)
-                        and handler.get("type") == "command"
-                        and handler.get("command") == command
-                        and handler.get("commandWindows", command) == command
-                        for handler in (entry.get("hooks") or ())
-                    ):
-                        entry["matcher"] = self._MATCHER
+            entries[:] = self._migrate_event_entries(entries, event)
         self._write(document)
         return self.path
 
@@ -171,7 +144,9 @@ class CodexHookInstaller:
                     retained_entries.append(entry)
                     continue
                 retained_handlers = [
-                    handler for handler in handlers if not self._is_aia_handler(handler)
+                    handler
+                    for handler in handlers
+                    if not self._is_aia_runtime_handler(handler)
                 ]
                 if len(retained_handlers) != len(handlers):
                     changed = True
@@ -218,10 +193,80 @@ class CodexHookInstaller:
                 f"could not update Codex Hook at {self.path}"
             ) from error
 
-    def _is_aia_handler(self, handler: object) -> bool:
+    def _migrate_event_entries(
+        self,
+        entries: list[Any],
+        event: str,
+    ) -> list[Any]:
+        """Replace stale AIA handlers while preserving unrelated handlers.
+
+        The command contains the installed Python executable, so upgrading
+        AIA can otherwise leave an old handler beside the new one.  Matching
+        the stable module name lets us migrate only AIA-owned handlers.  A
+        changed command still requires the user's normal Codex Hook review.
+        """
+
+        migrated: list[Any] = []
+        current_found = False
+        for entry in entries:
+            if not isinstance(entry, dict):
+                migrated.append(entry)
+                continue
+            handlers = entry.get("hooks")
+            if not isinstance(handlers, list):
+                migrated.append(entry)
+                continue
+
+            retained: list[Any] = []
+            contains_current = False
+            for handler in handlers:
+                if not self._is_aia_runtime_handler(handler):
+                    retained.append(handler)
+                    continue
+                if self._is_aia_handler(handler) and not current_found:
+                    retained.append(handler)
+                    current_found = True
+                    contains_current = True
+                # Stale AIA handlers and duplicate current handlers are
+                # intentionally omitted.
+
+            if contains_current:
+                entry["matcher"] = self._MATCHER
+            if retained:
+                entry["hooks"] = retained
+                migrated.append(entry)
+            elif handlers:
+                # The entry contained only AIA handlers.  Remove the empty
+                # group without touching neighboring user Hook groups.
+                continue
+            else:
+                migrated.append(entry)
+
+        if not current_found:
+            migrated.append(self.hook_entry(event))
+        return migrated
+
+    @staticmethod
+    def _is_aia_runtime_command(value: object) -> bool:
+        if not isinstance(value, str):
+            return False
+        normalized = " ".join(value.replace('"', " ").split()).casefold()
+        return " -m aia.codex_hook_runtime" in f" {normalized}"
+
+    def _is_aia_runtime_handler(self, handler: object) -> bool:
         return (
             isinstance(handler, Mapping)
             and handler.get("type") == "command"
+            and (
+                self._is_aia_runtime_command(handler.get("command"))
+                or self._is_aia_runtime_command(handler.get("commandWindows"))
+            )
+        )
+
+    def _is_aia_handler(self, handler: object) -> bool:
+        return (
+            self._is_aia_runtime_handler(handler)
+            and isinstance(handler, Mapping)
             and handler.get("command") == self.command
             and handler.get("commandWindows", self.command) == self.command
         )

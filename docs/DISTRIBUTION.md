@@ -101,6 +101,11 @@ aia proof --scenario block-env
 uv tool install --force .\packages\aia_mvp-0.1.0-py3-none-any.whl
 ```
 
+재설치 과정에서 AIA가 설치한 이전 Python 경로의 Hook이 남아 있으면 새 AIA
+Hook으로 교체한다. AIA가 아닌 사용자의 다른 Hook과 matcher 그룹은 보존한다.
+Hook 명령이 바뀐 경우 Codex의 `/hooks`에서 변경 내용을 다시 검토·신뢰한 뒤
+`aia hook verify`를 실행한다.
+
 제거는 다음처럼 수행한다.
 
 ```powershell

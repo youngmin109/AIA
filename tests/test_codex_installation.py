@@ -78,6 +78,41 @@ def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path)
     assert updated["hooks"]["PreToolUse"][1]["matcher"] == "Bash"
 
 
+def test_codex_hook_install_replaces_stale_aia_command_but_preserves_user_hooks(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    old = CodexHookInstaller(path, python_executable=tmp_path / "old-python.exe")
+    old.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    )
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    current = CodexHookInstaller(path, python_executable=tmp_path / "new-python.exe")
+    current.install()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    handlers = [
+        handler
+        for entry in updated["hooks"]["PreToolUse"]
+        for handler in entry.get("hooks", [])
+    ]
+    aia_handlers = [
+        handler
+        for handler in handlers
+        if "aia.codex_hook_runtime" in str(handler.get("command", ""))
+    ]
+    assert len(aia_handlers) == 1
+    assert "new-python.exe" in aia_handlers[0]["command"]
+    assert {handler.get("command") for handler in handlers} >= {
+        "user-hook",
+        aia_handlers[0]["command"],
+    }
+    assert current.is_installed() is True
+
+
 def test_stale_aia_matcher_is_not_reported_as_installed(tmp_path: Path) -> None:
     path = tmp_path / "hooks.json"
     installer = CodexHookInstaller(
