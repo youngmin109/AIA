@@ -106,6 +106,18 @@ Hook으로 교체한다. AIA가 아닌 사용자의 다른 Hook과 matcher 그�
 Hook 명령이 바뀐 경우 Codex의 `/hooks`에서 변경 내용을 다시 검토·신뢰한 뒤
 `aia hook verify`를 실행한다.
 
+이전 릴리스 번들로 되돌릴 때는 현재 설치 버전보다 낮은 릴리스 폴더를 지정한다.
+이 명령은 먼저 대상 번들의 manifest·SHA-256·깨끗한 wheel 설치를 검증하고, 실제
+설치 뒤에는 Hook을 다시 검토해야 한다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\rollback-release.ps1 `
+  -BundlePath C:\releases\aia-0.1.5 -SetupHook
+```
+
+대상 버전이 현재 버전보다 낮지 않거나 검증에 실패하면 설치하지 않는다. AIA가
+자동으로 업데이트하거나 임의의 이전 버전을 선택하지 않는다.
+
 제거는 다음처럼 수행한다.
 
 ```powershell
@@ -115,7 +127,8 @@ uv tool uninstall aia-mvp
 ## 아직 제공하지 않는 배포 기능
 
 - 서명된 Windows MSI 또는 EXE 설치 관리자
-- 자동 업데이트와 이전 버전 롤백
+- 자동 업데이트와 자동 롤백. 이전 릴리스 번들을 사용자가 지정하는 검증된 수동
+  롤백만 제공한다.
 - 중앙 관리 서버나 원격 콘솔
 - 모든 Agent와 모든 Codex 도구에 대한 보편적 보호
 

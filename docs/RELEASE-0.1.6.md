@@ -11,6 +11,8 @@
   `ALLOW / AUDIT / DENY` 정책 효과를 구분한다.
 - CLI와 로컬 콘솔에 전체 행위·차단·실행 성공·실패 집계를 표시한다.
 - `RESTORED + VERIFIED`만 검증된 복구 성공으로 설명한다.
+- 이전 릴리스 bundle을 SHA-256 검증 후 명시적으로 되돌리는 수동 롤백 스크립트를
+  제공한다.
 
 ```powershell
 uv run aia self-test
