@@ -19,7 +19,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **572 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **575 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -30,6 +30,7 @@
 | 설치된 wheel `aia self-test --json` | **PASS** |
 | 설치된 wheel `aia demo` | **PASS** |
 | 로컬 콘솔 `/dashboard` 렌더링·범위 표시 | **PASS** |
+| 릴리스 `uninstall.ps1` 보존 모드 probe | **PASS** |
 
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | Actual Codex registered filesystem MCP read (direct adapter smoke) | **PASS** |
