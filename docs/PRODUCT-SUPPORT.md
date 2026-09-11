@@ -41,6 +41,12 @@ Core 정상 상태를 뜻하며, 실제 Codex Hook 연결 증명은 포함하지
 Hook을 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해 실제 연결을 확인해야
 `aia protect`를 시작할 수 있다.
 
+기계적으로 상태를 확인할 때는 `uv run aia doctor --json`의
+`readiness_code`와 `next_step`을 사용한다. `CODEX_HOOK_TRUST_REQUIRED`,
+`HOOK_VERIFICATION_REQUIRED`, `CODEX_HOOK_NOT_INSTALLED`는 각각 Trust 검토,
+실제 Hook 검증, Hook 설치가 더 필요하다는 뜻이다. `READY`가 아닌 상태에서
+보호 실행을 성공으로 해석하지 않는다.
+
 정책을 새로 만들 때는 기본 프로필을 복사한 뒤 수정합니다.
 
 ```powershell
