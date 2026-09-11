@@ -5,8 +5,9 @@
 수 있는 보호 실행 경로와 로컬 콘솔은 있지만, 지원 범위와 검증된 주장도 함께
 제한된다.
 
-신규 실행의 기본 정책은 `PROTECTED_DEVELOPMENT`다. `.env` 같은 비밀정보 읽기와
-대표적인 파괴 명령은 기본 차단하고, 일반 소스 변경은 기록한다. 기존의
+신규 실행의 기본 정책은 `PROTECTED_DEVELOPMENT` v1.1이다. `.env` 같은 비밀정보 읽기와
+대표적인 파괴 명령은 기본 차단하고, Windows의 `Remove-Item`, `del`, `erase`,
+`rd /s`, `Stop-Process`, `taskkill /f`도 실행 전에 차단한다. 일반 소스 변경은 기록한다. 기존의
 `BASIC_DEVELOPMENT`, `CONSERVATIVE_SECURITY`, `FREE_DEVELOPMENT` 프로필은
 호환성을 위해 그대로 제공하며 실행 시 명시적으로 선택할 수 있다.
 

@@ -60,7 +60,12 @@ def test_all_official_profiles_resolve() -> None:
         PolicyProfile.FREE_DEVELOPMENT,
     ]
     assert all(item.policy_id for item in resolved)
-    assert all(item.policy_version == "1.0" for item in resolved)
+    assert [item.policy_version for item in resolved] == [
+        "1.1",
+        "1.0",
+        "1.0",
+        "1.0",
+    ]
     assert all(item.source for item in resolved)
 
 
@@ -123,6 +128,33 @@ def test_protected_development_profile_is_safe_by_default() -> None:
     assert secret_command.asset_type is SecurityAssetType.SECRET
     assert normal_source_change.policy_decision is PolicyDecision.COMPLIANT
     assert normal_source_change.operation_effect is PolicyEffect.AUDIT
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "Remove-Item protected.txt",
+        "Remove-Item -Recurse protected",
+        "del protected.txt",
+        "erase protected.txt",
+        "rd /s protected",
+        "Stop-Process -Name notepad",
+        "taskkill /f /im notepad.exe",
+    ],
+)
+def test_protected_profile_blocks_windows_destructive_commands_without_caller_asset_type(
+    command: str,
+) -> None:
+    policy = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy
+
+    result = policy.evaluate_target(
+        operation=Operation.EXECUTE,
+        raw_command=command,
+    )
+
+    assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.operation_effect is PolicyEffect.DENY
+    assert result.asset_type is SecurityAssetType.WORKSPACE
 
 
 @pytest.mark.parametrize(
