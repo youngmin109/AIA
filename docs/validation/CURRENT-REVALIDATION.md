@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `905d7d7` |
+| 코드 기준 | `85175ca` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **511 passed, 3 skipped** |
+| 전체 pytest | **528 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -28,6 +28,7 @@
 | 설치된 wheel `aia self-test --json` | **PASS** |
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
+| Hook 신뢰 실패 시 실제 증명 중단 | **PASS: `CODEX_HOOK_TRUST_REQUIRED` / Codex 실행 전 중단** |
 
 ## 이번 재검증에서 확인한 제품 계약
 
@@ -68,6 +69,10 @@
 - 실제 Codex 증명 결과의 stdout/stderr 원문은 artifact에 저장하지 않는다. 실행 중
   Secret marker와 부작용을 판정한 뒤 출력 크기와 SHA-256만 보존하고 원본 파일은
   삭제한다. Hook 검증 지문도 실행 파일의 크기·시각뿐 아니라 SHA-256을 비교한다.
+- `aia proof`의 사전 Hook 검증이 실패하면 원문 Codex 출력은 보존하지 않고,
+  `reason`, `trust_status`, `next_step`과 출력 크기·SHA-256만 결과에 남긴다.
+  현재 이 컴퓨터의 `PreToolUse=MODIFIED` 상태에서는 실제 Codex를 시작하지 않고
+  `CODEX_HOOK_TRUST_REQUIRED`로 종료하는 것을 확인했다.
 - 실제 Codex가 생성한 Managed Root → Child → Grandchild 트리를 사용자가 중지하는
   경로도 [공개 요약 파일](evidence/actual-codex-user-abort-20260911.json)에 보존했다.
   세 프로세스는 모두 종료되고 unrelated 프로세스는 살아 있었으며,
