@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `c14dabd` |
+| 코드 기준 | `70c4656` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **534 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **536 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -53,6 +53,10 @@
   각 PID의 검증 결과를 분리된 audit-safe mapping으로 보존한다.
 - 실행 중 per-run Hook Broker가 사라지면 live 상태를 `DEGRADED`로 낮추고,
   종료 결과를 `*_VERIFIED`로 표시하지 않는다.
+- 실행 중 per-run Hook Broker가 사라지면 AIA는 `HOOK_BROKER_LOST` 보호 경계
+  실패를 기록하고 관리 대상 Agent 트리 중지를 시도한다. 이 결과는 사용자 중지나
+  정책 집행과 별도의 `protection_failure_termination_result`로 보존하며,
+  보호 경계 손실 세션은 `FAILED_DEGRADED`로 표시한다.
 - Live Run 화면과 API에서 per-run Hook Broker 상태를 별도 표시한다.
 - Actual Codex PreTool proof도 차단 판정에 종료 직전 Broker 생존 확인을 요구한다.
 - 제품 CLI의 `aia proof --scenario block-env`는 실제 Codex `.env` 읽기 차단과
