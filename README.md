@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.16 릴리스 기준](docs/RELEASE-0.1.16.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.17 릴리스 기준](docs/RELEASE-0.1.17.md)에서 확인할 수 있다.
 현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
@@ -89,6 +89,15 @@ Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
 ```powershell
 uv run aia doctor
 ```
+
+Hook 설치·Trust·검증의 차이가 헷갈리면 다음 읽기 전용 안내를 먼저 실행합니다.
+
+```powershell
+uv run aia hook explain
+```
+
+이 명령은 Codex 설정이나 Trust 상태를 변경하지 않고, Codex `/hooks`에서 검토할
+matcher와 command, 현재 Trust 상태, `aia hook verify`까지의 순서를 보여줍니다.
 
 처음 실행하면 `hook_verification`이 `FAIL`일 수 있습니다. 아직 실제 Codex
 실행에서 AIA Hook이 동작했다는 증명이 없다는 뜻입니다. 아래 설정과 실제 검증을

@@ -265,6 +265,13 @@ def _parser() -> argparse.ArgumentParser:
     hook_status.add_argument("--json", action="store_true", help="print machine-readable output")
     hook_status.add_argument("--path", type=Path, help="hooks.json path")
     hook_status.add_argument("--control-root", type=Path, help="AIA control root")
+    hook_explain = hook_commands.add_parser(
+        "explain",
+        help="explain the installed Hook review, trust, and verification steps",
+    )
+    hook_explain.add_argument("--json", action="store_true", help="print machine-readable output")
+    hook_explain.add_argument("--path", type=Path, help="hooks.json path")
+    hook_explain.add_argument("--control-root", type=Path, help="AIA control root")
     hook_verify = hook_commands.add_parser(
         "verify",
         help="verify the installed Hook with one disposable live Codex run",
@@ -1230,6 +1237,114 @@ def _hook_status(args: argparse.Namespace) -> int:
     return 0 if payload["ready"] else 1
 
 
+def _hook_explain(args: argparse.Namespace) -> int:
+    """Explain the user-controlled Hook boundary without changing it.
+
+    This command deliberately performs no installation, trust, or live probe.
+    It gives a first-time user a compact review checklist and the exact AIA
+    Hook metadata that should be visible in Codex's ``/hooks`` screen.
+    """
+
+    installer = CodexHookInstaller(args.path)
+    executable: Path | None = None
+    try:
+        executable = CodexAdapter().discover()
+    except Exception:
+        pass
+
+    codex_trust: dict[str, object] = {
+        "available": False,
+        "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
+        "hooks": [],
+    }
+    if executable is not None:
+        codex_trust = inspect_codex_hook_trust(
+            executable,
+            hook_path=installer.path,
+            cwd=Path.cwd(),
+            timeout=8.0,
+        ).to_mapping()
+
+    trust_entries = codex_trust.get("hooks") or []
+    trust_by_event = {
+        str(item.get("event")): str(item.get("trust_status") or "UNKNOWN")
+        for item in trust_entries
+        if isinstance(item, dict)
+    }
+    verification_store = HookVerificationStore(_control_root(args.control_root))
+    verification_current = bool(
+        executable is not None
+        and installer.is_installed()
+        and verification_store.is_current(installer, executable)
+    )
+    pretool_trust = trust_by_event.get("preToolUse", "NOT_VISIBLE")
+    trusted = pretool_trust in {"TRUSTED", "MANAGED"}
+    payload = {
+        "schema_version": "aia-hook-explain-v1",
+        "hook_path": str(installer.path),
+        "installed": {
+            "pretool_use": installer.is_installed(),
+            "posttool_use": installer.is_posttool_installed(),
+        },
+        "review_target": {
+            "events": ["PreToolUse", "PostToolUse"],
+            "matcher": installer.hook_entry("PreToolUse")["matcher"],
+            "command": installer.command,
+            "semantic_tools": list(product_capabilities()["support"]["pretool_matchers"]),
+            "aliases": product_capabilities()["support"]["pretool_aliases"],
+        },
+        "codex": {
+            "executable": str(executable) if executable is not None else None,
+            "trust_available": bool(codex_trust.get("available")),
+            "trust": trust_by_event,
+        },
+        "verification": {
+            "current": verification_current and trusted,
+            "path": str(verification_store.path),
+        },
+        "next_steps": [
+            "Codex에서 /hooks를 엽니다.",
+            "AIA PreToolUse Hook의 matcher(*)와 command를 검토합니다.",
+            "내용을 이해한 뒤 Codex 화면에서 직접 Trust합니다.",
+            "uv run aia hook verify를 실행합니다.",
+            "uv run aia doctor에서 READY를 확인한 뒤 aia start <workspace>를 실행합니다.",
+        ],
+        "security_note": (
+            "AIA는 사용자의 Codex Hook Trust를 대신 승인하지 않습니다. "
+            "설치됨은 신뢰됨이나 실제 보호 증명과 같지 않습니다."
+        ),
+    }
+    if args.json:
+        print(_json_text(payload))
+        return 0
+
+    print("AIA Hook 검토 안내")
+    print(f"설정 파일: {payload['hook_path']}")
+    print(
+        "설치 상태: "
+        f"PreToolUse={'설치됨' if payload['installed']['pretool_use'] else '없음'} / "
+        f"PostToolUse={'설치됨' if payload['installed']['posttool_use'] else '없음'}"
+    )
+    print(f"검토할 matcher: {payload['review_target']['matcher']}")
+    print(f"검토할 command: {payload['review_target']['command']}")
+    print(
+        "AIA가 의미를 해석하는 도구: "
+        + ", ".join(str(item) for item in payload["review_target"]["semantic_tools"])
+    )
+    print(
+        "현재 Codex Trust: "
+        + ", ".join(f"{event}={status}" for event, status in trust_by_event.items())
+        if trust_by_event
+        else "확인 불가"
+    )
+    print(f"현재 검증 증명: {'CURRENT' if payload['verification']['current'] else '필요'}")
+    print("다음 순서:")
+    for index, step in enumerate(payload["next_steps"], 1):
+        print(f"  {index}. {step}")
+    print(f"주의: {payload['security_note']}")
+    return 0
+
+
 def _extract_session_id(output: str) -> str | None:
     for line in output.splitlines():
         prefix = "AIA Protected Run:"
@@ -2147,6 +2262,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_console(args)
         if args.command == "hook" and args.hook_command == "status":
             return _hook_status(args)
+        if args.command == "hook" and args.hook_command == "explain":
+            return _hook_explain(args)
         if args.command == "hook" and args.hook_command == "verify":
             return _hook_verify(args)
         if args.command in {"protect", "start"}:

@@ -535,6 +535,121 @@ def test_hook_status_parser_supports_json_and_control_root(tmp_path) -> None:
     assert args.control_root == tmp_path / "control"
 
 
+def test_hook_explain_parser_supports_json_and_paths(tmp_path) -> None:
+    args = _parser().parse_args(
+        [
+            "hook",
+            "explain",
+            "--json",
+            "--path",
+            str(tmp_path / "hooks.json"),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    assert args.command == "hook"
+    assert args.hook_command == "explain"
+    assert args.json is True
+    assert args.path == tmp_path / "hooks.json"
+    assert args.control_root == tmp_path / "control"
+
+
+def test_hook_explain_is_read_only_and_describes_manual_review(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    before = hook_path.read_bytes()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                        {"event": "postToolUse", "trust_status": "UNTRUSTED"},
+                    ],
+                }
+            },
+        )(),
+    )
+
+    assert (
+        main(
+            [
+                "hook",
+                "explain",
+                "--path",
+                str(hook_path),
+                "--control-root",
+                str(tmp_path / "control"),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "/hooks" in output
+    assert "matcher: *" in output
+    assert "preToolUse=MODIFIED" in output
+    assert "aia hook verify" in output
+    assert hook_path.read_bytes() == before
+
+
+def test_hook_explain_json_contains_contract_without_raw_hook_payload(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "hooks": [{"event": "preToolUse", "trust_status": "TRUSTED"}],
+                }
+            },
+        )(),
+    )
+
+    assert (
+        main(
+            [
+                "hook",
+                "explain",
+                "--json",
+                "--path",
+                str(hook_path),
+                "--control-root",
+                str(tmp_path / "control"),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == "aia-hook-explain-v1"
+    assert payload["installed"]["pretool_use"] is True
+    assert payload["review_target"]["matcher"] == "*"
+    assert "Bash" in payload["review_target"]["semantic_tools"]
+    assert payload["codex"]["trust"]["preToolUse"] == "TRUSTED"
+    assert payload["verification"]["current"] is False
+    assert "hooks" not in payload
+
+
 def test_hook_status_is_not_ready_when_only_the_definition_is_installed(
     tmp_path, monkeypatch, capsys
 ) -> None:
