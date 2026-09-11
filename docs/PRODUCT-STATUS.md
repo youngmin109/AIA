@@ -69,6 +69,14 @@ Grandchild = TERMINATED / SUCCEEDED`, unrelated process = `LIVE_MATCH`로 확인
 계약의 증거이며, 정책 위반에 따른 자동 destructive PROCESS 집행까지 증명하는 결과는
 아니다.
 
+2026-09-11에는 Codex 0.154.0의 실제 Bash, `apply_patch`, `.env` 읽기 PreToolUse를
+direct adapter smoke로 추가 확인했다. 세 시나리오 모두 AIA가
+`VIOLATION → CONTAIN → PRETOOL_BLOCK`을 결정하고 Codex에 실제 `deny`를 반환했으며,
+부작용 없이 `BLOCKED / SUCCEEDED`와 Bundle `VALID`를 기록했다. `.env` 시나리오에서는
+Codex 출력과 Evidence/Result에 secret marker가 없었다. 이 자동화 검증은 disposable
+Workspace와 일회성 inline Hook을 사용한 경로이며, 일반 사용자의 Hook Trust 절차를
+생략하는 제품 사용 방식은 아니다.
+
 Protected Run의 Process Sensor는 제품 경로에서 관찰한 프로세스 명령행을 선택적으로
 Raw Evidence로 보존하고, 등록된 Command Rule의 lexical `EXECUTE` 판정에 사용할 수
 있다. 이 정보는 프로세스가 실행됐다는 사실과 명령행 문자열만 보여 주며, 명령 내부의

@@ -25,7 +25,7 @@
 | 릴리스 wheel·sdist 개수 검증 | **PASS** |
 | 릴리스 SHA-256 검증 | **PASS** |
 | 설치된 wheel `aia self-test --json` | **PASS** |
-| 실제 Codex proof 판정 | 실제 Codex Hook Trust가 준비된 환경에서 별도 실행 |
+| Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 
 ## 이번 재검증에서 확인한 제품 계약
 
@@ -53,6 +53,17 @@
   판정을 확인한다.
 - CLI는 `Phase: READY`를 Codex 시작 대기 상태로 설명하고, 장시간 지연 시
   `aia status <SESSION_ID>` 확인 방법을 안내한다.
+- 2026-09-11 Actual Codex 0.154.0 direct adapter smoke에서 실제 `Bash`,
+  `apply_patch`, `.env` 읽기 시나리오를 각각 실행했다. 세 시나리오 모두 실제
+  PreToolUse 도착, `VIOLATION → CONTAIN → PRETOOL_BLOCK`, `deny`, Hook Broker
+  `HEALTHY`, 부작용 없음, `BLOCKED / SUCCEEDED`, Result Bundle `VALID`를 확인했다.
+  Bash와 apply_patch의 산출물은 각각
+  `evaluation/actual-codex/pretool-block/20260911T001205Z-48e87d62/run.json`,
+  `evaluation/actual-codex/pretool-block/20260911T001348Z-420b4193/run.json`이고,
+  `.env` 시나리오는 `evaluation/actual-codex/pretool-block/20260911T001416Z-607009ed/run.json`이다.
+  각 실행에서 동일 callback 1건은 Raw Evidence에 보존하고 논리 이벤트는 1건으로
+  계산했다. `.env` 시나리오에서는 Codex 출력과 Evidence/Result에 secret marker가
+  없음을 추가 확인했다.
 
 ## 해석상 제한
 
@@ -63,6 +74,9 @@
 - 실제 Codex proof는 사용자가 Codex `/hooks`에서 AIA Hook을 검토·신뢰하고,
   `aia hook verify`가 현재 Hook 설정에 대한 Session-bound Event를 확인한 뒤에만
   실행할 수 있다.
+- 위 direct adapter smoke는 disposable Workspace의 일회성 자동화 검증을 위해
+  inline Hook과 `--dangerously-bypass-hook-trust`를 사용했다. 일반 제품 사용 경로의
+  Hook Trust를 대신하는 증명으로 해석하지 않는다.
 - 이 기록은 모든 Codex 도구·MCP·Agent를 보편적으로 보호한다는 증명이 아니다.
 
 과거 EPIC-018 평가의 상세 수치와 당시 판정은
