@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `95cbfec` |
+| 코드 기준 | `57c5df0` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **538 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **540 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -60,6 +60,8 @@
 - Live Run 화면과 API에서 per-run Hook Broker 상태를 별도 표시한다.
 - 보호 준비가 끝난 뒤 Codex 프로세스·Hook Broker·Process Sensor를 등록하는 동안
   CLI와 Live Run 화면에 `LAUNCHING`을 표시해 `READY` 정지처럼 보이지 않게 한다.
+- `LAUNCHING` 중 사용자 중지가 들어오면 이미 검증된 Process Identity가 있는 Root만
+  종료하고, 아직 등록되지 않은 경우 실행 전에 중지 요청을 보류한다.
 - Actual Codex PreTool proof도 차단 판정에 종료 직전 Broker 생존 확인을 요구한다.
 - 제품 CLI의 `aia proof --scenario block-env`는 실제 Codex `.env` 읽기 차단과
   secret marker 비유출 확인을 별도 제품 증명 시나리오로 제공한다.
