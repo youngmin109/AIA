@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from aia_app.dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
-from aia_app.presenters import action_view, incident_view, result_view
+from aia_app.presenters import action_view, action_summary, incident_view, result_view
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
@@ -402,6 +402,56 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["recovery_status"] == "RESTORED"
     assert view["integrity_status"] == "FAILED"
     assert view["bundle_status"] == "VALID"
+
+
+def test_result_presenter_aggregates_all_action_outcomes() -> None:
+    summary = action_summary(
+        {
+            "action_outcomes": [
+                {
+                    "policy_decision": "VIOLATION",
+                    "enforcement_decision": "CONTAIN",
+                    "enforcement_action": "BLOCKED",
+                    "execution_result": "SUCCEEDED",
+                },
+                {
+                    "policy_decision": "COMPLIANT",
+                    "enforcement_decision": "CONTINUE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "SUCCEEDED",
+                },
+                {
+                    "policy_decision": "AUDIT",
+                    "enforcement_decision": "CONTINUE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "NOT_ATTEMPTED",
+                },
+                {
+                    "policy_decision": "INDETERMINATE",
+                    "enforcement_decision": "REFUSE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "FAILED",
+                },
+            ]
+        }
+    )
+
+    assert summary == {
+        "total": 4,
+        "compliant": 1,
+        "audit": 1,
+        "violation": 1,
+        "indeterminate": 1,
+        "contain": 1,
+        "blocked": 1,
+        "terminated": 0,
+        "execution_succeeded": 2,
+        "execution_failed": 1,
+        "execution_not_attempted": 1,
+    }
+    assert result_view(
+        {"action_outcomes": [{"policy_decision": "VIOLATION"}]}, "VALID"
+    )["action_summary"]["total"] == 1
 
 
 def test_result_presenter_exposes_redacted_recovery_and_integrity_counts() -> None:

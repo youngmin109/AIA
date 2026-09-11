@@ -47,6 +47,7 @@ from aia.diagnostics import build_support_bundle, write_support_bundle
 from aia._version import __version__
 from aia_app import ApplicationValidationError, RunApplicationService
 from aia_app.readers import ResultBundleReader
+from aia_app.presenters import action_summary
 
 
 def _json_text(value: object, *, default: object | None = None) -> str:
@@ -1429,6 +1430,42 @@ def _print_protected_run_summary(
     print(f"Result Bundle: {bundle_status or 'NOT_AVAILABLE'}")
     if status.get("result_path"):
         print(f"Result Path: {status['result_path']}")
+
+    if isinstance(result, dict):
+        summary = result.get("action_summary")
+        if not isinstance(summary, dict):
+            summary = action_summary(result)
+        print(
+            "Actions: "
+            f"{summary.get('total', 0)} total / "
+            f"{summary.get('compliant', 0)} compliant / "
+            f"{summary.get('audit', 0)} audit / "
+            f"{summary.get('violation', 0)} violation / "
+            f"{summary.get('indeterminate', 0)} indeterminate"
+        )
+        print(
+            "Enforcement: "
+            f"{summary.get('contain', 0)} contain / "
+            f"{summary.get('blocked', 0)} blocked / "
+            f"{summary.get('terminated', 0)} terminated"
+        )
+        print(
+            "Execution: "
+            f"{summary.get('execution_succeeded', 0)} succeeded / "
+            f"{summary.get('execution_failed', 0)} failed / "
+            f"{summary.get('execution_not_attempted', 0)} not attempted"
+        )
+        recovery_status = result.get("recovery_status") or "NOT_ATTEMPTED"
+        integrity_status = result.get("integrity_status") or "NOT_ATTEMPTED"
+        print(f"Recovery: {recovery_status}")
+        print(f"Integrity: {integrity_status}")
+        if recovery_status == "RESTORED" and integrity_status == "VERIFIED":
+            print("복구 해석: 검증된 복구 성공(RESTORED + VERIFIED)")
+        elif recovery_status != "NOT_ATTEMPTED" or integrity_status != "NOT_ATTEMPTED":
+            print(
+                "복구 해석: Recovery와 Integrity는 독립 상태입니다. "
+                "두 상태가 모두 성공인지 확인하세요."
+            )
 
     if protection_state in {"COMPLETED_VERIFIED", "ABORTED_VERIFIED"} and bundle_status == "VALID":
         print("해석: 실제 Hook과 센서 종료 상태가 확인된 보호 실행입니다.")

@@ -170,6 +170,43 @@ def test_protected_run_summary_marks_degraded_completion(capsys) -> None:
     assert "다시 실행하세요" in output
 
 
+def test_protected_run_summary_reports_all_action_and_recovery_axes(capsys) -> None:
+    _print_protected_run_summary(
+        "session-3",
+        {
+            "session": {"status": "COMPLETED"},
+            "protection": {"state": "COMPLETED_VERIFIED", "hook_events": 2},
+        },
+        {
+            "bundle_status": "VALID",
+            "recovery_status": "RESTORED",
+            "integrity_status": "VERIFIED",
+            "action_outcomes": [
+                {
+                    "policy_decision": "VIOLATION",
+                    "enforcement_decision": "CONTAIN",
+                    "enforcement_action": "BLOCKED",
+                    "execution_result": "SUCCEEDED",
+                },
+                {
+                    "policy_decision": "COMPLIANT",
+                    "enforcement_decision": "CONTINUE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "SUCCEEDED",
+                },
+            ],
+        },
+    )
+
+    output = capsys.readouterr().out
+    assert "Actions: 2 total / 1 compliant / 0 audit / 1 violation / 0 indeterminate" in output
+    assert "Enforcement: 1 contain / 1 blocked / 0 terminated" in output
+    assert "Execution: 2 succeeded / 0 failed / 0 not attempted" in output
+    assert "Recovery: RESTORED" in output
+    assert "Integrity: VERIFIED" in output
+    assert "검증된 복구 성공" in output
+
+
 def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:
     args = _parser().parse_args(["setup", "--json", "--path", str(tmp_path / "hooks.json")])
 

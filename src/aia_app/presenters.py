@@ -165,6 +165,33 @@ def incident_views_for_result(result: Mapping[str, Any]) -> list[dict[str, Any]]
     return incidents
 
 
+def action_summary(result: Mapping[str, Any]) -> dict[str, int]:
+    """Aggregate authoritative action outcomes for a human-readable result view."""
+
+    actions = [
+        item
+        for item in (result.get("action_outcomes") or [])
+        if isinstance(item, Mapping)
+    ]
+
+    def count(field: str, value: str) -> int:
+        return sum(1 for item in actions if item.get(field) == value)
+
+    return {
+        "total": len(actions),
+        "compliant": count("policy_decision", "COMPLIANT"),
+        "audit": count("policy_decision", "AUDIT"),
+        "violation": count("policy_decision", "VIOLATION"),
+        "indeterminate": count("policy_decision", "INDETERMINATE"),
+        "contain": count("enforcement_decision", "CONTAIN"),
+        "blocked": count("enforcement_action", "BLOCKED"),
+        "terminated": count("enforcement_action", "TERMINATED"),
+        "execution_succeeded": count("execution_result", "SUCCEEDED"),
+        "execution_failed": count("execution_result", "FAILED"),
+        "execution_not_attempted": count("execution_result", "NOT_ATTEMPTED"),
+    }
+
+
 def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
     incidents = incident_views_for_result(result)
     incident_action_ids = {
@@ -252,6 +279,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "verification_errors": len(integrity.get("verification_errors") or []),
     }
     return {
+        "action_summary": action_summary(result),
         "agent": result.get("agent"),
         "attribution_results": list(result.get("attribution_results") or []),
         "bundle_status": bundle_status,
