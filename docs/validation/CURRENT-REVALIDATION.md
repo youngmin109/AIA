@@ -19,7 +19,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **578 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **579 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
