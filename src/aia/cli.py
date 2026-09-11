@@ -958,7 +958,18 @@ def _hook_status(args: argparse.Namespace) -> int:
             print("최근에 Session에 연결된 Hook Event가 없습니다.")
         if payload["activation_status"] == "OBSERVED_IN_PAST":
             print("주의: 과거 관찰 기록만 있으며 현재 검증 증명은 없습니다.")
-        print("주의: CURRENT가 아니면 aia protect는 보호 실행을 시작하지 않습니다.")
+        if payload["ready"]:
+            print("[다음] uv run aia protect <workspace>")
+        else:
+            print("주의: CURRENT가 아니면 aia protect는 보호 실행을 시작하지 않습니다.")
+            if any(
+                isinstance(item, dict)
+                and item.get("event") == "preToolUse"
+                and item.get("trust_status") not in {"TRUSTED", "MANAGED"}
+                for item in trust_entries
+            ):
+                print("[다음] Codex에서 /hooks를 열고 AIA PreToolUse Hook을 검토·신뢰하세요.")
+            print("[다음] uv run aia hook verify")
     return 0 if payload["ready"] else 1
 
 

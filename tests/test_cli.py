@@ -219,6 +219,45 @@ def test_hook_status_is_not_ready_when_only_the_definition_is_installed(
     assert payload["ready"] is False
 
 
+def test_hook_status_human_output_explains_trust_and_verification_steps(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "hooks": [{"event": "preToolUse", "trust_status": "MODIFIED"}],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "/hooks" in output
+    assert "aia hook verify" in output
+
+
 def test_recent_run_diagnostic_explains_downgraded_codex_execution(
     tmp_path, monkeypatch
 ) -> None:
