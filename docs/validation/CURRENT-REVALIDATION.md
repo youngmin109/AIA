@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `64adecd` |
-| 제품 버전 | `0.1.12` |
-| Actual Codex 보안 증거 기준 | `0.1.10`에서 실행한 disposable Actual Codex direct smoke와 `0.1.12`의 지원 범위 정합성 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
+| 코드 기준 | `30774c2` |
+| 제품 버전 | `0.1.13` |
+| Actual Codex 보안 증거 기준 | `0.1.10`에서 실행한 disposable Actual Codex direct smoke와 `0.1.13`의 지원 범위·첫 실행 데모 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -19,7 +19,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **564 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **571 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -28,6 +28,7 @@
 | clean wheel 설치·`aia self-test` | **PASS** |
 | clean wheel 로컬 콘솔 assets | **PASS** |
 | 설치된 wheel `aia self-test --json` | **PASS** |
+| 설치된 wheel `aia demo` | **PASS** |
 
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | Actual Codex registered filesystem MCP read (direct adapter smoke) | **PASS** |
@@ -44,8 +45,8 @@
 0.1.10은 이 실제 차단 경로의 정책·집행 의미를 변경하지 않고, Hook 검증 Probe의
 내부 부트스트랩 경계와 Trust 상태 표시를 보강했다. 0.1.11은 `aia hook status`가
 같은 Trust 상태를 실제 값으로 표시하도록 정합성을 보강했다. 따라서 아래 Actual
-Codex 결과는 0.1.12의 차단 계약에 대한 기존 통합 근거로 유지하며, 릴리스 번들
-검증은 0.1.12로 다시 실행한다. 0.1.12는 공식 Codex 입력 계약이 없는 `Edit`·`Write`
+Codex 결과는 0.1.13의 차단 계약에 대한 기존 통합 근거로 유지하며, 릴리스 번들
+검증은 0.1.13으로 다시 실행한다. 0.1.12는 공식 Codex 입력 계약이 없는 `Edit`·`Write`
 를 보호 지원 범위로 표시하지 않도록 정합성을 보강했다.
 
 | 시나리오 | 실제 결과 | 확인한 사실 |
