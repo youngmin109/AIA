@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `47b554a` |
+| 코드 기준 | `c720bfa` |
 | 제품 버전 | `0.1.6` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -86,7 +86,8 @@
   PreToolUse 도착, `VIOLATION → CONTAIN → PRETOOL_BLOCK`, `deny`, Hook Broker
   `HEALTHY`, 부작용 없음, `BLOCKED / SUCCEEDED`, Result Bundle `VALID`를 확인했다.
   Bash와 apply_patch의 산출물은 각각
-  공개 요약은 [Actual Codex PreToolUse 증명](evidence/actual-codex-pretool-20260911.json)에
+  최신 0.1.6 실행 요약은 [Actual Codex PreToolUse 증명](evidence/actual-codex-pretool-20260911-0.1.6.json)에,
+  이전 실행 요약은 [과거 증명 기록](evidence/actual-codex-pretool-20260911.json)에
   보존했으며, 전체 실행 산출물은 로컬에서만 유지한다.
   각 실행에서 동일 callback 1건은 Raw Evidence에 보존하고 논리 이벤트는 1건으로
   계산했다. `.env` 시나리오에서는 Codex 출력과 Evidence/Result에 secret marker가
