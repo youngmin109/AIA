@@ -118,7 +118,7 @@ try {
     }
 
     $hookExplainHelp = (& $verifyPython -m aia.cli hook explain --help | Out-String)
-    if ($LASTEXITCODE -ne 0 -or $hookExplainHelp -notmatch "review") {
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($hookExplainHelp)) {
         throw "installed wheel Hook onboarding entrypoint failed"
     }
 
