@@ -43,6 +43,19 @@ def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
     assert second["hooks"]["PostToolUse"][0]["hooks"][0]["type"] == "command"
 
 
+def test_codex_hook_installer_uses_codex_home_when_path_is_omitted(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    installer = CodexHookInstaller()
+
+    assert installer.path == (codex_home / "hooks.json").resolve()
+    installer.install()
+    assert installer.path.exists()
+
+
 def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path) -> None:
     path = tmp_path / "hooks.json"
     python_executable = tmp_path / "python.exe"

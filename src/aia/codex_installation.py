@@ -40,11 +40,23 @@ class CodexHookInstaller:
         self.path = (
             Path(path).expanduser().resolve(strict=False)
             if path is not None
-            else (Path.home() / ".codex" / "hooks.json").resolve(strict=False)
+            else self._default_hook_path()
         )
         self.python_executable = str(
             Path(python_executable or sys.executable).expanduser().resolve(strict=False)
         )
+
+    @staticmethod
+    def _default_hook_path() -> Path:
+        """Resolve the same Codex home that the CLI uses for its config."""
+
+        configured = os.environ.get("CODEX_HOME")
+        root = (
+            Path(configured).expanduser().resolve(strict=False)
+            if configured
+            else (Path.home() / ".codex").resolve(strict=False)
+        )
+        return root / "hooks.json"
 
     @property
     def command(self) -> str:
