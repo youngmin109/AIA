@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `6b77ba2` |
+| 코드 기준 | `5f3d0b2` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -51,6 +51,8 @@
   판정, Effect, 보안 자산, 적용 Rule을 보여준다.
 - Core `self-test`도 기본 보호 프로필과 `.env READ → VIOLATION / DENY / SECRET`
   판정을 확인한다.
+- CLI는 `Phase: READY`를 Codex 시작 대기 상태로 설명하고, 장시간 지연 시
+  `aia status <SESSION_ID>` 확인 방법을 안내한다.
 
 ## 해석상 제한
 
