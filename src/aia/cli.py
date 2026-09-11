@@ -15,6 +15,7 @@ import threading
 import time
 from typing import Sequence
 import webbrowser
+from uuid import uuid4
 
 from aia import (
     CodexAdapter,
@@ -49,6 +50,9 @@ from aia._version import __version__
 from aia_app import ApplicationValidationError, RunApplicationService
 from aia_app.readers import ResultBundleReader
 from aia_app.presenters import action_summary
+
+
+_HOOK_VERIFICATION_PROBE_TOKEN_ENV = "AIA_HOOK_VERIFICATION_PROBE_TOKEN"
 
 
 def _json_text(value: object, *, default: object | None = None) -> str:
@@ -86,7 +90,7 @@ def _add_protected_run_arguments(parser: argparse.ArgumentParser) -> None:
         help="maximum wait in seconds",
     )
     parser.add_argument(
-        "--_allow-unverified-hook",
+        "--_hook-verification-probe",
         action="store_true",
         help=argparse.SUPPRESS,
     )
@@ -1259,8 +1263,10 @@ def _hook_verify(args: argparse.Namespace) -> int:
         str(control_root),
         "--timeout",
         str(args.timeout),
-        "--_allow-unverified-hook",
+        "--_hook-verification-probe",
     ]
+    probe_environment = os.environ.copy()
+    probe_environment[_HOOK_VERIFICATION_PROBE_TOKEN_ENV] = uuid4().hex
     payload: dict[str, object] = {
         "verified": False,
         "protection_claim": "PROTECTION_NOT_PROVEN",
@@ -1286,6 +1292,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=probe_environment,
             timeout=args.timeout + 60.0,
             check=False,
         )
@@ -1402,7 +1409,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
 def _protected_run_preflight(
     control_root: Path | None = None,
     *,
-    allow_unverified_hook: bool = False,
+    hook_verification_probe: bool = False,
 ) -> tuple[bool, list[str]]:
     """Return actionable local checks before creating a Protected Run."""
 
@@ -1416,7 +1423,7 @@ def _protected_run_preflight(
         failures.append(
             "AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 'uv run aia setup'을 실행하세요."
         )
-    elif not allow_unverified_hook:
+    elif not hook_verification_probe:
         resolved_control_root = control_root or _control_root(None)
         try:
             executable = CodexAdapter().discover()
@@ -1862,6 +1869,11 @@ def _reconcile_run(args: argparse.Namespace) -> int:
 def _run_protected(args: argparse.Namespace) -> int:
     if args.timeout <= 0:
         raise ApplicationValidationError("timeout must be positive")
+    if args._hook_verification_probe:
+        probe_token = os.environ.pop(_HOOK_VERIFICATION_PROBE_TOKEN_ENV, None)
+        if not isinstance(probe_token, str) or not probe_token:
+            print("AIA error: Hook verification probe authorization is missing")
+            return 2
     interactive = args.task is None
     if interactive and (not sys.stdin.isatty() or not sys.stdout.isatty()):
         print(
@@ -1871,7 +1883,7 @@ def _run_protected(args: argparse.Namespace) -> int:
         return 2
     ready, failures = _protected_run_preflight(
         _control_root(args.control_root),
-        allow_unverified_hook=args._allow_unverified_hook,
+        hook_verification_probe=args._hook_verification_probe,
     )
     if not ready:
         print("AIA 보호 실행을 시작하지 않았습니다.")
@@ -1884,7 +1896,7 @@ def _run_protected(args: argparse.Namespace) -> int:
         return 2
     service = RunApplicationService(
         _control_root(args.control_root),
-        require_hook_verification=not args._allow_unverified_hook,
+        require_hook_verification=not args._hook_verification_probe,
     )
     try:
         created = service.create_protected_run(

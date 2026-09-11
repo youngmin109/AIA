@@ -771,6 +771,25 @@ def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
     assert any("PreToolUse Hook" in item for item in failures)
 
 
+def test_hook_verification_probe_flag_requires_internal_authorization_token(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.delenv("AIA_HOOK_VERIFICATION_PROBE_TOKEN", raising=False)
+
+    exit_code = main(
+        [
+            "protect",
+            str(tmp_path),
+            "--task",
+            "do nothing",
+            "--_hook-verification-probe",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "probe authorization is missing" in capsys.readouterr().out
+
+
 def test_protected_run_preflight_requires_live_hook_proof_when_hook_is_installed(
     tmp_path, monkeypatch
 ) -> None:
@@ -784,7 +803,7 @@ def test_protected_run_preflight_requires_live_hook_proof_when_hook_is_installed
 
     ready, failures = _protected_run_preflight(
         tmp_path / "control",
-        allow_unverified_hook=True,
+        hook_verification_probe=True,
     )
 
     assert ready is True
