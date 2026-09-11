@@ -9,6 +9,7 @@ from aia.cli import (
     _extract_session_id,
     _live_hook_proof_is_valid,
     _parser,
+    _print_protected_run_summary,
     _protected_run_preflight,
     _recent_run_diagnostic,
     main,
@@ -98,6 +99,41 @@ def test_self_test_exercises_core_contracts_without_codex(capsys) -> None:
         "raw_evidence_seal",
         "lifecycle_cleanup",
     }
+
+
+def test_protected_run_summary_explains_verified_completion(capsys) -> None:
+    _print_protected_run_summary(
+        "session-1",
+        {
+            "session": {"status": "COMPLETED"},
+            "protection": {"state": "COMPLETED_VERIFIED", "hook_events": 3},
+            "result_path": "C:/control/sessions/session-1/result/result.json",
+        },
+        {"bundle_status": "VALID", "incidents": [{"action_id": "a-1"}]},
+    )
+
+    output = capsys.readouterr().out
+    assert "AIA 보호 실행 결과" in output
+    assert "Protection: COMPLETED_VERIFIED" in output
+    assert "Hook Events: 3" in output
+    assert "Result Bundle: VALID" in output
+    assert "실제 Hook과 센서 종료 상태가 확인된 보호 실행" in output
+
+
+def test_protected_run_summary_marks_degraded_completion(capsys) -> None:
+    _print_protected_run_summary(
+        "session-2",
+        {
+            "session": {"status": "COMPLETED"},
+            "protection": {"state": "COMPLETED_DEGRADED", "hook_events": 0},
+            "incident_count": 0,
+        },
+        {"bundle_status": "VALID", "incidents": []},
+    )
+
+    output = capsys.readouterr().out
+    assert "보호 경계가 완전히 검증되지 않았습니다" in output
+    assert "다시 실행하세요" in output
 
 
 def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:

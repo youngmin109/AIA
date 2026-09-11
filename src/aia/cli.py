@@ -1319,6 +1319,50 @@ def _protected_run_preflight(
     return not failures, failures
 
 
+def _print_protected_run_summary(
+    session_id: str,
+    status: dict[str, object],
+    result: dict[str, object] | None,
+) -> None:
+    """Print a human-readable completion summary without raw evidence."""
+
+    protection = status.get("protection")
+    protection_view = protection if isinstance(protection, dict) else {}
+    protection_state = str(protection_view.get("state") or "UNKNOWN")
+    hook_events = protection_view.get("hook_events", 0)
+    bundle_status = (
+        result.get("bundle_status")
+        if isinstance(result, dict)
+        else None
+    )
+    incident_count = (
+        len(result.get("incidents", ()))
+        if isinstance(result, dict) and isinstance(result.get("incidents"), list)
+        else status.get("incident_count", 0)
+    )
+
+    print("AIA 보호 실행 결과")
+    print(f"Protected Run: {session_id}")
+    session = status.get("session")
+    session_view = session if isinstance(session, dict) else {}
+    print(f"Session: {status.get('status') or session_view.get('status', 'UNKNOWN')}")
+    print(f"Protection: {protection_state}")
+    print(f"Hook Events: {hook_events}")
+    print(f"Incidents: {incident_count}")
+    print(f"Result Bundle: {bundle_status or 'NOT_AVAILABLE'}")
+    if status.get("result_path"):
+        print(f"Result Path: {status['result_path']}")
+
+    if protection_state in {"COMPLETED_VERIFIED", "ABORTED_VERIFIED"} and bundle_status == "VALID":
+        print("해석: 실제 Hook과 센서 종료 상태가 확인된 보호 실행입니다.")
+    elif protection_state in {"COMPLETED_DEGRADED", "ABORTED_DEGRADED"}:
+        print("해석: 실행은 끝났지만 보호 경계가 완전히 검증되지 않았습니다.")
+        print("다음: Result Bundle의 limitations와 Hook 상태를 확인한 뒤 다시 실행하세요.")
+    elif protection_state == "FAILED_DEGRADED":
+        print("해석: 보호 경계가 끊겨 보호 성공으로 해석할 수 없습니다.")
+        print("다음: 관리 대상 프로세스 종료 결과와 Result Bundle을 확인하세요.")
+
+
 def _validate_policy(args: argparse.Namespace) -> int:
     """Validate a policy before a Protected Run freezes it."""
 
@@ -1703,19 +1747,10 @@ def _run_protected(args: argparse.Namespace) -> int:
         print(f"Status: {final_status}")
         if status.get("error"):
             print(f"Error: {status['error']}")
+        result: dict[str, object] | None = None
         if status.get("result_available"):
             result = service.get_result(session_id)
-            print(
-                _json_text(
-                    {
-                        "bundle_status": result.get("bundle_status"),
-                        "incident_count": len(result.get("incidents", [])),
-                        "result_path": status.get("result_path"),
-                        "session_status": result.get("session_status"),
-                        "protection_state": (status.get("protection") or {}).get("state"),
-                    }
-                )
-            )
+        _print_protected_run_summary(session_id, status, result)
         protection_state = (status.get("protection") or {}).get("state")
         protection = status.get("protection") or {}
         if protection_state in {"COMPLETED_DEGRADED", "FAILED_DEGRADED"}:
