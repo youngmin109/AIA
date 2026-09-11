@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `0.1.14` 대시보드 보강 기준 |
-| 제품 버전 | `0.1.14` |
-| Actual Codex 보안 증거 기준 | `0.1.13`에서 실행한 disposable Actual Codex direct smoke와 `0.1.14`의 로컬 콘솔 대시보드 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
+| 코드 기준 | `0.1.15` 콘솔 기본 화면 보강 기준 |
+| 제품 버전 | `0.1.15` |
+| Actual Codex 보안 증거 기준 | `0.1.13`에서 실행한 disposable Actual Codex direct smoke와 `0.1.15`의 로컬 콘솔 화면 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -48,7 +48,8 @@
 내부 부트스트랩 경계와 Trust 상태 표시를 보강했다. 0.1.11은 `aia hook status`가
 같은 Trust 상태를 실제 값으로 표시하도록 정합성을 보강했다. 따라서 아래 Actual
 Codex 결과는 0.1.13의 차단 계약에 대한 기존 통합 근거로 유지하며, 0.1.14는
-그 위에 로컬 콘솔 대시보드와 사용 전 준비 상태 표시를 추가한다. 현재 semantic
+그 위에 로컬 콘솔 대시보드와 사용 전 준비 상태 표시를 추가한다. 0.1.15에서는
+대시보드를 콘솔의 기본 진입 화면으로 지정하고 실행 폼을 `/new`로 분리했다. 현재 semantic
 지원 목록은 canonical
 `apply_patch`를 사용하며, Codex의 `Edit`·`Write` matcher 별칭은 같은
 `apply_patch` 입력으로 처리된다는 공식 Hook 계약을 별도 alias metadata로 표시한다.

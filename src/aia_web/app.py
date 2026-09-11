@@ -47,17 +47,6 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
     @app.get("/", response_class=HTMLResponse)
-    def new_run(request: Request) -> HTMLResponse:
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "new_run.html",
-            {
-                "profiles": app.state.service.policy_profiles(),
-                "preflight": app.state.service.preflight(),
-                "capabilities": product_capabilities(),
-            },
-        )
-
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request) -> HTMLResponse:
         """Render the local product overview without starting an Agent."""
@@ -68,6 +57,18 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             {
                 "preflight": app.state.service.preflight(),
                 "runs": app.state.service.list_runs(),
+                "capabilities": product_capabilities(),
+            },
+        )
+
+    @app.get("/new", response_class=HTMLResponse)
+    def new_run(request: Request) -> HTMLResponse:
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "new_run.html",
+            {
+                "profiles": app.state.service.policy_profiles(),
+                "preflight": app.state.service.preflight(),
                 "capabilities": product_capabilities(),
             },
         )

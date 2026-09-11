@@ -161,7 +161,11 @@ class FakeService:
 
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
-    new_run = client.get("/")
+    dashboard = client.get("/")
+    assert dashboard.status_code == 200
+    assert "보호 상태를 한눈에 확인하세요" in dashboard.text
+
+    new_run = client.get("/new")
     assert new_run.status_code == 200
     assert "보호 실행 시작" in new_run.text
     assert "작업 폴더 선택" in new_run.text
@@ -249,7 +253,7 @@ def test_console_supports_session_first_interactive_run() -> None:
     service = FakeService()
     client = TestClient(create_app(service))
 
-    page = client.get("/")
+    page = client.get("/new")
     assert page.status_code == 200
     assert "대화형 보호 세션" in page.text
     assert "세션 안에서 원하는 작업을 입력합니다" in page.text
@@ -270,7 +274,7 @@ def test_console_reveals_custom_policy_path_for_custom_profile() -> None:
     ]
     client = TestClient(create_app(service))
 
-    page = client.get("/")
+    page = client.get("/new")
 
     assert page.status_code == 200
     assert 'option value="CUSTOM"' in page.text

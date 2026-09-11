@@ -13,7 +13,7 @@
     <h1>보호 상태를 한눈에 확인하세요.</h1>
     <p class="lede">AIA는 사용자가 선택한 Workspace에서 Codex를 보호 실행하고, 지원되는 도구 요청을 실행 전에 평가합니다.</p>
   </div>
-  <a class="button primary" href="/">새 보호 실행</a>
+  <a class="button primary" href="/new">새 보호 실행</a>
 </section>
 
 <section class="metric-grid dashboard-metrics" aria-label="현재 제품 상태">
@@ -72,7 +72,7 @@
 
 <div class="dashboard-columns">
   <section class="panel">
-    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/" class="text-link">정책 미리보기 →</a></div>
+    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/new" class="text-link">정책 미리보기 →</a></div>
     <div class="scope-list">
       <div><strong>PreToolUse</strong><span>실행 전 정책 판정과 차단</span></div>
       <div><strong>도구</strong><span>{{ (support.get('pretool_matchers') or [])|join(', ') }}</span></div>
@@ -99,7 +99,7 @@
     <tbody>{% for run in runs[:5] %}<tr><td class="mono">{{ run.session_id }}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
   </table></div>
   {% else %}
-  <div class="empty dashboard-empty">아직 보호 실행 기록이 없습니다. <a href="/">첫 보호 실행을 시작하세요.</a></div>
+  <div class="empty dashboard-empty">아직 보호 실행 기록이 없습니다. <a href="/new">첫 보호 실행을 시작하세요.</a></div>
   {% endif %}
 </section>
 
