@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `a14c5a2` |
+| 코드 기준 | `605d91d` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,12 +18,13 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **510 passed, 3 skipped** |
+| 전체 pytest | **511 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
 | 릴리스 wheel·sdist 개수 검증 | **PASS** |
 | 릴리스 SHA-256 검증 | **PASS** |
+| clean wheel 설치·`aia self-test` | **PASS** |
 | 설치된 wheel `aia self-test --json` | **PASS** |
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
