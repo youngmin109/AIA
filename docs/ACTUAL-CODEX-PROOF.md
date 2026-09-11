@@ -49,11 +49,12 @@ uv run python scripts/actual_codex_pretool_smoke.py
 uv run python scripts/actual_codex_pretool_smoke.py --scenario apply-patch
 ```
 
-현재 0.1.13 코드에서 개발용 disposable smoke를 다시 실행한 결과는
+현재 제품 범위의 개발용 disposable smoke 결과는
 [현재 증명 요약](validation/evidence/actual-codex-pretool-20260911-0.1.13.json)에
-보존했다. Bash Canary, `apply_patch`, `.env` 읽기, 등록된 filesystem MCP 읽기에서
-모두 실제 Payload 수신, `deny`, 부작용 없음, `BLOCKED / SUCCEEDED`, `Bundle VALID`를
-확인했다. 이 smoke는 사용자 전역 Hook을 바꾸지 않고 일회성 Hook Trust 우회를
+보존했다. Bash Canary, `apply_patch`, `.env` 읽기에서
+실제 Payload 수신, `deny`, 부작용 없음, `BLOCKED / SUCCEEDED`, `Bundle VALID`를
+확인했다. MCP 실험 기록은 과거 개발 검증으로만 보존하며 현재 제품 지원을
+의미하지 않는다. 이 smoke는 사용자 전역 Hook을 바꾸지 않고 일회성 Hook Trust 우회를
 사용하므로 일반 사용자 실행의 Trust 절차를 대신하지 않는다.
 
 이 시나리오는 patch 원문에 포함된 파일명을 명령 Rule로 평가하고, 실제 파일이
@@ -127,24 +128,10 @@ uv run aia proof --scenario block-windows-delete
 `BLOCKED / SUCCEEDED`, `CANARY_NO_SIDE_EFFECT`, `Bundle VALID`, 그리고
 `AIA_WINDOWS_DELETE_CANARY.txt`가 계속 존재하는 것이다.
 
-등록된 파일 읽기 MCP 경로는 다음처럼 실제 MCP 서버와 함께 검증한다.
-
-```powershell
-uv run python scripts/actual_codex_pretool_smoke.py --scenario mcp-read
-```
-
-이 시나리오는 임시 MCP 서버의 `read_file` 호출을 실제 Codex에 요청한다. 성공 조건은
-`tool_name=mcp__filesystem__read_file`이 AIA에 도착하고, `VIOLATION → CONTAIN →
-PRETOOL_BLOCK`이 기록되며, MCP 서버의 실행 marker가 생성되지 않고, Result Bundle이
-`VALID`인 것이다. MCP fixture는 secret 원문을 반환하지 않고 `redacted`만 반환하도록
-구성되어 있어, 차단 검증이 실패해도 시험 자체가 비밀값을 출력하지 않는다. Codex가
-실제 `read_file` 호출을 생성하지 않으면 `scenario_realized=false`인
-`EXTERNAL_INTERFACE_LIMITATION`으로 기록하며 차단 PASS로 해석하지 않는다.
-
-2026-09-11 재검증에서는 Codex 0.154.0이 실제
-`mcp__filesystem__read_file` 요청을 생성했고, AIA가 MCP 서버의 `tools/call` 전에
-차단했다. 결과는 `BLOCKED / SUCCEEDED`, `Bundle VALID`, 파일 읽기 marker 없음으로
-확인되었다. 이 결과는 명시적으로 등록된 해당 MCP 도구 이름에 한정된다.
+MCP는 현재 제품 범위에서 제외한다. MCP 도구가 Hook으로 도착하면
+`UNSUPPORTED_TOOL_PATH`로 거부하고, MCP 서버를 AIA가 등록하거나 실행하지 않는다.
+과거에 별도로 수행한 MCP direct smoke와 그 산출물은 개발 이력으로 보존하지만,
+현재 제품의 지원·완료 주장에는 포함하지 않는다.
 
 사용자 중지와 Actual Codex 자식 프로세스 트리는 다음 smoke로 별도 검증한다.
 
@@ -233,7 +220,7 @@ Hook Event 검증을 수행하며, 검증이 실패하면 Codex 도구를 실행
 
 ## 보호 범위
 
-현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Hook matcher는 `*`로 설치해 로컬 Hook 경로의 입력을 받지만, Bash, canonical `apply_patch`, 그리고 명시적으로 등록된 파일 읽기 MCP만 의미를 해석한다. Codex의 `Edit`·`Write` matcher 별칭은 Hook 입력에서 canonical `tool_name=apply_patch`로 전달되므로 같은 `apply_patch` 계약으로 포함한다. 별도 `Edit`·`Write` 입력 Schema를 추측하지 않는다. 목록 밖 도구는 `UNSUPPORTED_TOOL_PATH`로 거부한다. 등록되지 않은 MCP 도구가 Hook 경로 밖에서 실행되거나 Hook을 우회하는 경로는 지원 범위 밖이다.
+현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Hook matcher는 `*`로 설치해 로컬 Hook 경로의 입력을 받지만, Bash와 canonical `apply_patch`만 의미를 해석한다. Codex의 `Edit`·`Write` matcher 별칭은 Hook 입력에서 canonical `tool_name=apply_patch`로 전달되므로 같은 `apply_patch` 계약으로 포함한다. 별도 `Edit`·`Write` 입력 Schema를 추측하지 않는다. MCP를 포함한 목록 밖 도구는 `UNSUPPORTED_TOOL_PATH`로 거부한다.
 
 Hook을 거치지 않는 특수 도구, Hosted tool, 외부 Agent, 사용자가 Hook을 비활성화한 실행, 보호 실행 밖의 수동 작업은 AIA가 `PROTECTED` 또는 `BLOCKED`로 주장하지 않는다. Codex 공식 문서가 설명하듯 일부 특수 도구 경로는 기본 Hook 경로를 사용하지 않을 수 있으므로, Hook은 현재 제품의 지원 범위 안에서 검증하는 통제 지점이다.
 

@@ -398,7 +398,7 @@ def test_command_missing_parent_is_partial_and_not_claimed_as_verified(tmp_path:
 
 @pytest.mark.parametrize(
     "tool_name",
-    ["read_file", "mcp__filesystem__read_file", "mcp__fs__read"],
+    ["read_file"],
 )
 def test_hook_read_file_is_explicit_file_action_and_native_context_is_preserved(
     tmp_path: Path,

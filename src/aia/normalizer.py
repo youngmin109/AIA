@@ -37,10 +37,6 @@ NORMALIZER_VERSION = "canonical-v1"
 HOOK_TOOL_SEMANTICS = MappingProxyType(
     {
         "read_file": Operation.READ,
-        # Explicit MCP names documented by Codex. Do not use suffix or
-        # substring matching: an unknown MCP tool remains unsupported.
-        "mcp__filesystem__read_file": Operation.READ,
-        "mcp__fs__read": Operation.READ,
     }
 )
 

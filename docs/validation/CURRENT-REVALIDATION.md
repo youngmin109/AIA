@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `0.1.25` 현재 Workspace 시작·실행 중 파일 관찰·콘솔 Hook 검증 기준 |
-| 제품 버전 | `0.1.25` |
-| Actual Codex 보안 증거 기준 | `0.1.25`에서 사용자 Trust 후 제품 CLI 경로의 Bash·`.env`·`apply_patch`·Windows 삭제 차단과 정상 읽기를 disposable Workspace에서 재검증; Hook 검증 증명은 설치 지문이 현재인 동안 반복 제품 증명에 재사용 |
+| 코드 기준 | `0.1.26` 현재 Workspace 시작·실행 중 파일 관찰·콘솔 Hook 검증 기준 |
+| 제품 버전 | `0.1.26` |
+| Actual Codex 보안 증거 기준 | `0.1.26`에서 사용자 Trust 후 제품 CLI 경로의 Bash·`.env`·`apply_patch`·Windows 삭제 차단과 정상 읽기를 disposable Workspace에서 재검증; MCP는 현재 제품 범위에서 제외 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -33,8 +33,8 @@
 | 릴리스 `uninstall.ps1` 보존 모드 probe | **PASS** |
 
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
-| Actual Codex registered filesystem MCP read (direct adapter smoke) | **PASS** |
-| 0.1.13 Actual Codex disposable PreToolUse smoke (Bash/apply_patch/.env/MCP read) | **4/4 PASS** |
+| Historical MCP direct adapter smoke | **RETAINED / OUT OF PRODUCT SCOPE** |
+| Current Actual Codex disposable PreToolUse smoke (Bash/apply_patch/.env) | **3/3 PASS** |
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
 | Hook 신뢰 실패 시 실제 증명 중단 | **PASS: `CODEX_HOOK_TRUST_REQUIRED` / Codex 실행 전 중단** |
 
@@ -144,13 +144,10 @@ Hook과 사용자 도구를 안전하게 제거하는 절차를 배포 번들에
   각 실행에서 동일 callback 1건은 Raw Evidence에 보존하고 논리 이벤트는 1건으로
   계산했다. `.env` 시나리오에서는 Codex 출력과 Evidence/Result에 secret marker가
   없음을 추가 확인했다.
-- 같은 환경에서 등록된 filesystem MCP `read_file` 시나리오를 재실행해 실제
-  `mcp__filesystem__read_file` PreToolUse Payload를 수신했다. AIA는
-  `VIOLATION → CONTAIN → PRETOOL_BLOCK`과 `deny`를 반환했고, MCP 서버에
-  `tools/call`이 전달되지 않아 파일 읽기 marker가 생성되지 않았다. 실제 결과는
-  `BLOCKED / SUCCEEDED`, Result Bundle `VALID`, `scenario_realized=true`였다.
-  0.1.6 릴리스 당시 요약은 [MCP 증명](evidence/actual-codex-mcp-20260911-0.1.6.json)이며,
-  이전에 호출이 실현되지 않았던 실행도 외부 인터페이스 제한 기록으로 보존한다.
+- 과거에 수행한 등록 filesystem MCP `read_file` direct smoke와 그 산출물은
+  개발 이력으로 보존한다. 현재 MVP는 MCP 서버 등록·호출을 제공하지 않으며,
+  MCP Hook 요청을 `UNSUPPORTED_TOOL_PATH`로 거부한다. 과거 PASS는 현재 제품
+  지원 또는 완료 주장으로 재사용하지 않는다.
 - 실제 Codex 증명 결과의 stdout/stderr 원문은 artifact에 저장하지 않는다. 실행 중
   Secret marker와 부작용을 판정한 뒤 출력 크기와 SHA-256만 보존하고 원본 파일은
   삭제한다. Hook 검증 지문도 실행 파일의 크기·시각뿐 아니라 SHA-256을 비교한다.
@@ -188,7 +185,8 @@ Hook과 사용자 도구를 안전하게 제거하는 절차를 배포 번들에
 - 위 direct adapter smoke는 disposable Workspace의 일회성 자동화 검증을 위해
   inline Hook과 `--dangerously-bypass-hook-trust`를 사용했다. 일반 제품 사용 경로의
   Hook Trust를 대신하는 증명으로 해석하지 않는다.
-- 이 기록은 모든 Codex 도구·MCP·Agent를 보편적으로 보호한다는 증명이 아니다.
+- 이 기록은 모든 Codex 도구·Agent를 보편적으로 보호한다는 증명이 아니다. MCP는
+  현재 MVP 지원 범위에서 제외한다.
 - 현재 컴퓨터의 일반 제품 경로는 Codex `/hooks` Trust가 완료되지 않아 `aia doctor`
   가 `ready=false`를 반환한다. 이는 AIA가 보호 실행을 억지로 시작하지 않는 정상적인
   안전 동작이며, 사용자가 Hook을 검토·신뢰한 뒤 `aia hook verify`를 수행해야 한다.

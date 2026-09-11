@@ -35,11 +35,10 @@ def product_capabilities() -> dict[str, Any]:
                 "Hook으로 수신되지만 의미를 해석하지 못하는 도구는 "
                 "UNSUPPORTED_TOOL_PATH로 거부하고 실행 성공으로 주장하지 않음"
             ),
-            "mcp_policy": "명시적으로 등록된 MCP 도구만 의미를 해석하며, 알 수 없는 MCP 이름은 보호 성공으로 주장하지 않음",
         },
         "verified_behaviors": [
             "정책 위반 PreToolUse 요청의 Codex deny 응답",
-            "Bash·apply_patch·등록된 파일 읽기 MCP의 실제 사전 차단 증명",
+            "Bash·apply_patch의 실제 사전 차단 증명",
             "Workspace Lease·Safe Checkpoint·Evidence Bundle 무결성 검증",
             "사용자 중지 시 AIA가 등록한 Agent 프로세스 트리 종료 확인",
         ],
@@ -48,7 +47,7 @@ def product_capabilities() -> dict[str, Any]:
             "aia hook verify로 현재 Codex와 Session-bound Hook을 검증함",
         ],
         "unsupported_or_unclaimed": [
-            "모든 Codex 도구와 모든 MCP 경로의 보편적 차단",
+            "MCP와 지원 목록 밖의 모든 Codex 도구",
             "Hook을 우회한 외부 Agent·수동 실행·OS 전체 Writer 통제",
             "PROCESS Evidence만으로 정확한 파일 Writer를 증명하는 것",
             "Network·Database·ACL/ADS 보안",

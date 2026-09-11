@@ -20,8 +20,6 @@ class CodexHookInstallationError(ValueError):
 AIA_CODEX_SUPPORTED_MATCHERS = (
     "Bash",
     "apply_patch",
-    "mcp__filesystem__read_file",
-    "mcp__fs__read",
 )
 # Codex accepts these names as matcher aliases for the canonical
 # ``apply_patch`` tool. The Hook payload still reports ``tool_name`` as
@@ -41,8 +39,8 @@ class CodexHookInstaller:
     """Manage one explicit user-level Hook entry without changing other hooks."""
 
     # Keep the matcher explicit. These are the Codex tool names for which
-    # AIA has an explicit semantic contract. Unknown MCP tools are not treated
-    # as file operations by name alone.
+    # the current product has an explicit semantic contract. MCP is outside
+    # the current product boundary and is therefore handled as unsupported.
     _MATCHER = AIA_CODEX_HOOK_MATCHER
     _EVENTS = ("PreToolUse", "PostToolUse")
 

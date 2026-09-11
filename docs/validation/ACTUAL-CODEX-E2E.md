@@ -16,11 +16,9 @@ Actual Codex의 정책 위반에 따른 destructive PROCESS 집행은 안전상 
 
 ## 후속 검증
 
-2026-09-10 후속 `mcp-read` Canary는 등록된 파일 읽기 MCP 경로를 실제로 실현했다.
-`mcp__filesystem__read_file` PreToolUse Event가 AIA에 도착했고, `VIOLATION →
-CONTAIN → PRETOOL_BLOCK → permissionDecision=deny`와 MCP 서버 실행 marker
-미생성, Result Bundle `VALID`를 확인했다. 산출물은
-`evaluation/actual-codex/pretool-block/20260910T145857Z-cdc585c2/run.json`이다.
+과거에 수행한 `mcp-read` Canary와 그 산출물은 개발 이력으로 보존한다. MCP는
+현재 제품 범위에서 제외했으며, MCP 서버 등록·호출 또는 MCP 보호 성공을 현재
+제품 계약으로 주장하지 않는다.
 
 2026-09-11 후속 `actual_codex_abort_smoke.py`에서는 실제 Codex가 PowerShell
 실행 경로로 disposable Workspace의 Root → Child → Grandchild를 만든 뒤, AIA의
@@ -34,7 +32,7 @@ PROCESS 집행 성공을 의미하지 않는다.
 
 ## 판정
 
-Actual Codex 정상 보호 실행, Bash PreTool deny, 등록된 파일 읽기 MCP PreTool deny,
-사용자 중지에 따른 등록 Agent 트리 종료는 PASS다. 등록되지 않은 MCP 경로와 정책
+Actual Codex 정상 보호 실행, Bash PreTool deny, 사용자 중지에 따른 등록 Agent
+트리 종료는 PASS다. MCP를 포함한 지원 범위 밖 경로와 정책
 위반에 따른 destructive PROCESS termination은 이번 제품 버전에서 검증되지 않았으며
 제한사항으로 고정한다.

@@ -30,8 +30,8 @@ Skip 3건은 제품 실패로 분류하지 않는다.
 
 최종 평가에서 확인된 실패가 제품 결함으로 판정된 것은 없다. 당시 Actual Codex
 structured READ와 destructive PROCESS는 `EXTERNAL_INTERFACE_LIMITATION` 또는
-`SCENARIO_NOT_REALIZED`로 기록했다. 후속 `mcp-read` Canary에서 등록된 파일 읽기
-MCP 경로는 실제 차단을 통과했다. 환경에 따른 Symlink/Job Object skip은
+`SCENARIO_NOT_REALIZED`로 기록했다. 후속 `mcp-read` Canary는 개발 이력으로
+보존하지만 현재 제품 지원 범위에서 제외한다. 환경에 따른 Symlink/Job Object skip은
 `ENVIRONMENT_LIMITATION`이다.
 
 2026-09-11 후속 Actual Codex 사용자 중지 smoke는 실제 Codex가 만든 Root → Child →

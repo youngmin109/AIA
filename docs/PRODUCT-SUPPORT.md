@@ -14,8 +14,7 @@ Agent: Codex CLI
 실행 방식: AIA Protected Run 안에서 시작한 Codex
 정책 관문: Codex PreToolUse command Hook
 Hook matcher: `*` (Codex가 로컬 Hook 경로로 전달하는 도구를 수신)
-의미 해석 지원: Bash, apply_patch,
-`mcp__filesystem__read_file`, `mcp__fs__read`
+의미 해석 지원: Bash, apply_patch
 Codex matcher 별칭: `Edit`, `Write`는 canonical `apply_patch` 경로로 처리
 지원 목록 밖 도구: `UNSUPPORTED_TOOL_PATH`로 거부하고 보호 성공으로 주장하지 않음
 실행 확인: 선택적 Codex PostToolUse evidence
@@ -212,10 +211,9 @@ Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 
   비교할 수 있게 한다.
 - Active Policy를 하나의 Protected Run에 고정한다.
 - 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
-- 명시적으로 등록된 파일 읽기 MCP 이름은 `READ`로 정규화하는 계약을 유지한다.
-  Codex 0.154.0의 `mcp__filesystem__read_file` 경로에서 실제 PreToolUse 차단과
-  부작용 없음을 확인했다. 등록되지 않은 MCP 도구와 모든 MCP 경로를 지원한다고
-  해석하지 않는다.
+- MCP 도구는 현재 MVP 지원 범위에서 제외한다. Hook으로 도착한 MCP 요청은
+  `UNSUPPORTED_TOOL_PATH`로 거부하며, MCP 서버 등록·호출을 제품 기능으로
+  제공하지 않는다.
 - 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
 - 보호 실행 화면은 실행 중에도 검증된 Hook Action의 요약과 Incident를 갱신하며,
@@ -249,7 +247,6 @@ Codex가 Hook 경로로 보내지 않는 특수 도구, Hosted 도구, Hook 비�
 ## 현재 주장하지 않는 것
 
 - Hook 경로 밖의 모든 Codex 도구와 MCP 경로에 대한 보편적 차단
-- 이름이 등록되지 않은 MCP 도구를 파일 읽기·쓰기라고 추측하는 것
 - Hook 장애가 발생해도 모든 경로가 OS 수준에서 fail-closed라는 보장
 - `PROCESS` Evidence만으로 정확한 파일 Writer를 증명하는 것
 - 모든 OS 프로세스의 종료 또는 사용자의 수동 작업 통제
@@ -261,7 +258,7 @@ Codex가 Hook 경로로 보내지 않는 특수 도구, Hosted 도구, Hook 비�
   `PostToolUse → POST_ACTION → TERMINATED → RESTORED + VERIFIED`까지 확인했지만,
   정상 제품 경로의 기본 관문은 여전히 `PreToolUse deny`이며 Hook이 도착하지 않는
   실행은 보상적 집행 성공으로 주장하지 않는다.
-- 등록되지 않은 MCP 도구를 허용하는 보호 계약
+- MCP 도구를 허용하는 보호 계약
 - 대규모 Workspace에 대한 성능 SLA
 - 실행 환경이 제품이 요청한 Sandbox보다 약한 경우의 완전한 보호 보장. 이 경우
   Result Bundle은 `COMPLETED_DEGRADED`로 남으며 실행을 검증된 보호 성공으로

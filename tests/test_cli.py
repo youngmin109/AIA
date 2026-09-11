@@ -59,7 +59,7 @@ def test_capabilities_output_explains_bounded_support(capsys) -> None:
 
     assert "AIA 지원 범위" in output
     assert "Bash" in output
-    assert "mcp__filesystem__read_file" in output
+    assert "MCP" in output
     assert "Hook matcher: *" in output
     assert "UNSUPPORTED_TOOL_PATH" in output
     assert "/hooks" in output
@@ -74,6 +74,10 @@ def test_capabilities_json_is_machine_readable(capsys) -> None:
     assert "Bash" in payload["support"]["pretool_matchers"]
     assert "Edit" not in payload["support"]["pretool_matchers"]
     assert "Write" not in payload["support"]["pretool_matchers"]
+    assert all(
+        not matcher.startswith("mcp__")
+        for matcher in payload["support"]["pretool_matchers"]
+    )
     assert payload["support"]["pretool_aliases"] == {
         "apply_patch": ["Edit", "Write"]
     }

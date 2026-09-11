@@ -8,7 +8,7 @@ Candidate Commit: `c5bd350`
 
 전체 회귀는 `360 passed, 3 skipped`였고, 결정론적 Containment·Recovery·Integrity·Evidence tamper·secret safety 검증은 통과했다. Actual Codex는 보호 실행 정상 완료와 `VALID` Result Bundle까지 확인했다.
 
-당시 남은 제한은 Actual Codex의 structured `.env` READ blocking과 Actual Codex destructive PROCESS/tree termination 검증이었다. Actual Codex Bash PreTool deny는 별도 disposable 평가에서 실제 `permissionDecision=deny`와 Canary 부작용 없음까지 검증했다. 아래 후속 검증에서 등록된 파일 읽기 MCP 경로는 추가로 통과했으며, destructive PROCESS 제한은 아직 남아 있다.
+당시 남은 제한은 Actual Codex의 structured `.env` READ blocking과 Actual Codex destructive PROCESS/tree termination 검증이었다. Actual Codex Bash PreTool deny는 별도 disposable 평가에서 실제 `permissionDecision=deny`와 Canary 부작용 없음까지 검증했다. MCP direct smoke는 과거 개발 이력으로 보존하지만 현재 제품 범위에서는 제외하며, destructive PROCESS 제한은 아직 남아 있다.
 
 ## 금지된 해석
 
@@ -26,16 +26,9 @@ Candidate Commit: `c5bd350`
 
 ## 후속 검증
 
-2026-09-10 후속 Actual Codex `mcp-read` Canary에서 다음을 확인했다.
-
-- 실제 `mcp__filesystem__read_file` PreToolUse Payload 수신
-- AIA Session·Active Policy·Workspace Lease·Sensor 계층 검증
-- `VIOLATION → CONTAIN → PRETOOL_BLOCK → permissionDecision=deny`
-- MCP 서버 실행 marker 미생성
-- secret marker가 Evidence/Result에 포함되지 않음
-- Result Bundle `VALID`
-
-산출물은 `evaluation/actual-codex/pretool-block/20260910T145857Z-cdc585c2/run.json`이다. 이 증명은 등록된 파일 읽기 MCP 경로에 한정되며, 모든 MCP 도구나 Process Tree 종료를 의미하지 않는다.
+과거 Actual Codex `mcp-read` Canary와 산출물은 개발 이력으로 보존한다. MCP는
+현재 제품 범위에서 제외했으므로 해당 결과를 현재 지원 기능 또는 MVP 완료
+주장으로 사용하지 않는다.
 
 2026-09-11 후속 검증에서는 실제 Codex 사용자 중지 경로의 Process Tree 종료를
 별도로 확인했다. Root → Child → Grandchild는 모두 종료되고 unrelated 프로세스는

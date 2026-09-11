@@ -63,7 +63,6 @@ class CodexAdapter:
             "ignore_user_config",
             "json",
             "interactive",
-            "mcp_server",
             "profile",
             "sandbox",
             "skip_git_repo_check",
@@ -388,8 +387,6 @@ class CodexAdapter:
                 # on-request execution contract through this flag.  Keep the
                 # dangerous full-access bypass options rejected above.
                 argv.append("--approve-for-me")
-        if "mcp_server" in options:
-            CodexAdapter._append_mcp_server(argv, options["mcp_server"])
         bool_flags = {
             "ignore_user_config": "--ignore-user-config",
             "ignore_rules": "--ignore-rules",
@@ -403,40 +400,6 @@ class CodexAdapter:
                     raise AdapterError("Codex boolean option is invalid")
                 if value:
                     argv.append(flag)
-
-    @staticmethod
-    def _append_mcp_server(argv: list[str], value: Any) -> None:
-        """Add one narrow stdio MCP server without exposing arbitrary -c overrides."""
-
-        import json
-
-        if not isinstance(value, Mapping):
-            raise AdapterError("mcp_server must be an object")
-        name = value.get("name")
-        command = value.get("command")
-        args = value.get("args", ())
-        if (
-            not isinstance(name, str)
-            or not re.fullmatch(r"[A-Za-z0-9_-]+", name)
-            or not isinstance(command, str)
-            or not command.strip()
-            or not isinstance(args, (tuple, list))
-            or any(not isinstance(item, str) for item in args)
-        ):
-            raise AdapterError("mcp_server must contain a safe name, command, and string args")
-        prefix = f"mcp_servers.{name}"
-        argv.extend(("-c", f"{prefix}.command={json.dumps(command)}"))
-        if args:
-            # Codex's Windows TOML override parser treats backslash-heavy
-            # array literals as a scalar string.  Forward slashes are valid
-            # Windows paths and keep the value a real TOML sequence.
-            normalized_args = [
-                item.replace("\\", "/")
-                if os.name == "nt" and re.match(r"^(?:[A-Za-z]:[\\/]|\\\\)", item)
-                else item
-                for item in args
-            ]
-            argv.extend(("-c", f"{prefix}.args={json.dumps(normalized_args)}"))
 
     @staticmethod
     def parse_runtime_metadata(line: str) -> AgentRuntimeMetadata | None:
