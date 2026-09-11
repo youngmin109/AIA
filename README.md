@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.23 릴리스 기준](docs/RELEASE-0.1.23.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.24 릴리스 기준](docs/RELEASE-0.1.24.md)에서 확인할 수 있다.
 현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,61 @@ _TEMPLATES = Jinja2Templates(directory=str(_ROOT / "templates"))
 def default_control_root() -> Path:
     configured = os.environ.get("AIA_CONTROL_ROOT")
     return Path(configured).expanduser() if configured else Path.home() / ".aia" / "control"
+
+
+def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:
+    """Run the existing CLI Hook verification from the local console.
+
+    The console can request verification after the user has reviewed and
+    trusted the Hook in Codex.  It never changes Codex trust state itself.
+    """
+
+    if timeout <= 0:
+        return {"verified": False, "reason": "INVALID_TIMEOUT"}, 400
+    command = [
+        sys.executable,
+        "-m",
+        "aia.cli",
+        "hook",
+        "verify",
+        "--json",
+        "--timeout",
+        str(timeout),
+        "--control-root",
+        str(control_root),
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout + 60.0,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": "HOOK_VERIFICATION_TIMEOUT",
+        }, 504
+    try:
+        payload = json.loads(completed.stdout)
+    except (TypeError, json.JSONDecodeError):
+        return {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": "HOOK_VERIFICATION_OUTPUT_INVALID",
+        }, 502
+    if not isinstance(payload, dict):
+        return {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": "HOOK_VERIFICATION_OUTPUT_INVALID",
+        }, 502
+    return payload, 200 if payload.get("verified") is True else 409
 
 
 def create_app(service: RunApplicationService | None = None) -> FastAPI:
@@ -105,6 +162,12 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     @app.get("/api/preflight")
     def preflight() -> JSONResponse:
         return JSONResponse(app.state.service.preflight())
+
+    @app.post("/api/hook/verify")
+    def verify_hook() -> JSONResponse:
+        control_root = getattr(app.state.service, "control_root", default_control_root())
+        payload, status_code = _run_hook_verification(Path(control_root))
+        return JSONResponse(payload, status_code=status_code)
 
     @app.get("/api/workspaces/validate")
     def validate_workspace(path: str) -> JSONResponse:

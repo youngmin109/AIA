@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+import importlib
 
 from aia_web.app import create_app
 
@@ -178,6 +179,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "작업 폴더 선택" in new_run.text
     assert "AIA는 실제 도구 요청을 관찰·통제합니다" in new_run.text
     assert "Codex 실제 Hook Trust" in new_run.text
+    assert "실제 Hook 연결 검증" in new_run.text
     assert "preToolUse=MODIFIED" in new_run.text
     assert 'id="readiness-code">READY' in new_run.text
     assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." in new_run.text
@@ -214,6 +216,21 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
     assert "SUPER_SECRET" not in result.text
+
+
+def test_console_can_request_hook_verification_without_changing_trust(monkeypatch) -> None:
+    def fake_verify(control_root, *, timeout=180.0):
+        assert timeout == 180.0
+        return {"verified": True, "reason": "SESSION_BOUND_HOOK_EVENT_OBSERVED"}, 200
+
+    web_module = importlib.import_module("aia_web.app")
+    monkeypatch.setattr(web_module, "_run_hook_verification", fake_verify)
+    client = TestClient(create_app(FakeService()))
+
+    response = client.post("/api/hook/verify")
+
+    assert response.status_code == 200
+    assert response.json()["verified"] is True
 
 
 def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:

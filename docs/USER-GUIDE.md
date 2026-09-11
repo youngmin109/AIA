@@ -59,6 +59,10 @@ uv run aia hook verify
 uv run aia doctor
 ```
 
+PowerShell 대신 로컬 콘솔의 `새 보호 실행` 화면에서 `실제 Hook 연결 검증`을
+눌러도 됩니다. 이 버튼은 기존 검증 경로를 실행할 뿐 Codex Hook Trust를 대신
+승인하지 않습니다.
+
 `aia doctor`의 마지막 결과가 `READY`여야 실제 보호 실행을 시작할 수 있다.
 `MODIFIED`, `UNTRUSTED`, `NOT_READY`가 나오면 Codex `/hooks`에서 AIA Hook을
 다시 확인하고 `uv run aia hook verify`를 다시 실행한다.

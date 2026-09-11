@@ -71,6 +71,10 @@ uv run aia hook explain
 uv run aia hook verify
 ```
 
+로컬 콘솔을 사용하는 경우 `새 보호 실행` 화면의 `실제 Hook 연결 검증` 버튼으로
+같은 검증을 실행할 수 있습니다. Codex `/hooks` Trust는 먼저 사용자가 직접
+완료해야 하며, 버튼은 Trust를 변경하지 않습니다.
+
 이 명령은 임시 Workspace에서 무해한 Probe를 한 번 실행한다. 성공하면
 `VERIFIED`가 표시된다. `MODIFIED`, `UNTRUSTED`, `NOT_VISIBLE`이면 Probe를
 실행하지 않고 Codex `/hooks`에서 검토·Trust해야 할 내용을 알려준다.
