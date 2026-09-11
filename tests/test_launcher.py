@@ -512,6 +512,21 @@ def test_codex_adapter_prefers_newer_reported_version_over_mtime(
     assert CodexAdapter().discover() == newer_version.resolve()
 
 
+def test_codex_adapter_reports_selected_executable_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_executable_version",
+        staticmethod(lambda _path: (0, 154, 0)),
+    )
+
+    assert CodexAdapter.executable_version(executable) == "0.154.0"
+
+
 def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:
     adapter = CodexAdapter(
         hook_command="python -m aia.codex_hook_runtime",

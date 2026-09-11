@@ -186,6 +186,13 @@ class CodexAdapter:
             return None
         return tuple(int(group) for group in match.groups())  # type: ignore[return-value]
 
+    @classmethod
+    def executable_version(cls, path: Path | str) -> str:
+        """Return the selected executable version without exposing its output."""
+
+        version = cls._executable_version(Path(path))
+        return ".".join(str(part) for part in version) if version else "unknown"
+
     def _windows_install_candidates(self) -> tuple[Path, ...]:
         """Find the per-user Windows Codex install when it is outside PATH."""
 

@@ -380,20 +380,24 @@ def _doctor(args: argparse.Namespace) -> int:
     executable: Path | None = None
     try:
         executable = adapter.discover()
+        executable_version = adapter.executable_version(executable)
         checks.append(
             {
                 "name": "codex_executable",
                 "ok": True,
                 "value": str(executable),
-                "detail": "Codex executable discovered",
+                "version": executable_version,
+                "detail": f"Codex executable discovered (version {executable_version})",
             }
         )
     except Exception as error:
+        executable_version = "unknown"
         checks.append(
             {
                 "name": "codex_executable",
                 "ok": False,
                 "value": None,
+                "version": executable_version,
                 "detail": f"Codex executable unavailable: {type(error).__name__}",
             }
         )
@@ -522,6 +526,8 @@ def _doctor(args: argparse.Namespace) -> int:
         "product": "AIA",
         "checks": checks,
         "ready": all(bool(item["ok"]) for item in checks),
+        "codex_executable": str(executable) if executable is not None else None,
+        "codex_version": executable_version,
         "optional_capabilities": {
             "posttool_observation": {
                 "installed": posttool_installed,
@@ -743,8 +749,10 @@ def _setup(args: argparse.Namespace) -> int:
     }
     try:
         executable = CodexAdapter().discover()
+        executable_version = CodexAdapter.executable_version(executable)
     except Exception:
         executable = None
+        executable_version = "unknown"
     if executable is not None:
         codex_hook_trust = inspect_codex_hook_trust(
             executable,
@@ -776,6 +784,8 @@ def _setup(args: argparse.Namespace) -> int:
     payload = {
         "configured": True,
         "hook_path": str(path),
+        "codex_executable": str(executable) if executable is not None else None,
+        "codex_version": executable_version,
         "pretool_installed": installer.is_installed(),
         "posttool_installed": installer.is_posttool_installed(),
         "trust_status": "MANUAL_REVIEW_REQUIRED",
