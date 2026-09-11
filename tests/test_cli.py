@@ -157,6 +157,7 @@ def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
     assert calls == [False]
     output = capsys.readouterr().out
     assert "AIA 제품 데모" in output
+    assert "[1/1]" in output
     assert "aia demo --live" in output
 
 

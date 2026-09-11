@@ -883,7 +883,8 @@ def _demo(args: argparse.Namespace) -> int:
     print("AIA 제품 데모")
     print("실제 프로젝트를 건드리지 않는 임시 Workspace에서 보호 흐름을 확인합니다.")
     print()
-    print("[1/2] AIA Core 보호 흐름 확인")
+    total_steps = 2 if args.live else 1
+    print(f"[1/{total_steps}] AIA Core 보호 흐름 확인")
     core_exit = _self_test(argparse.Namespace(json=False))
     if core_exit != 0:
         print("[중단] Core 데모가 실패했습니다. 실제 Codex를 시작하지 않습니다.")
