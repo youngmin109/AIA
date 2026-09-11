@@ -592,11 +592,24 @@ def _self_test(args: argparse.Namespace) -> int:
             encoding="utf-8",
             newline="\n",
         )
-        resolved = resolve_profile(PolicyProfile.BASIC_DEVELOPMENT)
+        resolved = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT)
         passed(
             "policy_profile_resolution",
             f"{resolved.policy_id} v{resolved.policy_version} / {len(resolved.policy.rules)} rules",
         )
+        protected_preview = resolved.evaluate_target(
+            operation=Operation.READ,
+            path=".env",
+        )
+        if (
+            protected_preview.policy_decision.value != "VIOLATION"
+            or protected_preview.operation_effect is None
+            or protected_preview.operation_effect.value != "DENY"
+            or protected_preview.asset_type is None
+            or protected_preview.asset_type.value != "SECRET"
+        ):
+            raise RuntimeError("protected profile did not deny .env READ")
+        passed("protected_default_policy", ".env READ -> VIOLATION / DENY / SECRET")
 
         session = ProtectedRunSession(
             workspace=workspace_root,

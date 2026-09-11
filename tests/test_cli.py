@@ -78,6 +78,7 @@ def test_self_test_exercises_core_contracts_without_codex(capsys) -> None:
     assert payload["codex_live_proof"] == "NOT_RUN"
     assert {item["name"] for item in payload["checks"]} >= {
         "policy_profile_resolution",
+        "protected_default_policy",
         "active_policy_freeze",
         "workspace_lease",
         "safe_checkpoint",
