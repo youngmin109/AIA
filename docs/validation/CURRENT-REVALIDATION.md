@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `51067c6` |
+| 코드 기준 | `1540c4e` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -43,6 +43,14 @@
 - 로컬 콘솔은 `aia console --open`으로 기본 브라우저에서 열 수 있다.
 - 보호 실행에 바인딩된 PreToolUse Hook은 Broker·Capability 오류와 내부 정규화
   실패를 빈 응답으로 통과시키지 않고 Codex blocking exit path로 처리한다.
+- `aia doctor`의 기계 판정 `ready`는 `readiness_code=READY`일 때만 참이며,
+  Codex Hook Trust가 확인되지 않은 경우 선택적 telemetry 항목으로 분류되어도
+  보호 실행 준비를 성공으로 표시하지 않는다.
+- Protected Run 생성 직전에 현재 Codex PreToolUse Trust를 다시 확인한다. Hook
+  지문이 남아 있어도 현재 Trust가 `TRUSTED` 또는 `MANAGED`가 아니면 실행을
+  만들지 않는다.
+- Process termination 결과는 Gate Decision, 실제 Action, Execution Result와
+  각 PID의 검증 결과를 분리된 audit-safe mapping으로 보존한다.
 - 실행 중 per-run Hook Broker가 사라지면 live 상태를 `DEGRADED`로 낮추고,
   종료 결과를 `*_VERIFIED`로 표시하지 않는다.
 - Live Run 화면과 API에서 per-run Hook Broker 상태를 별도 표시한다.
