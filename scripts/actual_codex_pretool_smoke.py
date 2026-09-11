@@ -112,6 +112,10 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _bytes_metadata(value: bytes) -> dict[str, int | str]:
+    return {"bytes": len(value), "sha256": hashlib.sha256(value).hexdigest()}
+
+
 def _artifact_summary(root: Path, *, secret_marker: str) -> dict[str, Any]:
     artifacts: list[dict[str, str]] = []
     secret_in_evidence_or_result = False
@@ -499,16 +503,21 @@ def main(argv: list[str] | None = None) -> int:
             stream.close()
         output_handles.clear()
         codex_output = b""
+        output_metadata: list[dict[str, Any]] = []
         for path in output_paths.values():
-            codex_output += path.read_bytes()
+            data = path.read_bytes()
+            codex_output += data
+            output_metadata.append(
+                {"name": path.name, **_bytes_metadata(data), "content": "OMITTED"}
+            )
+            # Codex output is diagnostic input, not AIA evidence.  Remove the
+            # raw file after hashing and checking the known canary marker so a
+            # failed proof cannot leave a captured secret in its artifact root.
+            path.unlink(missing_ok=True)
         report["codex_output_contains_secret"] = (
             secret_marker.encode("utf-8") in codex_output
         )
-        report["codex_output_artifacts"] = [
-            {"path": str(path), "sha256": _sha256(path)}
-            for path in output_paths.values()
-            if path.exists()
-        ]
+        report["codex_output_artifacts"] = output_metadata
 
         if len(logical_events) != 1:
             report["failure_classification"] = "EXTERNAL_INTERFACE_LIMITATION"
@@ -599,6 +608,11 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 launcher.stop_hook_broker()
             except Exception:
+                pass
+        for path in output_paths.values():
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
                 pass
         if not finalization_done:
             for sensor in (hook, filesystem):

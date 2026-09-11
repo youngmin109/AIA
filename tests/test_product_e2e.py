@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from aia.product_e2e import _block_confirmation, _proof_passed, _write_report
+from aia.product_e2e import (
+    _block_confirmation,
+    _output_metadata,
+    _proof_passed,
+    _write_report,
+)
 from aia import BundleVerificationStatus
 
 
@@ -112,3 +117,11 @@ def test_human_proof_summary_does_not_print_captured_codex_output(tmp_path, caps
     assert "PASS" in output
     assert "SECRET_NOT_LEAKED" in output
     assert "AIA_SECRET_CANARY=do-not-leak" not in output
+
+
+def test_output_metadata_keeps_only_size_and_digest() -> None:
+    metadata = _output_metadata("AIA_SECRET_CANARY=do-not-leak")
+
+    assert set(metadata) == {"bytes", "sha256"}
+    assert metadata["bytes"] > 0
+    assert "AIA_SECRET_CANARY" not in str(metadata)

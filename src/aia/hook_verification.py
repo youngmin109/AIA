@@ -62,6 +62,9 @@ class HookVerificationStore:
             stat = executable_path.stat()
         except OSError:
             return None
+        executable_sha256 = cls._sha256(executable_path)
+        if executable_sha256 is None:
+            return None
         return {
             "hook_path": str(hook_path),
             "hook_sha256": hook_sha256,
@@ -70,6 +73,10 @@ class HookVerificationStore:
             "aia_hook_runtime": str(_RUNTIME_PATH),
             "aia_hook_runtime_sha256": runtime_sha256,
             "codex_executable": str(executable_path),
+            # File size and mtime are useful diagnostics but are not a
+            # sufficient identity. A same-size replacement can retain a
+            # practically indistinguishable timestamp on Windows.
+            "codex_executable_sha256": executable_sha256,
             "codex_size": stat.st_size,
             "codex_mtime_ns": stat.st_mtime_ns,
         }

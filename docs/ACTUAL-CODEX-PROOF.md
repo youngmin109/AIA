@@ -99,6 +99,10 @@ Codex가 같은 `tool_use_id`의 동일한 `PreToolUse` callback을 반복 전�
 
 결과는 `evaluation/actual-codex/pretool-block/<timestamp>/run.json`과 Session Control Root에 저장되며 각 artifact의 SHA-256이 보고된다. Checkpoint는 복구 기준점이므로 Workspace baseline의 `.env`가 포함될 수 있다. Secret 비노출 판정은 Hook, Evidence, Result artifact에 대해 별도로 수행한다.
 
+Codex stdout/stderr 원문은 증명 artifact에 보존하지 않는다. 실행 중 메모리에서
+부작용·Secret marker 유출 여부를 확인한 뒤, 결과에는 출력의 크기와 SHA-256만 남기고
+원본 출력 파일은 삭제한다.
+
 동일한 확인 경로는 비대화형 제품 CLI에도 연결되어 있다. 다음 명령의 결과에서
 Canary 명령은 `confirmed_block_count`가 1 이상이고, `canary_executed=false`,
 `block_confirmation=CANARY_NO_SIDE_EFFECT`, `bundle_status=VALID`가 함께 나와야

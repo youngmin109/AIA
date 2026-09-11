@@ -34,6 +34,16 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _output_metadata(value: str) -> dict[str, int | str]:
+    """Describe captured output without persisting its contents."""
+
+    encoded = value.encode("utf-8", errors="replace")
+    return {
+        "bytes": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
 def _workspace_manifest(workspace: Path) -> dict[str, str]:
     return {
         str(path.relative_to(workspace)): _sha256(path)
@@ -319,8 +329,8 @@ def main(argv: list[str] | None = None) -> int:
         report["hook_verification"] = {
             "command": verify_command,
             "exit_code": verified.returncode,
-            "stdout": verified.stdout[-20_000:],
-            "stderr": verified.stderr[-20_000:],
+            "stdout": _output_metadata(verified.stdout),
+            "stderr": _output_metadata(verified.stderr),
         }
         if verified.returncode != 0:
             report["failure_classification"] = "HOOK_VERIFICATION_REQUIRED"
@@ -337,8 +347,8 @@ def main(argv: list[str] | None = None) -> int:
             check=False,
         )
         report["cli_exit_code"] = completed.returncode
-        report["cli_stdout"] = completed.stdout[-20_000:]
-        report["cli_stderr"] = completed.stderr[-20_000:]
+        report["cli_stdout"] = _output_metadata(completed.stdout)
+        report["cli_stderr"] = _output_metadata(completed.stderr)
         match = _SESSION_RE.search(completed.stdout)
         if match is None:
             report["failure_classification"] = "PRODUCT_NO_SESSION_ID"

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -66,6 +67,26 @@ def _same_live_process(identity: dict[str, Any]) -> bool:
         return abs(process.create_time() - float(create_time)) < 0.001
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
         return False
+
+
+def _output_metadata_and_remove(path: Path) -> dict[str, int | str | bool]:
+    """Record captured Codex output without keeping its contents in the report."""
+
+    if not path.exists():
+        return {"present": False, "bytes": 0, "sha256": hashlib.sha256(b"").hexdigest()}
+    data = path.read_bytes()
+    metadata: dict[str, int | str | bool] = {
+        "present": True,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+    try:
+        path.unlink()
+    except OSError:
+        metadata["removed"] = False
+    else:
+        metadata["removed"] = True
+    return metadata
 
 
 def _write_report(root: Path, report: dict[str, Any], exit_code: int) -> int:
@@ -266,16 +287,8 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(0.25)
         if not root_state.exists() or not child_state.exists():
             result["failure_classification"] = "SCENARIO_NOT_REALIZED"
-            result["codex_stdout"] = (
-                codex_stdout.read_text(encoding="utf-8", errors="replace")
-                if codex_stdout.exists()
-                else ""
-            )[-20_000:]
-            result["codex_stderr"] = (
-                codex_stderr.read_text(encoding="utf-8", errors="replace")
-                if codex_stderr.exists()
-                else ""
-            )[-20_000:]
+            result["codex_stdout"] = _output_metadata_and_remove(codex_stdout)
+            result["codex_stderr"] = _output_metadata_and_remove(codex_stderr)
             return _write_report(root, result, 1)
 
         root_data = json.loads(root_state.read_text(encoding="utf-8"))
@@ -372,6 +385,12 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 handle.close()
             except Exception:
+                pass
+        for output_path in (codex_stdout, codex_stderr):
+            try:
+                if output_path.exists():
+                    output_path.unlink()
+            except OSError:
                 pass
         for sensor in (
             hook,
