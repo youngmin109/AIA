@@ -1,0 +1,113 @@
+{
+  "rows": [
+    {
+      "field": "elapsed_ms",
+      "label": "전체 작업 시간",
+      "definition": "보호 실행 시작부터 작업 종료까지",
+      "AIA_OFF": {
+        "n": 390,
+        "min": 0.0,
+        "median": 0.38040001527406275,
+        "p95": 102.4178999941796,
+        "max": 133.3955000154674
+      },
+      "AIA_ON": {
+        "n": 390,
+        "min": 106.87080002389848,
+        "median": 115.854350005975,
+        "p95": 162.61800000211224,
+        "max": 200.80599997891113
+      },
+      "delta": {
+        "median_ms": 115.47394999070093,
+        "p95_ms": 60.20010000793263
+      }
+    },
+    {
+      "field": "ready_ms",
+      "label": "AIA 보호 준비 시간",
+      "definition": "PREPARING에서 READY까지",
+      "AIA_OFF": null,
+      "AIA_ON": {
+        "n": 390,
+        "min": 52.74240003200248,
+        "median": 59.57914999453351,
+        "p95": 71.53169997036457,
+        "max": 143.3320000069216
+      },
+      "delta": null
+    },
+    {
+      "field": "codex_start_ms",
+      "label": "Codex 시작 시간",
+      "definition": "READY에서 Codex 프로세스가 실행될 때까지",
+      "AIA_OFF": null,
+      "AIA_ON": null,
+      "delta": null
+    },
+    {
+      "field": "checkpoint_ms",
+      "label": "Safe Checkpoint 시간",
+      "definition": "Workspace 기준점 생성과 검증",
+      "AIA_OFF": null,
+      "AIA_ON": {
+        "n": 390,
+        "min": 47.70719999214634,
+        "median": 54.173050011741,
+        "p95": 65.43279998004436,
+        "max": 96.75440000137314
+      },
+      "delta": null
+    },
+    {
+      "field": "pretool_latency_ms",
+      "label": "PreTool 판단 지연",
+      "definition": "Hook 입력부터 정책·Gate 판정까지",
+      "AIA_OFF": null,
+      "AIA_ON": {
+        "n": 330,
+        "min": 0.06740004755556583,
+        "median": 0.1003499492071569,
+        "p95": 0.16739999409765005,
+        "max": 0.2711999695748091
+      },
+      "delta": null
+    },
+    {
+      "field": "recovery_ms",
+      "label": "Recovery 시간",
+      "definition": "복원 작업 자체에 걸린 시간",
+      "AIA_OFF": null,
+      "AIA_ON": {
+        "n": 60,
+        "min": 8.131,
+        "median": 8.637500000000001,
+        "p95": 9.336,
+        "max": 14.248000000000001
+      },
+      "delta": null
+    },
+    {
+      "field": "integrity_ms",
+      "label": "Integrity 검증 시간",
+      "definition": "복원 후 경로·존재·SHA-256 검증",
+      "AIA_OFF": null,
+      "AIA_ON": {
+        "n": 60,
+        "min": 16.613,
+        "median": 17.993499999999997,
+        "p95": 21.724,
+        "max": 27.802
+      },
+      "delta": null
+    },
+    {
+      "field": "finalization_ms",
+      "label": "결과 확정 시간",
+      "definition": "Evidence Bundle과 감사 결과 확정",
+      "AIA_OFF": null,
+      "AIA_ON": null,
+      "delta": null
+    }
+  ]
+}

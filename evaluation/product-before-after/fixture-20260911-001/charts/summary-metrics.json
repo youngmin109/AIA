@@ -1,0 +1,82 @@
+{
+  "risk_side_effect_rate": {
+    "AIA_OFF": {
+      "n": 120,
+      "successes": 120,
+      "rate": 1.0
+    },
+    "AIA_ON": {
+      "n": 120,
+      "successes": 0,
+      "rate": 0.0
+    }
+  },
+  "normal_task_success_rate": {
+    "AIA_OFF": {
+      "n": 180,
+      "successes": 180,
+      "rate": 1.0
+    },
+    "AIA_ON": {
+      "n": 180,
+      "successes": 180,
+      "rate": 1.0
+    }
+  },
+  "false_block_rate": {
+    "AIA_OFF": {
+      "n": 180,
+      "successes": 0,
+      "rate": 0.0
+    },
+    "AIA_ON": {
+      "n": 180,
+      "successes": 0,
+      "rate": 0.0
+    }
+  },
+  "pretool_block_success_rate": {
+    "AIA_OFF": null,
+    "AIA_ON": {
+      "n": 120,
+      "successes": 120,
+      "rate": 1.0
+    }
+  },
+  "recovery_verified_rate": {
+    "AIA_OFF": {
+      "n": 60,
+      "successes": 0,
+      "rate": 0.0
+    },
+    "AIA_ON": {
+      "n": 60,
+      "successes": 30,
+      "rate": 0.5
+    }
+  },
+  "unrelated_process_impact_rate": {
+    "AIA_OFF": {
+      "n": 390,
+      "successes": 0,
+      "rate": 0.0
+    },
+    "AIA_ON": {
+      "n": 390,
+      "successes": 0,
+      "rate": 0.0
+    }
+  },
+  "secret_leak_rate": {
+    "AIA_OFF": {
+      "n": 120,
+      "successes": 30,
+      "rate": 0.25
+    },
+    "AIA_ON": {
+      "n": 120,
+      "successes": 0,
+      "rate": 0.0
+    }
+  }
+}

@@ -34,3 +34,27 @@ Actual Codex가 구조화된 READ나 파괴적 PROCESS 경로를 실현하지 �
 - Actual Codex와 외부 인터페이스 제한사항
 
 보고서는 하나의 종합점수를 만들지 않고 원본 지표와 변화량을 함께 표시한다.
+
+## 최신 결정론적 평가
+
+`fixture-20260911-001`에서 12개 시나리오를 AIA OFF/ON 각각 30회씩 실행해 총
+780건을 수집했다. 새 Disposable Workspace, 동일 Fixture, 동일 정책을 사용한
+결과다. [대시보드](../../evaluation/product-before-after/fixture-20260911-001/report.html)
+와 [요약 데이터](../../evaluation/product-before-after/fixture-20260911-001/summary.json)를
+함께 보존한다.
+
+| 지표 | AIA OFF | AIA ON | 해석 |
+|---|---:|---:|---|
+| 위험 행위 부작용률 | 120/120 (100%) | 0/120 (0%) | 결정론적 위험 Fixture에서 실제 부작용 감소 |
+| 정상 작업 성공률 | 180/180 (100%) | 180/180 (100%) | 정상 개발 Fixture 보존 |
+| 사전 차단 성공률 | 해당 없음 | 120/120 (100%) | 차단 결정과 실행되지 않음 확인을 함께 만족 |
+| unrelated 프로세스 영향 | 0/390 (0%) | 0/390 (0%) | Fixture 평가에서 영향 없음 |
+| 비밀정보 유출률 | 30/120 (25%) | 0/120 (0%) | `.env` 읽기 시나리오의 결과 |
+
+AIA ON 전체 실행 시간은 중앙값 115.85ms, P95 162.62ms였고, AIA OFF는
+중앙값 0.38ms, P95 102.42ms였다. 이 값은 결정론적 Fixture의 보호 비용이며
+Actual Codex의 모델 응답 시간이나 대규모 Workspace SLA를 의미하지 않는다.
+Recovery·Integrity는 `RESTORED + VERIFIED`와 `RESTORED + FAILED`를 모두 포함하므로
+검증 성공률 50%는 실패 변형을 포함한 계약 확인 결과다. 이 평가는 제품 효과를
+보여주는 근거이며, Actual Codex의 전체 Tool Coverage나 정책 위반 Process 자동
+종료를 증명하지 않는다.
