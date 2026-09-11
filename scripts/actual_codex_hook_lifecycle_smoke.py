@@ -79,6 +79,57 @@ def _write_report(path: Path, report: dict[str, Any]) -> None:
     )
 
 
+def _replace_inline_hook_configs(
+    argv: tuple[str, ...],
+    *,
+    mode: str,
+    command: str,
+) -> tuple[str, ...]:
+    """Replace only the diagnostic inline Hook overrides for a probe mode."""
+
+    import json
+
+    encoded = json.dumps(command, ensure_ascii=False)
+    matcher = ".*" if mode == "wildcard" else "Bash"
+    handler = (
+        f"[{{matcher=\"{matcher}\",hooks=[{{type=\"command\","
+        f"command={encoded},commandWindows={encoded}}}]}}]"
+    )
+    result: list[str] = []
+    overrides: list[str] = []
+    skip_next = False
+    for index, value in enumerate(argv):
+        if skip_next:
+            skip_next = False
+            continue
+        if value != "-c" or index + 1 >= len(argv):
+            result.append(value)
+            continue
+        override = argv[index + 1]
+        skip_next = True
+        if override.startswith("hooks.PreToolUse=") or override.startswith(
+            "hooks.PostToolUse="
+        ):
+            continue
+        result.extend((value, override))
+    if mode != "post-only":
+        overrides.extend(("-c", f"hooks.PreToolUse={handler}"))
+    overrides.extend(("-c", f"hooks.PostToolUse={handler}"))
+    insertion = next(
+        (
+            position
+            for position, value in enumerate(result)
+            if value == "--dangerously-bypass-hook-trust"
+        ),
+        next(
+            (position for position, value in enumerate(result) if value == "-"),
+            len(result),
+        ),
+    )
+    result[insertion:insertion] = overrides
+    return tuple(result)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -88,6 +139,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--model")
+    parser.add_argument(
+        "--hook-mode",
+        choices=("aia-matcher", "wildcard", "post-only"),
+        default="aia-matcher",
+        help="diagnostic matcher configuration to probe",
+    )
     args = parser.parse_args(argv)
     if os.name != "nt":
         print("SKIP: this runner is intended for Windows Actual Codex integration")
@@ -140,6 +197,11 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         spec = adapter.build_launch(request, executable)
+        spec_argv = _replace_inline_hook_configs(
+            spec.argv,
+            mode=args.hook_mode,
+            command=hook_command,
+        )
         environment = os.environ.copy()
         for key in (
             "AIA_CODEX_HOOK_ENDPOINT",
@@ -150,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         ):
             environment.pop(key, None)
         process = subprocess.Popen(
-            list(spec.argv),
+            list(spec_argv),
             cwd=str(workspace),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -185,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
         result.update(
             {
                 "codex_version": _codex_version(executable),
+                "hook_mode": args.hook_mode,
                 "exit_code": process.returncode,
                 "hook_event_count": len(events),
                 "hook_events": events,

@@ -68,6 +68,19 @@ AIA에 도착하면 `POST_ACTION → PROCESS_TERMINATION`과 `RESTORED + VERIFIE
 PostToolUse가 0건이었다. 이 결과는
 정책 위반 Process 자동 집행의 PASS가 아니라 Codex PostToolUse 경로의 제한사항이다.
 
+이 제한이 AIA matcher 누락 때문인지 확인하기 위해 개발자용 lifecycle smoke는
+`--hook-mode aia-matcher`, `--hook-mode wildcard`, `--hook-mode post-only`를
+지원한다. 2026-09-11의 Codex 0.154.0 Windows 결과는 AIA matcher와 wildcard
+모두 `PreToolUse=1, PostToolUse=0`이었고, PostToolUse만 설정한 구성은
+`PostToolUse=0`이었다. 따라서 현재 제품은 PostToolUse를 보호 성공의 필수 조건이나
+사후 자동 집행의 근거로 사용하지 않는다. 이 결과는 다음처럼 다시 확인할 수 있다.
+
+```powershell
+uv run python scripts/actual_codex_hook_lifecycle_smoke.py --hook-mode aia-matcher
+uv run python scripts/actual_codex_hook_lifecycle_smoke.py --hook-mode wildcard
+uv run python scripts/actual_codex_hook_lifecycle_smoke.py --hook-mode post-only
+```
+
 Codex Hook lifecycle 자체를 AIA 평가와 분리해 확인하려면 다음 smoke를 실행한다.
 
 ```powershell
