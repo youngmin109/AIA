@@ -2,6 +2,14 @@
 
 이 파일은 공개 배포 버전의 사용자에게 보이는 변경 사항을 기록한다.
 
+## [0.1.11] - 2026-09-11
+
+### Hook 상태 표시 정확성 보강
+
+- `aia hook status`가 Codex가 보고한 실제 PreToolUse Trust 상태를 표시
+- `TRUSTED`·`MANAGED` 상태를 `MANUAL_REVIEW_REQUIRED`로 잘못 표시하지 않음
+- Trust 상태별 CLI 회귀 테스트 추가
+
 ## [0.1.10] - 2026-09-11
 
 ### 보호 실행 부트스트랩 경계 보강
