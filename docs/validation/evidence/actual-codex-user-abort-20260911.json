@@ -1,0 +1,16 @@
+{
+  "schema_version": "aia-public-validation-v1",
+  "product": "AIA",
+  "product_version": "0.1.0",
+  "validated_at": "2026-09-11",
+  "environment": {"operating_system": "Windows 11", "python": "3.13", "codex_cli": "0.154.0"},
+  "proof": "actual-codex-user-abort",
+  "scenario_realized": true,
+  "readiness": "READY",
+  "managed_tree": {"root": "GONE", "child": "GONE", "grandchild": "GONE"},
+  "unrelated_process": "LIVE_MATCH",
+  "session_status": "ABORTED",
+  "termination": {"status": "SUCCEEDED", "outcome": "TERMINATED", "verified_tree_gone": true},
+  "bundle": "VALID",
+  "scope_note": "This proves explicit user-stop process control, not policy-violation automatic termination."
+}

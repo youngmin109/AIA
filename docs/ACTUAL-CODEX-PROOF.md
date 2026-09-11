@@ -54,9 +54,10 @@ AIA에 도착하면 `POST_ACTION → PROCESS_TERMINATION`과 `RESTORED + VERIFIE
 
 현재 Codex 0.154.0 Windows 실행에서는 이 증명에 PostToolUse Event가 도착하지
 않아 `SCENARIO_NOT_REALIZED`로 남겼다. AIA는 이 경우 Process 종료나 복구 성공을
-주장하지 않는다. 최신 실행 결과는
-`evaluation/actual-codex/post-action/20260911T011912Z-b8f9ad13/run.json`이며,
-실제 PreToolUse deny와 명령 실행은 확인됐지만 PostToolUse가 0건이었다. 이 결과는
+주장하지 않는다. 최신 실행 결과는 공개 요약 파일
+[`actual-codex-post-action-20260911.json`](validation/evidence/actual-codex-post-action-20260911.json)과
+로컬 전체 산출물에 보존했다. 실제 PreToolUse deny와 명령 실행은 확인됐지만
+PostToolUse가 0건이었다. 이 결과는
 정책 위반 Process 자동 집행의 PASS가 아니라 Codex PostToolUse 경로의 제한사항이다.
 
 `.env`를 shell 명령으로 읽는 경로도 별도 실행할 수 있다.
@@ -96,7 +97,10 @@ Codex의 유효 sandbox가 `read-only`이면 명령 실행 자체가 실현되�
 현재 Windows 검증에서는 Codex가 PowerShell 실행 경로로 fixture를 실행하도록
 요청한다. 이 결과는 사용자가 중지한 실제 Codex 트리의 종료 증명이다. 정책 위반에
 따른 자동 destructive PROCESS 집행의 성공으로 해석하지 않는다. 최신 확인 산출물은
-`evaluation/actual-codex/abort-productization/20260911T005817Z-32d5cdea/run.json`이다.
+공개 요약 파일
+[`actual-codex-user-abort-20260911.json`](validation/evidence/actual-codex-user-abort-20260911.json)과
+로컬 전체 산출물에 보존했다. 전체 산출물은 원문 stdout/stderr를 보존하지 않고
+로컬 Control Root에만 남긴다.
 
 자동화 증명은 disposable Workspace에서만 수행하며, Hook trust 확인을 위해 `--dangerously-bypass-hook-trust`를 사용한다. 이 플래그는 일반 제품 사용 경로가 아니다.
 
@@ -117,7 +121,12 @@ Codex가 같은 `tool_use_id`의 동일한 `PreToolUse` callback을 반복 전�
 동일한 결정의 반복 callback을 하나의 논리적 Tool Event로 묶고, 서로 다른
 결정이 같은 `tool_use_id`에 연결되면 증명을 실패시킨다.
 
-결과는 `evaluation/actual-codex/pretool-block/<timestamp>/run.json`과 Session Control Root에 저장되며 각 artifact의 SHA-256이 보고된다. Checkpoint는 복구 기준점이므로 Workspace baseline의 `.env`가 포함될 수 있다. Secret 비노출 판정은 Hook, Evidence, Result artifact에 대해 별도로 수행한다.
+결과는 로컬 `evaluation/actual-codex/pretool-block/<timestamp>/run.json`과 Session
+Control Root에 저장되며 각 artifact의 SHA-256이 보고된다. 공개 저장소에는
+[PreToolUse 요약 증거](validation/evidence/actual-codex-pretool-20260911.json)만
+포함하고 전체 실행 산출물은 포함하지 않는다. Checkpoint는 복구 기준점이므로
+Workspace baseline의 `.env`가 포함될 수 있다. Secret 비노출 판정은 Hook, Evidence,
+Result artifact에 대해 별도로 수행한다.
 
 Codex stdout/stderr 원문은 증명 artifact에 보존하지 않는다. 실행 중 메모리에서
 부작용·Secret marker 유출 여부를 확인한 뒤, 결과에는 출력의 크기와 SHA-256만 남기고
