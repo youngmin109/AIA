@@ -267,6 +267,6 @@ Hook 신뢰가 적용되지 않은 환경에서는
 처리하지 않습니다.
 
 결정론적 전후 성능·보안 평가 결과는
-[fixture 평가 대시보드](evaluation/product-before-after/fixture-20260910-001/report.html)에서
+[fixture 평가 대시보드](evaluation/product-before-after/fixture-20260911-001/report.html)에서
 확인할 수 있다. 이 결과는 12개 시나리오의 AIA OFF/AIA ON 반복 실행을 포함하며,
 Actual Codex 결과와 섞지 않고 별도 평가로 표시한다.

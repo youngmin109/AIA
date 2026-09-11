@@ -39,6 +39,26 @@ uv run python scripts/actual_codex_pretool_smoke.py --scenario apply-patch
 이 시나리오는 patch 원문에 포함된 파일명을 명령 Rule로 평가하고, 실제 파일이
 생성되지 않은 경우에만 `BLOCKED / SUCCEEDED`로 확정한다.
 
+PreToolUse deny가 실제로 무시되는 경우의 보상적 Process 종료 경로는 다음 fault
+injection 증명기로 별도 시험할 수 있다.
+
+```powershell
+uv run python scripts/actual_codex_post_action_smoke.py
+```
+
+이 증명기는 실제 AIA가 반환한 deny를 먼저 기록한 뒤 disposable Hook wrapper가
+그 deny만 중립 응답으로 바꿔 실행을 의도적으로 허용한다. 이후 PostToolUse가
+AIA에 도착하면 `POST_ACTION → PROCESS_TERMINATION`과 `RESTORED + VERIFIED`를
+확인한다. fault injection wrapper와 `--dangerously-bypass-hook-trust`는 정상
+제품 사용 경로가 아니다.
+
+현재 Codex 0.154.0 Windows 실행에서는 이 증명에 PostToolUse Event가 도착하지
+않아 `SCENARIO_NOT_REALIZED`로 남겼다. AIA는 이 경우 Process 종료나 복구 성공을
+주장하지 않는다. 최신 실행 결과는
+`evaluation/actual-codex/post-action/20260911T011912Z-b8f9ad13/run.json`이며,
+실제 PreToolUse deny와 명령 실행은 확인됐지만 PostToolUse가 0건이었다. 이 결과는
+정책 위반 Process 자동 집행의 PASS가 아니라 Codex PostToolUse 경로의 제한사항이다.
+
 `.env`를 shell 명령으로 읽는 경로도 별도 실행할 수 있다.
 
 ```powershell
@@ -75,8 +95,8 @@ Codex의 유효 sandbox가 `read-only`이면 명령 실행 자체가 실현되�
 
 현재 Windows 검증에서는 Codex가 PowerShell 실행 경로로 fixture를 실행하도록
 요청한다. 이 결과는 사용자가 중지한 실제 Codex 트리의 종료 증명이다. 정책 위반에
-따른 자동 destructive PROCESS 집행의 성공으로 해석하지 않는다. 확인된 산출물은
-`evaluation/actual-codex/abort/20260910T201146Z-6b49fcb4/run.json`이다.
+따른 자동 destructive PROCESS 집행의 성공으로 해석하지 않는다. 최신 확인 산출물은
+`evaluation/actual-codex/abort-productization/20260911T005817Z-32d5cdea/run.json`이다.
 
 자동화 증명은 disposable Workspace에서만 수행하며, Hook trust 확인을 위해 `--dangerously-bypass-hook-trust`를 사용한다. 이 플래그는 일반 제품 사용 경로가 아니다.
 
