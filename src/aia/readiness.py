@@ -132,10 +132,11 @@ _READINESS_CONTEXT_TOKEN = object()
 
 @dataclass(frozen=True, slots=True, init=False)
 class ProtectionReadinessContext:
-    """Immutable input contract for a future Protected Launcher.
+    """Immutable input contract for the Protected Launcher.
 
     The constructor requires an internal token. Normal callers obtain this
-    object only from a successful ProtectionReadinessBarrier evaluation.
+    object only from a successful ProtectionReadinessBarrier evaluation before
+    the launcher starts the managed Agent process.
     """
 
     aia_session_id: str

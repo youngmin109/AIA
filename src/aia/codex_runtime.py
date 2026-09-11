@@ -202,7 +202,7 @@ class CodexPreToolController:
                 hook_trust_status=HookTrustStatus.VERIFIED,
                 checked_at=_now_utc(),
             )
-            decision = PreToolDecisionPlaceholder.evaluate(gate_input, self.lease_manager)
+            decision = PreToolDecisionEvaluator.evaluate(gate_input, self.lease_manager)
             event = CodexPreToolEvent(
                 tool_use_id=native.tool_use_id or "",
                 records=records,
@@ -500,8 +500,8 @@ class CodexPreToolController:
             self._errors.append(value)
 
 
-class PreToolDecisionPlaceholder:
-    """Small indirection to keep Gate construction explicit in this module."""
+class PreToolDecisionEvaluator:
+    """Evaluate a verified Codex PreToolUse request through the Gate."""
 
     @staticmethod
     def evaluate(gate_input: EnforcementGateInput, lease_manager: "WorkspaceLeaseManager") -> PreToolDecision:
