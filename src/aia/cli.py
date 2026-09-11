@@ -736,25 +736,60 @@ def _setup(args: argparse.Namespace) -> int:
         else:
             print(f"AIA 설정 실패: {error}")
         return 2
+    codex_hook_trust: dict[str, object] = {
+        "available": False,
+        "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
+        "hooks": [],
+    }
+    try:
+        executable = CodexAdapter().discover()
+    except Exception:
+        executable = None
+    if executable is not None:
+        codex_hook_trust = inspect_codex_hook_trust(
+            executable,
+            hook_path=installer.path,
+            cwd=Path.cwd(),
+            timeout=8.0,
+        ).to_mapping()
+    trust_entries = codex_hook_trust.get("hooks") or []
+    pretool_trust_status = next(
+        (
+            item.get("trust_status")
+            for item in trust_entries
+            if isinstance(item, dict) and item.get("event") == "preToolUse"
+        ),
+        "NOT_VISIBLE",
+    )
+    if pretool_trust_status in {"TRUSTED", "MANAGED"}:
+        next_steps = [
+            "Codex PreToolUse Hook은 신뢰된 상태입니다.",
+            "aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
+        ]
+    else:
+        next_steps = [
+            "Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰합니다.",
+            "신뢰한 뒤 aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
+        ]
     payload = {
         "configured": True,
         "hook_path": str(path),
         "pretool_installed": installer.is_installed(),
         "posttool_installed": installer.is_posttool_installed(),
         "trust_status": "MANUAL_REVIEW_REQUIRED",
-        "next_steps": [
-            "Codex에서 /hooks를 열고 AIA Hook을 검토합니다.",
-            "AIA Hook을 신뢰한 뒤 aia doctor를 실행합니다.",
-            "aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
-            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
-        ],
+        "codex_hook_trust": codex_hook_trust,
+        "codex_pretool_trust_status": pretool_trust_status,
+        "next_steps": next_steps,
     }
     if args.json:
         print(_json_text(payload))
     else:
         print(f"AIA Hook 설정 완료: {path}")
-        print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
-        print("[다음] uv run aia doctor")
+        print(f"[확인] Codex PreToolUse Trust: {pretool_trust_status}")
+        if pretool_trust_status not in {"TRUSTED", "MANAGED"}:
+            print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
         print("[검증] uv run aia hook verify")
         print("[실행] uv run aia protect C:\\workspace\\my-project")
     return 0

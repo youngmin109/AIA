@@ -102,6 +102,39 @@ def test_setup_parser_supports_json_and_custom_hook_path(tmp_path) -> None:
     assert args.path == tmp_path / "hooks.json"
 
 
+def test_setup_reports_current_codex_pretool_trust(tmp_path, monkeypatch, capsys) -> None:
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                        {"event": "postToolUse", "trust_status": "UNTRUSTED"},
+                    ],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(["setup", "--json", "--path", str(hook_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["configured"] is True
+    assert payload["codex_pretool_trust_status"] == "MODIFIED"
+    assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
+    assert "/hooks" in payload["next_steps"][0]
+
+
 def test_console_parser_supports_explicit_bind_values() -> None:
     args = _parser().parse_args(
         ["console", "--host", "127.0.0.1", "--port", "8799", "--open"]

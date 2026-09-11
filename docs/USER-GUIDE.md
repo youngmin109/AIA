@@ -18,6 +18,11 @@ uv run aia setup
 `self-test`가 `결과: PASS`이면 AIA Core 자체가 정상이다. 이 명령은 Codex나
 사용자 Workspace를 실행하지 않는다.
 
+`aia setup`은 Hook 파일을 설치한 뒤 현재 Codex가 보고한 PreToolUse Trust 상태도
+함께 표시한다. `TRUSTED` 또는 `MANAGED`가 아니면 Codex에서 `/hooks`를 열어
+AIA Hook의 명령과 Matcher를 확인하고 직접 신뢰해야 한다. `MODIFIED`,
+`UNTRUSTED`, `NOT_VISIBLE`은 보호 실행이 준비된 상태가 아니다.
+
 그 다음 Codex 화면에서 `/hooks`를 입력한다. AIA의 `PreToolUse` Hook 명령과
 Matcher를 직접 확인하고 신뢰한다. AIA가 대신 신뢰하지 않는 이유는 사용자가
 확인하지 않은 실행 경계를 자동으로 켜지 않기 위해서다.
