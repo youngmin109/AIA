@@ -591,8 +591,17 @@ class CodexHookBroker:
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError):
+                    # Codex may close the synchronous Hook connection after a
+                    # containment decision terminates the managed process.
+                    # The request has no usable response channel anymore; do
+                    # not emit a second traceback while trying to send 500.
+                    return
                 except Exception:
-                    self.send_error(500)
+                    try:
+                        self.send_error(500)
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self._server.daemon_threads = True
