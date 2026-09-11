@@ -398,7 +398,6 @@ class RunApplicationService:
                 }
             )
 
-        required = [item for item in checks if not item.get("optional")]
         control_root_check = next(
             (item for item in checks if item.get("name") == "control_root"),
             None,
@@ -431,7 +430,12 @@ class RunApplicationService:
             hook_activation_detail = "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
 
         if not self.require_hook_verification:
-            readiness_code = "READY" if all(bool(item["ok"]) for item in required) else "NOT_READY"
+            required_checks_ok = all(
+                bool(item["ok"])
+                for item in checks
+                if not item.get("optional")
+            )
+            readiness_code = "READY" if required_checks_ok else "NOT_READY"
             next_step = (
                 "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
                 if readiness_code == "READY"
@@ -459,8 +463,13 @@ class RunApplicationService:
             readiness_code = "READY"
             next_step = "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
 
+        ready = readiness_code == "READY"
+
         return {
-            "ready": all(bool(item["ok"]) for item in required),
+            # The machine-readable readiness result must include effective
+            # gates such as Codex Hook Trust, even when that check is marked
+            # optional for telemetry purposes.
+            "ready": ready,
             "readiness_code": readiness_code,
             "next_step": next_step,
             "checks": checks,
@@ -523,6 +532,25 @@ class RunApplicationService:
             ):
                 raise ApplicationValidationError(
                     "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+                )
+            inspection = inspect_codex_hook_trust(
+                executable,
+                hook_path=installer.path,
+                cwd=Path.cwd(),
+                timeout=8.0,
+            ).to_mapping()
+            pretool_status = next(
+                (
+                    item.get("trust_status")
+                    for item in (inspection.get("hooks") or [])
+                    if isinstance(item, dict) and item.get("event") == "preToolUse"
+                ),
+                None,
+            )
+            if pretool_status not in {"TRUSTED", "MANAGED"}:
+                raise ApplicationValidationError(
+                    "Codex PreToolUse Hook Trust가 확인되지 않았습니다. "
+                    "Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 다시 시도하세요."
                 )
         workspace = self._validate_workspace(request.workspace)
         if not request.interactive and not request.task.strip():

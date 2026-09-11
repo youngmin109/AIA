@@ -203,6 +203,26 @@ class ProcessTerminationEntry:
         )
         object.__setattr__(self, "outcome", ProcessTerminationOutcome(self.outcome))
 
+    def to_mapping(self) -> dict[str, Any]:
+        """Return the complete, audit-safe per-process result."""
+
+        return {
+            "process_identity": {
+                "pid": self.process_identity.pid,
+                "create_time": self.process_identity.create_time,
+            },
+            "process_role": self.process_role,
+            "depth": self.depth,
+            "initial_verification": self.initial_verification.value,
+            "terminate_attempted": self.terminate_attempted,
+            "terminate_result": self.terminate_result.value,
+            "force_kill_attempted": self.force_kill_attempted,
+            "force_kill_result": self.force_kill_result.value,
+            "final_verification": self.final_verification.value,
+            "outcome": self.outcome.value,
+            "reason": self.reason,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class ProcessTerminationResult:
@@ -279,6 +299,38 @@ class ProcessTerminationResult:
         """Alias used by callers that refer to per-process entries."""
 
         return self.process_results
+
+    def to_mapping(self) -> dict[str, Any]:
+        """Return the complete, audit-safe termination execution result.
+
+        Enforcement Gate state and the actual execution result remain separate
+        fields.  This mapping is safe for Result Bundle and diagnostic output;
+        it contains process identities and bounded status values, never process
+        command lines or raw tool payloads.
+        """
+
+        return {
+            "termination_id": self.termination_id,
+            "aia_session_id": self.aia_session_id,
+            "launch_id": self.launch_id,
+            "decision": self.decision.value,
+            "route": self.route.value,
+            "action": self.action.value,
+            "execution_result": self.execution_result.value,
+            "termination_attempt_count": self.termination_attempt_count,
+            "outcome": self.outcome.value,
+            "process_results": [item.to_mapping() for item in self.process_results],
+            "termination_requested_at": self.termination_requested_at.isoformat(),
+            "termination_started_at": (
+                self.termination_started_at.isoformat()
+                if self.termination_started_at is not None
+                else None
+            ),
+            "termination_completed_at": self.termination_completed_at.isoformat(),
+            "gate_to_termination_start_ms": self.gate_to_termination_start_ms,
+            "termination_duration_ms": self.termination_duration_ms,
+            "reason": self.reason,
+        }
 
 
 class ManagedProcessRegistry:

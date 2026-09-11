@@ -325,6 +325,13 @@ def test_children_first_tree_termination_excludes_unrelated_process(tmp_path: Pa
         entry.final_verification is not ProcessIdentityStatus.LIVE_MATCH
         for entry in result.entries
     )
+    mapping = result.to_mapping()
+    assert mapping["decision"] == "CONTAIN"
+    assert mapping["action"] == "TERMINATED"
+    assert mapping["execution_result"] == "SUCCEEDED"
+    assert {
+        item["process_identity"]["pid"] for item in mapping["process_results"]
+    } == {1000, 1001, 1002}
 
 
 def test_root_exit_during_descendant_containment_is_success(tmp_path: Path):

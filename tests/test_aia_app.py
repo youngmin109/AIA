@@ -736,6 +736,46 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         service.shutdown()
 
 
+def test_application_create_rejects_currently_untrusted_hook(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(
+        tmp_path / "control",
+        require_hook_verification=True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.HookVerificationStore.is_current",
+        lambda self, installer, executable: True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                    ],
+                }
+            },
+        )(),
+    )
+    try:
+        with pytest.raises(ApplicationValidationError, match="Hook Trust"):
+            service.create_protected_run(
+                {"workspace": str(tmp_path), "task": "inspect"}
+            )
+    finally:
+        service.shutdown()
+
+
 def test_application_rejects_run_without_live_hook_verification(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(
         tmp_path / "control",
