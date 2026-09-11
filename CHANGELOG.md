@@ -2,6 +2,15 @@
 
 이 파일은 공개 배포 버전의 사용자에게 보이는 변경 사항을 기록한다.
 
+## [0.1.6] - 2026-09-11
+
+### 결과 해석 명확화
+
+- 보호 실행 결과에 전체 행위·정책 판정·정책 효과·집행·실행 결과 집계를 표시
+- `COMPLIANT / VIOLATION` 정책 판정과 `ALLOW / AUDIT / DENY` 정책 효과를 분리
+- Result Bundle에 행위별 `operation_effect`를 보존해 결과 화면과 JSON의 의미를 일치
+- Recovery와 Integrity 상태를 CLI와 로컬 콘솔에서 독립적으로 표시
+
 ## [0.1.5] - 2026-09-11
 
 ### Workspace 재사용 안전성

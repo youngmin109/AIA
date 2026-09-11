@@ -8,8 +8,8 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `94af4a0` |
-| 제품 버전 | `0.1.5` |
+| 코드 기준 | `47b554a` |
+| 제품 버전 | `0.1.6` |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **552 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **554 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -77,6 +77,8 @@
   판정, Effect, 보안 자산, 적용 Rule을 보여준다.
 - Core `self-test`도 기본 보호 프로필과 `.env READ → VIOLATION / DENY / SECRET`
   판정을 확인한다.
+- Result Bundle과 결과 화면에서 `COMPLIANT / VIOLATION` 정책 판정과
+  `ALLOW / AUDIT / DENY` 정책 효과를 독립적으로 확인할 수 있다.
 - CLI는 `Phase: READY`를 Codex 시작 대기 상태로 설명하고, 장시간 지연 시
   `aia status <SESSION_ID>` 확인 방법을 안내한다.
 - 2026-09-11 Actual Codex 0.154.0 direct adapter smoke에서 실제 `Bash`,
