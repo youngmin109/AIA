@@ -69,6 +69,7 @@ jobs:
           }
           & $aia --version
           & $aia self-test --json
+          & $aia demo
 
       - name: Reject a tampered release wheel before installation
         shell: pwsh

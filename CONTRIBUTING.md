@@ -25,7 +25,7 @@ distribution 빌드를 자동으로 다시 실행한다. 로컬에서는 배포 
 uv lock --check
 uv build
 powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
-powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePath .\dist\release\aia-0.1.9
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePath .\dist\release\aia-0.1.13
 ```
 
 Codex Hook 또는 Process Manager 변경은 disposable Workspace에서 실제 증명을
