@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.3 릴리스 기준](docs/RELEASE-0.1.3.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.4 릴리스 기준](docs/RELEASE-0.1.4.md)에서 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
 공개 버전별 변경 사항은 [변경 이력](CHANGELOG.md)에서 확인할 수 있다.
@@ -201,6 +201,18 @@ uv run aia stop <SESSION_ID>
 `COMPLETED_VERIFIED`는 실제 Hook Event와 검증된 Result Bundle이 확인된 실행이고,
 `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계가 완전히 검증되지 않은 실행입니다.
 후자는 성공한 보호 실행으로 해석하지 말고 제한사항을 확인해야 합니다.
+
+AIA가 강제 종료되어 이전 실행이 끝나지 않은 상태로 남으면 `aia status`와 로컬
+콘솔에 `ORPHANED_DEGRADED`가 표시됩니다. AIA 조정 프로세스와 기록된 Agent Root의
+PID·생성 시각을 확인한 뒤 Agent Root가 실제로 사라진 경우에만 다음 명령으로
+이전 실행의 정리 확인을 남깁니다.
+
+```powershell
+uv run aia reconcile <SESSION_ID>
+```
+
+이 명령은 Evidence를 삭제하지 않고, 고아 실행을 성공한 보호 실행으로 바꾸지
+않습니다. Agent Root가 살아 있거나 신원을 확인할 수 없으면 정리를 거부합니다.
 실행 중 Hook Broker가 사라져 관리 트리 중지를 시도한 경우에는
 `FAILED_DEGRADED`로 기록될 수 있습니다. 이 상태는 보호 경계가 끊겼고
 보호 성공으로 해석할 수 없다는 뜻입니다. 관리 트리 종료 결과는 사용자 중지나

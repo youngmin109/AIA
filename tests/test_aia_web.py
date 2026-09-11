@@ -143,6 +143,15 @@ class FakeService:
             raise KeyError(session_id)
         return {"accepted": True, "session_id": session_id, "status": "STOP_REQUESTED"}
 
+    def reconcile_orphaned_run(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return {
+            "reconciled": True,
+            "session_id": session_id,
+            "reason": "ORPHAN_RECONCILED_AFTER_ROOT_CHECK",
+        }
+
     def get_raw_evidence(self, session_id):
         return [{"evidence_id": "e1", "payload_keys": ["operation"]}]
 
@@ -174,6 +183,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.post("/api/runs/run-1/stop").status_code == 202
     assert client.post("/api/runs/missing/stop").status_code == 404
+    assert client.post("/api/runs/run-1/reconcile").status_code == 200
+    assert client.post("/api/runs/missing/reconcile").status_code == 404
     assert client.get("/api/runs/run-1/actions").json()["actions"][0]["operation"] == "DELETE"
     incident = client.get("/runs/run-1/incidents/a1")
     assert incident.status_code == 200

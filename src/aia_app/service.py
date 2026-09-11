@@ -34,6 +34,7 @@ from aia import (
     ProtectedLaunchRequest,
     ProtectedLauncher,
     ProtectedRunSession,
+    ProcessIdentity,
     RawEvidenceStore,
     RecoveryCoordinator,
     RuntimePolicyEvaluator,
@@ -45,6 +46,7 @@ from aia import (
     prepare_protection,
     process_create_time,
     resolve_profile,
+    verify_process_identity,
 )
 from aia.session import SessionEndReason, WorkspaceValidationError
 from aia.readiness import ProtectionReadinessBarrier
@@ -63,6 +65,124 @@ class ApplicationValidationError(ValueError):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _runtime_coordinator_reconciliation(state: Mapping[str, Any]) -> dict[str, Any]:
+    """Classify whether a persisted non-terminal run still has a coordinator.
+
+    Runtime state is a recovery hint, not a termination authority.  A stale
+    state is therefore reported explicitly and never converted into a
+    successful or terminal Session result here.
+    """
+
+    session = state.get("session") if isinstance(state.get("session"), Mapping) else {}
+    session_status = session.get("status")
+    if session_status in {"COMPLETED", "ABORTED", "FAILED"}:
+        return {
+            "status": "TERMINAL",
+            "orphaned": False,
+            "action": "NONE",
+            "detail": "Session is already terminal; the Result Bundle is authoritative.",
+        }
+
+    coordinator = state.get("coordinator")
+    if not isinstance(coordinator, Mapping):
+        return {
+            "status": "UNKNOWN",
+            "orphaned": False,
+            "action": "NO_AUTOMATIC_CONCLUSION",
+            "detail": "This runtime snapshot has no coordinator identity; live state cannot be proven.",
+        }
+    pid = coordinator.get("pid")
+    create_time = coordinator.get("create_time")
+    if (
+        not isinstance(pid, int)
+        or isinstance(pid, bool)
+        or pid <= 0
+        or not isinstance(create_time, (int, float))
+        or isinstance(create_time, bool)
+    ):
+        return {
+            "status": "OWNER_UNVERIFIABLE",
+            "orphaned": False,
+            "action": "DO_NOT_TAKE_OVER",
+            "detail": "The persisted AIA coordinator identity is malformed; takeover is refused.",
+        }
+
+    try:
+        process_status = verify_process_identity(
+            ProcessIdentity(pid=pid, create_time=float(create_time))
+        )
+    except (OSError, ValueError, TypeError):
+        process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE
+
+    managed_process = state.get("managed_process")
+    agent_process_status = "NOT_RECORDED"
+    if isinstance(managed_process, Mapping):
+        root = managed_process.get("root_process_identity")
+        root_pid = root.get("pid") if isinstance(root, Mapping) else None
+        root_create_time = root.get("create_time") if isinstance(root, Mapping) else None
+        if (
+            isinstance(root_pid, int)
+            and not isinstance(root_pid, bool)
+            and root_pid > 0
+            and isinstance(root_create_time, (int, float))
+            and not isinstance(root_create_time, bool)
+        ):
+            try:
+                agent_process_status = verify_process_identity(
+                    ProcessIdentity(
+                        pid=root_pid,
+                        create_time=float(root_create_time),
+                    )
+                ).value
+            except (OSError, TypeError, ValueError):
+                agent_process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE.value
+        else:
+            agent_process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE.value
+
+    if process_status is ProcessIdentityStatus.LIVE_MATCH:
+        return {
+            "status": "LIVE_MATCH",
+            "orphaned": False,
+            "action": "NONE",
+            "agent_process_status": agent_process_status,
+            "acknowledged": False,
+            "detail": "The AIA coordinator process identity is still live.",
+        }
+    if process_status in {
+        ProcessIdentityStatus.PROCESS_GONE,
+        ProcessIdentityStatus.PID_REUSED,
+    }:
+        acknowledged = (
+            isinstance(state.get("orphan_reconciliation"), Mapping)
+            and state["orphan_reconciliation"].get("status") == "ACKNOWLEDGED"
+        )
+        return {
+            "status": (
+                "STALE_PROCESS_GONE"
+                if process_status is ProcessIdentityStatus.PROCESS_GONE
+                else "STALE_PID_REUSED"
+            ),
+            "orphaned": True,
+            "action": "RECONCILED" if acknowledged else "REVIEW_AND_RESTART",
+            "agent_process_status": agent_process_status,
+            "acknowledged": acknowledged,
+            "detail": (
+                "The stale run was acknowledged after its recorded Agent root was verified gone."
+                if acknowledged
+                else "The AIA coordinator is no longer live. Protection cannot be assumed; "
+                "review the run and restart only after the old Agent is closed."
+            ),
+        }
+    return {
+        "status": "OWNER_UNVERIFIABLE",
+        "orphaned": False,
+        "action": "DO_NOT_TAKE_OVER",
+        "agent_process_status": agent_process_status,
+        "acknowledged": False,
+        "detail": "The AIA coordinator identity could not be verified; takeover is refused.",
+    }
 
 
 def _sensor_status(sensor: Any) -> str | None:
@@ -596,6 +716,8 @@ class RunApplicationService:
             interactive=request.interactive,
             created_at=session.created_at,
             protection_state="STARTING",
+            coordinator_pid=os.getpid(),
+            coordinator_process_create_time=process_create_time(os.getpid()),
         )
         record.runtime.update({"request": request, "resolved_policy": resolved, "session": session})
         self._persist_runtime_state(record, strict=True)
@@ -773,6 +895,65 @@ class RunApplicationService:
             "reason": "USER_ABORT_REQUESTED",
         }
 
+    def reconcile_orphaned_run(self, session_id: str) -> dict[str, Any]:
+        """Acknowledge a crashed coordinator only after the Agent root is gone.
+
+        This operation preserves the stale runtime snapshot and all evidence.
+        It only records an operational acknowledgement that permits a later
+        protected run to reuse the Workspace after identity-safe checks.
+        """
+
+        if self.registry.get(session_id) is not None:
+            return {
+                "reconciled": False,
+                "session_id": session_id,
+                "reason": "RUN_IS_CONTROLLED_BY_THIS_AIA_PROCESS",
+            }
+        state = self._read_runtime_state(session_id)
+        if state is None:
+            raise KeyError(session_id)
+        reconciliation = _runtime_coordinator_reconciliation(state)
+        if not reconciliation.get("orphaned"):
+            return {
+                "reconciled": False,
+                "session_id": session_id,
+                "reason": "ORPHANED_COORDINATOR_NOT_PROVEN",
+                "runtime_reconciliation": reconciliation,
+            }
+        if reconciliation.get("acknowledged"):
+            return {
+                "reconciled": True,
+                "session_id": session_id,
+                "reason": "ORPHAN_ALREADY_ACKNOWLEDGED",
+                "runtime_reconciliation": reconciliation,
+            }
+        if reconciliation.get("agent_process_status") not in {
+            ProcessIdentityStatus.PROCESS_GONE.value,
+            ProcessIdentityStatus.PID_REUSED.value,
+        }:
+            return {
+                "reconciled": False,
+                "session_id": session_id,
+                "reason": "RECORDED_AGENT_ROOT_NOT_PROVEN_GONE",
+                "runtime_reconciliation": reconciliation,
+            }
+
+        acknowledged_at = _now().isoformat()
+        updated = dict(state)
+        updated["orphan_reconciliation"] = {
+            "status": "ACKNOWLEDGED",
+            "acknowledged_at": acknowledged_at,
+            "reason": "RECORDED_AGENT_ROOT_NOT_LIVE",
+        }
+        self._write_runtime_state_payload(session_id, updated)
+        result = _runtime_coordinator_reconciliation(updated)
+        return {
+            "reconciled": True,
+            "session_id": session_id,
+            "reason": "ORPHAN_RECONCILED_AFTER_ROOT_CHECK",
+            "runtime_reconciliation": result,
+        }
+
     def get_run_actions(self, session_id: str) -> list[dict[str, Any]]:
         record = self.registry.snapshot(session_id)
         if record is not None:
@@ -785,6 +966,7 @@ class RunApplicationService:
 
         values: dict[str, dict[str, Any]] = {}
         for state in self._list_runtime_states():
+            state = self._runtime_state_for_display(state)
             session = state.get("session") if isinstance(state.get("session"), dict) else {}
             policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
             protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
@@ -808,6 +990,7 @@ class RunApplicationService:
                 "result_url": f"/runs/{session_id}/result",
                 "protection_state": protection.get("state", "UNKNOWN"),
                 "hook_event_count": protection.get("hook_events", 0),
+                "runtime_reconciliation": state.get("runtime_reconciliation"),
             }
         for record in self.registry.snapshots():
             live_record = self.registry.get(record.session_id)
@@ -1064,8 +1247,10 @@ class RunApplicationService:
                 hook_broker_factory=broker_factory,
                 popen_factory=capture_popen,
                 capture_process_command_line=True,
-                launch_context_callback=lambda context: launch_holder.update(
-                    {"context": context}
+                launch_context_callback=lambda context: self._record_launch_context(
+                    record,
+                    launch_holder,
+                    context,
                 ),
             )
             record.runtime["process_manager"] = ProcessManager(
@@ -1734,6 +1919,18 @@ class RunApplicationService:
         record.status = status.value
         self._persist_runtime_state(record)
 
+    def _record_launch_context(
+        self,
+        record: RunRecord,
+        launch_holder: dict[str, Any],
+        context: Any,
+    ) -> None:
+        """Persist the verified Agent root before releasing the task prompt."""
+
+        launch_holder["context"] = context
+        record.runtime["launch_context"] = context
+        self._persist_runtime_state(record)
+
     def _refresh_sensors(self, record: RunRecord, sensors: tuple[Any, ...]) -> None:
         record.sensor_health = {
             sensor.health.sensor.value: sensor.health.status.value
@@ -1765,10 +1962,46 @@ class RunApplicationService:
 
     @staticmethod
     def _runtime_state_mapping(record: RunRecord) -> dict[str, Any]:
+        launch_context = record.runtime.get("launch_context")
+        managed_process = None
+        coordinator = None
+        if (
+            isinstance(record.coordinator_pid, int)
+            and not isinstance(record.coordinator_pid, bool)
+            and record.coordinator_pid > 0
+            and isinstance(record.coordinator_process_create_time, (int, float))
+            and not isinstance(record.coordinator_process_create_time, bool)
+        ):
+            coordinator = {
+                "pid": record.coordinator_pid,
+                "create_time": record.coordinator_process_create_time,
+            }
+        if launch_context is not None:
+            root_identity = getattr(launch_context, "root_process_identity", None)
+            launch_id = getattr(launch_context, "launch_id", None)
+            if (
+                isinstance(root_identity, ProcessIdentity)
+                and isinstance(launch_id, str)
+                and launch_id
+            ):
+                managed_process = {
+                    "launch_id": launch_id,
+                    "launch_provenance": getattr(
+                        launch_context,
+                        "launch_provenance",
+                        None,
+                    ),
+                    "root_process_identity": {
+                        "pid": root_identity.pid,
+                        "create_time": root_identity.create_time,
+                    },
+                }
         return {
             "schema_version": 1,
             "session_id": record.session_id,
             "updated_at": _now().isoformat(),
+            "coordinator": coordinator,
+            "managed_process": managed_process,
             "session": {
                 "agent": record.agent,
                 "created_at": record.created_at.isoformat(),
@@ -1804,20 +2037,30 @@ class RunApplicationService:
 
     def _persist_runtime_state(self, record: RunRecord, *, strict: bool = False) -> None:
         try:
-            path = self._runtime_state_path(record.session_id)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = path.with_suffix(".tmp")
-            temporary.write_text(
-                json.dumps(self._runtime_state_mapping(record), ensure_ascii=True, indent=2)
-                + "\n",
-                encoding="utf-8",
+            self._write_runtime_state_payload(
+                record.session_id,
+                self._runtime_state_mapping(record),
             )
-            os.replace(temporary, path)
         except (OSError, ValueError):
             if strict:
                 raise
             record.protection_state = "DEGRADED"
             record.error = record.error or "RUNTIME_STATE_PERSIST_FAILED"
+
+    def _write_runtime_state_payload(
+        self,
+        session_id: str,
+        payload: Mapping[str, Any],
+    ) -> Path:
+        path = self._runtime_state_path(session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(dict(payload), ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+        return path
 
     def _read_runtime_state(self, session_id: str) -> dict[str, Any] | None:
         try:
@@ -1854,8 +2097,22 @@ class RunApplicationService:
             states.append(payload)
         return states
 
-    @staticmethod
-    def _status_from_runtime_state(state: dict[str, Any]) -> dict[str, Any]:
+    def _runtime_state_for_display(self, state: Mapping[str, Any]) -> dict[str, Any]:
+        """Add crash reconciliation metadata to a persisted runtime view."""
+
+        displayed = dict(state)
+        reconciliation = _runtime_coordinator_reconciliation(state)
+        displayed["runtime_reconciliation"] = reconciliation
+        protection = state.get("protection")
+        if isinstance(protection, Mapping):
+            protection_view = dict(protection)
+            if reconciliation.get("orphaned"):
+                protection_view["state"] = "ORPHANED_DEGRADED"
+            displayed["protection"] = protection_view
+        return displayed
+
+    def _status_from_runtime_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        state = self._runtime_state_for_display(state)
         session = state.get("session") if isinstance(state.get("session"), dict) else {}
         protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
         policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
@@ -1874,6 +2131,7 @@ class RunApplicationService:
             "policy": policy,
             "result_available": bool(state.get("result_available")),
             "sensor_health": state.get("sensor_health", {}),
+            "runtime_reconciliation": state.get("runtime_reconciliation"),
             "session": session,
         }
 

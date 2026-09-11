@@ -125,6 +125,25 @@ Codex 도구를 실행하지 않는다. 결과 artifact에는 Hook 검증 결과
 정책 Gate가 실행되지 않았으므로 이를 `CONTAIN` 또는 정책용
 `process_termination_result`로 기록하지 않는다.
 
+## AIA 비정상 종료 후 상태 복구
+
+AIA 조정 프로세스가 강제 종료되면 이전 실행의 상태 파일이 남을 수 있다. 새 AIA
+프로세스는 PID만 보지 않고 조정 프로세스의 PID와 생성 시각을 함께 검증한다. 조정
+프로세스가 사라진 실행은 Session을 성공·완료로 바꾸지 않고
+`ORPHANED_DEGRADED`로 표시한다.
+
+실행 중 Agent Root가 기록된 경우에도 같은 PID와 생성 시각을 확인한다. 기록된
+Agent Root가 아직 살아 있거나 확인할 수 없으면 자동 종료하지 않는다. Agent Root가
+사라진 것이 확인된 뒤에만 다음 명령으로 이전 실행의 정리 확인을 남길 수 있다.
+
+```powershell
+uv run aia reconcile <SESSION_ID>
+```
+
+`reconcile`은 Evidence와 Result Bundle을 삭제하지 않으며, 고아 실행을 성공한
+보호 실행으로 바꾸지도 않는다. 사용자는 `aia status <SESSION_ID>` 또는 로컬
+콘솔에서 AIA 조정 프로세스와 Agent Root 상태를 확인할 수 있다.
+
 ## 아직 제품으로서 부족한 부분
 
 - 등록된 파일 읽기 MCP 도구 이름은 `READ`로 정규화하며, 실제 MCP 서버 시작부터

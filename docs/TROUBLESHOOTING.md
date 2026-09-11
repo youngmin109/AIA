@@ -112,3 +112,26 @@ uv run aia doctor
 ```
 
 `VERIFIED`와 `READY`가 확인된 뒤에만 `aia protect`를 실행한다.
+
+## `ORPHANED_DEGRADED`가 표시되는 경우
+
+AIA가 갑자기 종료되어 보호 실행의 상태 파일만 남은 경우다. 이 상태는 이전
+실행이 계속 보호되고 있다는 뜻이 아니다. AIA는 조정 프로세스의 PID와 생성 시각을
+확인하고, 기록된 Agent Root의 PID와 생성 시각도 함께 확인한다.
+
+먼저 상태를 확인한다.
+
+```powershell
+uv run aia status <SESSION_ID>
+```
+
+기록된 Agent Root가 아직 살아 있으면 기존 Codex를 먼저 종료한다. Agent Root가
+사라진 것이 확인된 경우에만 다음 명령을 실행한다.
+
+```powershell
+uv run aia reconcile <SESSION_ID>
+```
+
+이 명령은 기록을 삭제하거나 보호 성공으로 바꾸지 않는다. Agent Root가 살아
+있거나 신원을 확인할 수 없으면 정리를 거부한다. 이후 새 Protected Run을 시작할
+때 AIA가 Workspace Lease를 다시 확인한다.

@@ -840,4 +840,11 @@ def test_stop_parser_keeps_session_id_and_control_root() -> None:
 
     assert args.command == "stop"
     assert args.session_id == "session-1"
+
+
+def test_reconcile_parser_keeps_session_id_and_control_root() -> None:
+    args = _parser().parse_args(["reconcile", "session-1", "--json"])
+
+    assert args.command == "reconcile"
+    assert args.session_id == "session-1"
     assert args.json is True

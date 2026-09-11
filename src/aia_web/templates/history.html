@@ -15,7 +15,7 @@
   {% for run in runs %}
     <tr>
       <td class="mono">{{ run.session_id }}</td>
-      <td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}</td>
+      <td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}{% if (run.runtime_reconciliation or {}).get('orphaned') %}<br><span class="error-text">AIA 조정 프로세스 확인 필요</span>{% endif %}</td>
       <td class="mono target-cell">{{ run.workspace }}</td>
       <td>{{ (run.policy or {}).get('id') or (run.policy or {}).get('policy_id', '—') }}<br><span class="muted">{{ (run.policy or {}).get('version') or (run.policy or {}).get('policy_version', '—') }}</span></td>
       <td>{{ run.incident_count }}</td>

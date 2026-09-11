@@ -41,6 +41,11 @@ class RunRecord:
     incidents: list[dict[str, Any]] = field(default_factory=list)
     result: dict[str, Any] | None = None
     bundle_status: str | None = None
+    # Persisted identity of the AIA process coordinating this run.  A new
+    # service process uses PID plus create time to distinguish a live
+    # coordinator from a stale runtime snapshot after a crash.
+    coordinator_pid: int | None = None
+    coordinator_process_create_time: float | None = None
     runtime: dict[str, Any] = field(default_factory=dict, repr=False)
 
 
@@ -108,6 +113,8 @@ class RunRegistry:
             incidents=[dict(item) for item in record.incidents],
             result=dict(record.result) if record.result is not None else None,
             bundle_status=record.bundle_status,
+            coordinator_pid=record.coordinator_pid,
+            coordinator_process_create_time=record.coordinator_process_create_time,
         )
 
     def update(self, session_id: str, **changes: Any) -> RunRecord:

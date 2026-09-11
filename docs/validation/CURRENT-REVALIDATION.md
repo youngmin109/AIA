@@ -9,7 +9,7 @@
 |---|---|
 | 검증일 | 2026-09-11 |
 | 코드 기준 | `5369519` |
-| 제품 버전 | `0.1.3` |
+| 제품 버전 | `0.1.4` |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **544 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **550 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -30,6 +30,10 @@
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
 | Hook 신뢰 실패 시 실제 증명 중단 | **PASS: `CODEX_HOOK_TRUST_REQUIRED` / Codex 실행 전 중단** |
+
+이번 재검증에 추가한 고아 실행 상태 확인은 AIA 조정 프로세스의 PID와 생성 시각,
+기록된 Agent Root의 PID와 생성 시각을 각각 검증하며, Agent Root가 사라진 경우에만
+`aia reconcile`이 상태 정리 확인을 남기는지 확인한다.
 
 ## 이번 재검증에서 확인한 제품 계약
 

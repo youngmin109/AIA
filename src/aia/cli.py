@@ -93,6 +93,13 @@ def _parser() -> argparse.ArgumentParser:
     stop.add_argument("session_id")
     stop.add_argument("--json", action="store_true", help="print machine-readable output")
     stop.add_argument("--control-root", type=Path, help="AIA control root")
+    reconcile = commands.add_parser(
+        "reconcile",
+        help="acknowledge a crashed Protected Run after its Agent root is gone",
+    )
+    reconcile.add_argument("session_id")
+    reconcile.add_argument("--json", action="store_true", help="print machine-readable output")
+    reconcile.add_argument("--control-root", type=Path, help="AIA control root")
     policy = commands.add_parser("policy", help="validate and inspect a policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     profiles = policy_commands.add_parser(
@@ -1683,6 +1690,16 @@ def _show_status(args: argparse.Namespace) -> int:
         print(f"Result: {status['result_path']}")
     if status.get("error"):
         print(f"오류: {status['error']}")
+    reconciliation = status.get("runtime_reconciliation")
+    if isinstance(reconciliation, dict):
+        print(
+            "AIA 조정 프로세스: "
+            f"{reconciliation.get('status', 'UNKNOWN')} / "
+            f"Agent Root: {reconciliation.get('agent_process_status', 'NOT_RECORDED')}"
+        )
+        if reconciliation.get("orphaned"):
+            print(f"주의: {reconciliation.get('detail', '보호 상태를 확인할 수 없습니다.')}")
+            print(f"[다음] uv run aia reconcile {args.session_id}")
     return 0
 
 
@@ -1709,6 +1726,41 @@ def _stop_run(args: argparse.Namespace) -> int:
         print(f"상태: {result.get('status', 'UNKNOWN')}")
         print(f"사유: {result.get('reason', '-')}")
     return 0 if result.get("accepted") else 1
+
+
+def _reconcile_run(args: argparse.Namespace) -> int:
+    service = RunApplicationService(_control_root(args.control_root))
+    try:
+        try:
+            result = service.reconcile_orphaned_run(args.session_id)
+        except KeyError:
+            result = {
+                "reconciled": False,
+                "session_id": args.session_id,
+                "reason": "RUN_NOT_FOUND",
+            }
+    finally:
+        service.shutdown()
+    if args.json:
+        print(_json_text(result, default=str))
+    else:
+        state = "완료" if result.get("reconciled") else "실패"
+        print(f"고아 보호 실행 정리 확인: {state}")
+        print(f"Session: {result.get('session_id', args.session_id)}")
+        print(f"사유: {result.get('reason', '-')}")
+        reconciliation = result.get("runtime_reconciliation")
+        if isinstance(reconciliation, dict):
+            print(
+                "AIA 조정 프로세스: "
+                f"{reconciliation.get('status', 'UNKNOWN')} / "
+                f"Agent Root: {reconciliation.get('agent_process_status', 'NOT_RECORDED')}"
+            )
+        if not result.get("reconciled"):
+            print(
+                "다음: 기존 Codex가 실행 중이면 먼저 종료한 뒤, "
+                "기록된 Agent Root가 사라졌는지 확인하세요."
+            )
+    return 0 if result.get("reconciled") else 1
 
 
 def _run_protected(args: argparse.Namespace) -> int:
@@ -1861,6 +1913,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _show_status(args)
         if args.command == "stop":
             return _stop_run(args)
+        if args.command == "reconcile":
+            return _reconcile_run(args)
         if args.command == "policy" and args.policy_command == "validate":
             return _validate_policy(args)
         if args.command == "policy" and args.policy_command == "evaluate":

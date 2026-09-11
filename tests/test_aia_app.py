@@ -21,6 +21,8 @@ from aia import (
     EnforcementRoute,
     Operation,
     PolicyDecision,
+    ProcessIdentity,
+    ProcessIdentityStatus,
     SessionStatus,
 )
 from aia_app.service import (
@@ -831,6 +833,38 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         service.shutdown()
 
 
+def test_new_run_persists_aia_coordinator_identity(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    service._run = lambda record: None
+    try:
+        created = service.create_protected_run(
+            {"workspace": str(tmp_path), "task": "inspect"}
+        )
+        state = service._read_runtime_state(created["session_id"])
+        assert state["coordinator"]["pid"] > 0
+        assert state["coordinator"]["create_time"] >= 0
+        assert state["managed_process"] is None
+    finally:
+        service.shutdown()
+
+
+def test_runtime_state_persists_verified_agent_root_identity(tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.runtime["launch_context"] = SimpleNamespace(
+        launch_id="launch-1",
+        launch_provenance="AIA_SPAWNED_ROOT",
+        root_process_identity=ProcessIdentity(pid=4243, create_time=20.0),
+    )
+
+    state = RunApplicationService._runtime_state_mapping(record)
+
+    assert state["managed_process"] == {
+        "launch_id": "launch-1",
+        "launch_provenance": "AIA_SPAWNED_ROOT",
+        "root_process_identity": {"pid": 4243, "create_time": 20.0},
+    }
+
+
 def test_runtime_status_can_be_read_from_another_service_process(tmp_path, monkeypatch) -> None:
     control_root = tmp_path / "control"
     writer = RunApplicationService(control_root)
@@ -1050,4 +1084,104 @@ def test_launching_phase_is_visible_from_persisted_runtime_state(tmp_path) -> No
         assert status["protection"]["state"] == "LAUNCHING"
     finally:
         observer.shutdown()
+        service.shutdown()
+
+
+def _orphaned_runtime_state(session_id: str = "session-1") -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "session_id": session_id,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "coordinator": {"pid": 4242, "create_time": 10.0},
+        "managed_process": {
+            "launch_id": "launch-1",
+            "launch_provenance": "AIA_SPAWNED_ROOT",
+            "root_process_identity": {"pid": 4243, "create_time": 20.0},
+        },
+        "session": {
+            "agent": "codex",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "model": None,
+            "session_id": session_id,
+            "status": "RUNNING",
+            "workspace": "C:\\workspace\\orphaned",
+        },
+        "phase": "RUNNING",
+        "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1},
+        "checkpoint": "READY",
+        "lease": "ACTIVE",
+        "mode": "ENFORCE",
+        "policy": {"id": "policy", "profile": "BASIC_DEVELOPMENT", "version": "1.0.0"},
+        "incident_count": 0,
+        "latest_actions": [],
+        "sensor_health": {},
+        "stop": {"requested": False, "error": None},
+        "error": None,
+        "result_path": None,
+        "result_available": False,
+    }
+
+
+def test_persisted_run_reports_orphaned_when_coordinator_is_gone(tmp_path, monkeypatch) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+
+    def verify(identity):
+        return ProcessIdentityStatus.PROCESS_GONE
+
+    monkeypatch.setattr("aia_app.service.verify_process_identity", verify)
+    state = _orphaned_runtime_state()
+    service._write_runtime_state_payload("session-1", state)
+    try:
+        status = service.get_run_status("session-1")
+        assert status["session"]["status"] == "RUNNING"
+        assert status["protection"]["state"] == "ORPHANED_DEGRADED"
+        assert status["runtime_reconciliation"]["orphaned"] is True
+        assert status["runtime_reconciliation"]["action"] == "REVIEW_AND_RESTART"
+    finally:
+        service.shutdown()
+
+
+def test_orphan_reconcile_requires_recorded_agent_root_to_be_gone(tmp_path, monkeypatch) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+
+    def verify(identity):
+        return (
+            ProcessIdentityStatus.PROCESS_GONE
+            if identity.pid == 4242
+            else ProcessIdentityStatus.LIVE_MATCH
+        )
+
+    monkeypatch.setattr("aia_app.service.verify_process_identity", verify)
+    service._write_runtime_state_payload("session-1", _orphaned_runtime_state())
+    try:
+        result = service.reconcile_orphaned_run("session-1")
+        assert result["reconciled"] is False
+        assert result["reason"] == "RECORDED_AGENT_ROOT_NOT_PROVEN_GONE"
+        assert not service._read_runtime_state("session-1").get("orphan_reconciliation")
+    finally:
+        service.shutdown()
+
+
+def test_orphan_reconcile_acknowledges_only_after_agent_root_identity_is_gone(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+
+    monkeypatch.setattr(
+        "aia_app.service.verify_process_identity",
+        lambda identity: ProcessIdentityStatus.PROCESS_GONE,
+    )
+    service._write_runtime_state_payload("session-1", _orphaned_runtime_state())
+    try:
+        result = service.reconcile_orphaned_run("session-1")
+        assert result["reconciled"] is True
+        assert result["reason"] == "ORPHAN_RECONCILED_AFTER_ROOT_CHECK"
+        assert result["runtime_reconciliation"]["action"] == "RECONCILED"
+        persisted = service._read_runtime_state("session-1")
+        assert persisted["orphan_reconciliation"]["status"] == "ACKNOWLEDGED"
+    finally:
         service.shutdown()
