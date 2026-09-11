@@ -1427,6 +1427,8 @@ class RunApplicationService:
                     limitations.append("PROTECTION_FAILURE_TERMINATION_UNCONFIRMED")
             if record.runtime.get("post_action_containment_errors"):
                 limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
+            if getattr(controller, "unsupported_tool_names", ()):
+                limitations.append("UNSUPPORTED_TOOL_PATH")
             if record.runtime.get("codex_sandbox_downgraded"):
                 limitations.append("CODEX_SANDBOX_DOWNGRADED")
             if record.runtime.get("codex_approval_policy_downgraded"):

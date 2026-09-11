@@ -25,7 +25,11 @@ AIA_CODEX_SUPPORTED_MATCHERS = (
     "mcp__filesystem__read_file",
     "mcp__fs__read",
 )
-AIA_CODEX_HOOK_MATCHER = "|".join(AIA_CODEX_SUPPORTED_MATCHERS)
+# Receive every tool that Codex routes through the local PreToolUse/PostToolUse
+# hook path. Semantic support remains explicit in
+# ``AIA_CODEX_SUPPORTED_MATCHERS``; an unknown tool is denied by the bound
+# Protected Run instead of silently bypassing the AIA boundary.
+AIA_CODEX_HOOK_MATCHER = "*"
 
 
 class CodexHookInstaller:

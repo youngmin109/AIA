@@ -52,6 +52,8 @@ def test_capabilities_output_explains_bounded_support(capsys) -> None:
     assert "AIA 지원 범위" in output
     assert "Bash" in output
     assert "mcp__filesystem__read_file" in output
+    assert "Hook matcher: *" in output
+    assert "UNSUPPORTED_TOOL_PATH" in output
     assert "/hooks" in output
     assert "모든 Codex 도구" in output
 
@@ -62,6 +64,8 @@ def test_capabilities_json_is_machine_readable(capsys) -> None:
 
     assert payload["schema_version"] == "aia-capabilities-v1"
     assert "Bash" in payload["support"]["pretool_matchers"]
+    assert payload["support"]["pretool_matcher"] == "*"
+    assert "UNSUPPORTED_TOOL_PATH" in payload["support"]["unsupported_tool_behavior"]
     assert payload["requires_user_action"]
     assert payload["unsupported_or_unclaimed"]
 

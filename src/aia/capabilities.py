@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ._version import __version__
-from .codex_installation import AIA_CODEX_SUPPORTED_MATCHERS
+from .codex_installation import AIA_CODEX_HOOK_MATCHER, AIA_CODEX_SUPPORTED_MATCHERS
 
 
 def product_capabilities() -> dict[str, Any]:
@@ -21,7 +21,12 @@ def product_capabilities() -> dict[str, Any]:
             "agent": ["Codex CLI"],
             "launch_boundary": "AIA Protected Run으로 직접 시작한 Codex 자식 프로세스",
             "modes": ["ENFORCE", "AUDIT"],
+            "pretool_matcher": AIA_CODEX_HOOK_MATCHER,
             "pretool_matchers": list(AIA_CODEX_SUPPORTED_MATCHERS),
+            "unsupported_tool_behavior": (
+                "Hook으로 수신되지만 의미를 해석하지 못하는 도구는 "
+                "UNSUPPORTED_TOOL_PATH로 거부하고 실행 성공으로 주장하지 않음"
+            ),
             "mcp_policy": "명시적으로 등록된 MCP 도구만 의미를 해석하며, 알 수 없는 MCP 이름은 보호 성공으로 주장하지 않음",
         },
         "verified_behaviors": [

@@ -678,7 +678,9 @@ def _capabilities(args: argparse.Namespace) -> int:
     )
     print(f"실행 경계: {support['launch_boundary']}")
     print(f"보호 모드: {', '.join(support['modes'])}")
+    print(f"Hook matcher: {support['pretool_matcher']}")
     print("지원 PreToolUse: " + ", ".join(support["pretool_matchers"]))
+    print(f"미지원 도구 처리: {support['unsupported_tool_behavior']}")
     print("실제 확인된 동작:")
     for item in payload["verified_behaviors"]:
         print(f"  - {item}")

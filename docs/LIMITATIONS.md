@@ -10,7 +10,8 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
   유지하지 않지만, PostToolUse 오류는 이미 실행된 작업을 되돌릴 수 없고 Hook 우회
   경로를 OS 수준에서 차단하지 않는다.
 - 등록된 `mcp__filesystem__read_file` MCP 경로는 Codex 0.154.0에서 실제
-  PreToolUse 차단과 부작용 없음까지 확인했다. 등록되지 않은 MCP 도구와 모든
+  PreToolUse 차단과 부작용 없음까지 확인했다. Hook matcher는 로컬 Hook 경로의
+  입력을 받지만, 등록되지 않은 MCP 도구는 `UNSUPPORTED_TOOL_PATH`로 거부하며 모든
   구조화 READ 경로를 보편적으로 보호한다고 주장하지 않는다.
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.

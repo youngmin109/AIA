@@ -573,8 +573,7 @@ def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> Non
     spec = adapter.build_launch(request, Path(sys.executable))
 
     config = next(argument for argument in spec.argv if argument.startswith("hooks.PreToolUse"))
-    assert "mcp__filesystem__read_file" in config
-    assert "mcp__fs__read" in config
+    assert 'matcher="*"' in config
     assert "command=\"python -m aia.codex_hook_runtime\"" in config
     assert "commandWindows=\"python -m aia.codex_hook_runtime\"" in config
     assert any(argument.startswith("hooks.PostToolUse") for argument in spec.argv)

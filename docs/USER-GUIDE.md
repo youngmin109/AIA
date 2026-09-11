@@ -197,8 +197,10 @@ uv run aia reconcile <SESSION_ID>
 
 ## 현재 보호 범위
 
-현재 제품은 Windows 11, Codex CLI, AIA Protected Run, 지원되는
-`PreToolUse` matcher를 대상으로 한다. 모든 Codex 도구, 모든 MCP, 사용자가
-직접 실행한 OS 작업, Hook을 우회한 경로까지 보호한다고 주장하지 않는다.
+현재 제품은 Windows 11, Codex CLI, AIA Protected Run, Codex 로컬 Hook 경로의
+`PreToolUse`를 대상으로 한다. Hook matcher는 `*`지만 AIA가 의미를 해석하는
+도구는 명시된 목록으로 제한하며, 목록 밖 도구는 `UNSUPPORTED_TOOL_PATH`로
+거부한다. 모든 Codex 도구, 모든 MCP, 사용자가 직접 실행한 OS 작업, Hook을
+우회한 경로까지 보호한다고 주장하지 않는다.
 자세한 범위와 제한은 [PRODUCT-SUPPORT.md](PRODUCT-SUPPORT.md)와
 [LIMITATIONS.md](LIMITATIONS.md)를 확인한다.

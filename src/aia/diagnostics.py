@@ -14,7 +14,11 @@ from typing import Any
 
 from ._version import __version__
 from .codex_hook_trust import inspect_codex_hook_trust
-from .codex_installation import CodexHookInstaller
+from .codex_installation import (
+    AIA_CODEX_HOOK_MATCHER,
+    AIA_CODEX_SUPPORTED_MATCHERS,
+    CodexHookInstaller,
+)
 from .adapters.codex import CodexAdapter
 from .hook_verification import HookVerificationStore
 
@@ -156,13 +160,9 @@ def build_support_bundle(
         "supported_scope": {
             "os": "Windows 11",
             "agent": "Codex CLI",
+            "pretool_matcher": AIA_CODEX_HOOK_MATCHER,
             "pretool_matchers": [
-                "Bash",
-                "apply_patch",
-                "Edit",
-                "Write",
-                "mcp__filesystem__read_file",
-                "mcp__fs__read",
+                *AIA_CODEX_SUPPORTED_MATCHERS,
             ],
         },
         "privacy": {

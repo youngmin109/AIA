@@ -132,6 +132,7 @@ try {
     }
     $capabilities = $capabilitiesJson | ConvertFrom-Json
     if ($capabilities.schema_version -ne "aia-capabilities-v1" -or
+        $capabilities.support.pretool_matcher -ne "*" -or
         @($capabilities.support.pretool_matchers).Count -eq 0) {
         throw "installed wheel capabilities contract is incomplete"
     }

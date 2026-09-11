@@ -28,8 +28,11 @@ Workspace 선택
 ```
 
 현재 검증된 지원 계약은 Windows 11, Codex CLI, AIA가 직접 시작한 실행, 그리고
-`Bash`, `apply_patch`, `Edit`, `Write` 계열과 명시적으로 등록된 파일 읽기 MCP의
-PreToolUse다. Codex 0.154.0에서 실제 `mcp__filesystem__read_file` 요청에 대해
+Codex 로컬 Hook 경로의 `PreToolUse` 수신이다. Hook matcher는 `*`로 설치하지만,
+AIA가 정책 행위로 의미를 해석하는 도구는 `Bash`, `apply_patch`, `Edit`, `Write`
+계열과 명시적으로 등록된 파일 읽기 MCP로 제한한다. 목록 밖 도구는
+`UNSUPPORTED_TOOL_PATH`로 거부한다. Codex 0.154.0에서 실제
+`mcp__filesystem__read_file` 요청에 대해
 MCP 서버의 파일 읽기 호출 전에 `VIOLATION → CONTAIN → PRETOOL_BLOCK →
 BLOCKED / SUCCEEDED`를 확인했다. 실제 Codex Bash와 `apply_patch`에 대해
 `permissionDecision=deny`와 파일 미생성을 확인했고,

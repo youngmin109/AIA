@@ -34,6 +34,7 @@ from .enforcement import (
     HookTrustStatus,
 )
 from .evidence import ObservationStage, RawEvidenceRecord
+from .codex_installation import AIA_CODEX_SUPPORTED_MATCHERS
 from .normalizer import normalize_evidence
 from .policy import PolicyDecision
 from .pretool_enforcement import (
@@ -117,6 +118,7 @@ class CodexPreToolController:
         self._events: list[CodexPreToolEvent] = []
         self._post_action_containments: list[CodexPostActionContainment] = []
         self._errors: list[str] = []
+        self._unsupported_tool_names: list[str] = []
         self._lock = threading.RLock()
 
     @property
@@ -133,6 +135,13 @@ class CodexPreToolController:
     def post_action_containments(self) -> tuple[CodexPostActionContainment, ...]:
         with self._lock:
             return tuple(self._post_action_containments)
+
+    @property
+    def unsupported_tool_names(self) -> tuple[str, ...]:
+        """Tool names received without an explicit AIA semantic contract."""
+
+        with self._lock:
+            return tuple(self._unsupported_tool_names)
 
     def evaluate(self, native_payload: Mapping[str, Any]) -> Mapping[str, Any]:
         """Evaluate one native Codex payload and return the Codex wire response."""
@@ -156,6 +165,9 @@ class CodexPreToolController:
             records = self.hook_sensor.observe(
                 self._sensor_payload(native_payload, native)
             )
+            if native.tool_name not in AIA_CODEX_SUPPORTED_MATCHERS:
+                self._record_unsupported_tool(native.tool_name)
+                return protected_pretool_deny("UNSUPPORTED_TOOL_PATH")
             normalized = normalize_evidence(
                 records,
                 aia_session_id=self.session.session_id,
@@ -253,6 +265,8 @@ class CodexPreToolController:
             return {}
 
         try:
+            if native.tool_name not in AIA_CODEX_SUPPORTED_MATCHERS:
+                self._record_unsupported_tool(native.tool_name)
             posttool_record = self.hook_sensor.observe_posttool(
                 self._posttool_sensor_payload(native_payload, native)
             )
@@ -498,6 +512,16 @@ class CodexPreToolController:
     def _record_error(self, value: str) -> None:
         with self._lock:
             self._errors.append(value)
+
+    def _record_unsupported_tool(self, tool_name: str) -> None:
+        """Record a path refusal without retaining the tool input here."""
+
+        with self._lock:
+            if tool_name not in self._unsupported_tool_names:
+                self._unsupported_tool_names.append(tool_name)
+            message = f"UNSUPPORTED_TOOL_PATH: {tool_name}"
+            if message not in self._errors:
+                self._errors.append(message)
 
 
 class PreToolDecisionEvaluator:

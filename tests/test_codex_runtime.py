@@ -150,6 +150,47 @@ def test_bound_pretool_normalization_failure_does_not_fall_through_to_allow(
     ]
 
 
+def test_bound_pretool_unknown_tool_is_denied_and_marked_unsupported(
+    monkeypatch,
+) -> None:
+    controller = object.__new__(CodexPreToolController)
+    controller.session = SimpleNamespace(
+        session_id="aia-session",
+        workspace=Path("C:/workspace/demo"),
+        agent="codex",
+    )
+    controller.bridge = SimpleNamespace(capability_secret="capability")
+    controller.launch_context_provider = lambda: None
+    controller.hook_sensor = SimpleNamespace(observe=lambda payload: ())
+    controller._lock = RLock()
+    controller._errors = []
+    controller._unsupported_tool_names = []
+
+    monkeypatch.setattr(
+        codex_runtime.CodexHookAdapter,
+        "verify_ingress",
+        staticmethod(
+            lambda payload, **kwargs: SimpleNamespace(
+                status=codex_runtime.HookTrustStatus.VERIFIED,
+                reason="",
+                agent_native_session_id="native-session",
+                turn_id="turn-1",
+                tool_use_id="tool-1",
+                tool_name="mcp__unknown__write_file",
+            )
+        ),
+    )
+
+    payload = _native_hook_payload()
+    payload["tool_name"] = "mcp__unknown__write_file"
+    result = controller.evaluate(payload)
+
+    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "UNSUPPORTED_TOOL_PATH" in result["reason"]
+    assert controller.unsupported_tool_names == ("mcp__unknown__write_file",)
+    assert controller.errors == ("UNSUPPORTED_TOOL_PATH: mcp__unknown__write_file",)
+
+
 def test_codex_hook_broker_round_trip_is_capability_authenticated(
     tmp_path: Path,
     monkeypatch,

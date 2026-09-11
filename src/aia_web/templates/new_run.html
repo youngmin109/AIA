@@ -130,7 +130,7 @@
       </label>
     </div>
     <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
-    <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · PreToolUse 기반 Bash/apply_patch/Edit/Write 및 등록된 파일 읽기 MCP</div>
+    <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · Hook matcher는 모든 로컬 Hook 대상(*)을 받으며, AIA가 의미를 해석하는 도구는 아래 목록으로 제한됩니다. 목록 밖 도구는 보호 실행에서 거부됩니다.</div>
     <div id="form-error" class="error" hidden></div>
     <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 시작</button><span class="hint">준비 상태가 모두 통과되어야 활성화됩니다.</span></div>
   </form>
@@ -139,7 +139,7 @@
   <div class="panel-heading"><div><h2>현재 보호 범위</h2><p class="hint">지원 범위 밖의 실행은 AIA가 보호 성공으로 표시하지 않습니다.</p></div><span class="badge">{{ capabilities.product }} {{ capabilities.version }}</span></div>
   <div class="capability-grid">
     <div><strong>지원 환경</strong><p class="hint">{{ capabilities.support.operating_system|join(', ') }} · Python {{ capabilities.support.python|join(', ') }} · {{ capabilities.support.agent|join(', ') }}</p></div>
-    <div><strong>PreToolUse</strong><p class="hint mono">{{ capabilities.support.pretool_matchers|join(', ') }}</p></div>
+    <div><strong>PreToolUse</strong><p class="hint mono">matcher={{ capabilities.support.pretool_matcher }}<br>semantic={{ capabilities.support.pretool_matchers|join(', ') }}</p><p class="hint">알 수 없는 도구는 <code>UNSUPPORTED_TOOL_PATH</code>로 거부됩니다.</p></div>
     <div><strong>필수 사용자 단계</strong><ul class="limitations">{% for item in capabilities.requires_user_action %}<li>{{ item }}</li>{% endfor %}</ul></div>
     <div><strong>지원하지 않거나 주장하지 않는 범위</strong><ul class="limitations">{% for item in capabilities.unsupported_or_unclaimed %}<li>{{ item }}</li>{% endfor %}</ul></div>
   </div>

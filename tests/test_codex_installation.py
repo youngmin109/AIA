@@ -35,10 +35,7 @@ def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
     second = json.loads(path.read_text(encoding="utf-8"))
     assert len(second["hooks"]["PreToolUse"]) == 1
     assert second["hooks"]["PreToolUse"][0]["hooks"][0]["type"] == "command"
-    assert second["hooks"]["PreToolUse"][0]["matcher"] == (
-        "Bash|apply_patch|Edit|Write|"
-        "mcp__filesystem__read_file|mcp__fs__read"
-    )
+    assert second["hooks"]["PreToolUse"][0]["matcher"] == "*"
     assert len(second["hooks"]["PostToolUse"]) == 1
     assert second["hooks"]["PostToolUse"][0]["hooks"][0]["type"] == "command"
 
@@ -71,10 +68,7 @@ def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path)
     installer.install()
 
     updated = json.loads(path.read_text(encoding="utf-8"))
-    assert updated["hooks"]["PreToolUse"][0]["matcher"] == (
-        "Bash|apply_patch|Edit|Write|"
-        "mcp__filesystem__read_file|mcp__fs__read"
-    )
+    assert updated["hooks"]["PreToolUse"][0]["matcher"] == "*"
     assert updated["hooks"]["PreToolUse"][1]["matcher"] == "Bash"
 
 
