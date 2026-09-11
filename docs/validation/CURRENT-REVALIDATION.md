@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `cee0044` |
+| 코드 기준 | `64adecd` |
 | 제품 버전 | `0.1.12` |
 | Actual Codex 보안 증거 기준 | `0.1.10`에서 실행한 disposable Actual Codex direct smoke와 `0.1.12`의 지원 범위 정합성 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
