@@ -45,6 +45,11 @@
 `VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED / SUCCEEDED`와 `Bundle VALID`를
 확인했다.
 
+사용자가 먼저 보호 세션에 들어간 뒤 Codex 화면에서 작업하는 `aia start` 경로도
+[actual-codex-interactive-20260911-0.1.28.json](evidence/actual-codex-interactive-20260911-0.1.28.json)에
+보존했다. 실제 Bash가 파일을 만들었고, File·Hook·Process Sensor가 모두
+`HEALTHY → STOPPED`, Result Bundle이 `VALID`로 종료됐다.
+
 ## 0.1.9 Actual Codex 재검증 근거
 
 0.1.9 코드에서 disposable Workspace와 개발자용 일회성 Hook Trust 우회를

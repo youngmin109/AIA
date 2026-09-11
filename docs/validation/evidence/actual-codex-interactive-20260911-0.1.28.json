@@ -1,0 +1,36 @@
+{
+  "schema_version": "aia-actual-codex-interactive-proof-v1",
+  "verified_at": "2026-09-11",
+  "aia_version": "0.1.28",
+  "codex_version": "0.154.0",
+  "environment": {
+    "operating_system": "Windows 11",
+    "python": "3.13",
+    "execution_mode": "aia start interactive Protected Run with current user-reviewed Hook verification"
+  },
+  "session_id": "6963b885-6521-4e5b-8d06-4d046feba1a1",
+  "session_status": "COMPLETED",
+  "run_classification": "PRODUCT_PROTECTED_RUN",
+  "proof_passed": true,
+  "workspace_side_effect": {
+    "file": "INTERACTIVE_SENSOR_OK.txt",
+    "created_by": "Codex Bash tool",
+    "content_verified": "ok"
+  },
+  "sensor_states": {
+    "AGENT_HOOK": {"runtime_health": "HEALTHY", "final_state": "STOPPED"},
+    "FILESYSTEM_WATCHER": {"runtime_health": "HEALTHY", "final_state": "STOPPED"},
+    "PROCESS_RUNTIME": {"runtime_health": "HEALTHY", "final_state": "STOPPED"}
+  },
+  "evidence_counts": {
+    "COMMAND_OBSERVED": 1,
+    "FILESYSTEM_EVENT": 3,
+    "POSTTOOL_OBSERVED": 1,
+    "PRETOOL_REQUEST": 1,
+    "PROCESS_OBSERVED": 17,
+    "PROCESS_EXIT_OBSERVED": 17,
+    "SENSOR_HEALTH": 9
+  },
+  "result_bundle": "VALID",
+  "scope_note": "This verifies the interactive Codex CLI path and the three runtime sensors. It does not claim protection for unsupported tools or other Agents."
+}
