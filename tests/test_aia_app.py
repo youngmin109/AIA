@@ -891,6 +891,31 @@ def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> No
         service.shutdown()
 
 
+def test_request_stop_can_terminate_a_verified_root_during_launch(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "READY"
+    record.phase = "LAUNCHING"
+
+    class Launcher:
+        status = SimpleNamespace(value="STARTING")
+
+        @staticmethod
+        def request_user_abort() -> bool:
+            return True
+
+    record.runtime["launcher"] = Launcher()
+    service.registry.add(record)
+    try:
+        result = service.request_stop(record.session_id)
+        assert result["accepted"] is True
+        assert result["reason"] == "USER_ABORT_DURING_LAUNCH"
+        assert record.stop_requested is True
+        assert record.protection_state == "STOP_REQUESTED"
+    finally:
+        service.shutdown()
+
+
 def test_shutdown_requests_stop_for_live_run_before_executor_closes(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)

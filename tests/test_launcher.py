@@ -5,6 +5,7 @@ import sys
 import time
 
 import pytest
+import psutil
 from aia.adapters import codex as codex_module
 
 from aia import (
@@ -20,6 +21,7 @@ from aia import (
     SessionStatus,
     UserAbortTerminationResult,
 )
+from aia.process_identity import ProcessIdentity
 
 from tests.test_readiness import make_barrier, readiness_inputs
 
@@ -141,6 +143,35 @@ def test_user_abort_result_is_separate_and_verified(
         assert abort.succeeded is True
         assert abort.to_mapping()["termination_id"] == abort.termination_id
     finally:
+        cleanup_running_launcher(values, launcher)
+
+
+def test_user_abort_during_starting_uses_verified_startup_identity(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+    launcher = make_ready_launcher(values)
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(10)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        launcher._status = LaunchStatus.STARTING
+        launcher._startup_identity = ProcessIdentity(
+            process.pid,
+            psutil.Process(process.pid).create_time(),
+        )
+        result = launcher.request_user_abort_result()
+        assert result is not None
+        assert result.status == "SUCCEEDED"
+        assert result.outcome == "TERMINATED"
+        assert result.verified_tree_gone is True
+        assert result.reason is None
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=3)
         cleanup_running_launcher(values, launcher)
 
 

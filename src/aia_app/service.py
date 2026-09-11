@@ -712,7 +712,35 @@ class RunApplicationService:
             record.stop_error = f"STOP_REQUEST_PERSIST_FAILED: {type(error).__name__}"
         self._persist_runtime_state(record)
         launcher = record.runtime.get("launcher")
-        if launcher is None or getattr(getattr(launcher, "status", None), "value", None) != "RUNNING":
+        launcher_status = getattr(getattr(launcher, "status", None), "value", None)
+        if launcher is not None and launcher_status == "STARTING":
+            try:
+                stopped = self._request_user_abort(record, launcher)
+            except Exception as error:
+                stopped = False
+                record.stop_error = f"{type(error).__name__}: {error}"
+            if stopped:
+                record.protection_state = "STOP_REQUESTED"
+                self._persist_runtime_state(record)
+                return {
+                    "accepted": True,
+                    "session_id": session_id,
+                    "status": "STOP_REQUESTED",
+                    "reason": "USER_ABORT_DURING_LAUNCH",
+                }
+            if record.runtime.get("user_abort_termination_result"):
+                record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
+                record.protection_state = "DEGRADED"
+            else:
+                record.protection_state = "STOP_REQUESTED"
+            self._persist_runtime_state(record)
+            return {
+                "accepted": True,
+                "session_id": session_id,
+                "status": "STOP_REQUESTED",
+                "reason": "STOP_WILL_BE_APPLIED_BEFORE_AGENT_LAUNCH",
+            }
+        if launcher is None or launcher_status != "RUNNING":
             record.protection_state = "STOP_REQUESTED"
             self._persist_runtime_state(record)
             return {
@@ -1077,6 +1105,9 @@ class RunApplicationService:
             # the product phase must show that Codex creation is in progress.
             record.protection_state = "LAUNCHING"
             self._phase(record, "LAUNCHING", SessionStatus.READY)
+            record.runtime.update(
+                {"launcher": launcher, "codex_controller": controller}
+            )
             launch = launcher.launch(
                 ProtectedLaunchRequest(
                     aia_session_id=session.session_id,
@@ -1087,9 +1118,7 @@ class RunApplicationService:
                     adapter_options=adapter_options,
                 )
             )
-            record.runtime.update(
-                {"launcher": launcher, "launch": launch, "codex_controller": controller}
-            )
+            record.runtime["launch"] = launch
             if record.stop_requested:
                 if launch.context is None:
                     self._finalize_user_abort_before_launch(
@@ -1375,7 +1404,12 @@ class RunApplicationService:
                     return False
                 mapping = result.to_mapping() if hasattr(result, "to_mapping") else dict(result)
                 record.runtime["user_abort_termination_result"] = mapping
-                return bool(getattr(result, "succeeded", False))
+                if hasattr(result, "succeeded"):
+                    return bool(result.succeeded)
+                return bool(
+                    mapping.get("status") == "SUCCEEDED"
+                    and mapping.get("verified_tree_gone") is True
+                )
             return bool(launcher.request_user_abort())
         except Exception as error:
             record.stop_error = f"{type(error).__name__}: {error}"

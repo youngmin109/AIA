@@ -370,6 +370,7 @@ class ProtectedLauncher:
         self._process_handle: Any | None = None
         self._process_sensor: ProcessRuntimeSensor | None = None
         self._hook_broker: Any | None = None
+        self._startup_identity: ProcessIdentity | None = None
         self._last_result: ProtectedLaunchResult | None = None
 
     @property
@@ -414,6 +415,11 @@ class ProtectedLauncher:
         requested_at = _now_utc()
         launch = self._last_result
         context = launch.context if launch is not None else None
+        if context is None and self._status is LaunchStatus.STARTING:
+            identity = self._startup_identity
+            if identity is None:
+                return None
+            return self._terminate_starting_tree(identity, requested_at)
         if context is None or launch.status is not LaunchStatus.RUNNING:
             return None
         identity = context.root_process_identity
@@ -432,6 +438,55 @@ class ProtectedLauncher:
                 verified_tree_gone=True,
                 requested_at=requested_at,
                 completed_at=_now_utc(),
+            )
+        if root_status is not ProcessIdentityStatus.LIVE_MATCH:
+            return UserAbortTerminationResult(
+                termination_id=termination_id,
+                status="FAILED",
+                outcome="FAILED",
+                root_pid=identity.pid,
+                root_create_time=identity.create_time,
+                verified_tree_gone=False,
+                requested_at=requested_at,
+                completed_at=_now_utc(),
+                reason=f"ROOT_{root_status.value}",
+            )
+        succeeded = self._terminate_verified_tree(identity)
+        return UserAbortTerminationResult(
+            termination_id=termination_id,
+            status="SUCCEEDED" if succeeded else "FAILED",
+            outcome="TERMINATED" if succeeded else "FAILED",
+            root_pid=identity.pid,
+            root_create_time=identity.create_time,
+            verified_tree_gone=succeeded,
+            requested_at=requested_at,
+            completed_at=_now_utc(),
+            reason=None if succeeded else "PROCESS_TREE_TERMINATION_INCOMPLETE",
+        )
+
+    def _terminate_starting_tree(
+        self,
+        identity: ProcessIdentity,
+        requested_at: datetime,
+    ) -> UserAbortTerminationResult:
+        """Terminate a root already identified while launch registration is pending."""
+
+        termination_id = str(uuid4())
+        root_status, _ = inspect_process_identity(
+            identity,
+            process_factory=self.process_factory,
+        )
+        if root_status is ProcessIdentityStatus.PROCESS_GONE:
+            return UserAbortTerminationResult(
+                termination_id=termination_id,
+                status="SUCCEEDED",
+                outcome="ALREADY_EXITED",
+                root_pid=identity.pid,
+                root_create_time=identity.create_time,
+                verified_tree_gone=True,
+                requested_at=requested_at,
+                completed_at=_now_utc(),
+                reason="USER_ABORT_DURING_LAUNCH",
             )
         if root_status is not ProcessIdentityStatus.LIVE_MATCH:
             return UserAbortTerminationResult(
@@ -633,6 +688,7 @@ class ProtectedLauncher:
         self._status = LaunchStatus.STARTING
         self._process_handle = None
         self._process_sensor = None
+        self._startup_identity = None
         identity: ProcessIdentity | None = None
         sensor: ProcessRuntimeSensor | None = None
         spawned_perf: float | None = None
@@ -684,6 +740,7 @@ class ProtectedLauncher:
             self._process_handle = process
 
             identity, identity_registered_at = self._capture_identity(process)
+            self._startup_identity = identity
             registration = RootProcessRegistration(
                 aia_session_id=self.session.session_id,
                 workspace=self.session.workspace,

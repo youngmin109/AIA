@@ -192,6 +192,10 @@ per-run Hook Broker가 살아 있었고 결과의
 중지와 정책 집행 종료와 별도의 `protection_failure_termination_result`로 기록된다.
 종료가 확인되지 않으면 `FAILED_DEGRADED`와 제한사항을 남기며 성공으로 포장하지 않는다.
 
+사용자가 `LAUNCHING` 단계에서 중지하면, 이미 Process Identity가 등록된 Root는 같은
+identity 검증 절차로 종료하고, 아직 Root가 등록되지 않은 경우에는 실행 전에 중지
+요청을 보류한다. AIA는 PID만으로 시작 중인 프로세스를 종료하지 않는다.
+
 Process Sensor는 Protected Run에서 관찰한 프로세스 명령행을 선택적으로 lexical
 Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 기록할 수 있지만,
 `PROCESS` Attribution만으로 프로세스 자동 종료를 수행하지 않는다. 프로세스 명령행은
