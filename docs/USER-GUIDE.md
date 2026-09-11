@@ -239,3 +239,20 @@ uv run aia reconcile <SESSION_ID>
 우회한 경로까지 보호한다고 주장하지 않는다.
 자세한 범위와 제한은 [PRODUCT-SUPPORT.md](PRODUCT-SUPPORT.md)와
 [LIMITATIONS.md](LIMITATIONS.md)를 확인한다.
+
+## 제품 화면에서 확인하는 것
+
+`uv run aia console --open`을 실행하면 브라우저에서 `새 보호 실행`을 선택할 수
+있다. 사용자가 만든 기존 Workspace와 정책을 선택한 뒤 `별도 Windows 터미널에서
+Codex 열기`를 켜고 시작하면, AIA가 보호 준비를 마친 다음 Codex를 별도 창으로
+연다. 사용자는 Codex에서 작업하고 브라우저에서 AIA를 확인한다.
+
+실행 중 화면에는 Hook·File·Process Sensor 카드, 최근 안전 이벤트, 차단 사건이
+표시된다. 이벤트 요약에는 명령 원문, 비밀값, 파일 내용이 들어가지 않는다.
+차단 사건은 정책 판정, AIA 결정, 실제 실행 결과, 부작용 확인을 따로 보여준다.
+deny JSON을 만든 사실만으로 성공 처리하지 않으며, 실제 도구가 실행되지 않은
+것이 확인된 경우에만 `BLOCKED / SUCCEEDED`를 표시한다.
+
+실행 결과 화면에서는 센서 상태와 Evidence 건수를 먼저 확인한다. 그 아래에서
+안전한 타임라인, 사건 상세, Recovery와 Integrity, Result Bundle을 확인할 수 있다.
+`/runs`의 실행 기록에는 Workspace·상태·보호 상태·차단 여부·날짜 필터가 있다.

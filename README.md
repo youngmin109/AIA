@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.28 릴리스 기준](docs/RELEASE-0.1.28.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.29 릴리스 기준](docs/RELEASE-0.1.29.md)에서 확인할 수 있다.
 현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
@@ -75,6 +75,18 @@ Protected Run을 보여주는 대시보드다. 대시보드는 실행을 자동�
 Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
 
 외부 Network에 노출하지 마십시오.
+
+콘솔에서 `새 보호 실행`을 시작하면 AIA가 사용자가 이미 만든 Workspace를 확인한
+뒤 보호 준비를 수행하고, `별도 Windows 터미널에서 Codex 열기`를 선택한 경우
+Codex를 별도 창의 자식 프로세스로 실행한다. 실행 화면에는 Hook·File·Process
+Sensor 상태와 민감정보를 숨긴 안전한 이벤트 요약이 1초마다 갱신된다. 위험 행위가
+차단되면 Codex 세션은 종료하지 않고 사건 카드에 `VIOLATION → CONTAIN →
+BLOCKED / SUCCEEDED`를 실제 확인된 경우에만 표시한다.
+
+`새 보호 실행` 화면의 `정책 만들기`에서 현재 한국어 Strict Schema에 맞는 File Rule
+또는 Command Rule을 작성하고 검증할 수 있다. Validation을 통과한 정책만
+`%USERPROFILE%\.aia\policies`에 저장되며, 저장된 파일은 `CUSTOM` 프로필로 다음
+실행에 선택한다. AIA는 Workspace를 자동 생성하지 않는다.
 
 ## 라이선스
 

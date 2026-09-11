@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from aia_app.dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
-from aia_app.presenters import action_view, action_summary, incident_view, result_view
+from aia_app.presenters import action_view, action_summary, incident_view, result_view, safe_event_views
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
@@ -32,6 +32,7 @@ from aia_app.service import (
     _product_sensor_set_present,
     _sensors_runtime_healthy,
 )
+import aia_app.service as service_module
 
 
 def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
@@ -71,6 +72,71 @@ def test_create_request_can_explicitly_open_interactive_session() -> None:
 
     assert request.interactive is True
     assert request.task == ""
+
+
+def test_create_request_supports_separate_windows_terminal_only_for_interactive() -> None:
+    request = CreateRunRequest.from_mapping(
+        {"workspace": ".", "interactive": True, "launch_mode": "new_terminal"}
+    )
+    assert request.launch_mode == "new_terminal"
+    with pytest.raises(DTOValidationError, match="requires interactive"):
+        CreateRunRequest.from_mapping(
+            {"workspace": ".", "task": "inspect", "launch_mode": "new_terminal"}
+        )
+
+
+def test_new_terminal_launch_maps_to_windows_create_new_console(monkeypatch) -> None:
+    monkeypatch.setattr(service_module.os, "name", "nt")
+    options = service_module._popen_kwargs_for_launch_mode("new_terminal")
+    assert options["creationflags"] == getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    assert service_module._popen_kwargs_for_launch_mode("inherit") == {}
+
+
+def test_safe_event_view_never_copies_command_or_secret() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "VIOLATION",
+                "enforcement_action": "BLOCKED",
+                "execution_result": "SUCCEEDED",
+                "target": {
+                    "target_kind": "COMMAND",
+                    "raw_command": "type SUPER_SECRET",
+                },
+            }
+        ]
+    )
+    assert events[0]["target_label"] == "명령 실행"
+    assert "SUPER_SECRET" not in repr(events)
+    assert "type SUPER_SECRET" not in repr(events)
+
+
+def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:
+    document = {
+        "정책명": "사용자 보호 정책",
+        "정책ID": "user-policy",
+        "정책버전": "1.0",
+        "스키마버전": "1",
+        "기본효과": "기록",
+        "규칙": [
+            {
+                "규칙ID": "deny-env-read",
+                "우선순위": 100,
+                "자산유형": "비밀정보",
+                "경로패턴": [".env"],
+                "행위효과": {"읽기": "금지"},
+            }
+        ],
+    }
+    summary = RunApplicationService.validate_policy_document(document)
+    assert summary["rule_count"] == 1
+    saved = RunApplicationService.save_policy_document(
+        {"document": document, "path": str(tmp_path / "user-policy.json")}
+    )
+    assert saved["path"].endswith("user-policy.json")
+    assert (tmp_path / "user-policy.json").is_file()
 
 
 def test_policy_preview_request_validates_target_shape_and_unknown_fields() -> None:

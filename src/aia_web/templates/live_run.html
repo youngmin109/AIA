@@ -26,10 +26,26 @@
   <strong>대화형 보호 세션:</strong> Codex 창이 열리면 그 안에서 작업을 입력하세요. 작업을 마치면 Codex를 종료하면 AIA가 결과를 확정합니다.
 </div>
 
+<section class="panel sensor-panel">
+  <div class="panel-heading"><div><h2>실시간 센서 상태</h2><p class="muted">AIA가 실제로 유지 중인 세 관찰 계층입니다.</p></div><span id="launch-mode" class="badge">{{ status.launch_mode or 'inherit' }}</span></div>
+  <div class="sensor-cards" id="sensor-cards">
+    <div class="sensor-card"><strong>Hook Sensor</strong><span id="sensor-hook" class="badge">확인 중</span><small>Codex 도구 요청</small></div>
+    <div class="sensor-card"><strong>File Sensor</strong><span id="sensor-file" class="badge">확인 중</span><small>Workspace 파일 변화</small></div>
+    <div class="sensor-card"><strong>Process Sensor</strong><span id="sensor-process" class="badge">확인 중</span><small>Codex와 자식 프로세스</small></div>
+  </div>
+</section>
+
+<section class="panel incident-panel" id="latest-incident" hidden>
+  <div class="panel-heading"><div><h2>최근 차단·주의 사건</h2><p class="muted">실제 실행 확인 전에는 성공으로 표시하지 않습니다.</p></div><span class="badge badge-warning">확인 필요</span></div>
+  <div class="incident-summary-grid"><div><span class="muted">무엇을 시도했는가</span><strong id="incident-summary">—</strong></div><div><span class="muted">정책 판정</span><strong id="incident-policy">—</strong></div><div><span class="muted">AIA 결정</span><strong id="incident-decision">—</strong></div><div><span class="muted">실제 결과</span><strong id="incident-execution">—</strong></div></div>
+  <p id="incident-side-effect" class="notice success">부작용: 확인되지 않음</p>
+</section>
+
 <section class="panel">
   <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted"></span></div>
   <div id="protection-note" class="notice warning" hidden></div>
   <div id="error-box" class="error" {% if not status.error %}hidden{% endif %}>{{ status.error or '' }}</div>
+  <div id="event-timeline" class="event-timeline"><div class="empty">안전한 이벤트 요약을 기다리는 중입니다…</div></div>
   <div class="table-wrap"><table><thead><tr><th>Action</th><th>행위</th><th>대상</th><th>정책</th><th>귀속</th><th>집행</th></tr></thead>
   <tbody id="actions"><tr><td colspan="6" class="empty">실행 증거를 기다리는 중입니다…</td></tr></tbody></table></div>
 </section>
@@ -40,12 +56,34 @@ const sessionId = {{ session_id|tojson }};
 const actionsEl = document.getElementById('actions');
 const stopButton = document.getElementById('stop-run');
 const reconcileButton = document.getElementById('reconcile-run');
+const eventTimeline = document.getElementById('event-timeline');
+const incidentPanel = document.getElementById('latest-incident');
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
 const actionTarget = (item) => { const target = item.target || {}; return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || '—'; };
 function renderActions(items) {
   if (!items.length) { actionsEl.innerHTML = '<tr><td colspan="6" class="empty">표준 행위가 아직 관찰되지 않았습니다.</td></tr>'; return; }
   actionsEl.innerHTML = items.map((item) => `<tr><td class="mono">${esc(item.action_id || '—')}</td><td>${esc(item.operation || '—')}</td><td class="mono target-cell">${esc(actionTarget(item))}</td><td>${badge(item.policy_effect)}</td><td>${badge(item.attribution_class)}</td><td>${badge(item.enforcement_action)} ${badge(item.execution_result)}</td></tr>`).join('');
+}
+function renderSafeEvents(events) {
+  if (!events.length) {
+    eventTimeline.innerHTML = '<div class="empty">표준 이벤트가 아직 관찰되지 않았습니다.</div>';
+    return;
+  }
+  eventTimeline.innerHTML = events.slice().reverse().map((event) => `
+    <div class="event-row severity-${esc(event.severity || 'INFO').toLowerCase()}">
+      <span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><span class="muted">${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</span></div>
+      <span>${badge(event.decision || 'OBSERVED')} ${badge(event.execution_result || 'NOT_REPORTED')}</span>
+    </div>`).join('');
+}
+function renderIncident(events) {
+  const incident = events.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity));
+  if (!incident) { incidentPanel.hidden = true; return; }
+  incidentPanel.hidden = false;
+  document.getElementById('incident-summary').textContent = `${incident.summary || '보호 대상 행위'} · ${incident.target_label || '대상'}`;
+  document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? 'VIOLATION' : (incident.decision || '확인 필요');
+  document.getElementById('incident-decision').textContent = incident.decision || '확인 필요';
+  document.getElementById('incident-execution').textContent = `${incident.decision === 'CONTAIN' ? 'BLOCKED' : '실행 결과 확인 중'} / ${incident.execution_result || 'NOT_REPORTED'}`;
 }
 async function poll() {
   try {
@@ -61,6 +99,7 @@ async function poll() {
     document.getElementById('filesystem-event-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
     document.getElementById('process-observed-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건`;
     document.getElementById('process-exit-count').textContent = `${((status.evidence_summary || {}).process_exit_observed || 0)}건`;
+    document.getElementById('launch-mode').textContent = status.launch_mode || 'inherit';
     const protection = status.protection || {};
     document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
@@ -84,6 +123,12 @@ async function poll() {
     protectionNote.hidden = !notes[protection.state];
     protectionNote.hidden = !notes[protection.state] && !reconciliation.orphaned;
     document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${key}: ${value}`).join(' · ');
+    const sensorHealth = status.sensor_health || {};
+    document.getElementById('sensor-hook').textContent = sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED';
+    document.getElementById('sensor-file').textContent = sensorHealth.FILESYSTEM_WATCHER || 'NOT_STARTED';
+    document.getElementById('sensor-process').textContent = sensorHealth.PROCESS_RUNTIME || 'NOT_STARTED';
+    renderSafeEvents(status.events || []);
+    renderIncident(status.events || []);
     const errorBox = document.getElementById('error-box');
     errorBox.textContent = status.error || '';
     errorBox.hidden = !status.error;

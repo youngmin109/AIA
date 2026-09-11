@@ -159,6 +159,23 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(preview)
 
+    @app.post("/api/policy/validate")
+    async def validate_policy(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            document = payload.get("document") if isinstance(payload, dict) else None
+            return JSONResponse(app.state.service.validate_policy_document(document))
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse({"valid": False, "error": str(exc)}, status_code=400)
+
+    @app.post("/api/policy/save")
+    async def save_policy(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            return JSONResponse(app.state.service.save_policy_document(payload))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            return JSONResponse({"saved": False, "error": str(exc)}, status_code=400)
+
     @app.get("/api/preflight")
     def preflight() -> JSONResponse:
         return JSONResponse(app.state.service.preflight())

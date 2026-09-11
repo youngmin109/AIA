@@ -25,6 +25,7 @@ class RunRecord:
     mode: str
     task: str
     interactive: bool = False
+    launch_mode: str = "inherit"
     created_at: datetime = field(default_factory=_now)
     status: str = "CREATED"
     phase: str = "CREATED"
@@ -97,6 +98,7 @@ class RunRegistry:
             mode=record.mode,
             task=record.task,
             interactive=record.interactive,
+            launch_mode=record.launch_mode,
             created_at=record.created_at,
             status=record.status,
             phase=record.phase,

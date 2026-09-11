@@ -43,6 +43,7 @@ from aia import (
     SessionStatus,
     WorkspaceLeaseManager,
     create_safe_checkpoint,
+    load_policy_document,
     prepare_protection,
     process_create_time,
     resolve_profile,
@@ -60,6 +61,7 @@ from .presenters import (
     incident_view,
     incident_views_for_result,
     result_view,
+    safe_event_views,
 )
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
@@ -80,6 +82,16 @@ _PRODUCT_SENSOR_NAMES = frozenset(
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _popen_kwargs_for_launch_mode(launch_mode: str) -> dict[str, Any]:
+    """Return Windows-only terminal creation options for an interactive run."""
+
+    if launch_mode != "new_terminal":
+        return {}
+    if os.name != "nt":
+        raise ApplicationValidationError("new_terminal launch mode requires Windows 11")
+    return {"creationflags": getattr(subprocess, "CREATE_NEW_CONSOLE", 0)}
 
 
 def _runtime_coordinator_reconciliation(state: Mapping[str, Any]) -> dict[str, Any]:
@@ -428,6 +440,59 @@ class RunApplicationService:
             "limitation": evaluation.limitation,
         }
 
+    @staticmethod
+    def validate_policy_document(document: Mapping[str, Any]) -> dict[str, Any]:
+        """Strictly validate a console-authored policy without saving it."""
+
+        if not isinstance(document, Mapping):
+            raise ApplicationValidationError("policy document must be a JSON object")
+        try:
+            policy = load_policy_document(document, source="<console-editor>")
+        except (OSError, ValueError) as error:
+            raise ApplicationValidationError(f"policy validation failed: {error}") from error
+        return {
+            "valid": True,
+            "policy_id": policy.policy_id,
+            "policy_version": policy.policy_version,
+            "rule_count": len(policy.rules),
+            "default_effect": policy.default_effect.value,
+        }
+
+    @staticmethod
+    def save_policy_document(payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Validate then save one user policy JSON for later CUSTOM runs."""
+
+        if not isinstance(payload, Mapping):
+            raise ApplicationValidationError("policy save request must be a JSON object")
+        document = payload.get("document")
+        if not isinstance(document, Mapping):
+            raise ApplicationValidationError("document must be a JSON object")
+        RunApplicationService.validate_policy_document(document)
+        requested_path = payload.get("path")
+        if requested_path is None or not str(requested_path).strip():
+            policy_id = str(document.get("정책ID") or document.get("policy_id") or "custom-policy")
+            safe_name = "".join(
+                character if character.isalnum() or character in {"-", "_"} else "-"
+                for character in policy_id
+            ).strip("-") or "custom-policy"
+            path = Path.home() / ".aia" / "policies" / f"{safe_name}.json"
+        else:
+            if not isinstance(requested_path, str):
+                raise ApplicationValidationError("path must be a string")
+            path = Path(requested_path).expanduser()
+            if path.suffix.casefold() != ".json":
+                raise ApplicationValidationError("policy path must end with .json")
+        path = path.resolve(strict=False)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(
+            json.dumps(dict(document), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+        summary = RunApplicationService.validate_policy_document(document)
+        return {**summary, "path": str(path)}
+
     def preflight(self) -> dict[str, Any]:
         """Report local prerequisites without starting a Protected Run."""
 
@@ -746,6 +811,10 @@ class RunApplicationService:
             )
         if request.agent.lower() != "codex":
             raise ApplicationValidationError("only Codex is supported in this console")
+        if request.launch_mode == "new_terminal" and os.name != "nt":
+            raise ApplicationValidationError(
+                "new_terminal launch mode requires Windows 11"
+            )
         try:
             mode = SessionMode(request.mode.upper())
         except ValueError as error:
@@ -781,6 +850,7 @@ class RunApplicationService:
             mode=mode.value,
             task=request.task,
             interactive=request.interactive,
+            launch_mode=request.launch_mode,
             created_at=session.created_at,
             protection_state="STARTING",
             coordinator_pid=os.getpid(),
@@ -822,6 +892,7 @@ class RunApplicationService:
             "error": record.error,
             "incident_count": len(incidents),
             "latest_actions": record.actions[-20:],
+            "events": safe_event_views(record.actions, sensor_health=record.sensor_health),
             "lease": record.lease,
             "mode": record.mode,
             "interactive": record.interactive,
@@ -860,7 +931,9 @@ class RunApplicationService:
                 "session_id": record.session_id,
                 "status": record.status,
                 "workspace": str(record.workspace),
+                "launch_mode": record.launch_mode,
             },
+            "launch_mode": record.launch_mode,
         }
 
     def request_stop(self, session_id: str) -> dict[str, Any]:
@@ -1077,6 +1150,7 @@ class RunApplicationService:
                 "result_url": f"/runs/{session_id}/result",
                 "protection_state": protection.get("state", "UNKNOWN"),
                 "hook_event_count": protection.get("hook_events", 0),
+                "launch_mode": state.get("launch_mode", "inherit"),
                 "runtime_reconciliation": state.get("runtime_reconciliation"),
             }
         for record in self.registry.snapshots():
@@ -1104,6 +1178,7 @@ class RunApplicationService:
                 "result_url": f"/runs/{record.session_id}/result",
                 "protection_state": record.protection_state,
                 "hook_event_count": record.hook_event_count,
+                "launch_mode": record.launch_mode,
             }
         for item in self.reader.list_completed():
             values[item["session_id"]] = item
@@ -1369,6 +1444,7 @@ class RunApplicationService:
                 """Capture non-interactive Codex output in temporary handles only."""
 
                 if record.interactive:
+                    kwargs.update(_popen_kwargs_for_launch_mode(record.launch_mode))
                     return subprocess.Popen(argv, **kwargs)
                 stdout_stream = tempfile.TemporaryFile(mode="w+b")
                 stderr_stream = tempfile.TemporaryFile(mode="w+b")
@@ -2167,6 +2243,7 @@ class RunApplicationService:
                 "status": record.status,
                 "workspace": str(record.workspace),
             },
+            "launch_mode": record.launch_mode,
             "phase": record.phase,
             "protection": {
                 "state": record.protection_state,
@@ -2279,6 +2356,10 @@ class RunApplicationService:
             "error": state.get("error"),
             "incident_count": state.get("incident_count", 0),
             "latest_actions": state.get("latest_actions", []),
+            "events": safe_event_views(
+                state.get("latest_actions", []),
+                sensor_health=state.get("sensor_health", {}),
+            ),
             "lease": state.get("lease", "UNKNOWN"),
             "mode": state.get("mode"),
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
@@ -2294,6 +2375,7 @@ class RunApplicationService:
             "sensor_health": state.get("sensor_health", {}),
             "runtime_reconciliation": state.get("runtime_reconciliation"),
             "session": session,
+            "launch_mode": state.get("launch_mode", "inherit"),
         }
 
     def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
@@ -2338,6 +2420,7 @@ class RunApplicationService:
             "error": None,
             "incident_count": len(view["incidents"]),
             "latest_actions": view["actions"][-20:],
+            "events": view.get("events", []),
             "lease": "RELEASED",
             "mode": view["mode"],
             "phase": view["session_status"],
@@ -2361,7 +2444,9 @@ class RunApplicationService:
                 "session_id": session_id,
                 "status": result.get("session_status"),
                 "workspace": result.get("workspace"),
+                "launch_mode": result.get("launch_mode", "inherit"),
             },
+            "launch_mode": result.get("launch_mode", "inherit"),
         }
 
     def result_directory_for(self, session_id: str) -> Path:

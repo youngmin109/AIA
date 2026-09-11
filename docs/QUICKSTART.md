@@ -229,3 +229,24 @@ powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 사용자 수준 AIA 도구까지 제거하려면 `-RemoveTool`을 추가한다. 두 경우 모두
 Protected Run 결과와 AIA Control Root는 보존된다.
+
+## 7. 브라우저에서 체감하는 제품 흐름
+
+```powershell
+uv run aia console --open
+```
+
+`새 보호 실행`에서 사용자가 만든 기존 Workspace를 입력하고 정책을 선택한다.
+`대화형 보호 세션`과 `별도 Windows 터미널에서 Codex 열기`를 선택하면 AIA가 보호
+준비를 마친 뒤 Codex를 별도 창의 자식 프로세스로 실행한다. 사용자는 Codex 창에서
+작업하고, 브라우저의 AIA 화면에서 Hook·File·Process Sensor 상태와 안전한 이벤트
+요약을 확인한다.
+
+Codex를 종료하면 결과 화면에서 센서 종료 상태, Evidence 건수, 이벤트 타임라인,
+Recovery·Integrity, Result Bundle을 확인한다. `BLOCKED`는 deny 응답 생성만으로
+표시되지 않으며 실제 도구 미실행이 확인된 경우에만 `BLOCKED / SUCCEEDED`가 된다.
+
+정책을 직접 만들려면 같은 화면의 `정책 만들기`에서 Rule을 추가하고 `Strict
+Validation`을 누른다. 검증 통과 뒤 저장하면 정책은 기본적으로
+`%USERPROFILE%\.aia\policies`에 저장되고 실행 폼의 `CUSTOM` 프로필에 연결된다.
+파일 Rule과 명령 Rule은 별도의 Rule로 작성한다.

@@ -10,10 +10,17 @@
   <a class="button primary" href="/new">새 보호 실행</a>
 </section>
 <section class="panel">
+  <div class="history-filters">
+    <label class="field">Workspace<input id="filter-workspace" placeholder="경로 검색"></label>
+    <label class="field">실행 상태<select id="filter-status"><option value="">전체</option><option>RUNNING</option><option>COMPLETED</option><option>ABORTED</option><option>FAILED</option></select></label>
+    <label class="field">보호 상태<input id="filter-protection" placeholder="예: VERIFIED"></label>
+    <label class="field">차단 사건<select id="filter-incident"><option value="">전체</option><option value="yes">있음</option><option value="no">없음</option></select></label>
+    <label class="field">날짜<input id="filter-date" type="date"></label>
+  </div>
   <div class="table-wrap"><table><thead><tr><th>Session</th><th>상태</th><th>Workspace</th><th>Policy</th><th>사건</th><th>Bundle</th><th></th></tr></thead>
   <tbody>
   {% for run in runs %}
-    <tr>
+    <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-date="{{ (run.created_at or '')[:10] }}">
       <td class="mono">{{ run.session_id }}</td>
       <td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}{% if (run.runtime_reconciliation or {}).get('orphaned') %}<br><span class="error-text">AIA 조정 프로세스 확인 필요</span>{% endif %}</td>
       <td class="mono target-cell">{{ run.workspace }}</td>
@@ -26,5 +33,17 @@
     <tr><td colspan="7" class="empty">아직 보호 실행 기록이 없습니다.</td></tr>
   {% endfor %}
   </tbody></table></div>
+  <p id="history-empty" class="empty" hidden>조건에 맞는 실행 기록이 없습니다.</p>
 </section>
+<script>
+const rows = [...document.querySelectorAll('.run-row')];
+const values = (id) => document.getElementById(id).value.trim().toLowerCase();
+function filterRuns() {
+  const workspace = values('filter-workspace'); const status = values('filter-status'); const protection = values('filter-protection'); const incident = values('filter-incident'); const date = document.getElementById('filter-date').value;
+  let visible = 0;
+  rows.forEach((row) => { const match = (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!date || row.dataset.date === date); row.hidden = !match; if (match) visible += 1; });
+  document.getElementById('history-empty').hidden = visible !== 0;
+}
+['filter-workspace','filter-status','filter-protection','filter-incident','filter-date'].forEach((id) => document.getElementById(id).addEventListener('input', filterRuns));
+</script>
 {% endblock %}

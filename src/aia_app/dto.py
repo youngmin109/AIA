@@ -26,6 +26,7 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "mode",
         "interactive",
         "task",
+        "launch_mode",
     }
 )
 
@@ -56,6 +57,7 @@ class CreateRunRequest:
     mode: str = "ENFORCE"
     task: str = ""
     interactive: bool = False
+    launch_mode: str = "inherit"
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "CreateRunRequest":
@@ -87,6 +89,11 @@ class CreateRunRequest:
         interactive = value.get("interactive", False)
         if not isinstance(interactive, bool):
             raise DTOValidationError("interactive must be a boolean")
+        launch_mode = _required_text(value.get("launch_mode", "inherit"), "launch_mode").lower()
+        if launch_mode not in {"inherit", "new_terminal"}:
+            raise DTOValidationError("launch_mode must be inherit or new_terminal")
+        if launch_mode == "new_terminal" and not interactive:
+            raise DTOValidationError("new_terminal launch_mode requires interactive mode")
         return cls(
             workspace=workspace,
             agent=agent,
@@ -96,6 +103,7 @@ class CreateRunRequest:
             mode=mode,
             task=task,
             interactive=interactive,
+            launch_mode=launch_mode,
         )
 
     def to_mapping(self) -> dict[str, Any]:
@@ -108,6 +116,7 @@ class CreateRunRequest:
             "task": self.task,
             "interactive": self.interactive,
             "workspace": self.workspace,
+            "launch_mode": self.launch_mode,
         }
 
 

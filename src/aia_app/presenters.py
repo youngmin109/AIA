@@ -5,6 +5,60 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
+def safe_event_views(
+    actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    *,
+    sensor_health: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Build a display-only timeline without raw targets or payload values.
+
+    The console intentionally exposes categories and outcomes, while paths,
+    commands, secrets, and full evidence payloads remain in the protected
+    bundle and are never copied into this live view.
+    """
+
+    events: list[dict[str, Any]] = []
+    for action in actions:
+        operation = str(action.get("operation") or "ACTION")
+        policy = action.get("policy_decision") or action.get("policy")
+        enforcement = action.get("enforcement_action") or action.get("enforcement")
+        execution = action.get("execution_result")
+        target = action.get("target") if isinstance(action.get("target"), Mapping) else {}
+        target_kind = str(target.get("target_kind") or "")
+        target_label = "명령 실행" if operation == "EXECUTE" or target_kind == "COMMAND" else "파일·프로세스 행위"
+        severity = "CRITICAL" if execution == "FAILED" else "WARNING" if policy in {"VIOLATION", "INDETERMINATE"} or enforcement not in {None, "NONE"} else "INFO"
+        events.append(
+            {
+                "event_id": str(action.get("action_id") or f"action-{len(events) + 1}"),
+                "category": "ENFORCEMENT" if enforcement not in {None, "NONE"} else "POLICY",
+                "summary": f"{operation} 행위 관찰",
+                "target_label": target_label,
+                "decision": enforcement or policy or "OBSERVED",
+                "execution_result": execution or "NOT_REPORTED",
+                "sensor": "AGENT_HOOK" if action.get("observation_stage") else "RUNTIME",
+                "severity": severity,
+                "observed_at": action.get("observed_at"),
+                "incident_action_id": action.get("action_id") if severity != "INFO" else None,
+            }
+        )
+    for sensor, status in (sensor_health or {}).items():
+        events.append(
+            {
+                "event_id": f"sensor-{sensor}",
+                "category": "SENSOR",
+                "summary": f"{sensor} 센서 상태",
+                "target_label": "센서 상태",
+                "decision": status,
+                "execution_result": "NOT_APPLICABLE",
+                "sensor": sensor,
+                "severity": "INFO" if status in {"HEALTHY", "STOPPED"} else "CRITICAL",
+                "observed_at": None,
+                "incident_action_id": None,
+            }
+        )
+    return events[-50:]
+
+
 def safe_target(target: Mapping[str, Any] | None) -> dict[str, Any]:
     target = target or {}
     allowed = ("canonical_path", "destination_path", "source_path", "target_kind", "command_fingerprint")
@@ -364,4 +418,5 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "started_at": result.get("started_at"),
         "workspace": result.get("workspace"),
         "actions": actions,
+        "events": safe_event_views(actions),
     }

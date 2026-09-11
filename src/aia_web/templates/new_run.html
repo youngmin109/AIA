@@ -97,6 +97,31 @@
   <div id="preview-result" class="preview-result" hidden></div>
 </section>
 
+<section class="panel policy-editor-panel">
+  <div class="panel-heading"><div><h2>정책 만들기</h2><p class="hint">현재 Strict Schema로 검증된 사용자 정책을 저장합니다. 저장된 정책만 보호 실행에 선택할 수 있습니다.</p></div><span class="badge">CUSTOM POLICY</span></div>
+  <div class="form-grid">
+    <label class="field">정책 ID<input id="editor-policy-id" value="my-protected-policy" autocomplete="off"></label>
+    <label class="field">정책 버전<input id="editor-policy-version" value="1.0" autocomplete="off"></label>
+    <label class="field">기본 효과<select id="editor-default-effect"><option value="기록">기록</option><option value="허용">허용</option><option value="금지">금지</option></select></label>
+    <label class="field">저장 경로 (선택)<input id="editor-policy-path" placeholder="비워두면 %USERPROFILE%\\.aia\\policies에 저장"></label>
+  </div>
+  <div class="editor-rule-builder">
+    <h3>Rule 추가</h3>
+    <div class="form-grid">
+      <label class="field">자산 유형<select id="editor-asset-type"><option>비밀정보</option><option>핵심 코드</option><option>데이터베이스 관련 자산</option><option>인프라 설정</option><option>의존성 파일</option><option>저장소 관련 자산</option><option>작업공간</option></select></label>
+      <label class="field">Rule ID<input id="editor-rule-id" value="rule-1" autocomplete="off"></label>
+      <label class="field">대상 종류<select id="editor-target-kind"><option value="path">파일 경로</option><option value="command">명령</option></select></label>
+      <label class="field">우선순위<input id="editor-priority" type="number" value="100" min="0" step="1"></label>
+      <label class="field field-wide">패턴<textarea id="editor-patterns" rows="2" placeholder="한 줄에 하나. 예: .env"></textarea></label>
+      <label class="field">행위<select id="editor-operation"><option value="읽기">읽기</option><option value="생성">생성</option><option value="수정">수정</option><option value="삭제">삭제</option><option value="이동">이동</option><option value="이름변경">이름변경</option><option value="실행">실행</option></select></label>
+      <label class="field">효과<select id="editor-effect"><option value="금지">금지</option><option value="기록">기록</option><option value="허용">허용</option></select></label>
+    </div>
+    <div class="form-actions"><button id="add-policy-rule" class="button" type="button">Rule 추가</button><span id="editor-rule-status" class="hint">파일 Rule과 명령 Rule은 한 Rule에 섞지 않습니다.</span></div>
+  </div>
+  <div id="editor-rules" class="editor-rule-list"><div class="empty">아직 추가된 Rule이 없습니다.</div></div>
+  <div class="form-actions"><button id="validate-policy" class="button" type="button">Strict Validation</button><button id="save-policy" class="button primary" type="button" disabled>정책 저장</button><span id="editor-save-status" class="hint">먼저 Strict Validation을 통과하세요.</span></div>
+</section>
+
   <section class="panel form-panel">
   <form id="new-run-form">
     <div class="form-grid">
@@ -127,6 +152,8 @@
         <legend>작업 시작 방식</legend>
         <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
         <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
+        <label class="choice"><input type="checkbox" id="new-terminal" checked> 별도 Windows 터미널에서 Codex 열기</label>
+        <span class="hint">AIA 콘솔과 Codex 작업 화면을 분리합니다. Windows 11에서만 지원합니다.</span>
         <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
         <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
       </fieldset>
@@ -177,6 +204,38 @@ const previewTargetHint = document.getElementById('preview-target-hint');
 const previewButton = document.getElementById('preview-policy');
 const previewStatus = document.getElementById('preview-status');
 const previewResult = document.getElementById('preview-result');
+const newTerminal = document.getElementById('new-terminal');
+const editorRules = [];
+let editorValidated = false;
+const editorRuleList = document.getElementById('editor-rules');
+function renderEditorRules() {
+  if (!editorRules.length) { editorRuleList.innerHTML = '<div class="empty">아직 추가된 Rule이 없습니다.</div>'; return; }
+  editorRuleList.innerHTML = editorRules.map((rule, index) => `<div class="editor-rule-row"><div><strong>${escapeHtml(rule['규칙ID'])}</strong><span class="muted">${escapeHtml(rule['자산유형'])} · ${rule['경로패턴'] ? '파일' : '명령'} · Priority ${rule['우선순위']}</span></div><span>${escapeHtml(Object.entries(rule['행위효과']).map(([operation, effect]) => `${operation}=${effect}`).join(', '))}</span><button class="button" type="button" data-remove-rule="${index}">삭제</button></div>`).join('');
+  editorRuleList.querySelectorAll('[data-remove-rule]').forEach((button) => button.addEventListener('click', () => { editorRules.splice(Number(button.dataset.removeRule), 1); editorValidated = false; document.getElementById('save-policy').disabled = true; renderEditorRules(); }));
+}
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function editorDocument() {
+  return { '정책명': document.getElementById('editor-policy-id').value.trim(), '정책ID': document.getElementById('editor-policy-id').value.trim(), '정책버전': document.getElementById('editor-policy-version').value.trim(), '스키마버전': '1', '기본효과': document.getElementById('editor-default-effect').value, '규칙': editorRules };
+}
+document.getElementById('editor-target-kind').addEventListener('change', () => { document.getElementById('editor-operation').value = document.getElementById('editor-target-kind').value === 'command' ? '실행' : '읽기'; });
+document.getElementById('add-policy-rule').addEventListener('click', () => {
+  const targetKind = document.getElementById('editor-target-kind').value;
+  const operation = document.getElementById('editor-operation').value;
+  if ((targetKind === 'command' && operation !== '실행') || (targetKind === 'path' && operation === '실행')) { document.getElementById('editor-rule-status').textContent = '대상 종류와 행위를 맞춰야 합니다.'; return; }
+  const patterns = document.getElementById('editor-patterns').value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  if (!patterns.length) { document.getElementById('editor-rule-status').textContent = '패턴을 하나 이상 입력하세요.'; return; }
+  const rule = { '규칙ID': document.getElementById('editor-rule-id').value.trim() || `rule-${editorRules.length + 1}`, '우선순위': Number(document.getElementById('editor-priority').value || 0), '자산유형': document.getElementById('editor-asset-type').value, '행위효과': {[operation]: document.getElementById('editor-effect').value} };
+  rule[targetKind === 'command' ? '명령패턴' : '경로패턴'] = patterns;
+  editorRules.push(rule); editorValidated = false; document.getElementById('save-policy').disabled = true; renderEditorRules(); document.getElementById('editor-rule-status').textContent = `${editorRules.length}개 Rule이 준비되었습니다.`;
+});
+document.getElementById('validate-policy').addEventListener('click', async () => {
+  const status = document.getElementById('editor-save-status'); status.textContent = 'Strict Validation 중…';
+  try { const response = await fetch('/api/policy/validate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({document: editorDocument()})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || '정책 검증 실패'); editorValidated = true; document.getElementById('save-policy').disabled = false; status.textContent = `검증 통과: ${result.rule_count}개 Rule · 저장할 수 있습니다.`; } catch (error) { editorValidated = false; document.getElementById('save-policy').disabled = true; status.textContent = error.message; }
+});
+document.getElementById('save-policy').addEventListener('click', async () => {
+  if (!editorValidated) return; const status = document.getElementById('editor-save-status'); status.textContent = '정책 저장 중…';
+  try { const response = await fetch('/api/policy/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({document: editorDocument(), path: document.getElementById('editor-policy-path').value.trim() || null})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || '정책 저장 실패'); profile.value = 'CUSTOM'; updateCustomPolicyField(); form.elements.custom_policy_path.value = result.path; status.textContent = `저장됨: ${result.path}`; } catch (error) { status.textContent = error.message; }
+});
 function updateRunMode() {
   const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
   taskField.hidden = interactive;
@@ -323,6 +382,7 @@ form.addEventListener('submit', async (event) => {
   const data = Object.fromEntries(new FormData(form).entries());
   data.agent = data.agent.toLowerCase();
   data.interactive = data.run_mode === 'interactive';
+  data.launch_mode = data.interactive && newTerminal.checked ? 'new_terminal' : 'inherit';
   delete data.run_mode;
   if (data.interactive) data.task = '';
   if (!data.model) delete data.model;

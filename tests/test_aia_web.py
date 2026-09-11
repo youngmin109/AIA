@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 import importlib
 
 from aia_web.app import create_app
+from aia_app.service import RunApplicationService
 
 
 class FakeService:
@@ -203,6 +204,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "현재 보호 범위" in new_run.text
     assert "MCP" in new_run.text
     assert "aliases=Edit, Write" in new_run.text
+    assert "정책 만들기" in new_run.text
+    assert "Strict Validation" in new_run.text
+    assert "별도 Windows 터미널에서 Codex 열기" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/capabilities").json()["schema_version"] == "aia-capabilities-v1"
     assert client.get("/api/workspaces/validate", params={"path": "C:/workspace"}).json()["valid"] is True
@@ -214,6 +218,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "보호 실행 상태" in live.text
     assert 'id="filesystem-event-count">2건' in live.text
     assert "Hook Broker" in live.text
+    assert "실시간 센서 상태" in live.text
+    assert 'id="event-timeline"' in live.text
     assert "HEALTHY" in live.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.post("/api/runs/run-1/stop").status_code == 202
@@ -327,3 +333,41 @@ def test_console_reveals_custom_policy_path_for_custom_profile() -> None:
     assert "CUSTOM" in page.text
     assert "정책 미리보기" in page.text
     assert "/api/policy/preview" in page.text
+
+
+def test_console_policy_editor_api_validates_and_saves_strict_document(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    client = TestClient(create_app(service))
+    document = {
+        "정책명": "웹 사용자 정책",
+        "정책ID": "web-policy",
+        "정책버전": "1.0",
+        "스키마버전": "1",
+        "기본효과": "기록",
+        "규칙": [
+            {
+                "규칙ID": "secret-read",
+                "우선순위": 100,
+                "자산유형": "비밀정보",
+                "경로패턴": [".env"],
+                "행위효과": {"읽기": "금지"},
+            }
+        ],
+    }
+    try:
+        validated = client.post("/api/policy/validate", json={"document": document})
+        assert validated.status_code == 200
+        assert validated.json()["rule_count"] == 1
+        saved = client.post(
+            "/api/policy/save",
+            json={"document": document, "path": str(tmp_path / "web-policy.json")},
+        )
+        assert saved.status_code == 200
+        assert saved.json()["path"].endswith("web-policy.json")
+        invalid = client.post(
+            "/api/policy/validate",
+            json={"document": {**document, "알수없는키": True}},
+        )
+        assert invalid.status_code == 400
+    finally:
+        service.shutdown()
