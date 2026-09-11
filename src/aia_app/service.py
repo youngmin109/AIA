@@ -69,6 +69,15 @@ class ApplicationValidationError(ValueError):
     """Raised when a console request cannot enter the Core pipeline."""
 
 
+_PRODUCT_SENSOR_NAMES = frozenset(
+    {
+        "AGENT_HOOK",
+        "FILESYSTEM_WATCHER",
+        "PROCESS_RUNTIME",
+    }
+)
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -217,11 +226,29 @@ def _sensor_summary_is_verified(sensor_summary: Any) -> bool:
     summaries = tuple(
         item for item in (sensor_summary or ()) if isinstance(item, Mapping)
     )
-    return bool(summaries) and all(
+    observed_sensors = {
+        item.get("sensor")
+        for item in summaries
+        if isinstance(item.get("sensor"), str)
+    }
+    return _PRODUCT_SENSOR_NAMES.issubset(observed_sensors) and all(
         item.get("runtime_health_before_stop") == "HEALTHY"
         and item.get("final_sensor_state") == "STOPPED"
         for item in summaries
     )
+
+
+def _product_sensor_set_present(sensors: Any) -> bool:
+    names: set[str] = set()
+    for sensor in tuple(item for item in (sensors or ()) if item is not None):
+        health = getattr(sensor, "health", None)
+        if callable(health):
+            health = health()
+        source = getattr(health, "sensor", None)
+        name = getattr(source, "value", source)
+        if isinstance(name, str):
+            names.add(name)
+    return _PRODUCT_SENSOR_NAMES.issubset(names)
 
 
 def _hook_broker_runtime_healthy(record: RunRecord) -> bool | None:
@@ -2031,7 +2058,10 @@ class RunApplicationService:
             if item
         ]
         record.hook_event_count = len(events)
-        sensors_healthy = _sensors_runtime_healthy(record.runtime.get("sensors", ()))
+        runtime_sensors = record.runtime.get("sensors", ())
+        sensors_healthy = _sensors_runtime_healthy(runtime_sensors)
+        if record.phase == "RUNNING" and not _product_sensor_set_present(runtime_sensors):
+            sensors_healthy = False
         hook_broker_healthy = _hook_broker_runtime_healthy(record)
         if controller.errors or hook_broker_healthy is False:
             record.protection_state = "DEGRADED"

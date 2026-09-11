@@ -29,6 +29,7 @@ from aia_app.service import (
     ApplicationValidationError,
     RunApplicationService,
     _sensor_summary_is_verified,
+    _product_sensor_set_present,
     _sensors_runtime_healthy,
 )
 
@@ -259,7 +260,9 @@ def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path)
         post_action_containments=(),
     )
     record.runtime["sensors"] = (
-        SimpleNamespace(health=SimpleNamespace(status="HEALTHY")),
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY", sensor="AGENT_HOOK")),
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY", sensor="FILESYSTEM_WATCHER")),
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY", sensor="PROCESS_RUNTIME")),
     )
     service.registry.add(record)
     try:
@@ -287,8 +290,27 @@ def test_verified_sensor_summary_requires_healthy_runtime_and_clean_stop() -> No
                 "runtime_health_before_stop": "HEALTHY",
                 "final_sensor_state": "STOPPED",
             },
+            {
+                "sensor": "PROCESS_RUNTIME",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
         ]
     ) is True
+    assert _sensor_summary_is_verified(
+        [
+            {
+                "sensor": "FILESYSTEM_WATCHER",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
+            {
+                "sensor": "AGENT_HOOK",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
+        ]
+    ) is False
     assert _sensor_summary_is_verified(
         [
             {
@@ -318,6 +340,66 @@ def test_live_verified_state_requires_all_sensors_healthy(tmp_path) -> None:
         assert _sensors_runtime_healthy((healthy,)) is True
         assert _sensors_runtime_healthy((healthy, failed)) is False
         assert _sensors_runtime_healthy(()) is False
+    finally:
+        service.shutdown()
+
+
+def test_product_sensor_set_requires_hook_file_and_process() -> None:
+    healthy = lambda sensor: SimpleNamespace(
+        health=SimpleNamespace(status="HEALTHY", sensor=sensor)
+    )
+    assert _product_sensor_set_present(
+        tuple(healthy(name) for name in ("AGENT_HOOK", "FILESYSTEM_WATCHER", "PROCESS_RUNTIME"))
+    ) is True
+    assert _product_sensor_set_present(
+        (healthy("AGENT_HOOK"), healthy("FILESYSTEM_WATCHER"))
+    ) is False
+
+
+def test_running_state_degrades_when_product_process_sensor_is_missing(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    record.phase = "RUNNING"
+    record.runtime["codex_controller"] = SimpleNamespace(
+        events=(SimpleNamespace(
+            action=SimpleNamespace(
+                action_id="action-live",
+                operation=Operation.READ,
+                target_kind=ActionTargetKind.FILE,
+                canonical_path="README.md",
+                evidence_ids=("evidence-live",),
+            ),
+            policy_evaluation=SimpleNamespace(
+                policy_decision=PolicyDecision.COMPLIANT,
+                matched_rule_ids=(),
+                asset_type=None,
+            ),
+            attribution=SimpleNamespace(
+                grade=AttributionGrade.EXACT,
+                reason="DIRECT_TRUSTED_HOOK",
+            ),
+            gate_result=SimpleNamespace(
+                action=EnforcementAction.NONE,
+                decision=EnforcementDecision.CONTINUE,
+                execution_result=EnforcementExecutionResult.NOT_ATTEMPTED,
+                route=EnforcementRoute.NONE,
+            ),
+        ),),
+        errors=(),
+        post_action_containments=(),
+    )
+    record.runtime["sensors"] = (
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY", sensor="AGENT_HOOK")),
+        SimpleNamespace(health=SimpleNamespace(status="HEALTHY", sensor="FILESYSTEM_WATCHER")),
+    )
+    record.runtime["launcher"] = SimpleNamespace(
+        hook_broker=SimpleNamespace(is_running=True),
+    )
+    service.registry.add(record)
+    try:
+        service._refresh_protection_state(record)
+        assert record.protection_state == "ACTIVE_DEGRADED"
     finally:
         service.shutdown()
 
@@ -364,7 +446,17 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
                 "sensor": "FILESYSTEM_WATCHER",
                 "runtime_health_before_stop": "HEALTHY",
                 "final_sensor_state": "STOPPED",
-            }
+            },
+            {
+                "sensor": "AGENT_HOOK",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
+            {
+                "sensor": "PROCESS_RUNTIME",
+                "runtime_health_before_stop": "HEALTHY",
+                "final_sensor_state": "STOPPED",
+            },
         ],
     }
     monkeypatch.setattr(service.reader, "read_result", lambda _session_id: dict(base))

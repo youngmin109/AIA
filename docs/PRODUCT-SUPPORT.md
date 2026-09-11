@@ -184,9 +184,10 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 `PROTECTED` 또는 `BLOCKED`로 주장하는 범위에 포함되지 않는다.
 
 `COMPLETED_VERIFIED`와 `ABORTED_VERIFIED`는 Hook Event만으로 결정하지 않는다. 실행 중
-per-run Hook Broker가 살아 있었고 결과의
-`sensor_summary`에서 각 센서의 `runtime_health_before_stop=HEALTHY`와
-`final_sensor_state=STOPPED`가 모두 확인되어야 한다. 센서 요약이 없거나 일부라도
+per-run Hook Broker가 살아 있었고 결과의 `sensor_summary`에 현재 제품의 세 센서
+(`AGENT_HOOK`, `FILESYSTEM_WATCHER`, `PROCESS_RUNTIME`)가 모두 존재해야 하며,
+각 센서의 `runtime_health_before_stop=HEALTHY`와
+`final_sensor_state=STOPPED`가 모두 확인되어야 한다. 센서가 하나라도 빠졌거나 일부라도
 실패·비정상 종료이면 해당 실행은 `*_DEGRADED`로 표시한다.
 
 실행 중 per-run Hook Broker가 사라지면 AIA는 이를 `HOOK_BROKER_LOST` 보호 경계
