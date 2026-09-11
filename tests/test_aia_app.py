@@ -21,6 +21,7 @@ from aia import (
     EnforcementRoute,
     Operation,
     PolicyDecision,
+    SessionStatus,
 )
 from aia_app.service import (
     ApplicationValidationError,
@@ -991,5 +992,20 @@ def test_application_failure_moves_phase_to_terminal_failed(tmp_path) -> None:
         assert record.status == "FAILED"
         assert record.phase == "FAILED"
         assert "launch failed" in record.error
+    finally:
+        service.shutdown()
+
+
+def test_launching_phase_is_visible_while_codex_is_being_registered(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    try:
+        service.registry.add(record)
+        service._phase(record, "LAUNCHING", SessionStatus.READY)
+        record.protection_state = "LAUNCHING"
+        status = service.get_run_status(record.session_id)
+        assert status["phase"] == "LAUNCHING"
+        assert status["session"]["status"] == "READY"
+        assert status["protection"]["state"] == "LAUNCHING"
     finally:
         service.shutdown()

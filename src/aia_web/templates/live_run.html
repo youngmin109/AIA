@@ -60,6 +60,7 @@ async function poll() {
     document.getElementById('hook-broker-health').textContent = protection.hook_broker || 'NOT_STARTED';
     const protectionNote = document.getElementById('protection-note');
     const notes = {
+      'LAUNCHING': 'Codex 실행을 등록하고 보호 센서를 연결하는 중입니다. 잠시 기다려 주세요.',
       'READY_UNVERIFIED': 'Codex가 아직 시작되지 않았거나, Hook 이벤트가 아직 확인되지 않았습니다.',
       'ACTIVE_UNVERIFIED': 'Codex는 실행 중이지만 아직 검증된 Hook 이벤트가 없습니다. 보호 상태를 확인하세요.',
       'DEGRADED': '보호 경계에서 오류가 발생했습니다. 해당 실행은 완전한 보호 실행으로 주장하지 않습니다.',

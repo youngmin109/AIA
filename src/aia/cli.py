@@ -1664,6 +1664,11 @@ def _run_protected(args: argparse.Namespace) -> int:
                         "AIA: 보호 준비가 끝났습니다. Codex를 시작하는 중입니다. "
                         "Codex 화면이 열리면 그 안에서 작업을 입력하세요."
                     )
+                elif phase == "LAUNCHING":
+                    print(
+                        "AIA: Codex 실행을 등록하고 보호 센서를 연결하는 중입니다. "
+                        "잠시 후 Codex 화면이 열립니다."
+                    )
                 last_phase = phase
             if (
                 phase == "READY"

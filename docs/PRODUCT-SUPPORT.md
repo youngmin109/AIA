@@ -165,6 +165,7 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 | 상태 | 의미 |
 |---|---|
 | `PREPARING` | 정책, Lease, Checkpoint, Sensor를 준비하는 중 |
+| `LAUNCHING` | 준비를 마치고 Codex 프로세스·Hook Broker·Process Sensor를 등록하는 중 |
 | `READY_UNVERIFIED` | 준비는 끝났지만 검증된 Hook Event가 아직 없음 |
 | `ACTIVE_UNVERIFIED` | Codex는 실행 중이나 Hook 계보가 아직 확인되지 않음 |
 | `ACTIVE_VERIFIED` | AIA Session에 연결된 실제 Hook Event, 현재 센서의 `HEALTHY` 상태, 실행 중인 per-run Hook Broker를 확인함 |

@@ -1072,6 +1072,11 @@ class RunApplicationService:
                 )
                 finalization_done = True
                 return
+            # Keep launch work visible. The Session remains READY until the
+            # launcher has registered the Codex root and process sensor, but
+            # the product phase must show that Codex creation is in progress.
+            self._phase(record, "LAUNCHING", SessionStatus.READY)
+            record.protection_state = "LAUNCHING"
             launch = launcher.launch(
                 ProtectedLaunchRequest(
                     aia_session_id=session.session_id,
