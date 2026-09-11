@@ -597,6 +597,8 @@ def test_evidence_summary_counts_safe_record_metadata() -> None:
             {"source": "FILESYSTEM_WATCHER", "record_type": "FILESYSTEM_EVENT"},
             {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
             {"source": "AGENT_HOOK", "record_type": "POSTTOOL_OBSERVED"},
+            {"source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+            {"source": "PROCESS_RUNTIME", "record_type": "PROCESS_EXIT_OBSERVED"},
             {"source": "FILESYSTEM_WATCHER", "record_type": "SENSOR_HEALTH"},
         ]
     )
@@ -606,6 +608,8 @@ def test_evidence_summary_counts_safe_record_metadata() -> None:
         "filesystem_events": 1,
         "pretool_events": 1,
         "posttool_events": 1,
+        "process_observed": 1,
+        "process_exit_observed": 1,
         "sensor_health_events": 1,
     }
 

@@ -204,6 +204,8 @@ def evidence_summary(evidence: Any) -> dict[str, int | bool]:
         "filesystem_events": 0,
         "pretool_events": 0,
         "posttool_events": 0,
+        "process_observed": 0,
+        "process_exit_observed": 0,
         "sensor_health_events": 0,
     }
     if not isinstance(evidence, (list, tuple)):
@@ -220,6 +222,10 @@ def evidence_summary(evidence: Any) -> dict[str, int | bool]:
             summary["pretool_events"] += 1
         elif source == "AGENT_HOOK" and record_type == "POSTTOOL_OBSERVED":
             summary["posttool_events"] += 1
+        elif source == "PROCESS_RUNTIME" and record_type == "PROCESS_OBSERVED":
+            summary["process_observed"] += 1
+        elif source == "PROCESS_RUNTIME" and record_type == "PROCESS_EXIT_OBSERVED":
+            summary["process_exit_observed"] += 1
         elif record_type == "SENSOR_HEALTH":
             summary["sensor_health_events"] += 1
     return summary

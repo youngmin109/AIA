@@ -18,6 +18,8 @@
   <div class="metric"><span>Hook Broker</span><strong id="hook-broker-health">{{ status.protection.hook_broker if status.protection else 'NOT_STARTED' }}</strong></div>
   <div class="metric"><span>사건 수</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
   <div class="metric"><span>파일 관찰</span><strong id="filesystem-event-count">{{ (status.evidence_summary or {}).get('filesystem_events', 0) }}건</strong></div>
+  <div class="metric"><span>프로세스 관찰</span><strong id="process-observed-count">{{ (status.evidence_summary or {}).get('process_observed', 0) }}건</strong></div>
+  <div class="metric"><span>프로세스 종료 관찰</span><strong id="process-exit-count">{{ (status.evidence_summary or {}).get('process_exit_observed', 0) }}건</strong></div>
 </section>
 
 <div id="interactive-instructions" class="notice success" {% if not status.interactive %}hidden{% endif %}>
@@ -57,6 +59,8 @@ async function poll() {
     document.getElementById('lease').textContent = status.lease || 'PENDING';
     document.getElementById('incident-count').textContent = status.incident_count;
     document.getElementById('filesystem-event-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
+    document.getElementById('process-observed-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건`;
+    document.getElementById('process-exit-count').textContent = `${((status.evidence_summary || {}).process_exit_observed || 0)}건`;
     const protection = status.protection || {};
     document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
