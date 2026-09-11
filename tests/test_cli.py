@@ -36,6 +36,14 @@ def test_start_is_the_user_facing_interactive_protected_run_entrypoint() -> None
     assert args.profile == "PROTECTED_DEVELOPMENT"
 
 
+def test_protected_run_defaults_to_the_current_directory() -> None:
+    start_args = _parser().parse_args(["start"])
+    protect_args = _parser().parse_args(["protect", "--task", "inspect"])
+
+    assert start_args.workspace == Path(".")
+    assert protect_args.workspace == Path(".")
+
+
 def test_capabilities_parser_supports_human_and_json_output() -> None:
     human = _parser().parse_args(["capabilities"])
     machine = _parser().parse_args(["capabilities", "--json"])

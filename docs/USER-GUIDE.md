@@ -116,6 +116,15 @@ uv run aia console --open
 uv run aia protect C:\workspace\my-project
 ```
 
+현재 PowerShell이 프로젝트 폴더 안에 있다면 Workspace 경로를 생략해도 됩니다.
+
+```powershell
+cd C:\workspace\my-project
+uv run aia start
+```
+
+실행이 시작되면 AIA는 실제로 보호하는 Workspace 절대 경로를 터미널에 표시합니다.
+
 AIA는 다음 순서로 준비한다.
 
 ```text

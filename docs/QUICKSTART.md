@@ -124,6 +124,15 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 uv run aia protect "C:\workspace\my-project"
 ```
 
+현재 PowerShell이 보호할 프로젝트 폴더라면 경로를 생략할 수 있습니다.
+
+```powershell
+cd "C:\workspace\my-project"
+uv run aia start
+```
+
+AIA는 실행 시작 시 실제 보호 Workspace 절대 경로를 표시합니다.
+
 사용자 관점에서 “AIA가 먼저 보호 세션을 열고, 그 안에서 작업한다”는 흐름으로
 실행하려면 다음 명령을 사용한다.
 

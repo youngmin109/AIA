@@ -65,7 +65,13 @@ def _json_text(value: object, *, default: object | None = None) -> str:
 def _add_protected_run_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the shared interactive/one-shot Protected Run arguments."""
 
-    parser.add_argument("workspace", type=Path)
+    parser.add_argument(
+        "workspace",
+        type=Path,
+        nargs="?",
+        default=Path("."),
+        help="Workspace directory; defaults to the current directory",
+    )
     parser.add_argument(
         "--task",
         help="initial Codex task prompt; omit it to open an interactive protected session",
@@ -2174,6 +2180,7 @@ def _run_protected(args: argparse.Namespace) -> int:
         )
         session_id = created["session_id"]
         print(f"AIA Protected Run: {session_id}")
+        print(f"Workspace: {Path(args.workspace).expanduser().resolve(strict=False)}")
         print(f"Control Root: {_control_root(args.control_root)}")
         if interactive:
             print(
