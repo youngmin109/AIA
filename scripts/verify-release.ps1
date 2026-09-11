@@ -31,6 +31,11 @@ $packages = @(Get-ChildItem -LiteralPath $packagesPath -File |
 if ($packages.Count -ne 2) {
     throw "A release bundle must contain exactly one wheel and one source archive"
 }
+$installGuidePath = Join-Path $bundle "INSTALL-FROM-WHEEL.md"
+if (-not (Test-Path -LiteralPath $installGuidePath) -or
+    (Get-Content -LiteralPath $installGuidePath -Raw) -notmatch "aia hook explain") {
+    throw "Release installation guide is missing the Hook onboarding command"
+}
 if (@($packages | Where-Object { $_.Name -like "*.whl" }).Count -ne 1) {
     throw "Release bundle must contain exactly one wheel"
 }

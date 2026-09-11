@@ -123,6 +123,7 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 5. Install and review the Codex Hook:
 
    aia setup
+   aia hook explain
    # Open Codex /hooks and review/trust the AIA Hook.
    aia hook verify
    aia doctor
