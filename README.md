@@ -222,6 +222,14 @@ uv run aia proof
 검증에 실패하면 Codex를 실행하지 않고 원인과 artifact 경로를 남긴다. 기존 스크립트
 경로도 호환성을 위해 유지한다.
 
+터미널에는 PASS/FAIL, 실제 도구 차단 여부, Canary 부작용, Evidence Bundle 상태를
+읽기 쉬운 요약으로 출력한다. 자동화나 상세 분석에 필요한 전체 JSON은 다음처럼
+명시적으로 요청한다.
+
+```powershell
+uv run aia proof --json
+```
+
 ```powershell
 uv run python scripts/product_e2e_smoke.py
 uv run python scripts/product_e2e_smoke.py --scenario block-canary

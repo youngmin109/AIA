@@ -107,6 +107,58 @@ def _block_confirmation(
     return "NOT_APPLICABLE"
 
 
+def _print_human_summary(report: dict[str, Any], exit_code: int) -> None:
+    """Print a short proof result without exposing captured Codex output."""
+
+    passed = report.get("proof_passed") is True and exit_code == 0
+    scenario = str(report.get("scenario") or "unknown")
+    scenario_labels = {
+        "normal": "정상 읽기",
+        "block-canary": "Bash Canary 차단",
+        "block-apply-patch": "apply_patch 차단",
+        "block-env": ".env 비밀정보 읽기 차단",
+    }
+    print("AIA 실제 Codex 보호 증명")
+    print(f"시나리오: {scenario_labels.get(scenario, scenario)}")
+    print(f"결과: {'PASS' if passed else 'FAIL'}")
+    if report.get("session_id"):
+        print(f"Protected Run: {report['session_id']}")
+    if report.get("hook_event_count") is not None:
+        print(f"실제 Hook Event: {report.get('hook_event_count', 0)}건")
+
+    if scenario == "normal":
+        print(
+            "Workspace 부작용: "
+            f"{'없음' if report.get('workspace_unchanged') else '확인됨'}"
+        )
+    else:
+        print(
+            "정책 관문: "
+            f"{'차단 결정 확인' if report.get('gate_block_count', 0) else '차단 결정 미확인'}"
+        )
+        print(
+            "실제 도구 실행: "
+            f"{'차단 확인' if report.get('confirmed_block_count', 0) else '확인 안 됨'}"
+        )
+        if scenario == "block-env":
+            print(
+                "Secret marker 유출: "
+                f"{'없음' if not report.get('secret_leaked') else '발견됨'}"
+            )
+        else:
+            print(
+                "Canary 부작용: "
+                f"{'없음' if not report.get('canary_executed') else '발생함'}"
+            )
+        if report.get("block_confirmation"):
+            print(f"차단 확인 근거: {report['block_confirmation']}")
+    print(f"Evidence Bundle: {report.get('bundle_status', 'NOT_FOUND')}")
+    if report.get("failure_classification"):
+        print(f"실패 분류: {report['failure_classification']}")
+    if report.get("report_path"):
+        print(f"상세 산출물: {report['report_path']}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -120,6 +172,11 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         default=180.0,
         help="maximum protected-run wait in seconds",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the complete machine-readable proof report",
     )
     parser.add_argument(
         "--scenario",
@@ -235,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         "scenario_realized": False,
         "proof_passed": False,
         "failure_classification": None,
+        "_json_output": args.json,
     }
     try:
         verify_command = [
@@ -378,6 +436,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _write_report(root: Path, report: dict[str, Any], exit_code: int) -> int:
     root.mkdir(parents=True, exist_ok=True)
+    json_output = bool(report.pop("_json_output", False))
     report_path = root / "run.json"
     report["report_path"] = str(report_path)
     report_path.write_text(
@@ -386,7 +445,10 @@ def _write_report(root: Path, report: dict[str, Any], exit_code: int) -> int:
     )
     # Windows PowerShell may expose CP949 stdout.  Keep the artifact readable
     # in UTF-8 while making the terminal report encoding-independent.
-    print(json.dumps(report, ensure_ascii=True, sort_keys=True, indent=2))
+    if json_output:
+        print(json.dumps(report, ensure_ascii=True, sort_keys=True, indent=2))
+    else:
+        _print_human_summary(report, exit_code)
     return exit_code
 
 

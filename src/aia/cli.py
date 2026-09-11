@@ -276,6 +276,11 @@ def _parser() -> argparse.ArgumentParser:
         default=180.0,
         help="maximum wait in seconds",
     )
+    proof.add_argument(
+        "--json",
+        action="store_true",
+        help="print the complete machine-readable proof report",
+    )
     return parser
 
 
@@ -1669,6 +1674,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "--timeout",
                     str(args.timeout),
                 ]
+                + (["--json"] if args.json else [])
             )
         raise ApplicationValidationError("unknown command")
     except (ApplicationValidationError, CodexHookInstallationError, OSError, ValueError) as error:

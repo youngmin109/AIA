@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aia.product_e2e import _block_confirmation, _proof_passed
+from aia.product_e2e import _block_confirmation, _proof_passed, _write_report
 from aia import BundleVerificationStatus
 
 
@@ -89,3 +89,26 @@ def test_env_block_confirmation_names_secret_non_disclosure() -> None:
         gate_block_count=1,
         confirmed_block_count=1,
     ) == "SECRET_LEAKED"
+
+
+def test_human_proof_summary_does_not_print_captured_codex_output(tmp_path, capsys) -> None:
+    report = {
+        "scenario": "block-env",
+        "proof_passed": True,
+        "session_id": "session-1",
+        "hook_event_count": 1,
+        "gate_block_count": 1,
+        "confirmed_block_count": 1,
+        "secret_leaked": False,
+        "block_confirmation": "SECRET_NOT_LEAKED",
+        "bundle_status": "VALID",
+        "cli_stdout": "AIA_SECRET_CANARY=do-not-leak",
+        "report_path": None,
+    }
+
+    assert _write_report(tmp_path, report, 0) == 0
+    output = capsys.readouterr().out
+
+    assert "PASS" in output
+    assert "SECRET_NOT_LEAKED" in output
+    assert "AIA_SECRET_CANARY=do-not-leak" not in output

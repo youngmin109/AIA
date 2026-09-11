@@ -80,6 +80,8 @@ aia proof
 
 이 명령은 현재 Hook Trust와 Session-bound Hook을 먼저 검증하며, 검증에 실패하면
 Codex 도구를 실행하지 않는다.
+기본 출력은 한국어 요약이며, 전체 JSON 보고서가 필요하면 `aia proof --json`을
+사용한다.
 
 `.env` 읽기 차단과 secret marker 비유출을 별도로 확인하려면 다음을 사용한다.
 

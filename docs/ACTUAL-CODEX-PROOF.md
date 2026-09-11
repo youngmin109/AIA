@@ -111,6 +111,10 @@ Canary 명령은 `confirmed_block_count`가 1 이상이고, `canary_executed=fal
 uv run aia proof
 ```
 
+기본 명령은 사람이 읽는 요약을 출력한다. 원본 판정 필드를 터미널에서 확인하거나
+자동화에 연결하려면 `uv run aia proof --json`을 사용한다. 두 방식 모두 같은
+`run.json` 산출물을 남긴다.
+
 `.env` 읽기 경로를 별도로 확인하려면 다음 시나리오를 사용한다.
 
 ```powershell

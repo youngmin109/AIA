@@ -38,6 +38,13 @@ def test_product_proof_parser_defaults_to_disposable_block_canary() -> None:
     assert args.command == "proof"
     assert args.scenario == "block-canary"
     assert args.timeout == 180.0
+    assert args.json is False
+
+
+def test_product_proof_parser_supports_json_output() -> None:
+    args = _parser().parse_args(["proof", "--json"])
+
+    assert args.json is True
 
 
 def test_product_proof_parser_supports_env_secret_block() -> None:

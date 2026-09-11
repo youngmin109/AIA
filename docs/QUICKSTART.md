@@ -50,6 +50,8 @@ uv run aia proof
 `Bundle VALID`까지 확인한다. Hook Trust가 확인되지 않으면 Codex 도구를 실행하지
 않고 실패 원인과 artifact 경로만 남긴다. 실제 Codex 실행을 소비하므로 일반 회귀
 테스트마다 반복하지 않는다.
+기본 출력은 한국어 요약이다. 전체 기계 판독용 보고서가 필요하면
+`uv run aia proof --json`을 사용한다.
 
 `.env` 비밀정보 읽기 차단을 확인하려면 다음을 실행한다.
 
