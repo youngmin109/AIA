@@ -14,7 +14,7 @@ Agent: Codex CLI
 실행 방식: AIA Protected Run 안에서 시작한 Codex
 정책 관문: Codex PreToolUse command Hook
 Hook matcher: `*` (Codex가 로컬 Hook 경로로 전달하는 도구를 수신)
-의미 해석 지원: Bash, apply_patch, Edit, Write,
+의미 해석 지원: Bash, apply_patch,
 `mcp__filesystem__read_file`, `mcp__fs__read`
 지원 목록 밖 도구: `UNSUPPORTED_TOOL_PATH`로 거부하고 보호 성공으로 주장하지 않음
 실행 확인: 선택적 Codex PostToolUse evidence

@@ -20,8 +20,6 @@ class CodexHookInstallationError(ValueError):
 AIA_CODEX_SUPPORTED_MATCHERS = (
     "Bash",
     "apply_patch",
-    "Edit",
-    "Write",
     "mcp__filesystem__read_file",
     "mcp__fs__read",
 )

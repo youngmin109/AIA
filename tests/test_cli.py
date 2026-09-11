@@ -64,6 +64,8 @@ def test_capabilities_json_is_machine_readable(capsys) -> None:
 
     assert payload["schema_version"] == "aia-capabilities-v1"
     assert "Bash" in payload["support"]["pretool_matchers"]
+    assert "Edit" not in payload["support"]["pretool_matchers"]
+    assert "Write" not in payload["support"]["pretool_matchers"]
     assert payload["support"]["pretool_matcher"] == "*"
     assert "UNSUPPORTED_TOOL_PATH" in payload["support"]["unsupported_tool_behavior"]
     assert payload["requires_user_action"]

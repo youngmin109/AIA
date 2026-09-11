@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.11 릴리스 기준](docs/RELEASE-0.1.11.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.12 릴리스 기준](docs/RELEASE-0.1.12.md)에서 확인할 수 있다.
 현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
@@ -252,7 +252,7 @@ Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 
 
 현재 제품이 보장하는 보호 경계는 Windows 11, Codex CLI, AIA Protected Run,
 그리고 지원되는 `PreToolUse` matcher입니다. 현재 실제로 검증된 matcher에는
-`Bash`, `apply_patch`, `Edit`, `Write`, `mcp__filesystem__read_file`,
+`Bash`, `apply_patch`, `mcp__filesystem__read_file`,
 `mcp__fs__read`가 포함됩니다. `PostToolUse`는 실행 결과 확인을
 위한 선택적 증거 경로이며 사후에 이미 발생한 부작용을 되돌리지 않습니다. Hook이
 끊기거나 지원되지 않는 도구를 사용한 실행은 완전한 보호 실행으로 표시하지 않습니다. Actual Codex 전체 도구와

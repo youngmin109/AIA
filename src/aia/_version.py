@@ -1,3 +1,3 @@
 """Single package version used by the CLI and runtime integrations."""
 
-__version__ = "0.1.11"
+__version__ = "0.1.12"
