@@ -201,6 +201,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     result = client.get("/runs/run-1/result")
     assert result.status_code == 200
     assert "VERIFIED" in result.text
+    assert 'href="/new">새 보호 실행</a>' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
