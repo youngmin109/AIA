@@ -44,7 +44,7 @@ jobs:
         run: |
           $output = Join-Path $env:RUNNER_TEMP "aia-release"
           pwsh -NoProfile -File .\scripts\package-release.ps1 -OutputRoot $output
-          $bundle = Get-ChildItem $output -Directory | Select-Object -First 1
+          $bundle = Get-ChildItem $output -Directory | Where-Object { $_.Name -like 'aia-*' } | Select-Object -First 1
           pwsh -NoProfile -File .\scripts\verify-release.ps1 -BundlePath $bundle.FullName
 
       - name: Smoke test release installer before PATH refresh

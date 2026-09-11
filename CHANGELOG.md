@@ -2,6 +2,21 @@
 
 이 파일은 공개 배포 버전의 사용자에게 보이는 변경 사항을 기록한다.
 
+## [0.1.1] - 2026-09-11
+
+### 보강
+
+- 보호 실행 준비 후 Codex 등록 중인 `LAUNCHING` 상태를 CLI와 로컬 콘솔에 표시
+- 다른 터미널에서도 `LAUNCHING` 상태와 보호 상태를 일관되게 조회
+- `LAUNCHING` 중 사용자 중지 시 검증된 Process Identity가 있는 관리 Root만 종료
+- Hook Broker 손실 시 `PROTECTION_FAILURE`와 `FAILED_DEGRADED` 결과를 분리 기록
+- 전체 회귀 540건과 깨끗한 wheel 설치·릴리스 번들 검증을 추가 확인
+
+### 지원 범위
+
+- 지원 범위와 보안 주장은 0.1.0과 동일하게 Windows 11, Codex CLI,
+  지원되는 PreToolUse matcher로 제한한다.
+
 ## [0.1.0] - 2026-09-11
 
 ### 추가
