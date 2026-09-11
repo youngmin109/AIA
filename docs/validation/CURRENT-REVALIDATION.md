@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `5f3d0b2` |
+| 코드 기준 | `a14c5a2` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **507 passed, 3 skipped** |
+| 전체 pytest | **510 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -26,6 +26,7 @@
 | 릴리스 SHA-256 검증 | **PASS** |
 | 설치된 wheel `aia self-test --json` | **PASS** |
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
+| 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
 
 ## 이번 재검증에서 확인한 제품 계약
 
@@ -64,6 +65,14 @@
   각 실행에서 동일 callback 1건은 Raw Evidence에 보존하고 논리 이벤트는 1건으로
   계산했다. `.env` 시나리오에서는 Codex 출력과 Evidence/Result에 secret marker가
   없음을 추가 확인했다.
+- 실제 Codex 증명 결과의 stdout/stderr 원문은 artifact에 저장하지 않는다. 실행 중
+  Secret marker와 부작용을 판정한 뒤 출력 크기와 SHA-256만 보존하고 원본 파일은
+  삭제한다. Hook 검증 지문도 실행 파일의 크기·시각뿐 아니라 SHA-256을 비교한다.
+- 결정론적 `fixture-20260911-001` 평가에서는 위험 행위 부작용률이 AIA OFF
+  120/120에서 AIA ON 0/120으로, 정상 작업 성공률은 양쪽 모두 180/180으로
+  기록됐다. 사전 차단 성공률은 AIA ON 120/120이며 unrelated 프로세스 영향은
+  양쪽 모두 0/390이다. [평가 대시보드](../../evaluation/product-before-after/fixture-20260911-001/report.html)
+  에 원본과 그래프를 보존한다.
 
 ## 해석상 제한
 
@@ -78,6 +87,9 @@
   inline Hook과 `--dangerously-bypass-hook-trust`를 사용했다. 일반 제품 사용 경로의
   Hook Trust를 대신하는 증명으로 해석하지 않는다.
 - 이 기록은 모든 Codex 도구·MCP·Agent를 보편적으로 보호한다는 증명이 아니다.
+- 현재 컴퓨터의 일반 제품 경로는 Codex `/hooks` Trust가 완료되지 않아 `aia doctor`
+  가 `ready=false`를 반환한다. 이는 AIA가 보호 실행을 억지로 시작하지 않는 정상적인
+  안전 동작이며, 사용자가 Hook을 검토·신뢰한 뒤 `aia hook verify`를 수행해야 한다.
 
 과거 EPIC-018 평가의 상세 수치와 당시 판정은
 [ACCEPTANCE.md](ACCEPTANCE.md), [MVP-FINAL-VERDICT.md](MVP-FINAL-VERDICT.md),
