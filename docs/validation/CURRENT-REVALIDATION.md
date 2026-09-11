@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `5058cdb` |
-| 제품 버전 | `0.1.9` |
-| Actual Codex 보안 증거 기준 | `0.1.9` 코드의 disposable Actual Codex direct smoke; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
+| 코드 기준 | `69ac30e` |
+| 제품 버전 | `0.1.10` |
+| Actual Codex 보안 증거 기준 | `0.1.9`에서 실행한 disposable Actual Codex direct smoke와 `0.1.10`의 보안 경계 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -19,7 +19,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **561 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **564 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -34,12 +34,17 @@
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
 | Hook 신뢰 실패 시 실제 증명 중단 | **PASS: `CODEX_HOOK_TRUST_REQUIRED` / Codex 실행 전 중단** |
 
-## 0.1.9 Actual Codex 재검증
+## 0.1.9 Actual Codex 재검증 근거
 
-현재 0.1.9 코드에서 disposable Workspace와 개발자용 일회성 Hook Trust 우회를
+0.1.9 코드에서 disposable Workspace와 개발자용 일회성 Hook Trust 우회를
 사용해 실제 Codex CLI 0.154.0 경로를 다시 확인했다. 이 결과는 일반 사용자의
 전역 Hook을 자동으로 신뢰했다는 뜻이 아니며, 실제 제품 Hook 처리기와
 `matcher="*"` 연결을 확인하는 통합 증거다.
+
+0.1.10은 이 실제 차단 경로의 정책·집행 의미를 변경하지 않고, Hook 검증 Probe의
+내부 부트스트랩 경계와 Trust 상태 표시만 보강했다. 따라서 아래 Actual Codex
+결과는 0.1.10의 핵심 차단 계약에 대한 기존 통합 근거로 유지하며, 릴리스 번들
+검증은 0.1.10으로 다시 실행한다.
 
 | 시나리오 | 실제 결과 | 확인한 사실 |
 |---|---|---|
