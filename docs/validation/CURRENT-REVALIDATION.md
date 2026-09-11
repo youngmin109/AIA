@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `213ec7a` |
+| 코드 기준 | `5058cdb` |
 | 제품 버전 | `0.1.9` |
 | Actual Codex 보안 증거 기준 | `0.1.9` 코드의 disposable Actual Codex direct smoke; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
@@ -56,6 +56,10 @@
 `aia reconcile`이 상태 정리 확인을 남기는지 확인한다.
 또한 같은 Workspace에 정리되지 않은 고아 Agent가 남아 있으면 새 Protected Run을
 생성하지 않으며, 정리 확인 이후에만 재사용하는지 확인한다.
+
+이후 제품화 보완에서는 CLI와 로컬 콘솔이 Codex가 보고한 실제 Hook Trust 상태를
+그대로 표시하도록 수정했다. `TRUSTED` 또는 `MANAGED` 상태를 수동 검토 필요로
+잘못 표시하지 않으며, 검증·집행 규칙 자체는 변경하지 않았다.
 
 ## 이번 재검증에서 확인한 제품 계약
 
