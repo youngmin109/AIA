@@ -15,6 +15,14 @@ uv run aia self-test
 uv run aia setup
 ```
 
+AIA의 현재 보호 범위와 지원하지 않는 경계를 확인하려면 다음을 실행한다.
+
+```powershell
+uv run aia capabilities
+```
+
+이 명령은 실제 Workspace나 Codex를 실행하지 않는 읽기 전용 제품 계약 조회다.
+
 `self-test`가 `결과: PASS`이면 AIA Core 자체가 정상이다. 이 명령은 Codex나
 사용자 Workspace를 실행하지 않는다.
 

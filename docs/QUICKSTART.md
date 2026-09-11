@@ -21,6 +21,16 @@ uv run aia self-test
 `PASS`가 나오면 AIA의 정책·Workspace Lease·Checkpoint·Evidence 핵심 기능이
 정상이다. 이 명령은 Codex를 실행하지 않는다.
 
+현재 제품이 실제로 보호한다고 주장하는 범위를 먼저 확인하려면 다음 명령을
+실행한다. 이 명령은 Workspace나 Codex를 실행하지 않는다.
+
+```powershell
+uv run aia capabilities
+```
+
+출력의 `지원하지 않거나 주장하지 않는 범위`도 함께 확인한다. AIA는 지원되지
+않는 도구를 보호했다고 표시하지 않는다.
+
 설치나 실행에 문제가 생기면 다음 명령으로 민감한 실행 원문을 포함하지 않는
 진단 파일을 만들 수 있다.
 

@@ -43,6 +43,7 @@ from aia import (
 )
 from aia.hook_verification import HookVerificationStore
 from aia.codex_hook_trust import inspect_codex_hook_trust
+from aia.capabilities import product_capabilities
 from aia.diagnostics import build_support_bundle, write_support_bundle
 from aia._version import __version__
 from aia_app import ApplicationValidationError, RunApplicationService
@@ -61,6 +62,11 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aia")
     parser.add_argument("--version", action="version", version=f"AIA {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
+    capabilities = commands.add_parser(
+        "capabilities",
+        help="show the bounded AIA support and claim contract",
+    )
+    capabilities.add_argument("--json", action="store_true", help="print machine-readable output")
     doctor = commands.add_parser(
         "doctor",
         help="check the local Codex/AIA protected-run setup",
@@ -640,6 +646,39 @@ def _doctor(args: argparse.Namespace) -> int:
         print(f"[필수 조치] {next_step}")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
+
+
+def _capabilities(args: argparse.Namespace) -> int:
+    """Print the support contract without touching a protected Workspace."""
+
+    payload = product_capabilities()
+    if args.json:
+        print(_json_text(payload))
+        return 0
+
+    support = payload["support"]
+    print("AIA 지원 범위")
+    print(f"제품: {payload['product']} {payload['version']}")
+    print(
+        "환경: "
+        f"{', '.join(support['operating_system'])} / "
+        f"Python {', '.join(support['python'])} / "
+        f"{', '.join(support['agent'])}"
+    )
+    print(f"실행 경계: {support['launch_boundary']}")
+    print(f"보호 모드: {', '.join(support['modes'])}")
+    print("지원 PreToolUse: " + ", ".join(support["pretool_matchers"]))
+    print("실제 확인된 동작:")
+    for item in payload["verified_behaviors"]:
+        print(f"  - {item}")
+    print("사용 전 필수 단계:")
+    for item in payload["requires_user_action"]:
+        print(f"  - {item}")
+    print("지원하지 않거나 주장하지 않는 범위:")
+    for item in payload["unsupported_or_unclaimed"]:
+        print(f"  - {item}")
+    print(f"보호 성공 판정: {payload['claim_rule']}")
+    return 0
 
 
 def _self_test(args: argparse.Namespace) -> int:
@@ -1940,6 +1979,8 @@ def _run_protected(args: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.command == "capabilities":
+            return _capabilities(args)
         if args.command == "doctor":
             return _doctor(args)
         if args.command == "self-test":

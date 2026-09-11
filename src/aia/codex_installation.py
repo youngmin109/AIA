@@ -17,10 +17,15 @@ class CodexHookInstallationError(ValueError):
     """Raised when the stable Codex Hook definition cannot be managed safely."""
 
 
-AIA_CODEX_HOOK_MATCHER = (
-    "Bash|apply_patch|Edit|Write|"
-    "mcp__filesystem__read_file|mcp__fs__read"
+AIA_CODEX_SUPPORTED_MATCHERS = (
+    "Bash",
+    "apply_patch",
+    "Edit",
+    "Write",
+    "mcp__filesystem__read_file",
+    "mcp__fs__read",
 )
+AIA_CODEX_HOOK_MATCHER = "|".join(AIA_CODEX_SUPPORTED_MATCHERS)
 
 
 class CodexHookInstaller:
@@ -314,6 +319,7 @@ class CodexHookInstaller:
 
 
 __all__ = [
+    "AIA_CODEX_SUPPORTED_MATCHERS",
     "AIA_CODEX_HOOK_MATCHER",
     "CodexHookInstallationError",
     "CodexHookInstaller",

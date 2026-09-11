@@ -1,6 +1,7 @@
 """AIA product MVP package."""
 
 from ._version import __version__
+from .capabilities import product_capabilities
 
 from .action import (
     ActionTargetKind,
@@ -621,4 +622,5 @@ __all__ = [
     "protected_pretool_deny",
     "TrustedHookIngress",
     "evaluate_pretool",
+    "product_capabilities",
 ]

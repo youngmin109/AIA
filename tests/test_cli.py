@@ -26,6 +26,36 @@ def test_protect_without_task_selects_interactive_mode() -> None:
     assert args.task is None
 
 
+def test_capabilities_parser_supports_human_and_json_output() -> None:
+    human = _parser().parse_args(["capabilities"])
+    machine = _parser().parse_args(["capabilities", "--json"])
+
+    assert human.command == "capabilities"
+    assert human.json is False
+    assert machine.json is True
+
+
+def test_capabilities_output_explains_bounded_support(capsys) -> None:
+    assert main(["capabilities"]) == 0
+    output = capsys.readouterr().out
+
+    assert "AIA 지원 범위" in output
+    assert "Bash" in output
+    assert "mcp__filesystem__read_file" in output
+    assert "/hooks" in output
+    assert "모든 Codex 도구" in output
+
+
+def test_capabilities_json_is_machine_readable(capsys) -> None:
+    assert main(["capabilities", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["schema_version"] == "aia-capabilities-v1"
+    assert "Bash" in payload["support"]["pretool_matchers"]
+    assert payload["requires_user_action"]
+    assert payload["unsupported_or_unclaimed"]
+
+
 def test_protect_with_task_keeps_one_shot_mode() -> None:
     args = _parser().parse_args(
         ["protect", "C:/workspace/my-project", "--task", "inspect"]
