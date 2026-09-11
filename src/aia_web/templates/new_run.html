@@ -91,7 +91,7 @@
   <div id="preview-result" class="preview-result" hidden></div>
 </section>
 
-<section class="panel form-panel">
+  <section class="panel form-panel">
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
@@ -134,6 +134,15 @@
     <div id="form-error" class="error" hidden></div>
     <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 시작</button><span class="hint">준비 상태가 모두 통과되어야 활성화됩니다.</span></div>
   </form>
+</section>
+<section class="panel capability-panel">
+  <div class="panel-heading"><div><h2>현재 보호 범위</h2><p class="hint">지원 범위 밖의 실행은 AIA가 보호 성공으로 표시하지 않습니다.</p></div><span class="badge">{{ capabilities.product }} {{ capabilities.version }}</span></div>
+  <div class="capability-grid">
+    <div><strong>지원 환경</strong><p class="hint">{{ capabilities.support.operating_system|join(', ') }} · Python {{ capabilities.support.python|join(', ') }} · {{ capabilities.support.agent|join(', ') }}</p></div>
+    <div><strong>PreToolUse</strong><p class="hint mono">{{ capabilities.support.pretool_matchers|join(', ') }}</p></div>
+    <div><strong>필수 사용자 단계</strong><ul class="limitations">{% for item in capabilities.requires_user_action %}<li>{{ item }}</li>{% endfor %}</ul></div>
+    <div><strong>지원하지 않거나 주장하지 않는 범위</strong><ul class="limitations">{% for item in capabilities.unsupported_or_unclaimed %}<li>{{ item }}</li>{% endfor %}</ul></div>
+  </div>
 </section>
 <script>
 const form = document.getElementById('new-run-form');

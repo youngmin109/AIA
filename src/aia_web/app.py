@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from aia_app.service import RunApplicationService
+from aia.capabilities import product_capabilities
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -53,6 +54,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             {
                 "profiles": app.state.service.policy_profiles(),
                 "preflight": app.state.service.preflight(),
+                "capabilities": product_capabilities(),
             },
         )
 
@@ -71,6 +73,10 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     @app.get("/api/profiles")
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())
+
+    @app.get("/api/capabilities")
+    def capabilities() -> JSONResponse:
+        return JSONResponse(product_capabilities())
 
     @app.post("/api/policy/preview")
     async def preview_policy(request: Request) -> JSONResponse:
