@@ -13,7 +13,7 @@ from typing import Any
 from .codex_installation import CodexHookInstaller
 
 
-_SCHEMA_VERSION = "aia-hook-verification-3"
+_SCHEMA_VERSION = "aia-hook-verification-4"
 _RUNTIME_PATH = (Path(__file__).resolve().parent / "codex_hook_runtime.py").resolve()
 
 

@@ -141,7 +141,7 @@ def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(
     assert store.is_current(installer, executable) is True
     document = store.read()
     assert document is not None
-    assert document["schema_version"] == "aia-hook-verification-3"
+    assert document["schema_version"] == "aia-hook-verification-4"
     assert document["codex_config_sha256"]
     assert document["aia_hook_runtime_sha256"]
     assert document["session_id"] == "session-1"
