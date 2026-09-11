@@ -31,7 +31,7 @@ Bundle만 다시 검사하려면 다음처럼 사용할 수 있다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\release-gate.ps1 `
-  -SkipTests -SkipPackage -BundlePath .\dist\release\aia-0.1.19
+  -SkipTests -SkipPackage -BundlePath .\dist\release\aia-0.1.20
 ```
 
 Codex Hook 또는 Process Manager 변경은 disposable Workspace에서 실제 증명을

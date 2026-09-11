@@ -363,6 +363,8 @@ def test_setup_reports_current_codex_pretool_trust(tmp_path, monkeypatch, capsys
     assert payload["configured"] is True
     assert payload["codex_pretool_trust_status"] == "MODIFIED"
     assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
+    assert payload["ready"] is False
+    assert payload["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
     assert "/hooks" in payload["next_steps"][0]
 
 
@@ -395,7 +397,47 @@ def test_setup_reports_trusted_codex_pretool_status_without_manual_review_flag(
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["trust_status"] == "TRUSTED"
+    assert payload["ready"] is False
+    assert payload["readiness_code"] == "HOOK_VERIFICATION_REQUIRED"
     assert "신뢰된 상태" in payload["next_steps"][0]
+
+
+def test_setup_reports_ready_only_after_current_live_hook_verification(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    control_root = tmp_path / "control"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [{"event": "preToolUse", "trust_status": "TRUSTED"}],
+                }
+            },
+        )(),
+    )
+    monkeypatch.setenv("AIA_CONTROL_ROOT", str(control_root))
+    monkeypatch.setattr(
+        "aia.cli.HookVerificationStore.is_current",
+        lambda _store, _installer, _executable: True,
+    )
+
+    exit_code = main(["setup", "--json", "--path", str(hook_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["ready"] is True
+    assert payload["readiness_code"] == "READY"
+    assert payload["hook_verification_current"] is True
+    assert payload["control_root_writable"] is True
 
 
 @pytest.mark.parametrize("trust_status", ["TRUSTED", "MANAGED"])

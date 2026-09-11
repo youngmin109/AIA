@@ -382,6 +382,19 @@ def _control_root(value: Path | None) -> Path:
     return (Path.home() / ".aia" / "control").resolve(strict=False)
 
 
+def _control_root_write_check(control_root: Path) -> tuple[bool, str]:
+    """Check that AIA can create and remove a small control-root marker."""
+
+    try:
+        control_root.mkdir(parents=True, exist_ok=True)
+        probe = control_root / ".aia-write-check"
+        probe.write_text("ok\n", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+    except OSError as error:
+        return False, f"Control Root is not writable: {type(error).__name__}"
+    return True, "Control Root is writable"
+
+
 def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
     """Return safe metadata from the most recent committed Protected Run."""
 
@@ -594,16 +607,7 @@ def _doctor(args: argparse.Namespace) -> int:
             ),
         }
     )
-    try:
-        control_root.mkdir(parents=True, exist_ok=True)
-        probe = control_root / ".aia-doctor-write-test"
-        probe.write_text("ok\n", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        writable = True
-        detail = "Control Root is writable"
-    except OSError as error:
-        writable = False
-        detail = f"Control Root is not writable: {type(error).__name__}"
+    writable, detail = _control_root_write_check(control_root)
     checks.append(
         {
             "name": "control_root",
@@ -1055,6 +1059,25 @@ def _setup(args: argparse.Namespace) -> int:
         if pretool_trust_status in {"TRUSTED", "MANAGED"}
         else "MANUAL_REVIEW_REQUIRED"
     )
+    control_root = _control_root(None)
+    control_root_writable, _control_root_detail = _control_root_write_check(control_root)
+    verification_current = bool(
+        executable is not None
+        and installer.is_installed()
+        and HookVerificationStore(control_root).is_current(installer, executable)
+    )
+    if executable is None:
+        readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
+    elif not installer.is_installed():
+        readiness_code = "CODEX_HOOK_NOT_INSTALLED"
+    elif pretool_trust_status not in {"TRUSTED", "MANAGED"}:
+        readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
+    elif not verification_current:
+        readiness_code = "HOOK_VERIFICATION_REQUIRED"
+    elif not control_root_writable:
+        readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
+    else:
+        readiness_code = "READY"
     payload = {
         "configured": True,
         "hook_path": str(path),
@@ -1065,6 +1088,11 @@ def _setup(args: argparse.Namespace) -> int:
         "trust_status": trust_status,
         "codex_hook_trust": codex_hook_trust,
         "codex_pretool_trust_status": pretool_trust_status,
+        "ready": readiness_code == "READY",
+        "readiness_code": readiness_code,
+        "hook_verification_current": verification_current,
+        "control_root": str(control_root),
+        "control_root_writable": control_root_writable,
         "next_steps": next_steps,
     }
     if args.json:
@@ -1075,8 +1103,15 @@ def _setup(args: argparse.Namespace) -> int:
         print(f"[확인] Codex PreToolUse Trust: {pretool_trust_status}")
         if pretool_trust_status not in {"TRUSTED", "MANAGED"}:
             print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
-        print("[검증] uv run aia hook verify")
-        print("[실행] uv run aia protect C:\\workspace\\my-project")
+        print(
+            f"[상태] {'READY' if payload['ready'] else 'NOT_READY'} "
+            f"({payload['readiness_code']})"
+        )
+        if not payload["ready"]:
+            print("[검증] uv run aia hook verify")
+            print("[확인] uv run aia doctor")
+        else:
+            print("[실행] uv run aia start C:\\workspace\\my-project")
     return 0
 
 
