@@ -62,6 +62,10 @@ Workspace Lease, Safe Checkpoint, Raw Evidence Seal을 확인하고 기본 보�
 `aia hook verify`에서 수행한다. `aia hook verify`는 Codex PreToolUse Trust가
 `MODIFIED`, `UNTRUSTED` 또는 `NOT_VISIBLE`이면 Probe를 실행하지 않고 종료한다.
 
+설치·Hook·최근 보호 실행에 문제가 생기면 `aia support-bundle --output <path>`로
+비밀정보를 제외한 진단 JSON을 만들 수 있다. 이 번들은 전체 경로, Workspace 내용,
+raw evidence, tool input과 명령 출력을 포함하지 않는다.
+
 Process Manager 자체는 별도 Windows PowerShell smoke에서 `Root → Child →
 Grandchild = TERMINATED / SUCCEEDED`, unrelated process = `LIVE_MATCH`로 확인했다.
 추가로 실제 Codex가 생성한 동일한 트리를 사용자가 중지하는 경로에서도 세 프로세스
