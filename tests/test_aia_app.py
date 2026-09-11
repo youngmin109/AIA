@@ -1009,3 +1009,20 @@ def test_launching_phase_is_visible_while_codex_is_being_registered(tmp_path) ->
         assert status["protection"]["state"] == "LAUNCHING"
     finally:
         service.shutdown()
+
+
+def test_launching_phase_is_visible_from_persisted_runtime_state(tmp_path) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    record = make_record(tmp_path)
+    observer = RunApplicationService(control_root)
+    try:
+        service.registry.add(record)
+        record.protection_state = "LAUNCHING"
+        service._phase(record, "LAUNCHING", SessionStatus.READY)
+        status = observer.get_run_status(record.session_id)
+        assert status["phase"] == "LAUNCHING"
+        assert status["protection"]["state"] == "LAUNCHING"
+    finally:
+        observer.shutdown()
+        service.shutdown()
