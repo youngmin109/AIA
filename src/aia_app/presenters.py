@@ -196,6 +196,35 @@ def action_summary(result: Mapping[str, Any]) -> dict[str, int]:
     }
 
 
+def evidence_summary(evidence: Any) -> dict[str, int | bool]:
+    """Count bounded Evidence metadata without exposing payload values."""
+
+    summary: dict[str, int | bool] = {
+        "available": False,
+        "filesystem_events": 0,
+        "pretool_events": 0,
+        "posttool_events": 0,
+        "sensor_health_events": 0,
+    }
+    if not isinstance(evidence, (list, tuple)):
+        return summary
+    summary["available"] = True
+    for item in evidence:
+        if not isinstance(item, Mapping):
+            continue
+        source = item.get("source")
+        record_type = item.get("record_type")
+        if source == "FILESYSTEM_WATCHER" and record_type == "FILESYSTEM_EVENT":
+            summary["filesystem_events"] += 1
+        elif source == "AGENT_HOOK" and record_type == "PRETOOL_REQUEST":
+            summary["pretool_events"] += 1
+        elif source == "AGENT_HOOK" and record_type == "POSTTOOL_OBSERVED":
+            summary["posttool_events"] += 1
+        elif record_type == "SENSOR_HEALTH":
+            summary["sensor_health_events"] += 1
+    return summary
+
+
 def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
     incidents = incident_views_for_result(result)
     incident_action_ids = {
@@ -284,6 +313,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     }
     return {
         "action_summary": action_summary(result),
+        "evidence_summary": result.get("evidence_summary") or evidence_summary(()),
         "agent": result.get("agent"),
         "attribution_results": list(result.get("attribution_results") or []),
         "bundle_status": bundle_status,

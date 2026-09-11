@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `0.1.20` 첫 실행 준비 상태 표시 보강 기준 |
-| 제품 버전 | `0.1.20` |
-| Actual Codex 보안 증거 기준 | `0.1.13`에서 실행한 disposable Actual Codex direct smoke와 `0.1.20`의 실행 기록·Hook 온보딩 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
+| 코드 기준 | `0.1.21` 파일 시스템 관찰 결과 표시 보강 기준 |
+| 제품 버전 | `0.1.21` |
+| Actual Codex 보안 증거 기준 | `0.1.13`에서 실행한 disposable Actual Codex direct smoke와 `0.1.21`의 실행 기록·Hook 온보딩·Evidence 표시 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -55,7 +55,8 @@ Codex 결과는 0.1.13의 차단 계약에 대한 기존 통합 근거로 유지
 Codex `/hooks` 검토 단계를 읽기 전용 `aia hook explain`으로 명확히 했다. 0.1.18에서는
 Hook과 사용자 도구를 안전하게 제거하는 절차를 배포 번들에 포함했고, 0.1.19에서는
 검증되지 않은 terminal 런타임 상태를 실행 기록에서 `UNVERIFIED`로 구분했고, 0.1.20에서는
-`aia setup`이 Hook 설치와 실제 Protected Run 준비 상태를 분리해 표시한다. 현재 semantic
+`aia setup`이 Hook 설치와 실제 Protected Run 준비 상태를 분리해 표시했으며, 0.1.21에서는
+검증된 Evidence Bundle의 파일 시스템 관찰 건수를 결과 화면에 표시한다. 현재 semantic
 지원 목록은 canonical
 `apply_patch`를 사용하며, Codex의 `Edit`·`Write` matcher 별칭은 같은
 `apply_patch` 입력으로 처리된다는 공식 Hook 계약을 별도 alias metadata로 표시한다.

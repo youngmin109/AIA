@@ -1769,6 +1769,14 @@ def _print_protected_run_summary(
             f"{summary.get('execution_failed', 0)} failed / "
             f"{summary.get('execution_not_attempted', 0)} not attempted"
         )
+        observed = result.get("evidence_summary")
+        if isinstance(observed, dict):
+            print(
+                "Evidence 관찰: "
+                f"파일 변경 {observed.get('filesystem_events', 0)}건 / "
+                f"PreTool {observed.get('pretool_events', 0)}건 / "
+                f"PostTool {observed.get('posttool_events', 0)}건"
+            )
         recovery_status = result.get("recovery_status") or "NOT_ATTEMPTED"
         integrity_status = result.get("integrity_status") or "NOT_ATTEMPTED"
         print(f"Recovery: {recovery_status}")

@@ -54,7 +54,13 @@ from aia.hook_verification import HookVerificationStore
 from aia.codex_hook_trust import inspect_codex_hook_trust
 
 from .dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
-from .presenters import action_view, incident_view, incident_views_for_result, result_view
+from .presenters import (
+    action_view,
+    evidence_summary,
+    incident_view,
+    incident_views_for_result,
+    result_view,
+)
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
 
@@ -1099,12 +1105,22 @@ class RunApplicationService:
         if record is not None and record.result is not None and record.bundle_status is not None:
             view = result_view(record.result, record.bundle_status)
             view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
+            view["evidence_summary"] = self._evidence_summary(session_id)
             return view
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
         view = result_view(result, verification.status.value if verification else "NOT_FOUND")
         view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
+        view["evidence_summary"] = self._evidence_summary(session_id)
         return view
+
+    def _evidence_summary(self, session_id: str) -> dict[str, int | bool]:
+        """Return safe counts from the verified Evidence metadata index."""
+
+        try:
+            return evidence_summary(self.reader.read_evidence_metadata(session_id))
+        except (OSError, ValueError, KeyError):
+            return evidence_summary(())
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)

@@ -464,6 +464,27 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["bundle_status"] == "VALID"
 
 
+def test_evidence_summary_counts_safe_record_metadata() -> None:
+    from aia_app.presenters import evidence_summary
+
+    summary = evidence_summary(
+        [
+            {"source": "FILESYSTEM_WATCHER", "record_type": "FILESYSTEM_EVENT"},
+            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+            {"source": "AGENT_HOOK", "record_type": "POSTTOOL_OBSERVED"},
+            {"source": "FILESYSTEM_WATCHER", "record_type": "SENSOR_HEALTH"},
+        ]
+    )
+
+    assert summary == {
+        "available": True,
+        "filesystem_events": 1,
+        "pretool_events": 1,
+        "posttool_events": 1,
+        "sensor_health_events": 1,
+    }
+
+
 def test_result_presenter_aggregates_all_action_outcomes() -> None:
     summary = action_summary(
         {
