@@ -61,6 +61,7 @@ class FakeProcess:
         name_error: bool = False,
         executable_error: bool = False,
         cmdline: list[str] | None = None,
+        children_error: bool = False,
     ) -> None:
         self.pid = pid
         self._create_time = create_time
@@ -71,6 +72,7 @@ class FakeProcess:
         self.name_error = name_error
         self.executable_error = executable_error
         self._cmdline = cmdline if cmdline is not None else [executable, "--fixture"]
+        self.children_error = children_error
 
     def create_time(self) -> float:
         return self._create_time
@@ -90,6 +92,8 @@ class FakeProcess:
 
     def children(self, recursive: bool = False) -> list["FakeProcess"]:
         assert recursive is False
+        if self.children_error:
+            raise psutil.AccessDenied(self.pid)
         return list(self.children_list)
 
     def cmdline(self) -> list[str]:
@@ -338,6 +342,28 @@ def test_unstable_child_parent_relation_is_skipped_without_failing_sensor(
         assert sensor.status is SensorStatus.HEALTHY
     finally:
         stop_sensor_and_release(sensor, context, lease_manager)
+
+
+def test_child_enumeration_access_denied_fails_sensor_without_claiming_health(
+    tmp_path: Path,
+) -> None:
+    root, _, _, _, table = make_tree()
+    root.children_error = True
+    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        table=table,
+    )
+
+    with pytest.raises(SensorStartError):
+        sensor.start()
+
+    assert sensor.status is SensorStatus.FAILED
+    assert sensor.health.reason == "OWNER_UNVERIFIABLE"
+    assert not any(
+        record.record_type is EvidenceRecordType.PROCESS_OBSERVED
+        for record in sensor.evidence_store.records()
+    )
+    release_lease(context, lease_manager)
 
 
 def test_repeated_polling_does_not_create_duplicate_observation_records(

@@ -66,6 +66,12 @@ class ProcessEvidenceStoreError(ProcessRuntimeError):
     code = "EVIDENCE_STORE_FAILURE"
 
 
+class ProcessTreeEnumerationError(ProcessRuntimeError):
+    """Raised when a managed process tree cannot be safely enumerated."""
+
+    code = "OWNER_UNVERIFIABLE"
+
+
 class ProcessRole(StrEnum):
     ROOT = "ROOT"
     DESCENDANT = "DESCENDANT"
@@ -619,14 +625,17 @@ class ProcessRuntimeSensor:
         except (
             psutil.NoSuchProcess,
             psutil.ZombieProcess,
-            psutil.AccessDenied,
             ProcessLookupError,
-            PermissionError,
-            OSError,
         ):
             return ()
+        except (psutil.AccessDenied, PermissionError, OSError) as error:
+            raise ProcessTreeEnumerationError(
+                "managed process children could not be enumerated"
+            ) from error
         except Exception:
-            return ()
+            raise ProcessTreeEnumerationError(
+                "managed process children query failed"
+            )
 
     def _child_identity(
         self,
@@ -880,6 +889,7 @@ __all__ = [
     "ProcessObservation",
     "ProcessRole",
     "ProcessRuntimeError",
+    "ProcessTreeEnumerationError",
     "ProcessRuntimeSensor",
     "ProcessRuntimeSensorContext",
     "RootProcessGoneError",
