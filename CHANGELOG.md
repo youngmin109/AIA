@@ -2,6 +2,15 @@
 
 이 파일은 공개 배포 버전의 사용자에게 보이는 변경 사항을 기록한다.
 
+## [0.1.2] - 2026-09-11
+
+### 사용성 보강
+
+- 보호 실행 종료 시 `COMPLETED_VERIFIED`, `COMPLETED_DEGRADED`,
+  `FAILED_DEGRADED`를 사람이 읽을 수 있는 결과 요약으로 표시
+- Hook Event 수, Incident 수, Result Bundle 상태, Result 경로와 다음 조치를 CLI에 표시
+- 보호 상태를 보안 성공으로 해석할 수 없는 경우 명시적으로 경고
+
 ## [0.1.1] - 2026-09-11
 
 ### 보강
