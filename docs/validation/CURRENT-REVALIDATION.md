@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `1c31dfe` |
+| 코드 기준 | `6b77ba2` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -18,7 +18,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **504 passed, 3 skipped** |
+| 전체 pytest | **507 passed, 3 skipped** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -47,6 +47,10 @@
   secret marker 비유출 확인을 별도 제품 증명 시나리오로 제공한다.
 - 신규 보호 실행과 정책 미리보기의 기본 프로필은 `PROTECTED_DEVELOPMENT`이며,
   `.env` 읽기와 대표적인 파괴 명령을 기본 `VIOLATION / DENY`로 평가한다.
+- 웹 콘솔의 정책 미리보기는 실행 없이 같은 Resolved Policy를 사용해 파일 경로·명령의
+  판정, Effect, 보안 자산, 적용 Rule을 보여준다.
+- Core `self-test`도 기본 보호 프로필과 `.env READ → VIOLATION / DENY / SECRET`
+  판정을 확인한다.
 
 ## 해석상 제한
 
