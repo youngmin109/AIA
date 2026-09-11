@@ -1,0 +1,32 @@
+{
+  "schema_version": "aia-public-validation-v1",
+  "product": "AIA",
+  "product_version": "0.1.6",
+  "validated_at": "2026-09-11",
+  "environment": {
+    "operating_system": "Windows 11",
+    "python": "3.13.5",
+    "codex_cli": "0.154.0"
+  },
+  "proof": "actual-codex-pretool-block",
+  "scenario": "registered-filesystem-mcp-read",
+  "scenario_realized": false,
+  "failure_classification": "EXTERNAL_INTERFACE_LIMITATION",
+  "readiness": "READY",
+  "mcp_server_started": true,
+  "mcp_server_methods_observed": [
+    "initialize",
+    "notifications/initialized",
+    "tools/list"
+  ],
+  "native_payload_observed": false,
+  "pretool_deny_emitted": false,
+  "side_effect": false,
+  "interpretation": "Codex started the temporary MCP server but did not issue the requested read_file tool call, so AIA received no MCP PreToolUse payload. This run is not a blocking PASS.",
+  "scope": "This result describes the current Codex/model invocation only; it does not prove that all MCP paths are unsupported.",
+  "retention": {
+    "raw_codex_stdout_stderr": "OMITTED",
+    "stored_output_metadata": "byte_count_and_sha256_only",
+    "full_local_run_artifacts": "kept outside the public repository"
+  }
+}
