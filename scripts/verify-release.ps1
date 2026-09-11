@@ -112,6 +112,11 @@ try {
         throw "installed wheel CLI failed: $versionOutput"
     }
 
+    $startHelp = (& $verifyPython -m aia.cli start --help | Out-String)
+    if ($LASTEXITCODE -ne 0 -or $startHelp -notmatch "interactive protected session") {
+        throw "installed wheel start entrypoint failed"
+    }
+
     $selfTestJson = (& $verifyPython -m aia.cli self-test --json | Out-String)
     if ($LASTEXITCODE -ne 0) {
         throw "installed wheel self-test failed with exit code $LASTEXITCODE"

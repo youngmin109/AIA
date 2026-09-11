@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.7 릴리스 기준](docs/RELEASE-0.1.7.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.8 릴리스 기준](docs/RELEASE-0.1.8.md)에서 확인할 수 있다.
 현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
@@ -187,6 +187,17 @@ uv run aia protect C:\workspace\my-project
 ```
 
 위 명령은 먼저 AIA Protected Run을 만들고 Workspace, 정책, Lease, Checkpoint, 센서를 준비한 뒤 Codex 대화형 세션을 엽니다. Codex 화면에서 여러 작업을 입력하고 Codex를 종료하면 AIA가 Evidence, Recovery, Integrity, Audit 결과를 확정합니다. 실행 화면의 `ACTIVE_VERIFIED`는 실제 Hook Evidence가 AIA Session과 연결됐다는 뜻이고, `ACTIVE_UNVERIFIED`는 아직 Hook 이벤트가 확인되지 않았다는 뜻입니다.
+
+처음 사용하는 사람은 제품 흐름이 드러나는 `start` 명령으로 같은 대화형 보호
+세션을 열 수 있습니다. AIA가 먼저 보호 실행을 준비하고 Codex 화면을 연 뒤,
+사용자는 그 세션 안에서 작업을 입력합니다.
+
+```powershell
+aia start C:\workspace\my-project
+```
+
+저장소에서 `uv run`으로 실행할 때는 `uv run aia start C:\workspace\my-project`를
+사용합니다. 기존 `protect` 명령도 같은 보안 경로로 계속 지원됩니다.
 
 한 번의 작업만 자동으로 실행하려면 다음처럼 초기 작업을 전달할 수 있습니다.
 

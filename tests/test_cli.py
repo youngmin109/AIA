@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +25,15 @@ def test_protect_without_task_selects_interactive_mode() -> None:
     args = _parser().parse_args(["protect", "C:/workspace/my-project"])
 
     assert args.task is None
+
+
+def test_start_is_the_user_facing_interactive_protected_run_entrypoint() -> None:
+    args = _parser().parse_args(["start", "C:/workspace/my-project"])
+
+    assert args.command == "start"
+    assert args.workspace == Path("C:/workspace/my-project")
+    assert args.task is None
+    assert args.profile == "PROTECTED_DEVELOPMENT"
 
 
 def test_capabilities_parser_supports_human_and_json_output() -> None:

@@ -107,6 +107,17 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 uv run aia protect "C:\workspace\my-project"
 ```
 
+사용자 관점에서 “AIA가 먼저 보호 세션을 열고, 그 안에서 작업한다”는 흐름으로
+실행하려면 다음 명령을 사용한다.
+
+```powershell
+aia start "C:\workspace\my-project"
+```
+
+저장소에서 `uv run`을 사용하는 경우에는 `uv run aia start
+"C:\workspace\my-project"`로 실행한다. `start`와 `protect`는 같은 보안 경로이며,
+`start`는 대화형 세션 진입점이라는 의미를 명확히 표현한다.
+
 이 명령은 다음 순서로 동작한다.
 
 ```text

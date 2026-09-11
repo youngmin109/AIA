@@ -75,6 +75,18 @@ uv run aia doctor
 uv run aia protect C:\workspace\my-project
 ```
 
+대화형 보호 세션을 시작한다는 의미를 분명히 하려면 다음 명령을 사용해도 됩니다.
+AIA가 먼저 보호 준비를 완료하고 Codex를 연 뒤, 열린 Codex 화면에서 작업을
+입력합니다.
+
+```powershell
+aia start C:\workspace\my-project
+```
+
+저장소에서 사용자 도구로 설치하지 않은 경우에는 `uv run aia start
+C:\workspace\my-project`를 사용합니다. `protect`와 `start`는 동일한 보호 경로를
+사용합니다.
+
 보호 실행과 정책 미리보기의 기본값은 `PROTECTED_DEVELOPMENT`입니다. `.env` 같은
 비밀정보 읽기와 대표적인 파괴 명령은 기본 차단하고 일반 소스 변경은 기록합니다.
 더 넓은 개발 허용 범위가 필요하면 `--profile BASIC_DEVELOPMENT` 또는

@@ -58,6 +58,40 @@ def _json_text(value: object, *, default: object | None = None) -> str:
     return json.dumps(value, **options)
 
 
+def _add_protected_run_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the shared interactive/one-shot Protected Run arguments."""
+
+    parser.add_argument("workspace", type=Path)
+    parser.add_argument(
+        "--task",
+        help="initial Codex task prompt; omit it to open an interactive protected session",
+    )
+    parser.add_argument("--policy", type=Path, help="custom policy JSON path")
+    parser.add_argument(
+        "--profile",
+        default="PROTECTED_DEVELOPMENT",
+        help="policy profile name",
+    )
+    parser.add_argument("--model")
+    parser.add_argument("--mode", default="ENFORCE", choices=("ENFORCE", "AUDIT"))
+    parser.add_argument(
+        "--control-root",
+        type=Path,
+        help="AIA control root outside the protected Workspace",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=3600.0,
+        help="maximum wait in seconds",
+    )
+    parser.add_argument(
+        "--_allow-unverified-hook",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aia")
     parser.add_argument("--version", action="version", version=f"AIA {__version__}")
@@ -253,35 +287,12 @@ def _parser() -> argparse.ArgumentParser:
         "protect",
         help="run Codex inside an AIA Protected Run",
     )
-    protect.add_argument("workspace", type=Path)
-    protect.add_argument(
-        "--task",
-        help="initial Codex task prompt; omit it to open an interactive protected session",
+    _add_protected_run_arguments(protect)
+    start = commands.add_parser(
+        "start",
+        help="start an interactive AIA Protected Run; enter tasks after Codex opens",
     )
-    protect.add_argument("--policy", type=Path, help="custom policy JSON path")
-    protect.add_argument(
-        "--profile",
-        default="PROTECTED_DEVELOPMENT",
-        help="policy profile name",
-    )
-    protect.add_argument("--model")
-    protect.add_argument("--mode", default="ENFORCE", choices=("ENFORCE", "AUDIT"))
-    protect.add_argument(
-        "--control-root",
-        type=Path,
-        help="AIA control root outside the protected Workspace",
-    )
-    protect.add_argument(
-        "--timeout",
-        type=float,
-        default=3600.0,
-        help="maximum wait in seconds",
-    )
-    protect.add_argument(
-        "--_allow-unverified-hook",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
+    _add_protected_run_arguments(start)
     proof = commands.add_parser(
         "proof",
         help="run an opt-in real Codex pretool proof in a disposable Workspace",
@@ -2020,7 +2031,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _hook_status(args)
         if args.command == "hook" and args.hook_command == "verify":
             return _hook_verify(args)
-        if args.command == "protect":
+        if args.command in {"protect", "start"}:
             return _run_protected(args)
         if args.command == "proof":
             if args.timeout <= 0:
