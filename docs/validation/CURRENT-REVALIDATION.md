@@ -8,8 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `bfa2de2` |
-| 제품 버전 | `0.1.6` |
+| 코드 기준 | `4992a79` |
+| 제품 버전 | `0.1.7` |
+| Actual Codex 보안 증거 기준 | `0.1.6` 릴리스 당시 실행 자료; `0.1.7`은 지원 범위 표면만 변경 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -18,7 +19,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **554 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **559 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |
@@ -87,7 +88,7 @@
   PreToolUse 도착, `VIOLATION → CONTAIN → PRETOOL_BLOCK`, `deny`, Hook Broker
   `HEALTHY`, 부작용 없음, `BLOCKED / SUCCEEDED`, Result Bundle `VALID`를 확인했다.
   Bash와 apply_patch의 산출물은 각각
-  최신 0.1.6 실행 요약은 [Actual Codex PreToolUse 증명](evidence/actual-codex-pretool-20260911-0.1.6.json)에,
+  0.1.6 릴리스 당시 실행 요약은 [Actual Codex PreToolUse 증명](evidence/actual-codex-pretool-20260911-0.1.6.json)에,
   이전 실행 요약은 [과거 증명 기록](evidence/actual-codex-pretool-20260911.json)에
   보존했으며, 전체 실행 산출물은 로컬에서만 유지한다.
   각 실행에서 동일 callback 1건은 Raw Evidence에 보존하고 논리 이벤트는 1건으로
@@ -98,7 +99,7 @@
   `VIOLATION → CONTAIN → PRETOOL_BLOCK`과 `deny`를 반환했고, MCP 서버에
   `tools/call`이 전달되지 않아 파일 읽기 marker가 생성되지 않았다. 실제 결과는
   `BLOCKED / SUCCEEDED`, Result Bundle `VALID`, `scenario_realized=true`였다.
-  최신 요약은 [현재 MCP 증명](evidence/actual-codex-mcp-20260911-0.1.6.json)이며,
+  0.1.6 릴리스 당시 요약은 [MCP 증명](evidence/actual-codex-mcp-20260911-0.1.6.json)이며,
   이전에 호출이 실현되지 않았던 실행도 외부 인터페이스 제한 기록으로 보존한다.
 - 실제 Codex 증명 결과의 stdout/stderr 원문은 artifact에 저장하지 않는다. 실행 중
   Secret marker와 부작용을 판정한 뒤 출력 크기와 SHA-256만 보존하고 원본 파일은
