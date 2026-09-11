@@ -44,6 +44,55 @@ def _output_metadata(value: str) -> dict[str, int | str]:
     }
 
 
+_HOOK_VERIFICATION_FIELDS = (
+    "verified",
+    "protection_claim",
+    "reason",
+    "trust_status",
+    "next_step",
+    "probe_started",
+    "hook_event_count",
+    "protection_state",
+    "bundle_status",
+)
+
+
+def _safe_hook_verification(
+    *,
+    stdout: str,
+    stderr: str,
+    exit_code: int,
+) -> dict[str, object]:
+    """Keep only actionable, non-raw data from ``aia hook verify --json``.
+
+    Hook verification runs a real Codex probe.  Its stdout/stderr may contain
+    workspace paths, prompts, or tool data, so the product proof report keeps
+    only the allowlisted status fields and size/digest metadata.
+    """
+
+    result: dict[str, object] = {
+        "exit_code": exit_code,
+        "stdout": _output_metadata(stdout),
+        "stderr": _output_metadata(stderr),
+    }
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError:
+        result["parse_error"] = "INVALID_JSON"
+        return result
+    if not isinstance(parsed, dict):
+        result["parse_error"] = "JSON_NOT_OBJECT"
+        return result
+    safe_fields = {
+        field: parsed[field]
+        for field in _HOOK_VERIFICATION_FIELDS
+        if field in parsed
+        and isinstance(parsed[field], (bool, int, str))
+    }
+    result.update(safe_fields)
+    return result
+
+
 def _workspace_manifest(workspace: Path) -> dict[str, str]:
     return {
         str(path.relative_to(workspace)): _sha256(path)
@@ -166,6 +215,14 @@ def _print_human_summary(report: dict[str, Any], exit_code: int) -> None:
     print(f"Evidence Bundle: {report.get('bundle_status', 'NOT_FOUND')}")
     if report.get("failure_classification"):
         print(f"실패 분류: {report['failure_classification']}")
+    hook_verification = report.get("hook_verification")
+    if isinstance(hook_verification, dict):
+        trust_status = hook_verification.get("trust_status")
+        if isinstance(trust_status, str):
+            print(f"Codex PreToolUse Trust: {trust_status}")
+        next_step = hook_verification.get("next_step")
+        if isinstance(next_step, str):
+            print(f"다음 조치: {next_step}")
     if report.get("report_path"):
         print(f"상세 산출물: {report['report_path']}")
 
@@ -332,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
             str(control_root),
             "--timeout",
             str(args.timeout),
+            "--json",
         ]
         verified = subprocess.run(
             verify_command,
@@ -345,9 +403,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         report["hook_verification"] = {
             "command": verify_command,
-            "exit_code": verified.returncode,
-            "stdout": _output_metadata(verified.stdout),
-            "stderr": _output_metadata(verified.stderr),
+            **_safe_hook_verification(
+                stdout=verified.stdout,
+                stderr=verified.stderr,
+                exit_code=verified.returncode,
+            ),
         }
         if verified.returncode != 0:
             report["failure_classification"] = "HOOK_VERIFICATION_REQUIRED"

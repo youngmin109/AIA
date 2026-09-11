@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+
 from aia.product_e2e import (
     _block_confirmation,
     _output_metadata,
     _proof_passed,
+    _safe_hook_verification,
     _write_report,
 )
 from aia import BundleVerificationStatus
@@ -135,3 +138,42 @@ def test_output_metadata_keeps_only_size_and_digest() -> None:
     assert set(metadata) == {"bytes", "sha256"}
     assert metadata["bytes"] > 0
     assert "AIA_SECRET_CANARY" not in str(metadata)
+
+
+def test_hook_verification_keeps_actionable_status_without_raw_output() -> None:
+    result = _safe_hook_verification(
+        stdout=json.dumps(
+            {
+                "verified": False,
+                "protection_claim": "PROTECTION_NOT_PROVEN",
+                "reason": "CODEX_HOOK_TRUST_REQUIRED",
+                "trust_status": "MODIFIED",
+                "next_step": "Codex /hooks에서 AIA Hook을 검토·신뢰하세요.",
+                "codex_executable": "C:/secret/codex.exe",
+                "raw_output": "AIA_SECRET_CANARY=do-not-leak",
+            }
+        ),
+        stderr="diagnostic secret AIA_SECRET_CANARY=do-not-leak",
+        exit_code=2,
+    )
+
+    assert result["verified"] is False
+    assert result["reason"] == "CODEX_HOOK_TRUST_REQUIRED"
+    assert result["trust_status"] == "MODIFIED"
+    assert "next_step" in result
+    assert "codex_executable" not in result
+    assert "raw_output" not in result
+    assert "AIA_SECRET_CANARY" not in str(result)
+    assert result["stdout"]["bytes"] > 0
+    assert result["stderr"]["bytes"] > 0
+
+
+def test_hook_verification_reports_invalid_json_without_retaining_output() -> None:
+    result = _safe_hook_verification(
+        stdout="not json AIA_SECRET_CANARY=do-not-leak",
+        stderr="error AIA_SECRET_CANARY=do-not-leak",
+        exit_code=1,
+    )
+
+    assert result["parse_error"] == "INVALID_JSON"
+    assert "AIA_SECRET_CANARY" not in str(result)

@@ -32,6 +32,11 @@ aia proof
 aia proof --scenario block-env
 ```
 
+`aia proof`가 Hook 신뢰 단계에서 멈추면 원문 Codex 출력은 산출물에 저장하지
+않고, `hook_verification.reason`, `trust_status`, `next_step`만 보고합니다. 따라서
+화면의 `다음 조치`에 따라 Codex `/hooks`에서 검토·신뢰한 뒤 같은 명령을 다시
+실행하면 됩니다.
+
 소스 체크아웃에서 증명 스크립트를 직접 실행하려면 다음을 사용한다.
 
 ```powershell
