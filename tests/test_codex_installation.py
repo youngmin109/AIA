@@ -113,6 +113,44 @@ def test_codex_hook_install_replaces_stale_aia_command_but_preserves_user_hooks(
     assert current.is_installed() is True
 
 
+def test_codex_hook_install_does_not_migrate_user_command_with_similar_argument(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "powershell -Command \"Write-Host '-m aia.codex_hook_runtime'\"",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    installer = CodexHookInstaller(path, python_executable=tmp_path / "python.exe")
+
+    installer.install()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    commands = [
+        handler.get("command")
+        for entry in updated["hooks"]["PreToolUse"]
+        for handler in entry.get("hooks", [])
+    ]
+    assert any(isinstance(command, str) and command.startswith("powershell") for command in commands)
+    assert sum("aia.codex_hook_runtime" in str(command) for command in commands) == 2
+
+
 def test_stale_aia_matcher_is_not_reported_as_installed(tmp_path: Path) -> None:
     path = tmp_path / "hooks.json"
     installer = CodexHookInstaller(

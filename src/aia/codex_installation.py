@@ -6,6 +6,7 @@ from collections.abc import Mapping
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -250,8 +251,17 @@ class CodexHookInstaller:
     def _is_aia_runtime_command(value: object) -> bool:
         if not isinstance(value, str):
             return False
-        normalized = " ".join(value.replace('"', " ").split()).casefold()
-        return " -m aia.codex_hook_runtime" in f" {normalized}"
+        try:
+            tokens = shlex.split(value, posix=False)
+        except ValueError:
+            return False
+        normalized = [token.strip('"').casefold() for token in tokens]
+        return any(
+            token == "-m"
+            and index + 1 < len(normalized)
+            and normalized[index + 1] == "aia.codex_hook_runtime"
+            for index, token in enumerate(normalized)
+        )
 
     def _is_aia_runtime_handler(self, handler: object) -> bool:
         return (
