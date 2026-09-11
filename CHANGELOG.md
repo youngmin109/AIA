@@ -13,6 +13,7 @@
 - Recovery와 SHA-256 Integrity Verification을 분리한 Result Bundle
 - CLI, 로컬 보안 콘솔, `doctor`, `self-test`, `hook verify`, `proof` 명령
 - wheel·source distribution·ZIP 릴리스 번들과 SHA-256 manifest
+- 릴리스 설치 전 wheel SHA-256 검증과 변조 패키지 거부
 - 결정론적 제품 전후 평가와 오프라인 HTML 대시보드
 
 ### 검증된 범위

@@ -58,6 +58,69 @@ if (-not (Test-Path -LiteralPath $PackagePath -PathType Leaf)) {
     throw "AIA wheel was not found: $PackagePath"
 }
 
+function Verify-ReleasePackageHash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$WheelPath,
+        [Parameter(Mandatory = $true)]
+        [string]$BundleRoot
+    )
+
+    $sumsPath = Join-Path $BundleRoot "SHA256SUMS.txt"
+    if (-not (Test-Path -LiteralPath $sumsPath -PathType Leaf)) {
+        Write-Warning "SHA256SUMS.txt was not provided; package hash verification was skipped for this external wheel."
+        return
+    }
+
+    $resolvedWheel = (Resolve-Path -LiteralPath $WheelPath -ErrorAction Stop).Path
+    $resolvedRoot = (Resolve-Path -LiteralPath $BundleRoot -ErrorAction Stop).Path
+    $rootPrefix = $resolvedRoot.TrimEnd("\") + "\"
+    if (-not $resolvedWheel.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "Wheel is outside the release bundle; package hash verification was skipped."
+        return
+    }
+    $relative = $resolvedWheel.Substring($rootPrefix.Length).Replace("\", "/")
+    if (-not $relative.StartsWith("packages/", [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "Wheel is outside the release packages directory; package hash verification was skipped."
+        return
+    }
+
+    $expected = $null
+    foreach ($line in Get-Content -LiteralPath $sumsPath) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+        $parts = $line.Trim() -split "\s+", 2
+        if ($parts.Count -eq 2 -and $parts[1].Trim() -eq $relative) {
+            $expected = $parts[0].Trim().ToLowerInvariant()
+            break
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($expected) -or $expected -notmatch "^[0-9a-f]{64}$") {
+        throw "SHA256SUMS.txt does not contain a valid hash for $relative"
+    }
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($resolvedWheel)
+        try {
+            $actual = ([BitConverter]::ToString($sha256.ComputeHash($stream)) -replace "-", "").ToLowerInvariant()
+        }
+        finally {
+            $stream.Dispose()
+        }
+    }
+    finally {
+        $sha256.Dispose()
+    }
+    if ($actual -ne $expected) {
+        throw "SHA-256 mismatch for $relative. The release wheel may be corrupted or modified."
+    }
+    Write-Host "[AIA] Release wheel SHA-256: PASS"
+}
+
+Verify-ReleasePackageHash -WheelPath $PackagePath -BundleRoot $scriptRoot
+
 Write-Host "[AIA] Installing the wheel as a user-level command..."
 & uv tool install --force $PackagePath
 if ($LASTEXITCODE -ne 0) {

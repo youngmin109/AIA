@@ -36,6 +36,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 
 `SHA256SUMS.txt`는 패키지 파일의 SHA-256을 기록한다. 공개하기 전에 패키지와
 문서에 사용자 Workspace 경로, 인증 정보, Secret이 포함되지 않았는지 확인한다.
+릴리스 폴더의 `install.ps1`은 wheel을 설치하기 전에 이 manifest와 wheel의
+SHA-256을 비교한다. manifest가 없는 외부 wheel을 `-PackagePath`로 지정하면
+설치기는 해시를 자동으로 주장하지 않고 경고를 표시한다.
 
 공개하기 전에는 release bundle 자체도 검증한다. 이 명령은 wheel·source archive의
 개수, release manifest의 패키지 목록, `SHA256SUMS.txt`와 실제 파일의 일치를

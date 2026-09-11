@@ -104,6 +104,9 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
    powershell -ExecutionPolicy Bypass -File .\install.ps1
 
+   The installer checks the wheel SHA-256 against SHA256SUMS.txt before it
+   invokes uv. Do not continue if the installer reports a hash mismatch.
+
 2. Confirm the command is available:
 
    aia --version
