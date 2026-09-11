@@ -49,6 +49,13 @@ uv run python scripts/actual_codex_pretool_smoke.py
 uv run python scripts/actual_codex_pretool_smoke.py --scenario apply-patch
 ```
 
+현재 0.1.13 코드에서 개발용 disposable smoke를 다시 실행한 결과는
+[현재 증명 요약](validation/evidence/actual-codex-pretool-20260911-0.1.13.json)에
+보존했다. Bash Canary, `apply_patch`, `.env` 읽기, 등록된 filesystem MCP 읽기에서
+모두 실제 Payload 수신, `deny`, 부작용 없음, `BLOCKED / SUCCEEDED`, `Bundle VALID`를
+확인했다. 이 smoke는 사용자 전역 Hook을 바꾸지 않고 일회성 Hook Trust 우회를
+사용하므로 일반 사용자 실행의 Trust 절차를 대신하지 않는다.
+
 이 시나리오는 patch 원문에 포함된 파일명을 명령 Rule로 평가하고, 실제 파일이
 생성되지 않은 경우에만 `BLOCKED / SUCCEEDED`로 확정한다.
 

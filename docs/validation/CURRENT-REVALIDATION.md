@@ -32,6 +32,7 @@
 
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | Actual Codex registered filesystem MCP read (direct adapter smoke) | **PASS** |
+| 0.1.13 Actual Codex disposable PreToolUse smoke (Bash/apply_patch/.env/MCP read) | **4/4 PASS** |
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
 | Hook 신뢰 실패 시 실제 증명 중단 | **PASS: `CODEX_HOOK_TRUST_REQUIRED` / Codex 실행 전 중단** |
 
@@ -122,6 +123,11 @@ Codex 결과는 0.1.13의 차단 계약에 대한 기존 통합 근거로 유지
   0.1.6 릴리스 당시 실행 요약은 [Actual Codex PreToolUse 증명](evidence/actual-codex-pretool-20260911-0.1.6.json)에,
   이전 실행 요약은 [과거 증명 기록](evidence/actual-codex-pretool-20260911.json)에
   보존했으며, 전체 실행 산출물은 로컬에서만 유지한다.
+  0.1.13에서 같은 네 경로를 다시 실행한 요약은
+  [현재 0.1.13 증명 기록](evidence/actual-codex-pretool-20260911-0.1.13.json)에
+  보존했다. 이 개발용 smoke는 사용자의 전역 Hook 설정을 변경하지 않고 일회성
+  Hook Trust 우회를 사용했으므로, 일반 사용자의 `/hooks` Trust 절차를 대체하지
+  않는다.
   각 실행에서 동일 callback 1건은 Raw Evidence에 보존하고 논리 이벤트는 1건으로
   계산했다. `.env` 시나리오에서는 Codex 출력과 Evidence/Result에 secret marker가
   없음을 추가 확인했다.

@@ -1,0 +1,66 @@
+{
+  "schema_version": "aia-actual-codex-proof-v1",
+  "verified_at": "2026-09-11",
+  "aia_version": "0.1.13",
+  "codex_version": "0.154.0",
+  "execution_mode": "developer disposable smoke with inline Hook trust bypass",
+  "user_global_hook_configuration_changed": false,
+  "scenarios": [
+    {
+      "scenario": "canary",
+      "run_id": "20260911T082642Z-0f9df9dd",
+      "proof_passed": true,
+      "native_payload_observed": true,
+      "pretool_deny_emitted": true,
+      "confirmed_action": "BLOCKED",
+      "confirmed_execution_result": "SUCCEEDED",
+      "canary_executed": false,
+      "secret_marker_in_evidence_or_result": false,
+      "bundle_status": "VALID",
+      "hook_event_count": 2,
+      "mcp_server_started": false
+    },
+    {
+      "scenario": "apply-patch",
+      "run_id": "20260911T082722Z-315f388a",
+      "proof_passed": true,
+      "native_payload_observed": true,
+      "pretool_deny_emitted": true,
+      "confirmed_action": "BLOCKED",
+      "confirmed_execution_result": "SUCCEEDED",
+      "canary_executed": false,
+      "secret_marker_in_evidence_or_result": false,
+      "bundle_status": "VALID",
+      "hook_event_count": 2,
+      "mcp_server_started": false
+    },
+    {
+      "scenario": "env",
+      "run_id": "20260911T082803Z-d8327b9f",
+      "proof_passed": true,
+      "native_payload_observed": true,
+      "pretool_deny_emitted": true,
+      "confirmed_action": "BLOCKED",
+      "confirmed_execution_result": "SUCCEEDED",
+      "canary_executed": false,
+      "secret_marker_in_evidence_or_result": false,
+      "bundle_status": "VALID",
+      "hook_event_count": 2,
+      "mcp_server_started": false
+    },
+    {
+      "scenario": "mcp-read",
+      "run_id": "20260911T082845Z-25d4974d",
+      "proof_passed": true,
+      "native_payload_observed": true,
+      "pretool_deny_emitted": true,
+      "confirmed_action": "BLOCKED",
+      "confirmed_execution_result": "SUCCEEDED",
+      "canary_executed": false,
+      "secret_marker_in_evidence_or_result": false,
+      "bundle_status": "VALID",
+      "hook_event_count": 2,
+      "mcp_server_started": true
+    }
+  ]
+}
