@@ -10,6 +10,7 @@
 - `COMPLIANT / VIOLATION` 정책 판정과 `ALLOW / AUDIT / DENY` 정책 효과를 분리
 - Result Bundle에 행위별 `operation_effect`를 보존해 결과 화면과 JSON의 의미를 일치
 - Recovery와 Integrity 상태를 CLI와 로컬 콘솔에서 독립적으로 표시
+- 릴리스 manifest·SHA-256·clean wheel 검증을 거치는 명시적 수동 롤백 경로 제공
 
 ## [0.1.5] - 2026-09-11
 
