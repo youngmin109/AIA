@@ -173,6 +173,10 @@ def test_normal_exit_completes_and_commits_bundle(tmp_path: Path):
     assert verify_evidence_bundle(result.bundle.result_directory).is_valid
     assert result.result.schema_version == "aia-result-1"
     assert "user_abort_termination_result" not in result.result.to_mapping()
+    assert result.result.action_outcomes[0].operation_effect == "ALLOW"
+    assert result.result.to_mapping()["action_outcomes"][0]["operation_effect"] == "ALLOW"
+    restored = type(result.result).from_mapping(result.result.to_mapping())
+    assert restored.action_outcomes[0].operation_effect == "ALLOW"
 
 
 def test_security_containment_is_aborted_even_after_successful_recovery_axis(tmp_path: Path):

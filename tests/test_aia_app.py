@@ -421,7 +421,8 @@ def test_result_presenter_aggregates_all_action_outcomes() -> None:
                     "execution_result": "SUCCEEDED",
                 },
                 {
-                    "policy_decision": "AUDIT",
+                    "policy_decision": "COMPLIANT",
+                    "operation_effect": "AUDIT",
                     "enforcement_decision": "CONTINUE",
                     "enforcement_action": "NONE",
                     "execution_result": "NOT_ATTEMPTED",
@@ -438,7 +439,7 @@ def test_result_presenter_aggregates_all_action_outcomes() -> None:
 
     assert summary == {
         "total": 4,
-        "compliant": 1,
+        "compliant": 2,
         "audit": 1,
         "violation": 1,
         "indeterminate": 1,

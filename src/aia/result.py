@@ -116,6 +116,7 @@ class ActionOutcomeRecord:
     related_termination_id: str | None = None
     related_recovery_id: str | None = None
     limitations: tuple[str, ...] = ()
+    operation_effect: str | None = None
 
     def __post_init__(self) -> None:
         if not self.action_id.strip():
@@ -141,6 +142,7 @@ class ActionOutcomeRecord:
             "matched_rule_ids": list(self.matched_rule_ids),
             "operation": self.operation,
             "observation_stage": self.observation_stage,
+            "operation_effect": self.operation_effect,
             "policy_decision": self.policy_decision,
             "related_recovery_id": self.related_recovery_id,
             "related_termination_id": self.related_termination_id,
@@ -274,6 +276,7 @@ class SessionResult:
                 observation_stage=item.get("observation_stage", "POST_ACTION"),
                 evidence_ids=tuple(item.get("evidence_ids", ())),
                 policy_decision=item.get("policy_decision"),
+                operation_effect=item.get("operation_effect"),
                 matched_rule_ids=tuple(item.get("matched_rule_ids", ())),
                 matched_asset_types=tuple(item.get("matched_asset_types", ())),
                 attribution_grade=item.get("attribution_grade"),

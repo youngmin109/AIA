@@ -250,6 +250,11 @@ def _runtime_action_view(
         "execution_result": gate_result.execution_result.value,
         "operation": action.operation.value,
         "policy_decision": policy_result.policy_decision.value,
+        "operation_effect": (
+            getattr(policy_result.operation_effect, "value", policy_result.operation_effect)
+            if getattr(policy_result, "operation_effect", None) is not None
+            else None
+        ),
         "enforcement_route": gate_result.route.value,
         "evidence_ids": list(action.evidence_ids),
         "matched_rule_ids": list(
