@@ -172,6 +172,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." in new_run.text
     assert "현재 보호 범위" in new_run.text
     assert "mcp__filesystem__read_file" in new_run.text
+    assert "aliases=Edit, Write" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/capabilities").json()["schema_version"] == "aia-capabilities-v1"
     assert client.get("/api/workspaces/validate", params={"path": "C:/workspace"}).json()["valid"] is True
