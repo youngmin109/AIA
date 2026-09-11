@@ -28,8 +28,10 @@
     </div>
     {% endfor %}
   </div>
-  <div class="notice warning preflight-trust">{{ preflight.hook_trust.detail }}</div>
-  <div id="codex-hook-trust" class="notice warning">
+  {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
+  {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
+  <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust">{{ preflight.hook_trust.detail }}</div>
+  <div id="codex-hook-trust" class="notice {{ 'success' if preflight_trust_ok else 'warning' }}">
     <strong>Codex 실제 Hook Trust:</strong>
     {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
     {% if trust_hooks %}
@@ -53,9 +55,9 @@
     <span id="readiness-next-step">{{ preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
   </div>
   <div class="next-steps">
-    <strong>처음 사용하는 경우</strong>
+    <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
     <ol>
-      <li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>
+      {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
       <li>PowerShell에서 <span class="mono">uv run aia hook verify</span>를 실행합니다.</li>
       <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
     </ol>
