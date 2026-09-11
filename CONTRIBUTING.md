@@ -18,14 +18,20 @@ uv run pytest
 ```
 
 GitHub Actions는 동일한 Windows 기반 잠금 환경에서 이 회귀 테스트와 wheel·source
-distribution 빌드를 자동으로 다시 실행한다. 로컬에서는 배포 후보까지 확인하려면
-다음 명령을 추가로 실행한다.
+distribution 빌드를 자동으로 다시 실행한다. 로컬에서는 다음 Release Gate 하나로
+배포 후보를 확인한다.
 
 ```powershell
-uv lock --check
-uv build
-powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
-powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePath .\dist\release\aia-0.1.16
+powershell -ExecutionPolicy Bypass -File .\scripts\release-gate.ps1
+```
+
+Release Gate는 잠금 환경 동기화, 전체 pytest, 안전한 `aia demo`, 릴리스 패키지
+생성, SHA-256·clean wheel·로컬 콘솔 asset 검증을 같은 순서로 실행한다. 이미 만든
+Bundle만 다시 검사하려면 다음처럼 사용할 수 있다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release-gate.ps1 `
+  -SkipTests -SkipPackage -BundlePath .\dist\release\aia-0.1.16
 ```
 
 Codex Hook 또는 Process Manager 변경은 disposable Workspace에서 실제 증명을

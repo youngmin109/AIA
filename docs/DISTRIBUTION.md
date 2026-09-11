@@ -40,7 +40,17 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 SHA-256을 비교한다. manifest가 없는 외부 wheel을 `-PackagePath`로 지정하면
 설치기는 해시를 자동으로 주장하지 않고 경고를 표시한다.
 
-공개하기 전에는 release bundle 자체도 검증한다. 이 명령은 wheel·source archive의
+공개하기 전에는 다음 Release Gate로 제품 전체를 검증한다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release-gate.ps1
+```
+
+Release Gate는 잠금 환경 동기화, 전체 pytest, 안전한 `aia demo`, 패키지 생성과
+release bundle 자체 검증을 순서대로 실행한다. bundle만 다시 검증할 때는
+`-SkipTests -SkipPackage -BundlePath <bundle-path>`를 사용할 수 있다.
+
+개별 검증 스크립트인 `verify-release.ps1`은 wheel·source archive의
 개수, release manifest의 패키지 목록, `SHA256SUMS.txt`와 실제 파일의 일치를
 확인하고, 임시 Python 3.13 가상환경에 wheel을 실제 설치해 console entry point와
 Core self-test까지 실행한다.
