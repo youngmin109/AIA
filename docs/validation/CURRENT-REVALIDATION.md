@@ -80,10 +80,11 @@
   `USER_ABORT` 세션과 `Bundle VALID`, `user_abort_termination_result=SUCCEEDED`를
   확인했다. 이는 사용자 중지 증명이며 정책 위반 자동 종료 증명과는 별도다.
 - PreToolUse deny가 무시된 상황을 fault injection으로 재현하는 보상 경로도 실제
-  Codex에 연결해 확인했다. AIA의 실제 deny 기록과 Canary 실행은 확인됐지만 현재
-  Codex 0.154.0 Windows 실행에서 PostToolUse Event가 0건이어서
-  `SCENARIO_NOT_REALIZED`로 보존했다. 따라서 이 결과는 Process 자동 종료 PASS가
-  아니며, 결과는 [공개 제한사항 요약](evidence/actual-codex-post-action-20260911.json)에
+  Codex에 연결해 재검증했다. 전역 Codex 설정을 격리한 실행에서
+  `PreToolUse=2`, `PostToolUse=2`, `POST_ACTION` 보상적 Process 종료,
+  `RESTORED`, `VERIFIED`, `Bundle VALID`를 확인했다. 초기 전역 설정 혼합 실행의
+  `PostToolUse=0` 결과는 과거 제한사항으로 유지하며, 최신 결과는
+  [재검증 요약](evidence/actual-codex-post-action-20260911-revalidated.json)에
   보존했다. 전체 원본 출력은 공개 저장소에 포함하지 않는다.
 - 결정론적 `fixture-20260911-001` 평가에서는 위험 행위 부작용률이 AIA OFF
   120/120에서 AIA ON 0/120으로, 정상 작업 성공률은 양쪽 모두 180/180으로

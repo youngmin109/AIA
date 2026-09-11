@@ -65,20 +65,23 @@ AIA에 도착하면 `POST_ACTION → PROCESS_TERMINATION`과 `RESTORED + VERIFIE
 확인한다. fault injection wrapper와 `--dangerously-bypass-hook-trust`는 정상
 제품 사용 경로가 아니다.
 
-현재 Codex 0.154.0 Windows 실행에서는 이 증명에 PostToolUse Event가 도착하지
-않아 `SCENARIO_NOT_REALIZED`로 남겼다. AIA는 이 경우 Process 종료나 복구 성공을
-주장하지 않는다. 최신 실행 결과는 공개 요약 파일
-[`actual-codex-post-action-20260911.json`](validation/evidence/actual-codex-post-action-20260911.json)과
-로컬 전체 산출물에 보존했다. 실제 PreToolUse deny와 명령 실행은 확인됐지만
-PostToolUse가 0건이었다. 이 결과는
-정책 위반 Process 자동 집행의 PASS가 아니라 Codex PostToolUse 경로의 제한사항이다.
+초기 실행에서는 전역 Codex 설정과 일회성 inline Hook이 함께 읽혀
+`PostToolUse=0`이 되는 결과가 있었다. 이 기록은 당시 관찰된 제한사항으로
+[`actual-codex-post-action-20260911.json`](validation/evidence/actual-codex-post-action-20260911.json)에
+보존한다. 현재 개발자 검증 스모크는 `--ignore-user-config`로 전역 설정을 격리하고,
+실행별 inline Hook 하나만 사용한다. 2026-09-11 재검증에서는 실제 Codex의
+`PreToolUse=2`, `PostToolUse=2`가 AIA에 도착했고, `POST_ACTION` 보상적
+Process 종료, `RESTORED`, `VERIFIED`, `Bundle VALID`를 모두 확인했다.
+최신 요약은
+[`actual-codex-post-action-20260911-revalidated.json`](validation/evidence/actual-codex-post-action-20260911-revalidated.json)이다.
 
-이 제한이 AIA matcher 누락 때문인지 확인하기 위해 개발자용 lifecycle smoke는
+설정 혼합 여부와 Codex Hook lifecycle을 구분하기 위해 개발자용 lifecycle smoke는
 `--hook-mode aia-matcher`, `--hook-mode wildcard`, `--hook-mode post-only`를
-지원한다. 2026-09-11의 Codex 0.154.0 Windows 결과는 AIA matcher와 wildcard
-모두 `PreToolUse=1, PostToolUse=0`이었고, PostToolUse만 설정한 구성은
-`PostToolUse=0`이었다. 따라서 현재 제품은 PostToolUse를 보호 성공의 필수 조건이나
-사후 자동 집행의 근거로 사용하지 않는다. 이 결과는 다음처럼 다시 확인할 수 있다.
+지원한다. 이 smoke는 전역 설정을 포함한 Hook 구성 진단용이며, 전역 설정이 섞인
+실행에서 `PostToolUse=0`이 나올 수 있다. 실제 AIA 보상 경로의 최신 검증은
+전역 설정을 격리한 `actual_codex_post_action_smoke.py`의 결과를 기준으로 한다.
+PostToolUse가 실제로 도착하지 않는 실행에서는 여전히 사후 자동 집행을 주장하지
+않는다. 이 결과는 다음처럼 다시 확인할 수 있다.
 
 ```powershell
 uv run python scripts/actual_codex_hook_lifecycle_smoke.py --hook-mode aia-matcher
@@ -93,10 +96,9 @@ uv run python scripts/actual_codex_hook_lifecycle_smoke.py
 ```
 
 이 도구는 AIA Gate를 호출하지 않고, 임시 inline Hook이 실제 Codex에서 받은
-이벤트 이름과 도구 이름만 보존한다. 현재 Windows 결과는
-`PreToolUse=1`, `PostToolUse=0`이며, stdout/stderr 원문은 저장하지 않고 크기와
-SHA-256만 남긴다. `PostToolUse=0`은 AIA가 사후 집행을 성공했다고 주장할 수
-없는 외부 인터페이스 제한으로 기록된다.
+이벤트 이름과 도구 이름만 보존한다. stdout/stderr 원문은 저장하지 않고 크기와
+SHA-256만 남긴다. 이 도구의 `PostToolUse=0`은 AIA가 사후 집행을 성공했다고
+주장할 수 없는 외부 인터페이스 제한으로 기록한다.
 
 `.env`를 shell 명령으로 읽는 경로도 별도 실행할 수 있다.
 

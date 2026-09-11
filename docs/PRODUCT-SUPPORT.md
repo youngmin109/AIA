@@ -224,9 +224,11 @@ Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 
 - Process Sensor 관찰만으로 자동 종료하는 것. Process termination은 검증된
   Gate와 AIA가 등록한 Agent Root가 함께 확인된 경우에만 시도한다.
 - Network와 Database 상태 보안
-- 정책 위반에 따른 Actual Codex destructive Process Tree 자동 집행이 성공했다는
-  주장. 사용자 중지에 따른 실제 트리 종료 증명과 정책 위반 자동 집행은 서로 다른
-  계약이다.
+- 정상 제품 경로에서 모든 정책 위반에 대한 Actual Codex destructive Process Tree
+  자동 집행이 보편적으로 보장된다는 주장. 개발자 fault-injection 환경에서는
+  `PostToolUse → POST_ACTION → TERMINATED → RESTORED + VERIFIED`까지 확인했지만,
+  정상 제품 경로의 기본 관문은 여전히 `PreToolUse deny`이며 Hook이 도착하지 않는
+  실행은 보상적 집행 성공으로 주장하지 않는다.
 - 등록되지 않은 MCP 도구와 지원 범위 밖 MCP 서버의 보편적 보호
 - 대규모 Workspace에 대한 성능 SLA
 - 실행 환경이 제품이 요청한 Sandbox보다 약한 경우의 완전한 보호 보장. 이 경우

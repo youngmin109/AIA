@@ -407,6 +407,14 @@ def main(argv: list[str] | None = None) -> int:
             and termination.action is EnforcementAction.TERMINATED
             and termination.execution_result.value == "SUCCEEDED"
         )
+        if termination is not None:
+            result["post_action_execution"] = {
+                "action": termination.action.value,
+                "execution_result": termination.execution_result.value,
+                "outcome": termination.outcome.value,
+                "termination_attempt_count": termination.termination_attempt_count,
+                "termination_id": termination.termination_id,
+            }
 
         recovery = None
         if termination is not None:

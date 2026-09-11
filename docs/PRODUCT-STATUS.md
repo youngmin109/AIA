@@ -127,10 +127,11 @@ Codex 도구를 실행하지 않는다. 결과 artifact에는 Hook 검증 결과
   Hook 차단까지의 Protected Launcher E2E를 `mcp-read` Canary로 검증했다. 등록되지
   않은 MCP 도구와 전체 Codex 도구 범위는 지원하지 않는다.
 - 대화형 세션과 Codex 버전·출력 형식별 실행 결과 확인을 더 넓게 검증해야 한다.
-- 정책 위반에 따른 Actual Codex destructive Process Tree 자동 집행은 아직 제품
-  지원 주장으로 완료하지 않았다. 실제 Codex 사용자 중지 트리 종료는 검증했으며,
-  검증된 PreTool deny 이후 실제 PostToolUse가 들어오는 우회 상황에 대한 별도
-  POST_ACTION Gate와 보상적 Process Manager 경로의 Actual Codex 성공 증명은 남아 있다.
+- 정책 위반에 따른 Actual Codex destructive Process Tree 보상 집행은 개발자
+  fault-injection 환경에서 실제 `PostToolUse → POST_ACTION → TERMINATED →
+  RESTORED + VERIFIED`까지 검증했다. 정상 제품 경로의 기본 관문은 여전히
+  `PreToolUse deny`이며, Hook이 도착하지 않는 실행은 보상 집행 성공으로
+  주장하지 않는다.
 - Hook 신뢰 검토는 Codex 화면에서 사용자가 직접 수행해야 하며 AIA가 자동 증명하지
   못한다.
 - 소스 체크아웃용 Windows 설치 스크립트와 릴리스 ZIP의 wheel 설치기를 제공하며,
@@ -144,7 +145,8 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 ## 다음 제품화 우선순위
 
-1. 정책 위반에 따른 Actual Codex Process Tree 자동 집행과 Recovery/Integrity 연계를 검증한다.
+1. 정상 제품 경로에서 Hook Trust를 통과한 Actual Codex 사전 차단과 보상 집행을
+   한 번의 사용자 시나리오로 연결한다.
 2. 소스 설치를 넘어 서명된 배포 설치 파일과 업데이트·롤백 경로를 제공한다.
 3. 대화형 세션과 간헐적인 Process Sensor 실패를 안정화한다.
 4. 성능 평가 결과와 제한사항을 제품 화면에서 함께 보여준다.
