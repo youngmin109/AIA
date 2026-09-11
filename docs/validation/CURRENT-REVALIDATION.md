@@ -38,6 +38,13 @@
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
 | Hook 신뢰 실패 시 실제 증명 중단 | **PASS: `CODEX_HOOK_TRUST_REQUIRED` / Codex 실행 전 중단** |
 
+현재 0.1.28 제품 CLI 경로의 세 센서와 실제 Codex 결과는
+[actual-codex-sensors-20260911-0.1.28.json](evidence/actual-codex-sensors-20260911-0.1.28.json)에
+보존했다. 정상 작업과 `.env` 차단 모두 `AGENT_HOOK`, `FILESYSTEM_WATCHER`,
+`PROCESS_RUNTIME`가 실행 중 `HEALTHY`, 종료 후 `STOPPED`였고, 차단 시나리오는
+`VIOLATION → CONTAIN → PRETOOL_BLOCK → BLOCKED / SUCCEEDED`와 `Bundle VALID`를
+확인했다.
+
 ## 0.1.9 Actual Codex 재검증 근거
 
 0.1.9 코드에서 disposable Workspace와 개발자용 일회성 Hook Trust 우회를
