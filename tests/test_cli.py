@@ -258,6 +258,51 @@ def test_hook_status_human_output_explains_trust_and_verification_steps(
     assert "aia hook verify" in output
 
 
+def test_hook_status_does_not_report_ready_when_current_fingerprint_is_untrusted(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.HookVerificationStore.is_current",
+        lambda _store, _installer, _executable: True,
+    )
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "hooks": [{"event": "preToolUse", "trust_status": "MODIFIED"}],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["verification_status"] == "CURRENT_BUT_UNTRUSTED"
+    assert payload["ready"] is False
+
+
 def test_recent_run_diagnostic_explains_downgraded_codex_execution(
     tmp_path, monkeypatch
 ) -> None:

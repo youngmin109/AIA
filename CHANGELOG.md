@@ -15,6 +15,7 @@
 - wheel·source distribution·ZIP 릴리스 번들과 SHA-256 manifest
 - 릴리스 설치 전 wheel SHA-256 검증과 변조 패키지 거부
 - AIA 버전 업데이트 때 이전 Python 경로의 AIA Hook을 중복 없이 안전하게 교체
+- Hook 지문이 남아 있어도 현재 Codex Trust가 해제되면 `aia hook status`가 READY로 표시하지 않음
 - 결정론적 제품 전후 평가와 오프라인 HTML 대시보드
 
 ### 검증된 범위

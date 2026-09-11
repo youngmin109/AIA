@@ -48,6 +48,10 @@ Codex `/hooks`에서 AIA PreToolUse Hook을 검토·신뢰해야 한다.
 `aia hook verify`를 실행해야 한다는 뜻이다. `READY`가 아닌 상태는 보호 실행을
 시작할 수 있는 상태로 해석하지 않는다.
 
+`aia hook status`에서 `CURRENT_BUT_UNTRUSTED`가 나오면 과거 검증 지문은 남아
+있지만 현재 Codex가 Hook을 신뢰하지 않는 상태다. Codex `/hooks`에서 다시 검토·신뢰한
+뒤 `uv run aia hook verify`를 실행한다.
+
 ## 정책을 먼저 확인하는 방법
 
 웹 콘솔을 열면 `정책 미리보기`에서 파일 경로 또는 명령을 넣어 정책 결과를

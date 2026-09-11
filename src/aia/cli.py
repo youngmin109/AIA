@@ -889,17 +889,11 @@ def _hook_status(args: argparse.Namespace) -> int:
     except Exception:
         pass
     verification_store = HookVerificationStore(_control_root(args.control_root))
-    verification_current = bool(
+    fingerprint_current = bool(
         installer.is_installed()
         and executable is not None
         and verification_store.is_current(installer, executable)
     )
-    if verification_current:
-        activation_status = "CURRENTLY_VERIFIED"
-    elif last_verified:
-        activation_status = "OBSERVED_IN_PAST"
-    else:
-        activation_status = "NOT_OBSERVED"
     codex_trust = (
         inspect_codex_hook_trust(
             executable,
@@ -909,11 +903,37 @@ def _hook_status(args: argparse.Namespace) -> int:
         if executable is not None
         else {"available": False, "reason": "CODEX_EXECUTABLE_UNAVAILABLE", "hooks": []}
     )
+    trust_entries = codex_trust.get("hooks") or []
+    pretool_trust_status = next(
+        (
+            item.get("trust_status")
+            for item in trust_entries
+            if isinstance(item, dict) and item.get("event") == "preToolUse"
+        ),
+        None,
+    )
+    trust_current = bool(
+        codex_trust.get("available")
+        and pretool_trust_status in {"TRUSTED", "MANAGED"}
+    )
+    verification_current = fingerprint_current and trust_current
+    if verification_current:
+        activation_status = "CURRENTLY_VERIFIED"
+    elif last_verified:
+        activation_status = "OBSERVED_IN_PAST"
+    else:
+        activation_status = "NOT_OBSERVED"
+    if not fingerprint_current:
+        verification_status = "MISSING_OR_STALE"
+    elif not trust_current:
+        verification_status = "CURRENT_BUT_UNTRUSTED"
+    else:
+        verification_status = "CURRENT"
     payload = {
         "hook_path": str(installer.path),
         "pretool_installed": installer.is_installed(),
         "posttool_installed": installer.is_posttool_installed(),
-        "verification_status": "CURRENT" if verification_current else "MISSING_OR_STALE",
+        "verification_status": verification_status,
         "verification_path": str(verification_store.path),
         "ready": verification_current,
         "trust_status": "MANUAL_REVIEW_REQUIRED",
@@ -940,7 +960,6 @@ def _hook_status(args: argparse.Namespace) -> int:
         print(f"PostToolUse 설치: {'YES' if payload['posttool_installed'] else 'NO'}")
         print("Codex 신뢰: MANUAL_REVIEW_REQUIRED (/hooks에서 검토·신뢰 필요)")
         print(f"Hook 관찰 상태: {payload['activation_status']}")
-        trust_entries = codex_trust.get("hooks") or []
         if codex_trust.get("available"):
             trust_summary = ", ".join(
                 f"{item.get('event')}={item.get('trust_status')}"
@@ -951,6 +970,8 @@ def _hook_status(args: argparse.Namespace) -> int:
         else:
             print(f"Codex 실제 Trust: 확인 불가 ({codex_trust.get('reason')})")
         print(f"현재 검증 증명: {payload['verification_status']}")
+        if payload["verification_status"] == "CURRENT_BUT_UNTRUSTED":
+            print("주의: 이전 검증 지문은 현재 Codex Trust를 통과하지 못했습니다.")
         if last_verified:
             print(f"최근 검증 실행: {last_verified.get('session_id')}")
             print(f"Hook Events: {last_verified.get('hook_event_count', 0)}")

@@ -76,6 +76,9 @@ Codex 설정 파일, AIA Hook 런타임 코드 지문이 모두 일치하는 실
 남아 있다는 뜻이다.
 `MISSING_OR_STALE`이면
 `uv run aia hook verify`를 다시 실행해야 한다.
+`CURRENT_BUT_UNTRUSTED`이면 이전 Probe 지문은 남아 있지만 현재 Codex가 보고한
+PreToolUse Trust가 `TRUSTED` 또는 `MANAGED`가 아니므로 보호 실행을 시작할 수 없다.
+Codex `/hooks`에서 다시 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해야 한다.
 
 검증 명령은 먼저 Codex PreToolUse Trust를 확인한다. `MODIFIED`, `UNTRUSTED` 또는
 `NOT_VISIBLE`이면 임시 Probe를 실행하지 않고 즉시 종료하며, AIA Hook을 자동으로
