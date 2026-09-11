@@ -96,19 +96,23 @@ try {
     }
 
     $verifyPython = Join-Path $verifyVenv "Scripts\python.exe"
-    $verifyAia = Join-Path $verifyVenv "Scripts\aia.exe"
     & uv pip install --python $verifyPython $wheel.FullName
     if ($LASTEXITCODE -ne 0) {
         throw "clean wheel installation failed with exit code $LASTEXITCODE"
     }
 
-    $versionOutput = (& $verifyAia --version | Out-String).Trim()
+    # Run the installed module through the clean interpreter. Some Windows
+    # application-control policies reject freshly generated console wrappers
+    # even when the package itself is allowed to run; the module path tests the
+    # same installed wheel without turning that host policy into a package
+    # failure.
+    $versionOutput = (& $verifyPython -m aia.cli --version | Out-String).Trim()
     $expectedVersionOutput = "AIA $([string]$manifest.version)"
     if ($LASTEXITCODE -ne 0 -or $versionOutput -ne $expectedVersionOutput) {
-        throw "installed wheel console entry point failed: $versionOutput"
+        throw "installed wheel CLI failed: $versionOutput"
     }
 
-    $selfTestJson = (& $verifyAia self-test --json | Out-String)
+    $selfTestJson = (& $verifyPython -m aia.cli self-test --json | Out-String)
     if ($LASTEXITCODE -ne 0) {
         throw "installed wheel self-test failed with exit code $LASTEXITCODE"
     }

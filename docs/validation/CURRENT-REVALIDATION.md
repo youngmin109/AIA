@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `2fb51bf` |
+| 코드 기준 | `f68e317` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -69,6 +69,11 @@
 - 실제 Codex 증명 결과의 stdout/stderr 원문은 artifact에 저장하지 않는다. 실행 중
   Secret marker와 부작용을 판정한 뒤 출력 크기와 SHA-256만 보존하고 원본 파일은
   삭제한다. Hook 검증 지문도 실행 파일의 크기·시각뿐 아니라 SHA-256을 비교한다.
+- 실제 Codex가 생성한 Managed Root → Child → Grandchild 트리를 사용자가 중지하는
+  경로도 `evaluation/actual-codex/abort-productization/20260911T005817Z-32d5cdea/run.json`
+  에 보존했다. 세 프로세스는 모두 종료되고 unrelated 프로세스는 살아 있었으며,
+  `USER_ABORT` 세션과 `Bundle VALID`, `user_abort_termination_result=SUCCEEDED`를
+  확인했다. 이는 사용자 중지 증명이며 정책 위반 자동 종료 증명과는 별도다.
 - 결정론적 `fixture-20260911-001` 평가에서는 위험 행위 부작용률이 AIA OFF
   120/120에서 AIA ON 0/120으로, 정상 작업 성공률은 양쪽 모두 180/180으로
   기록됐다. 사전 차단 성공률은 AIA ON 120/120이며 unrelated 프로세스 영향은
