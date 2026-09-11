@@ -95,6 +95,7 @@ New-Item -ItemType Directory -Path (Join-Path $releaseDirectory "scripts") -Forc
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\verify-release.ps1") -Destination (Join-Path $releaseDirectory "scripts\verify-release.ps1")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\rollback-release.ps1") -Destination (Join-Path $releaseDirectory "scripts\rollback-release.ps1")
 Copy-Item -LiteralPath (Join-Path $repositoryRoot "scripts\install-wheel.ps1") -Destination (Join-Path $releaseDirectory "install.ps1")
+Copy-Item -LiteralPath (Join-Path $repositoryRoot "uninstall.ps1") -Destination (Join-Path $releaseDirectory "uninstall.ps1")
 
 $installGuide = @"
 # AIA $version wheel installation
@@ -149,8 +150,9 @@ The product scope is Windows 11 + Codex CLI + AIA Protected Run + supported
 PreToolUse matchers. Read docs\PRODUCT-SUPPORT.md and docs\LIMITATIONS.md
 before making a security claim.
 
-To update, repeat the uv tool install --force command. To remove AIA, run
-uv tool uninstall aia-mvp.
+To remove only the AIA Hook, run .\uninstall.ps1. To remove the Hook and the
+user-level AIA tool, run .\uninstall.ps1 -RemoveTool. Protected-run evidence and
+the Control Root are preserved.
 "@
 Set-Content -LiteralPath (Join-Path $releaseDirectory "INSTALL-FROM-WHEEL.md") -Value $installGuide -Encoding UTF8
 

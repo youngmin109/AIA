@@ -36,6 +36,13 @@ if (-not (Test-Path -LiteralPath $installGuidePath) -or
     (Get-Content -LiteralPath $installGuidePath -Raw) -notmatch "aia hook explain") {
     throw "Release installation guide is missing the Hook onboarding command"
 }
+if (-not (Test-Path -LiteralPath (Join-Path $bundle "uninstall.ps1") -PathType Leaf)) {
+    throw "Release bundle is missing uninstall.ps1"
+}
+$uninstallProbe = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $bundle "uninstall.ps1") -KeepHook | Out-String)
+if ($LASTEXITCODE -ne 0 -or $uninstallProbe -notmatch "preserved") {
+    throw "Release uninstall script probe failed"
+}
 if (@($packages | Where-Object { $_.Name -like "*.whl" }).Count -ne 1) {
     throw "Release bundle must contain exactly one wheel"
 }

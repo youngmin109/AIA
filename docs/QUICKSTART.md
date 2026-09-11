@@ -201,3 +201,14 @@ uv run aia demo --live
 
 `--live`는 disposable Workspace에서 실제 Codex를 한 번 실행한다. Hook Trust가
 확인되지 않으면 Codex 도구를 실행하지 않고 원인과 증거 경로만 남긴다.
+
+## 6. 제거
+
+AIA Hook만 제거하려면 릴리스 또는 저장소 폴더에서 다음을 실행한다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+
+사용자 수준 AIA 도구까지 제거하려면 `-RemoveTool`을 추가한다. 두 경우 모두
+Protected Run 결과와 AIA Control Root는 보존된다.

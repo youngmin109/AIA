@@ -57,7 +57,7 @@ Core self-test까지 실행한다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
-  -BundlePath .\dist\release\aia-0.1.17
+  -BundlePath .\dist\release\aia-0.1.18
 ```
 
 검증 결과에 `SHA-256: PASS`, `Clean wheel install: PASS`, `Local console assets: PASS`가
@@ -74,7 +74,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
 완료한다. 설치 후 터미널에서 `aia`를 직접 입력할 때는 새 PowerShell 창을 연다.
 
 ```powershell
-uv tool install --force .\packages\aia_mvp-0.1.17-py3-none-any.whl
+uv tool install --force .\packages\aia_mvp-0.1.18-py3-none-any.whl
 aia --version
 aia setup
 ```
@@ -122,7 +122,7 @@ aia proof --scenario block-env
 업데이트는 다음처럼 수행한다.
 
 ```powershell
-uv tool install --force .\packages\aia_mvp-0.1.17-py3-none-any.whl
+uv tool install --force .\packages\aia_mvp-0.1.18-py3-none-any.whl
 ```
 
 재설치 과정에서 AIA가 설치한 이전 Python 경로의 Hook이 남아 있으면 새 AIA
@@ -145,8 +145,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\rollback-release.ps1 `
 제거는 다음처럼 수행한다.
 
 ```powershell
-uv tool uninstall aia-mvp
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
+
+Hook와 사용자 수준 AIA 도구를 모두 제거하려면 `-RemoveTool`을 추가한다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -RemoveTool
+```
+
+두 명령 모두 Protected Run 결과와 AIA Control Root는 삭제하지 않는다.
 
 ## 아직 제공하지 않는 배포 기능
 

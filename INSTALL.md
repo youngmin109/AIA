@@ -138,10 +138,17 @@ uv run aia console --open
 
 ## Hook 제거
 
-AIA가 추가한 Hook만 제거하려면 다음을 실행한다. 다른 사용자의 Hook은 보존한다.
+AIA가 추가한 Hook만 제거하려면 저장소 또는 릴리스 폴더의 제거 스크립트를 실행한다.
+다른 사용자의 Hook, Protected Run 결과, AIA Control Root는 보존한다.
 
 ```powershell
-uv run aia hook uninstall
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+
+사용자 수준 AIA 도구까지 제거하려면 명시적으로 `-RemoveTool`을 추가한다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -RemoveTool
 ```
 
 이 명령은 보호 실행을 종료하거나 기존 Result Bundle을 삭제하지 않는다.
