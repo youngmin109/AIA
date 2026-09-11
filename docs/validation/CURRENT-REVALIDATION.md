@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `85175ca` |
+| 코드 기준 | `dde832c` |
 | 제품 버전 | `0.1.0` |
 | 운영체제 | Windows |
 | Python | 3.13 |
@@ -25,6 +25,7 @@
 | 릴리스 wheel·sdist 개수 검증 | **PASS** |
 | 릴리스 SHA-256 검증 | **PASS** |
 | clean wheel 설치·`aia self-test` | **PASS** |
+| clean wheel 로컬 콘솔 assets | **PASS** |
 | 설치된 wheel `aia self-test --json` | **PASS** |
 | Actual Codex Bash Canary (direct adapter smoke) | **PASS** |
 | 결정론적 제품 전후 평가 | **780 runs / 12 scenarios / 30 repetitions** |
