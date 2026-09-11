@@ -83,7 +83,10 @@ if ((ConvertTo-Json $manifestPackageNames -Compress) -ne (ConvertTo-Json $actual
 # verification alone cannot catch missing package data or a broken console
 # entry point after the source tree is no longer present.
 $wheel = @($packages | Where-Object { $_.Name -like "*.whl" })[0]
-$verifyTempRoot = Join-Path ([IO.Path]::GetTempPath()) ("aia-release-verify-" + [guid]::NewGuid().ToString("N"))
+# Some Windows application-control policies block executables created under
+# %TEMP%. Keep the disposable verification environment beside the already
+# selected release bundle, then remove it in the finally block.
+$verifyTempRoot = Join-Path $bundle (".verify-" + [guid]::NewGuid().ToString("N"))
 $verifyVenv = Join-Path $verifyTempRoot ".venv"
 try {
     New-Item -ItemType Directory -Path $verifyTempRoot -Force | Out-Null
