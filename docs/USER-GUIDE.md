@@ -78,6 +78,11 @@ Workspace 확인
 → Codex 실행
 ```
 
+터미널에 `Phase: READY`가 표시되면 준비가 끝났고 Codex를 시작하는 단계다. 잠시
+후 Codex 화면이 열리면 작업을 입력한다. 30초 이상 계속되면 같은 실행의 Session
+ID로 `uv run aia status <SESSION_ID>`를 실행해 상태를 확인하고, 필요하면
+`Ctrl+C`로 사용자 중지를 요청한다.
+
 Codex 화면이 열리면 그 안에서 작업을 입력한다.
 
 ```text

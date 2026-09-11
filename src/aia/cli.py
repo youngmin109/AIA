@@ -1530,12 +1530,34 @@ def _run_protected(args: argparse.Namespace) -> int:
         deadline = time.monotonic() + args.timeout
         last_phase: str | None = None
         interactive_started = False
+        phase_started_at = time.monotonic()
+        ready_delay_reported = False
         while True:
             status = service.get_run_status(session_id)
             phase = str(status.get("phase"))
+            now = time.monotonic()
+            if phase != last_phase:
+                phase_started_at = now
+                ready_delay_reported = False
             if phase != last_phase and (not interactive or phase != "RUNNING"):
                 print(f"Phase: {phase}")
+                if phase == "READY":
+                    print(
+                        "AIA: 보호 준비가 끝났습니다. Codex를 시작하는 중입니다. "
+                        "Codex 화면이 열리면 그 안에서 작업을 입력하세요."
+                    )
                 last_phase = phase
+            if (
+                phase == "READY"
+                and not ready_delay_reported
+                and now - phase_started_at >= 30
+            ):
+                print(
+                    "AIA: Codex 시작이 30초 이상 지연되고 있습니다. "
+                    "별도 PowerShell에서 'aia status "
+                    f"{session_id}'를 확인할 수 있습니다. 중지하려면 Ctrl+C를 누르세요."
+                )
+                ready_delay_reported = True
             protection = status.get("protection") or {}
             if protection.get("state") in {"DEGRADED", "COMPLETED_DEGRADED"}:
                 print(f"Protection: {protection['state']}")

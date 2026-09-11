@@ -97,6 +97,10 @@ Workspace 확인
 화면에 `Protected Codex session is active.`가 표시되면 그때 Codex 세션 안에서
 작업을 입력한다. 한 번의 요청만 자동으로 전달하려면 다음처럼 `--task`를 붙인다.
 
+`Phase: READY`는 보호 준비가 끝나고 Codex를 시작하는 중이라는 뜻이다. 30초 이상
+계속되면 별도 PowerShell에서 `uv run aia status <SESSION_ID>`로 확인할 수 있고,
+필요하면 `Ctrl+C`로 사용자 중지를 요청한다.
+
 ```powershell
 uv run aia protect "C:\workspace\my-project" --task "README.md를 읽고 한 문장으로 요약해줘"
 ```
