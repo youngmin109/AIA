@@ -47,8 +47,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
   -BundlePath .\dist\release\aia-0.1.0
 ```
 
-검증 결과에 `SHA-256: PASS`와 `Clean wheel install: PASS`가 모두 없는 bundle은
-배포하지 않는다. 검증이 끝나면 임시 가상환경은 자동으로 삭제된다.
+검증 결과에 `SHA-256: PASS`, `Clean wheel install: PASS`, `Local console assets: PASS`가
+모두 없는 bundle은 배포하지 않는다. 검증이 끝나면 임시 가상환경은 자동으로
+삭제된다.
 
 ## Wheel 설치
 

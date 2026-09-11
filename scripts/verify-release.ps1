@@ -120,6 +120,26 @@ try {
     if ($selfTest.passed -ne $true) {
         throw "installed wheel self-test did not report passed=true"
     }
+
+    $webAssetsCheck = @'
+from pathlib import Path
+import aia_web
+
+root = Path(aia_web.__file__).resolve().parent
+required = (
+    root / "templates" / "new_run.html",
+    root / "templates" / "live_run.html",
+    root / "static" / "app.css",
+)
+missing = [str(path) for path in required if not path.is_file()]
+if missing:
+    raise SystemExit("missing installed web assets: " + "; ".join(missing))
+print("installed web assets: PASS")
+'@
+    $webAssetsOutput = $webAssetsCheck | & $verifyPython -
+    if ($LASTEXITCODE -ne 0 -or $webAssetsOutput -notmatch "installed web assets: PASS") {
+        throw "installed wheel local console assets failed: $webAssetsOutput"
+    }
 }
 finally {
     if (Test-Path -LiteralPath $verifyTempRoot) {
@@ -132,3 +152,4 @@ Write-Host "Version: $($manifest.version)"
 Write-Host "Packages: $($packages.Count)"
 Write-Host "SHA-256: PASS"
 Write-Host "Clean wheel install: PASS"
+Write-Host "Local console assets: PASS"
