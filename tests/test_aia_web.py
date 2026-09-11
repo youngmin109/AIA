@@ -203,6 +203,21 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "SUPER_SECRET" not in result.text
 
 
+def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    dashboard = client.get("/dashboard")
+
+    assert dashboard.status_code == 200
+    assert "보호 상태를 한눈에 확인하세요" in dashboard.text
+    assert "실행 준비" in dashboard.text
+    assert "Codex Hook Trust" in dashboard.text
+    assert "대화형 보호 세션" not in dashboard.text
+    assert "Bash" in dashboard.text
+    assert "Edit·Write → apply_patch" in dashboard.text
+    assert "아직 보호 실행 기록이 없습니다" in dashboard.text
+
+
 def test_console_maps_validation_errors_to_bad_request() -> None:
     client = TestClient(create_app(FakeService()))
     response = client.post("/api/runs", json={"workspace": "invalid", "task": "inspect"})

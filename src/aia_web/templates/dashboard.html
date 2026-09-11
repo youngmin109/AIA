@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}대시보드 · AIA{% endblock %}
+{% block content %}
+{% set readiness = preflight.get('readiness_code', 'UNKNOWN') %}
+{% set readiness_ok = preflight.get('ready', False) %}
+{% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
+{% set support = capabilities.get('support', {}) %}
+{% set agents = support.get('agent') or ['Codex CLI'] %}
+{% set platforms = support.get('operating_system') or ['Windows 11'] %}
+<section class="hero compact dashboard-hero">
+  <div>
+    <p class="eyebrow">AIA PROTECTED EXECUTION · 제품 대시보드</p>
+    <h1>보호 상태를 한눈에 확인하세요.</h1>
+    <p class="lede">AIA는 사용자가 선택한 Workspace에서 Codex를 보호 실행하고, 지원되는 도구 요청을 실행 전에 평가합니다.</p>
+  </div>
+  <a class="button primary" href="/">새 보호 실행</a>
+</section>
+
+<section class="metric-grid dashboard-metrics" aria-label="현재 제품 상태">
+  <div class="metric metric-status {{ 'metric-ok' if readiness_ok else 'metric-warning' }}">
+    <span>실행 준비</span>
+    <strong>{{ '준비 완료' if readiness_ok else '확인 필요' }}</strong>
+    <small>{{ readiness }}</small>
+  </div>
+  <div class="metric">
+    <span>Codex Hook Trust</span>
+    <strong>{{ trust }}</strong>
+    <small>PreToolUse 실행 전 관문</small>
+  </div>
+  <div class="metric">
+    <span>지원 Agent</span>
+    <strong>{{ agents|join(', ') }}</strong>
+    <small>{{ platforms|join(', ') }}</small>
+  </div>
+  <div class="metric">
+    <span>보호 실행 기록</span>
+    <strong>{{ runs|length }}건</strong>
+    <small><a href="/runs">전체 기록 보기</a></small>
+  </div>
+</section>
+
+<section class="panel dashboard-readiness {{ 'panel-ready' if readiness_ok else 'panel-attention' }}">
+  <div class="panel-heading">
+    <div>
+      <h2>{{ '보호 실행을 시작할 수 있습니다.' if readiness_ok else '보호 실행 전에 확인이 필요합니다.' }}</h2>
+      <p class="hint">{{ preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}</p>
+    </div>
+    <span class="status-badge">{{ readiness }}</span>
+  </div>
+  <div class="preflight-list dashboard-checks">
+    {% for check in preflight.get('checks', []) %}
+    <div class="preflight-row">
+      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인' }}</span>
+      <strong>{{ check.label }}</strong>
+      <span class="hint">{{ check.detail }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% if not readiness_ok %}
+  <div class="next-steps">
+    <strong>다음 단계</strong>
+    <ol>
+      <li><span class="mono">aia setup</span>으로 AIA Hook을 설치합니다.</li>
+      <li>Codex에서 <span class="mono">/hooks</span>를 열고 AIA PreToolUse Hook을 검토·신뢰합니다.</li>
+      <li><span class="mono">aia hook verify</span>로 실제 연결을 확인합니다.</li>
+    </ol>
+  </div>
+  {% else %}
+  <div class="notice success">AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
+  {% endif %}
+</section>
+
+<div class="dashboard-columns">
+  <section class="panel">
+    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/" class="text-link">정책 미리보기 →</a></div>
+    <div class="scope-list">
+      <div><strong>PreToolUse</strong><span>실행 전 정책 판정과 차단</span></div>
+      <div><strong>도구</strong><span>{{ (support.get('pretool_matchers') or [])|join(', ') }}</span></div>
+      <div><strong>별칭</strong><span>Edit·Write → apply_patch</span></div>
+      <div><strong>결과</strong><span>Evidence Bundle·Checkpoint·Integrity·Audit</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading"><div><h2>제품 사용 순서</h2><p class="hint">처음 사용할 때의 최소 흐름입니다.</p></div></div>
+    <ol class="product-steps">
+      <li><span>1</span><div><strong>Core 확인</strong><code>aia demo</code></div></li>
+      <li><span>2</span><div><strong>Hook 연결 확인</strong><code>aia hook verify</code></div></li>
+      <li><span>3</span><div><strong>보호 실행</strong><code>aia start &lt;workspace&gt;</code></div></li>
+      <li><span>4</span><div><strong>결과 확인</strong><code>aia runs</code></div></li>
+    </ol>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>최근 보호 실행</h2><p class="hint">검증된 Bundle 상태를 기준으로 표시합니다.</p></div><a href="/runs" class="text-link">실행 기록 전체 →</a></div>
+  {% if runs %}
+  <div class="table-wrap"><table><thead><tr><th>Session</th><th>상태</th><th>Workspace</th><th>사건</th><th>Bundle</th></tr></thead>
+    <tbody>{% for run in runs[:5] %}<tr><td class="mono">{{ run.session_id }}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}
+  <div class="empty dashboard-empty">아직 보호 실행 기록이 없습니다. <a href="/">첫 보호 실행을 시작하세요.</a></div>
+  {% endif %}
+</section>
+
+<section class="notice warning dashboard-limits"><strong>현재 제품의 경계:</strong> Windows 11·Codex CLI·AIA Protected Run·지원되는 PreToolUse 도구에 한정됩니다. Hook을 우회한 실행이나 지원 범위 밖 도구를 AIA가 보호했다고 표시하지 않습니다.</section>
+{% endblock %}

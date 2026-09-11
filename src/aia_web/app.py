@@ -58,6 +58,20 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             },
         )
 
+    @app.get("/dashboard", response_class=HTMLResponse)
+    def dashboard(request: Request) -> HTMLResponse:
+        """Render the local product overview without starting an Agent."""
+
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "dashboard.html",
+            {
+                "preflight": app.state.service.preflight(),
+                "runs": app.state.service.list_runs(),
+                "capabilities": product_capabilities(),
+            },
+        )
+
     @app.get("/runs", response_class=HTMLResponse)
     def run_history(request: Request) -> HTMLResponse:
         return _TEMPLATES.TemplateResponse(
