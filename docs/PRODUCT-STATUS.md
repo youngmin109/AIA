@@ -132,6 +132,12 @@ AIA 조정 프로세스가 강제 종료되면 이전 실행의 상태 파일이
 프로세스가 사라진 실행은 Session을 성공·완료로 바꾸지 않고
 `ORPHANED_DEGRADED`로 표시한다.
 
+같은 Workspace로 새 Protected Run을 시작할 때도 이 상태를 확인한다. 기록된 Agent
+Root가 아직 살아 있거나 신원을 확인할 수 없으면 Workspace 재사용을 거부한다.
+Agent Root가 사라졌다는 것이 확인된 뒤 `aia reconcile <SESSION_ID>`를 완료해야
+새 실행이 해당 Workspace를 사용할 수 있다. 이 확인은 두 실행이 같은 Workspace를
+동시에 변경하는 상황을 막기 위한 것이며, 이전 Agent를 자동 종료하는 기능은 아니다.
+
 실행 중 Agent Root가 기록된 경우에도 같은 PID와 생성 시각을 확인한다. 기록된
 Agent Root가 아직 살아 있거나 확인할 수 없으면 자동 종료하지 않는다. Agent Root가
 사라진 것이 확인된 뒤에만 다음 명령으로 이전 실행의 정리 확인을 남길 수 있다.

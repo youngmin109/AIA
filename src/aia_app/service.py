@@ -185,6 +185,15 @@ def _runtime_coordinator_reconciliation(state: Mapping[str, Any]) -> dict[str, A
     }
 
 
+def _workspace_key(value: str | Path) -> str | None:
+    """Return a case-insensitive key for comparing persisted workspaces."""
+
+    try:
+        return str(Path(value).expanduser().resolve(strict=False)).casefold()
+    except (OSError, TypeError, ValueError):
+        return None
+
+
 def _sensor_status(sensor: Any) -> str | None:
     health = getattr(sensor, "health", None)
     if callable(health):
@@ -673,6 +682,16 @@ class RunApplicationService:
                     "Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 다시 시도하세요."
                 )
         workspace = self._validate_workspace(request.workspace)
+        orphan = self._unresolved_orphan_for_workspace(workspace)
+        if orphan is not None:
+            session_id = orphan["session_id"]
+            reconciliation = orphan["runtime_reconciliation"]
+            raise ApplicationValidationError(
+                "이 Workspace에는 정리되지 않은 이전 Protected Run이 있습니다 "
+                f"({session_id}, {reconciliation.get('status', 'UNKNOWN')}). "
+                "이전 Codex가 실행 중이면 먼저 종료하고, Agent Root가 사라진 것을 "
+                f"확인한 뒤 'uv run aia reconcile {session_id}'를 실행하세요."
+            )
         if not request.interactive and not request.task.strip():
             raise ApplicationValidationError(
                 "task is required for a non-interactive protected run"
@@ -1097,6 +1116,40 @@ class RunApplicationService:
             return canonicalize_workspace(value)
         except (WorkspaceValidationError, OSError, ValueError) as error:
             raise ApplicationValidationError(f"workspace validation failed: {error}") from error
+
+    def _unresolved_orphan_for_workspace(self, workspace: Path) -> dict[str, Any] | None:
+        """Refuse reuse until a stale run's recorded Agent root is reconciled.
+
+        Workspace lease takeover is identity-safe for the AIA owner, but it
+        cannot by itself prove that a crashed coordinator's Agent child has
+        stopped.  The persisted run must therefore be acknowledged after the
+        Agent root is gone before another protected run can use the workspace.
+        """
+
+        workspace_key = _workspace_key(workspace)
+        if workspace_key is None:
+            return None
+        for state in self._list_runtime_states():
+            session = state.get("session")
+            if not isinstance(session, Mapping):
+                continue
+            state_workspace = session.get("workspace")
+            if _workspace_key(state_workspace) != workspace_key:
+                continue
+            reconciliation = _runtime_coordinator_reconciliation(state)
+            if not reconciliation.get("orphaned"):
+                continue
+            if reconciliation.get("action") == "RECONCILED":
+                continue
+            session_id = state.get("session_id")
+            if not isinstance(session_id, str) or not session_id:
+                continue
+            return {
+                "session_id": session_id,
+                "phase": state.get("phase"),
+                "runtime_reconciliation": reconciliation,
+            }
+        return None
 
     def _run(self, record: RunRecord) -> None:
         session: ProtectedRunSession = record.runtime["session"]

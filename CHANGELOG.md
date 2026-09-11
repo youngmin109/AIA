@@ -2,6 +2,15 @@
 
 이 파일은 공개 배포 버전의 사용자에게 보이는 변경 사항을 기록한다.
 
+## [0.1.5] - 2026-09-11
+
+### Workspace 재사용 안전성
+
+- AIA가 비정상 종료된 이전 Protected Run의 Agent Root가 정리되지 않은 Workspace를
+  새 Protected Run이 자동으로 재사용하지 않도록 차단
+- 기록된 Agent Root가 사라진 것을 확인하고 `aia reconcile`한 뒤에만 Workspace 재사용 허용
+- 고아 실행 상태와 새 실행 거부 사유를 CLI·로컬 콘솔에서 확인
+
 ## [0.1.4] - 2026-09-11
 
 ### 안정성 보강

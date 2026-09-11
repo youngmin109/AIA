@@ -176,6 +176,17 @@ Live Run 화면의 `LAUNCHING`은 보호 준비가 끝난 뒤 Codex 프로세스
 등록하는 중이라는 뜻이다. 이 단계에서는 Session 상태가 아직 `READY`일 수 있으며,
 Codex가 등록되고 실행 상태가 확인되면 `RUNNING`으로 전환된다.
 
+AIA가 비정상 종료되어 이전 실행이 `ORPHANED_DEGRADED`로 남으면 같은 Workspace로
+새 보호 실행을 바로 시작할 수 없다. 기록된 Agent Root가 실제로 사라진 뒤 다음
+명령으로 정리 확인을 남긴다.
+
+```powershell
+uv run aia reconcile <SESSION_ID>
+```
+
+정리 확인 전에는 이전 Codex와 새 Codex가 같은 Workspace를 동시에 변경하지 않도록
+새 실행이 거부된다. AIA는 살아 있는 이전 Agent를 자동으로 종료하지 않는다.
+
 ## 현재 보호 범위
 
 현재 제품은 Windows 11, Codex CLI, AIA Protected Run, 지원되는

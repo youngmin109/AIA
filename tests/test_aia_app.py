@@ -1185,3 +1185,49 @@ def test_orphan_reconcile_acknowledges_only_after_agent_root_identity_is_gone(
         assert persisted["orphan_reconciliation"]["status"] == "ACKNOWLEDGED"
     finally:
         service.shutdown()
+
+
+def test_new_run_refuses_workspace_with_unresolved_orphaned_agent(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    state = _orphaned_runtime_state()
+    state["session"]["workspace"] = str(tmp_path)
+    monkeypatch.setattr(
+        "aia_app.service.verify_process_identity",
+        lambda identity: (
+            ProcessIdentityStatus.PROCESS_GONE
+            if identity.pid == 4242
+            else ProcessIdentityStatus.LIVE_MATCH
+        ),
+    )
+    service._write_runtime_state_payload("session-1", state)
+    try:
+        with pytest.raises(ApplicationValidationError, match="정리되지 않은 이전 Protected Run"):
+            service.create_protected_run({"workspace": str(tmp_path), "task": "inspect"})
+    finally:
+        service.shutdown()
+
+
+def test_new_run_allows_workspace_after_orphan_reconciliation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    service._run = lambda record: None
+    state = _orphaned_runtime_state()
+    state["session"]["workspace"] = str(tmp_path)
+    monkeypatch.setattr(
+        "aia_app.service.verify_process_identity",
+        lambda identity: ProcessIdentityStatus.PROCESS_GONE,
+    )
+    service._write_runtime_state_payload("session-1", state)
+    try:
+        assert service.reconcile_orphaned_run("session-1")["reconciled"] is True
+        created = service.create_protected_run({"workspace": str(tmp_path), "task": "inspect"})
+        assert created["session_id"]
+    finally:
+        service.shutdown()
