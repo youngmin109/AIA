@@ -15,6 +15,7 @@ from aia.cli import (
     main,
 )
 from aia.codex_hook_trust import summarize_aia_hooks
+from aia.diagnostics import build_support_bundle
 from aia._version import __version__
 from aia_web.__main__ import run as run_console, validate_local_bind
 
@@ -80,6 +81,39 @@ def test_self_test_parser_supports_machine_readable_output() -> None:
 
     assert args.command == "self-test"
     assert args.json is True
+
+
+def test_support_bundle_parser_accepts_output_and_json(tmp_path) -> None:
+    args = _parser().parse_args(
+        [
+            "support-bundle",
+            "--output",
+            str(tmp_path / "support.json"),
+            "--json",
+        ]
+    )
+
+    assert args.command == "support-bundle"
+    assert args.output == tmp_path / "support.json"
+    assert args.json is True
+
+
+def test_support_bundle_excludes_full_paths_and_protected_content(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "aia.diagnostics.CodexAdapter.discover",
+        lambda _adapter: (_ for _ in ()).throw(FileNotFoundError("no codex")),
+    )
+    bundle = build_support_bundle(
+        control_root=tmp_path / "private-control",
+        hook_path=tmp_path / "private-hooks.json",
+    )
+
+    encoded = json.dumps(bundle, ensure_ascii=False)
+    assert str(tmp_path) not in encoded
+    assert bundle["privacy"]["raw_evidence_included"] is False
+    assert bundle["privacy"]["tool_input_included"] is False
+    assert bundle["codex"]["available"] is False
+    assert len(bundle["hook"]["path_sha256"]) == 64
 
 
 def test_self_test_exercises_core_contracts_without_codex(capsys) -> None:

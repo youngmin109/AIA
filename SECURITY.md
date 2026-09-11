@@ -17,6 +17,15 @@ PreToolUse Hook 경로를 기준으로 재현해 보고한다. 보호 실행 밖
 - Session ID와 Result Bundle 경로
 - secret, token, 개인 파일 내용이 포함되지 않은 오류 요약
 
+진단 파일이 필요하면 다음 명령을 사용한다.
+
+```powershell
+uv run aia support-bundle --output .\aia-support-bundle.json
+```
+
+이 명령은 전체 경로·Workspace 내용·raw evidence·tool input·명령 출력을 포함하지
+않는 요약만 저장한다. 그래도 공유 전에 생성 파일을 직접 확인한다.
+
 비밀정보와 전체 Workspace 내용을 Issue나 공개 채널에 올리지 않는다. 먼저
 Repository 관리자가 지정한 비공개 보안 연락처로 보고한다.
 

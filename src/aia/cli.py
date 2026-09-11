@@ -43,6 +43,7 @@ from aia import (
 )
 from aia.hook_verification import HookVerificationStore
 from aia.codex_hook_trust import inspect_codex_hook_trust
+from aia.diagnostics import build_support_bundle, write_support_bundle
 from aia._version import __version__
 from aia_app import ApplicationValidationError, RunApplicationService
 from aia_app.readers import ResultBundleReader
@@ -199,6 +200,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     setup.add_argument("--path", type=Path, help="hooks.json path")
     setup.add_argument("--json", action="store_true", help="print machine-readable output")
+
+    support_bundle = commands.add_parser(
+        "support-bundle",
+        help="create redacted diagnostics for troubleshooting",
+    )
+    support_bundle.add_argument(
+        "--output",
+        type=Path,
+        help="write the redacted diagnostics JSON to this path",
+    )
+    support_bundle.add_argument("--hook-path", type=Path, help="hooks.json path")
+    support_bundle.add_argument("--control-root", type=Path, help="AIA control root")
+    support_bundle.add_argument("--json", action="store_true", help="print machine-readable output")
 
     console = commands.add_parser(
         "console",
@@ -759,6 +773,62 @@ def _self_test(args: argparse.Namespace) -> int:
         print("실제 Codex Hook 증명: 별도 실행 필요")
         print(f"[다음] {payload['next_step']}")
     return exit_code
+
+
+def _support_bundle(args: argparse.Namespace) -> int:
+    """Create or print diagnostics without exposing protected content."""
+
+    bundle = build_support_bundle(
+        control_root=_control_root(args.control_root),
+        hook_path=args.hook_path,
+    )
+    written: Path | None = None
+    if args.output is not None:
+        written = write_support_bundle(args.output, bundle)
+
+    if args.json:
+        output: dict[str, object] = dict(bundle)
+        if written is not None:
+            output["output_path"] = str(written)
+        print(_json_text(output))
+        return 0
+
+    print("AIA 지원 진단 번들")
+    print(f"Version: {bundle['product']['version']}")
+    runtime = bundle["runtime"]
+    print(
+        "환경: "
+        f"Python {runtime['python']} / {runtime['platform']} {runtime['platform_release']}"
+    )
+    codex = bundle["codex"]
+    print(
+        "Codex: "
+        f"{'확인됨' if codex['available'] else '없음'}"
+        f" / {codex['version']}"
+    )
+    hook = bundle["hook"]
+    trust_events = hook["trust"].get("events", [])
+    trust_summary = ", ".join(
+        f"{item.get('event')}={item.get('trust_status')}"
+        for item in trust_events
+        if isinstance(item, dict)
+    ) or "확인할 수 없음"
+    print(
+        "Hook: "
+        f"PreToolUse={'설치됨' if hook['pretool_installed'] else '없음'} / "
+        f"PostToolUse={'설치됨' if hook['posttool_installed'] else '없음'} / "
+        f"Trust={trust_summary}"
+    )
+    print(f"실시간 검증: {'CURRENT' if hook['verification_current'] else '필요'}")
+    control = bundle["control_root"]
+    print(f"Control Root 쓰기: {'가능' if control['writable'] else '불가'}")
+    print(f"최근 보호 실행: {len(bundle['recent_runs'])}건 요약 포함")
+    print("개인정보: 전체 경로·Workspace 내용·raw evidence·명령 출력은 포함하지 않음")
+    if written is not None:
+        print(f"저장 경로: {written}")
+    else:
+        print("JSON 파일로 저장하려면 --output <path>를 사용하세요.")
+    return 0
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -1810,6 +1880,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "setup":
             return _setup(args)
+        if args.command == "support-bundle":
+            return _support_bundle(args)
         if args.command == "console":
             return _run_console(args)
         if args.command == "hook" and args.hook_command == "status":

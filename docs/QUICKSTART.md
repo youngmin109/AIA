@@ -21,6 +21,13 @@ uv run aia self-test
 `PASS`가 나오면 AIA의 정책·Workspace Lease·Checkpoint·Evidence 핵심 기능이
 정상이다. 이 명령은 Codex를 실행하지 않는다.
 
+설치나 실행에 문제가 생기면 다음 명령으로 민감한 실행 원문을 포함하지 않는
+진단 파일을 만들 수 있다.
+
+```powershell
+uv run aia support-bundle --output .\aia-support-bundle.json
+```
+
 ## 2. Hook 설치
 
 ```powershell

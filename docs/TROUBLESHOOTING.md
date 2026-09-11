@@ -88,6 +88,19 @@ uv run aia self-test
 릴리스 wheel을 사용자 명령으로 설치한 경우에는 새 PowerShell 창을 열거나
 사용자 PATH를 갱신한 뒤 `aia --version`을 실행한다.
 
+## 문제를 보고할 진단 파일
+
+문제를 재현한 뒤 다음 명령을 실행한다.
+
+```powershell
+uv run aia support-bundle --output .\aia-support-bundle.json
+```
+
+진단 파일에는 AIA·Python·Windows·Codex 버전, Hook Trust, Control Root 쓰기 가능
+여부와 최근 보호 실행의 상태 요약만 들어간다. 전체 경로, Workspace 내용, raw
+evidence, tool input, 명령 출력은 포함하지 않는다. 파일을 공유하기 전에 파일명과
+추가로 넣은 메모에 비밀정보가 없는지 확인한다.
+
 ## `self-test`는 통과했지만 보호 실행이 시작되지 않는 경우
 
 `self-test`는 AIA Core만 확인한다. 실제 Codex 보호를 증명하지 않으므로 다음

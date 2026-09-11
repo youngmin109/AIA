@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.2 릴리스 기준](docs/RELEASE-0.1.2.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.3 릴리스 기준](docs/RELEASE-0.1.3.md)에서 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
 공개 버전별 변경 사항은 [변경 이력](CHANGELOG.md)에서 확인할 수 있다.
@@ -79,6 +79,16 @@ AIA 설치와 Core 자체가 정상인지 먼저 확인하려면 다음 명령�
 ```powershell
 uv run aia self-test
 ```
+
+문제 보고가 필요하면 전체 경로·Workspace 내용·raw evidence·명령 출력이 빠진
+진단 번들을 만들 수 있습니다.
+
+```powershell
+uv run aia support-bundle --output .\aia-support-bundle.json
+```
+
+이 파일은 AIA 버전, Python·Windows·Codex 상태, Hook Trust 상태와 최근 실행의
+보호 상태 요약만 포함합니다.
 
 처음 설치하는 사용자는 다음 한 명령으로 AIA Hook을 추가할 수 있습니다.
 
