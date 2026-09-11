@@ -599,6 +599,12 @@ class RunApplicationService:
 
         ready = readiness_code == "READY"
 
+        hook_trust_status = (
+            pretool_status
+            if pretool_status in {"TRUSTED", "MANAGED"}
+            else "MANUAL_REVIEW_REQUIRED"
+        )
+
         return {
             # The machine-readable readiness result must include effective
             # gates such as Codex Hook Trust, even when that check is marked
@@ -608,11 +614,15 @@ class RunApplicationService:
             "next_step": next_step,
             "checks": checks,
             "hook_trust": {
-                "status": "MANUAL_REVIEW_REQUIRED",
+                "status": hook_trust_status,
                 "detail": (
-                    "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다."
-                    if not codex_hook_trust.get("available")
-                    else "Codex의 실제 Hook Trust 상태를 확인했습니다. TRUSTED가 아니면 /hooks에서 다시 검토·신뢰하세요."
+                    "Codex PreToolUse Hook이 신뢰된 상태입니다."
+                    if hook_trust_status in {"TRUSTED", "MANAGED"}
+                    else (
+                        "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다."
+                        if not codex_hook_trust.get("available")
+                        else "Codex의 실제 Hook Trust 상태를 확인했습니다. TRUSTED가 아니면 /hooks에서 다시 검토·신뢰하세요."
+                    )
                 ),
             },
             "codex_hook_trust": codex_hook_trust,

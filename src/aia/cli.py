@@ -947,6 +947,11 @@ def _setup(args: argparse.Namespace) -> int:
             "신뢰한 뒤 aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
             "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
         ]
+    trust_status = (
+        pretool_trust_status
+        if pretool_trust_status in {"TRUSTED", "MANAGED"}
+        else "MANUAL_REVIEW_REQUIRED"
+    )
     payload = {
         "configured": True,
         "hook_path": str(path),
@@ -954,7 +959,7 @@ def _setup(args: argparse.Namespace) -> int:
         "codex_version": executable_version,
         "pretool_installed": installer.is_installed(),
         "posttool_installed": installer.is_posttool_installed(),
-        "trust_status": "MANUAL_REVIEW_REQUIRED",
+        "trust_status": trust_status,
         "codex_hook_trust": codex_hook_trust,
         "codex_pretool_trust_status": pretool_trust_status,
         "next_steps": next_steps,
@@ -1088,7 +1093,9 @@ def _hook_status(args: argparse.Namespace) -> int:
         print(f"경로: {payload['hook_path']}")
         print(f"PreToolUse 설치: {'YES' if payload['pretool_installed'] else 'NO'}")
         print(f"PostToolUse 설치: {'YES' if payload['posttool_installed'] else 'NO'}")
-        print("Codex 신뢰: MANUAL_REVIEW_REQUIRED (/hooks에서 검토·신뢰 필요)")
+        print(f"Codex 신뢰: {payload['trust_status']}")
+        if payload["trust_status"] == "MANUAL_REVIEW_REQUIRED":
+            print("[필수] /hooks에서 AIA Hook을 검토·신뢰하세요.")
         print(f"Hook 관찰 상태: {payload['activation_status']}")
         if codex_trust.get("available"):
             trust_summary = ", ".join(

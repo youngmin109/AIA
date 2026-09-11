@@ -292,6 +292,38 @@ def test_setup_reports_current_codex_pretool_trust(tmp_path, monkeypatch, capsys
     assert "/hooks" in payload["next_steps"][0]
 
 
+def test_setup_reports_trusted_codex_pretool_status_without_manual_review_flag(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "TRUSTED"},
+                    ],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(["setup", "--json", "--path", str(hook_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["trust_status"] == "TRUSTED"
+    assert "신뢰된 상태" in payload["next_steps"][0]
+
+
 def test_console_parser_supports_explicit_bind_values() -> None:
     args = _parser().parse_args(
         ["console", "--host", "127.0.0.1", "--port", "8799", "--open"]

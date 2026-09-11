@@ -703,6 +703,44 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         service.shutdown()
 
 
+def test_application_preflight_reports_actual_trusted_hook_status(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_installed",
+        lambda _installer: True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_posttool_installed",
+        lambda _installer: True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "TRUSTED"},
+                    ],
+                }
+            },
+        )(),
+    )
+    try:
+        result = service.preflight()
+        assert result["hook_trust"]["status"] == "TRUSTED"
+        assert "신뢰된 상태" in result["hook_trust"]["detail"]
+    finally:
+        service.shutdown()
+
+
 def test_application_preflight_requires_live_hook_verification_when_enabled(
     tmp_path, monkeypatch
 ) -> None:

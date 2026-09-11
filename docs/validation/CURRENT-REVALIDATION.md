@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `1bf037b` |
+| 코드 기준 | `213ec7a` |
 | 제품 버전 | `0.1.9` |
 | Actual Codex 보안 증거 기준 | `0.1.9` 코드의 disposable Actual Codex direct smoke; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
 | 운영체제 | Windows |
