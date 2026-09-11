@@ -5,6 +5,10 @@
 수 있는 보호 실행 경로와 로컬 콘솔은 있지만, 지원 범위와 검증된 주장도 함께
 제한된다.
 
+처음 설치한 사용자는 실제 프로젝트를 선택하기 전에 `aia demo`로 임시 Workspace의
+Core 보호 흐름을 확인할 수 있다. 실제 Codex 사전 차단까지 확인하려면 Hook을
+검토·신뢰하고 `aia hook verify`를 실행한 뒤 `aia demo --live`를 사용한다.
+
 신규 실행의 기본 정책은 `PROTECTED_DEVELOPMENT` v1.1이다. `.env` 같은 비밀정보 읽기와
 대표적인 파괴 명령은 기본 차단하고, Windows의 `Remove-Item`, `del`, `erase`,
 `rd /s`, `Stop-Process`, `taskkill /f`도 실행 전에 차단한다. 일반 소스 변경은 기록한다. 기존의

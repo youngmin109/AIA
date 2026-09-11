@@ -129,6 +129,74 @@ def test_self_test_parser_supports_machine_readable_output() -> None:
     assert args.json is True
 
 
+def test_demo_parser_defaults_to_safe_core_demo() -> None:
+    args = _parser().parse_args(["demo"])
+
+    assert args.command == "demo"
+    assert args.live is False
+    assert args.scenario == "block-canary"
+    assert args.timeout == 180.0
+
+
+def test_demo_live_parser_selects_real_codex_proof() -> None:
+    args = _parser().parse_args(["demo", "--live", "--scenario", "block-env"])
+
+    assert args.live is True
+    assert args.scenario == "block-env"
+
+
+def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        "aia.cli._self_test",
+        lambda args: calls.append(args.json) or 0,
+    )
+
+    assert main(["demo"]) == 0
+
+    assert calls == [False]
+    output = capsys.readouterr().out
+    assert "AIA 제품 데모" in output
+    assert "aia demo --live" in output
+
+
+def test_demo_live_delegates_to_real_codex_proof(monkeypatch, tmp_path) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr("aia.cli._self_test", lambda args: 0)
+    monkeypatch.setattr(
+        "aia.product_e2e.main",
+        lambda argv: calls.append(argv) or 7,
+    )
+
+    output_dir = tmp_path / "proof"
+    assert (
+        main(
+            [
+                "demo",
+                "--live",
+                "--scenario",
+                "block-env",
+                "--timeout",
+                "12",
+                "--output",
+                str(output_dir),
+            ]
+        )
+        == 7
+    )
+
+    assert calls == [
+        [
+            "--scenario",
+            "block-env",
+            "--output",
+            str(output_dir),
+            "--timeout",
+            "12.0",
+        ]
+    ]
+
+
 def test_support_bundle_parser_accepts_output_and_json(tmp_path) -> None:
     args = _parser().parse_args(
         [

@@ -4,6 +4,16 @@ AIA는 Codex를 대신하는 프로그램이 아니다. AIA가 먼저 보호 실
 그 안에서 Codex를 자식 프로세스로 시작한다. 사용자는 Codex 화면이 열린 뒤
 평소처럼 작업을 입력한다.
 
+처음 제품 흐름만 확인하려면 실제 프로젝트 경로 없이 다음부터 실행한다.
+
+```powershell
+uv run aia demo
+```
+
+이 명령은 임시 Workspace에서 정책, Active Policy, Lease, Safe Checkpoint,
+Evidence 봉인과 정리 흐름을 실행한다. 사용자의 Workspace나 Codex를 시작하지
+않는다.
+
 기본 정책은 `보호 우선 개발형(PROTECTED_DEVELOPMENT) v1.1`이다. `.env` 같은 비밀정보
 읽기와 대표적인 파괴 명령은 기본 차단하고, Windows의 `Remove-Item`, `del`,
 `Stop-Process`, `taskkill /f`도 실행 전에 차단한다. 일반 소스 변경은 기록한다. 실행 시
@@ -168,3 +178,19 @@ uv run aia console --open
 연결한 PreToolUse matcher다. 지원 범위 밖의 도구나 Hook을 우회한 실행은 AIA가
 `PROTECTED` 또는 `BLOCKED`라고 주장하지 않는다. 전체 제한사항은
 [LIMITATIONS.md](LIMITATIONS.md)에서 확인한다.
+
+실제 Codex 차단까지 확인하려면 먼저 다음을 실행한다.
+
+```powershell
+uv run aia setup
+```
+
+그 다음 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 아래를 실행한다.
+
+```powershell
+uv run aia hook verify
+uv run aia demo --live
+```
+
+`--live`는 disposable Workspace에서 실제 Codex를 한 번 실행한다. Hook Trust가
+확인되지 않으면 Codex 도구를 실행하지 않고 원인과 증거 경로만 남긴다.

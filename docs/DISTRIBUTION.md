@@ -47,7 +47,7 @@ Core self-test까지 실행한다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
-  -BundlePath .\dist\release\aia-0.1.12
+  -BundlePath .\dist\release\aia-0.1.13
 ```
 
 검증 결과에 `SHA-256: PASS`, `Clean wheel install: PASS`, `Local console assets: PASS`가
@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
 완료한다. 설치 후 터미널에서 `aia`를 직접 입력할 때는 새 PowerShell 창을 연다.
 
 ```powershell
-uv tool install --force .\packages\aia_mvp-0.1.12-py3-none-any.whl
+uv tool install --force .\packages\aia_mvp-0.1.13-py3-none-any.whl
 aia --version
 aia setup
 ```
@@ -73,6 +73,20 @@ aia setup
 
 ```powershell
 aia self-test
+```
+
+처음 설치한 사용자는 실제 프로젝트를 건드리지 않고 다음으로 제품 흐름을
+확인할 수 있다.
+
+```powershell
+aia demo
+```
+
+실제 Codex 증명은 Hook을 검토·신뢰하고 `aia hook verify`를 완료한 뒤 다음을
+실행한다.
+
+```powershell
+aia demo --live
 ```
 
 설치 뒤에는 반드시 Codex의 `/hooks`에서 AIA Hook을 검토·신뢰하고 `aia hook verify`를
@@ -98,7 +112,7 @@ aia proof --scenario block-env
 업데이트는 다음처럼 수행한다.
 
 ```powershell
-uv tool install --force .\packages\aia_mvp-0.1.12-py3-none-any.whl
+uv tool install --force .\packages\aia_mvp-0.1.13-py3-none-any.whl
 ```
 
 재설치 과정에서 AIA가 설치한 이전 Python 경로의 Hook이 남아 있으면 새 AIA

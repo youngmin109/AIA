@@ -117,6 +117,39 @@ def _parser() -> argparse.ArgumentParser:
         help="run a disposable AIA Core self-test without starting Codex",
     )
     self_test.add_argument("--json", action="store_true", help="print machine-readable output")
+    demo = commands.add_parser(
+        "demo",
+        help="show the safe AIA product demo using a disposable Workspace",
+    )
+    demo.add_argument(
+        "--live",
+        action="store_true",
+        help="after the Core demo, run the opt-in real Codex proof",
+    )
+    demo.add_argument(
+        "--scenario",
+        choices=(
+            "normal",
+            "block-canary",
+            "block-apply-patch",
+            "block-env",
+            "block-windows-delete",
+        ),
+        default="block-canary",
+        help="live proof scenario when --live is used",
+    )
+    demo.add_argument(
+        "--output",
+        type=Path,
+        default=Path("evaluation") / "product-e2e",
+        help="directory for live proof artifacts",
+    )
+    demo.add_argument(
+        "--timeout",
+        type=float,
+        default=180.0,
+        help="maximum wait for the live proof in seconds",
+    )
     runs = commands.add_parser(
         "runs",
         help="list protected-run history from the local Control Root",
@@ -837,6 +870,52 @@ def _self_test(args: argparse.Namespace) -> int:
         print("실제 Codex Hook 증명: 별도 실행 필요")
         print(f"[다음] {payload['next_step']}")
     return exit_code
+
+
+def _demo(args: argparse.Namespace) -> int:
+    """Give a first-time user one safe entry point into the product.
+
+    The default demo only exercises disposable AIA Core state.  A real Codex
+    run is opt-in because it consumes a Codex invocation and depends on the
+    user's reviewed Hook trust state.
+    """
+
+    print("AIA 제품 데모")
+    print("실제 프로젝트를 건드리지 않는 임시 Workspace에서 보호 흐름을 확인합니다.")
+    print()
+    print("[1/2] AIA Core 보호 흐름 확인")
+    core_exit = _self_test(argparse.Namespace(json=False))
+    if core_exit != 0:
+        print("[중단] Core 데모가 실패했습니다. 실제 Codex를 시작하지 않습니다.")
+        return core_exit
+
+    if not args.live:
+        print()
+        print("[완료] Core 데모가 끝났습니다.")
+        print("실제 Codex Hook 차단까지 확인하려면 먼저 Codex에서 Hook을 검토·신뢰한 뒤")
+        print("      aia hook verify")
+        print("      aia demo --live")
+        print("를 실행하세요.")
+        return 0
+
+    if args.timeout <= 0:
+        raise ApplicationValidationError("timeout must be positive")
+
+    print()
+    print("[2/2] 실제 Codex PreToolUse 증명 시작")
+    print("Hook Trust가 확인되지 않으면 Codex 도구를 실행하지 않고 원인만 기록합니다.")
+    from aia.product_e2e import main as product_e2e_main
+
+    return product_e2e_main(
+        [
+            "--scenario",
+            args.scenario,
+            "--output",
+            str(args.output),
+            "--timeout",
+            str(args.timeout),
+        ]
+    )
 
 
 def _support_bundle(args: argparse.Namespace) -> int:
@@ -2022,6 +2101,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _doctor(args)
         if args.command == "self-test":
             return _self_test(args)
+        if args.command == "demo":
+            return _demo(args)
         if args.command == "runs":
             return _list_runs(args)
         if args.command == "status":

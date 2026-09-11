@@ -26,6 +26,23 @@ uv run aia capabilities
 `self-test`가 `결과: PASS`이면 AIA Core 자체가 정상이다. 이 명령은 Codex나
 사용자 Workspace를 실행하지 않는다.
 
+처음 제품 흐름을 직접 확인하려면 실제 프로젝트를 선택하기 전에 다음을 실행한다.
+
+```powershell
+uv run aia demo
+```
+
+이 데모는 임시 Workspace에서 보호 준비와 정리까지 확인하고 사용자 파일이나
+Codex를 건드리지 않는다. 실제 Codex 차단까지 확인하려면 `/hooks`에서 AIA Hook을
+검토·신뢰한 뒤 다음을 실행한다.
+
+```powershell
+uv run aia hook verify
+uv run aia demo --live
+```
+
+`--live`는 disposable Workspace에서 실제 Codex를 한 번 실행하는 선택적 증명이다.
+
 `aia setup`은 Hook 파일을 설치한 뒤 현재 Codex가 보고한 PreToolUse Trust 상태도
 함께 표시한다. `TRUSTED` 또는 `MANAGED`가 아니면 Codex에서 `/hooks`를 열어
 AIA Hook의 명령과 Matcher를 확인하고 직접 신뢰해야 한다. `MODIFIED`,

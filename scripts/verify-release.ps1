@@ -117,6 +117,16 @@ try {
         throw "installed wheel start entrypoint failed"
     }
 
+    $demoHelp = (& $verifyPython -m aia.cli demo --help | Out-String)
+    if ($LASTEXITCODE -ne 0 -or $demoHelp -notmatch "--live") {
+        throw "installed wheel demo entrypoint failed"
+    }
+
+    $demoOutput = (& $verifyPython -m aia.cli demo | Out-String)
+    if ($LASTEXITCODE -ne 0 -or $demoOutput -notmatch "AIA Core Self-Test") {
+        throw "installed wheel safe demo failed"
+    }
+
     $selfTestJson = (& $verifyPython -m aia.cli self-test --json | Out-String)
     if ($LASTEXITCODE -ne 0) {
         throw "installed wheel self-test failed with exit code $LASTEXITCODE"

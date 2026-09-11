@@ -6,7 +6,7 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.12 릴리스 기준](docs/RELEASE-0.1.12.md)에서 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.13 릴리스 기준](docs/RELEASE-0.1.13.md)에서 확인할 수 있다.
 현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
 현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
@@ -38,6 +38,17 @@ uv run pytest
 저장소에 Push하거나 Pull Request를 만들면 Windows 실행 환경에서 같은 잠금 파일로
 전체 pytest, Python compile, AIA Core self-test를 자동 실행한다. CI가 통과하지 않은
 변경은 릴리스 후보로 취급하지 않는다.
+
+처음 설치한 뒤 실제 프로젝트를 건드리지 않고 제품 흐름을 확인하려면 다음을
+실행한다.
+
+```powershell
+uv run aia demo
+```
+
+실제 Codex 차단 증명은 Hook을 검토·신뢰하고 `uv run aia hook verify`를 완료한
+뒤 `uv run aia demo --live`로 별도 실행한다. 이 명령은 disposable Workspace를
+사용한다.
 
 평가 산출물은 `evaluation/mvp-1.0/<evaluation-id>/` 아래에 보존한다. 평가 기준, 허용된 주장, 제한사항, 위협 모델은 `docs/validation/`과 `docs/`에 함께 고정한다.
 

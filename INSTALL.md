@@ -64,6 +64,19 @@ uv run aia self-test
 뜻이다. 실제 Codex Hook 연결은 별도로 `/hooks` 신뢰와 `uv run aia hook verify`가
 필요하다.
 
+실제 프로젝트를 선택하기 전에 제품 흐름을 확인하려면 다음을 실행한다.
+
+```powershell
+uv run aia demo
+```
+
+실제 Codex 차단 증명은 Hook 검토·신뢰와 `aia hook verify`를 마친 뒤 다음처럼
+실행한다.
+
+```powershell
+uv run aia demo --live
+```
+
 `VERIFIED`가 표시된 뒤 다음 명령으로 전체 준비 상태가 `READY`인지 확인할 수
 있다.
 

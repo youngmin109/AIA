@@ -116,26 +116,30 @@ This bundle targets Windows 11, Python 3.13, uv, and Codex CLI.
 
    aia self-test
 
-4. Install and review the Codex Hook:
+4. Run the safe first product demo without selecting a real Workspace:
+
+   aia demo
+
+5. Install and review the Codex Hook:
 
    aia setup
    # Open Codex /hooks and review/trust the AIA Hook.
    aia hook verify
    aia doctor
 
-5. Preview a policy decision without running an Agent:
+6. Preview a policy decision without running an Agent:
 
    aia policy evaluate --operation READ --path .env
 
-6. Optionally prove real PreToolUse blocking in a disposable Workspace:
+7. Optionally prove real PreToolUse blocking in a disposable Workspace:
 
-   aia proof
+   aia demo --live
 
-7. Optionally prove `.env` secret-read blocking and marker non-disclosure:
+8. Optionally prove `.env` secret-read blocking and marker non-disclosure:
 
    aia proof --scenario block-env
 
-8. Start the local console or a protected run from any Workspace:
+9. Start the local console or a protected run from any Workspace:
 
    aia console --open
    aia protect C:\workspace\my-project
