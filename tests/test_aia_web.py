@@ -137,6 +137,23 @@ class FakeService:
             "policy_id": "basic",
             "policy_version": "1.0",
             "actions": self.get_run_actions(session_id),
+            "sensor_summary": [
+                {
+                    "sensor": "AGENT_HOOK",
+                    "runtime_health_before_stop": "HEALTHY",
+                    "final_sensor_state": "STOPPED",
+                },
+                {
+                    "sensor": "FILESYSTEM_WATCHER",
+                    "runtime_health_before_stop": "HEALTHY",
+                    "final_sensor_state": "STOPPED",
+                },
+                {
+                    "sensor": "PROCESS_RUNTIME",
+                    "runtime_health_before_stop": "HEALTHY",
+                    "final_sensor_state": "STOPPED",
+                },
+            ],
             "limitations": ["Local console does not provide remote access."],
         }
 
@@ -211,6 +228,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     result = client.get("/runs/run-1/result")
     assert result.status_code == 200
     assert "VERIFIED" in result.text
+    assert "런타임 센서 상태" in result.text
+    assert "PROCESS_RUNTIME" in result.text
     assert 'href="/new">새 보호 실행</a>' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
