@@ -40,6 +40,8 @@ uv run pytest
 
 평가 산출물은 `evaluation/mvp-1.0/<evaluation-id>/` 아래에 보존한다. 평가 기준, 허용된 주장, 제한사항, 위협 모델은 `docs/validation/`과 `docs/`에 함께 고정한다.
 
+최신 결정론적 AIA OFF/AIA ON 비교 결과는 [제품 전후 평가](docs/validation/PRODUCT-EVALUATION.md)와 [오프라인 대시보드](evaluation/product-before-after/fixture-20260911-001/report.html)에서 확인할 수 있다. 대시보드는 외부 인터넷 없이 열리며, 보안 효과·정상 작업 보존·성능 단계·증거 품질을 하나의 점수로 합치지 않고 분리해 보여준다.
+
 ## 로컬 보안 콘솔 (EPIC-019)
 
 선택적으로 로컬 콘솔을 실행할 수 있다.
