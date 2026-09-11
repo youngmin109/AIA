@@ -34,6 +34,10 @@ uv sync
 uv run pytest
 ```
 
+저장소에 Push하거나 Pull Request를 만들면 Windows 실행 환경에서 같은 잠금 파일로
+전체 pytest, Python compile, AIA Core self-test를 자동 실행한다. CI가 통과하지 않은
+변경은 릴리스 후보로 취급하지 않는다.
+
 평가 산출물은 `evaluation/mvp-1.0/<evaluation-id>/` 아래에 보존한다. 평가 기준, 허용된 주장, 제한사항, 위협 모델은 `docs/validation/`과 `docs/`에 함께 고정한다.
 
 ## 로컬 보안 콘솔 (EPIC-019)
