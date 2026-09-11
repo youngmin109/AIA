@@ -11,6 +11,7 @@
 - Result Bundle에 행위별 `operation_effect`를 보존해 결과 화면과 JSON의 의미를 일치
 - Recovery와 Integrity 상태를 CLI와 로컬 콘솔에서 독립적으로 표시
 - 릴리스 manifest·SHA-256·clean wheel 검증을 거치는 명시적 수동 롤백 경로 제공
+- 12개 시나리오·780건의 결정론적 AIA OFF/AIA ON 제품 평가와 오프라인 성능 대시보드 제공
 
 ## [0.1.5] - 2026-09-11
 
