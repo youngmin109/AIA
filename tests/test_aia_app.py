@@ -131,6 +131,66 @@ def test_application_lists_live_runs_without_runtime_contents(tmp_path) -> None:
         service.shutdown()
 
 
+def test_application_does_not_present_unverified_runtime_as_committed_run(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        service._write_runtime_state_payload(
+            "stale-session",
+            {
+                "schema_version": 1,
+                "session_id": "stale-session",
+                "session": {
+                    "session_id": "stale-session",
+                    "status": "COMPLETED",
+                    "workspace": str(tmp_path / "workspace"),
+                    "agent": "codex",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                "protection": {"state": "COMPLETED_DEGRADED", "hook_events": 0},
+                "policy": {"id": "basic", "version": "1.0"},
+                "result_available": True,
+                "result_path": str(tmp_path / "control" / "missing" / "result.json"),
+            },
+        )
+
+        runs = service.list_runs()
+
+        assert runs[0]["run_classification"] == "UNVERIFIED_RUNTIME_STATE"
+        assert runs[0]["bundle_status"] == "UNVERIFIED"
+    finally:
+        service.shutdown()
+
+
+def test_application_marks_nonterminal_runtime_snapshot_as_live(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        service._write_runtime_state_payload(
+            "live-session",
+            {
+                "schema_version": 1,
+                "session_id": "live-session",
+                "session": {
+                    "session_id": "live-session",
+                    "status": "RUNNING",
+                    "workspace": str(tmp_path / "workspace"),
+                    "agent": "codex",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1},
+                "policy": {"id": "basic", "version": "1.0"},
+                "result_available": False,
+                "result_path": None,
+            },
+        )
+
+        runs = service.list_runs()
+
+        assert runs[0]["run_classification"] == "LIVE_PROTECTED_RUN"
+        assert runs[0]["bundle_status"] == "PENDING"
+    finally:
+        service.shutdown()
+
+
 def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)

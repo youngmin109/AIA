@@ -1955,6 +1955,11 @@ def _list_runs(args: argparse.Namespace) -> int:
             f"보호: {item.get('protection_state', 'UNKNOWN')} / "
             f"Bundle: {item.get('bundle_status', 'UNKNOWN')}"
         )
+        classification = item.get("run_classification")
+        if classification and classification != "PRODUCT_PROTECTED_RUN":
+            print(f"  기록 분류: {classification}")
+            if classification == "UNVERIFIED_RUNTIME_STATE":
+                print("  주의: 검증된 Result Bundle이 없어 보호 성공으로 해석하지 마세요.")
         print(f"  Workspace: {item.get('workspace', '-')}")
         print(
             f"  Policy: {policy_id} "

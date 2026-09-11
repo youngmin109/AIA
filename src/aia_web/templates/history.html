@@ -19,7 +19,7 @@
       <td class="mono target-cell">{{ run.workspace }}</td>
       <td>{{ (run.policy or {}).get('id') or (run.policy or {}).get('policy_id', '—') }}<br><span class="muted">{{ (run.policy or {}).get('version') or (run.policy or {}).get('policy_version', '—') }}</span></td>
       <td>{{ run.incident_count }}</td>
-      <td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td>
+      <td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span>{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% elif run.run_classification == 'LIVE_PROTECTED_RUN' %}<br><span class="muted">실행 중 상태</span>{% endif %}</td>
       <td><a href="{{ run.result_url }}">결과 보기</a></td>
     </tr>
   {% else %}

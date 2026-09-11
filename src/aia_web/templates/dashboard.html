@@ -97,7 +97,7 @@
   <div class="panel-heading"><div><h2>최근 보호 실행</h2><p class="hint">검증된 Bundle 상태를 기준으로 표시합니다.</p></div><a href="/runs" class="text-link">실행 기록 전체 →</a></div>
   {% if runs %}
   <div class="table-wrap"><table><thead><tr><th>Session</th><th>상태</th><th>Workspace</th><th>사건</th><th>Bundle</th></tr></thead>
-    <tbody>{% for run in runs[:5] %}<tr><td class="mono">{{ run.session_id }}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
+    <tbody>{% for run in runs[:5] %}<tr><td class="mono">{{ run.session_id }}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
   </table></div>
   {% else %}
   <div class="empty dashboard-empty">아직 보호 실행 기록이 없습니다. <a href="/new">첫 보호 실행을 시작하세요.</a></div>

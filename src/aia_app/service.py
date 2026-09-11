@@ -1007,9 +1007,25 @@ class RunApplicationService:
             session_id = state.get("session_id")
             if not isinstance(session_id, str):
                 continue
+            session_status = session.get("status", "UNKNOWN")
+            result_available = bool(state.get("result_available"))
+            # A runtime snapshot is only a recovery hint. It must not look
+            # like a committed product result when its Result Bundle cannot
+            # be verified (for example after an interrupted probe or an old
+            # incompatible artifact).
+            verification = self.reader.verification(session_id) if result_available else None
+            if verification is not None and verification.is_valid:
+                run_classification = "PRODUCT_PROTECTED_RUN"
+                bundle_status = verification.status.value
+            elif session_status in {"COMPLETED", "ABORTED", "FAILED"}:
+                run_classification = "UNVERIFIED_RUNTIME_STATE"
+                bundle_status = "UNVERIFIED"
+            else:
+                run_classification = "LIVE_PROTECTED_RUN"
+                bundle_status = "PENDING"
             values[session_id] = {
                 "session_id": session_id,
-                "status": session.get("status", "UNKNOWN"),
+                "status": session_status,
                 "ended_at": None,
                 "created_at": session.get("created_at"),
                 "workspace": session.get("workspace"),
@@ -1018,8 +1034,8 @@ class RunApplicationService:
                     "id": policy.get("id"),
                     "version": policy.get("version"),
                 },
-                "run_classification": "PRODUCT_PROTECTED_RUN",
-                "bundle_status": "PENDING",
+                "run_classification": run_classification,
+                "bundle_status": bundle_status,
                 "incident_count": state.get("incident_count", 0),
                 "result_url": f"/runs/{session_id}/result",
                 "protection_state": protection.get("state", "UNKNOWN"),
@@ -1031,6 +1047,12 @@ class RunApplicationService:
             if live_record is not None:
                 self._refresh_protection_state(live_record)
                 record = self.registry.snapshot(record.session_id) or record
+            if record.status in {"COMPLETED", "ABORTED", "FAILED"} and record.bundle_status != "VALID":
+                run_classification = "UNVERIFIED_RUNTIME_STATE"
+                bundle_status = "UNVERIFIED"
+            else:
+                run_classification = "PRODUCT_PROTECTED_RUN"
+                bundle_status = record.bundle_status or "PENDING"
             values[record.session_id] = {
                 "session_id": record.session_id,
                 "status": record.status,
@@ -1039,8 +1061,8 @@ class RunApplicationService:
                 "workspace": str(record.workspace),
                 "agent": record.agent,
                 "policy": {"id": record.policy_id, "version": record.policy_version},
-                "run_classification": "PRODUCT_PROTECTED_RUN",
-                "bundle_status": record.bundle_status or "PENDING",
+                "run_classification": run_classification,
+                "bundle_status": bundle_status,
                 "incident_count": len(record.incidents),
                 "result_url": f"/runs/{record.session_id}/result",
                 "protection_state": record.protection_state,
