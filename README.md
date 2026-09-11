@@ -2,7 +2,7 @@
 
 AIA는 Codex와 같은 Agent의 보호 실행을 위한 독립적인 제품형 MVP Repository다. MVP는 실행 증거를 수집하고, 정규화·귀속·정책 평가·집행·복구·무결성 검증·감사를 연결한다.
 
-EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.md)과 [제한사항](docs/LIMITATIONS.md)에 기록되어 있다. 최신 Actual Codex 검증에서는 Bash와 `apply_patch` 사전 차단을 확인했으며, 등록된 파일 읽기 MCP 경로는 현재 실행에서 도구 호출이 실현되지 않아 별도 제한으로 기록했다. 파괴적 PROCESS 시나리오도 별도 제한사항으로 남아 있다.
+EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.md)과 [제한사항](docs/LIMITATIONS.md)에 기록되어 있다. 최신 Actual Codex 검증에서는 Bash, `apply_patch`, 등록된 파일 읽기 MCP의 사전 차단을 확인했다. 파괴적 PROCESS 시나리오는 별도 제한사항으로 남아 있다.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 

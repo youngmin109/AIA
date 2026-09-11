@@ -28,10 +28,10 @@ Workspace 선택
 ```
 
 현재 검증된 지원 계약은 Windows 11, Codex CLI, AIA가 직접 시작한 실행, 그리고
-`Bash`, `apply_patch`, `Edit`, `Write` 계열의 PreToolUse다. 등록된 파일 읽기 MCP
-matcher는 구현되어 있고 과거 별도 실행에서 차단을 확인했지만, 현재 Codex 0.154.0
-재실행에서는 MCP 서버가 도구 호출을 발생시키지 않아 최신 실행을 PASS로 기록하지
-않았다. 실제 Codex Bash와 `apply_patch`에 대해
+`Bash`, `apply_patch`, `Edit`, `Write` 계열과 명시적으로 등록된 파일 읽기 MCP의
+PreToolUse다. Codex 0.154.0에서 실제 `mcp__filesystem__read_file` 요청에 대해
+MCP 서버의 파일 읽기 호출 전에 `VIOLATION → CONTAIN → PRETOOL_BLOCK →
+BLOCKED / SUCCEEDED`를 확인했다. 실제 Codex Bash와 `apply_patch`에 대해
 `permissionDecision=deny`와 파일 미생성을 확인했고,
 정상 읽기 실행에 대해서는 실제 Hook Evidence와 `Bundle VALID`를 확인했다.
 제품 증명 명령에는 disposable Workspace의 `.env` 읽기 시도를 다루는
@@ -76,8 +76,8 @@ Grandchild = TERMINATED / SUCCEEDED`, unrelated process = `LIVE_MATCH`로 확인
 계약의 증거이며, 정책 위반에 따른 자동 destructive PROCESS 집행까지 증명하는 결과는
 아니다.
 
-2026-09-11에는 Codex 0.154.0의 실제 Bash, `apply_patch`, `.env` 읽기 PreToolUse를
-direct adapter smoke로 추가 확인했다. 세 시나리오 모두 AIA가
+2026-09-11에는 Codex 0.154.0의 실제 Bash, `apply_patch`, `.env` 읽기와 등록된
+filesystem MCP read PreToolUse를 direct adapter smoke로 추가 확인했다. 네 시나리오 모두 AIA가
 `VIOLATION → CONTAIN → PRETOOL_BLOCK`을 결정하고 Codex에 실제 `deny`를 반환했으며,
 부작용 없이 `BLOCKED / SUCCEEDED`와 Bundle `VALID`를 기록했다. `.env` 시나리오에서는
 Codex 출력과 Evidence/Result에 secret marker가 없었다. 이 자동화 검증은 disposable
@@ -154,11 +154,9 @@ uv run aia reconcile <SESSION_ID>
 
 ## 아직 제품으로서 부족한 부분
 
-- 등록된 파일 읽기 MCP 도구 이름은 `READ`로 정규화하는 계약을 유지한다. 다만
-  최신 Codex 0.154.0 재실행에서는 MCP 서버 시작·도구 목록 조회만 관찰되고
-  실제 `read_file` 호출이 발생하지 않아 이번 실행을 차단 PASS로 주장하지 않는다.
-  과거 통과 기록은 별도 증거로 보존하며, 등록되지 않은 MCP 도구와 전체 Codex 도구
-  범위는 지원하지 않는다.
+- 등록된 파일 읽기 MCP 도구 이름은 `READ`로 정규화하는 계약을 유지한다. 현재
+  `mcp__filesystem__read_file` 경로는 실제 PreToolUse 차단을 통과했지만, 등록되지
+  않은 MCP 도구와 전체 Codex 도구 범위는 지원하지 않는다.
 - 대화형 세션과 Codex 버전·출력 형식별 실행 결과 확인을 더 넓게 검증해야 한다.
 - 정책 위반에 따른 Actual Codex destructive Process Tree 보상 집행은 개발자
   fault-injection 환경에서 실제 `PostToolUse → POST_ACTION → TERMINATED →

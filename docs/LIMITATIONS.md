@@ -9,9 +9,8 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
   documented blocking exit path를 사용하고 Broker가 사라진 실행은 검증 상태를
   유지하지 않지만, PostToolUse 오류는 이미 실행된 작업을 되돌릴 수 없고 Hook 우회
   경로를 OS 수준에서 차단하지 않는다.
-- 등록된 파일 읽기 MCP 경로는 구현 계약과 과거 통과 Canary가 있지만, 현재 Codex
-  0.154.0 재실행에서는 MCP 서버가 시작된 뒤 실제 `read_file` 호출이 실현되지
-  않아 최신 실행을 차단 PASS로 기록하지 않았다. 등록되지 않은 MCP 도구와 모든
+- 등록된 `mcp__filesystem__read_file` MCP 경로는 Codex 0.154.0에서 실제
+  PreToolUse 차단과 부작용 없음까지 확인했다. 등록되지 않은 MCP 도구와 모든
   구조화 READ 경로를 보편적으로 보호한다고 주장하지 않는다.
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.

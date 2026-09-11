@@ -134,6 +134,11 @@ PRETOOL_BLOCK`이 기록되며, MCP 서버의 실행 marker가 생성되지 않�
 실제 `read_file` 호출을 생성하지 않으면 `scenario_realized=false`인
 `EXTERNAL_INTERFACE_LIMITATION`으로 기록하며 차단 PASS로 해석하지 않는다.
 
+2026-09-11 재검증에서는 Codex 0.154.0이 실제
+`mcp__filesystem__read_file` 요청을 생성했고, AIA가 MCP 서버의 `tools/call` 전에
+차단했다. 결과는 `BLOCKED / SUCCEEDED`, `Bundle VALID`, 파일 읽기 marker 없음으로
+확인되었다. 이 결과는 명시적으로 등록된 해당 MCP 도구 이름에 한정된다.
+
 사용자 중지와 Actual Codex 자식 프로세스 트리는 다음 smoke로 별도 검증한다.
 
 ```powershell

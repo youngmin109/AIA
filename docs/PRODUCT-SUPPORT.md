@@ -210,9 +210,9 @@ Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 
 - Active Policy를 하나의 Protected Run에 고정한다.
 - 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
 - 명시적으로 등록된 파일 읽기 MCP 이름은 `READ`로 정규화하는 계약을 유지한다.
-  과거 `mcp-read` Canary는 실제 차단까지 통과했지만, 현재 Codex 0.154.0 재실행에서는
-  MCP 서버의 초기화·도구 목록 조회만 발생하고 실제 `read_file` 호출이 발생하지
-  않아 최신 실행을 차단 PASS로 기록하지 않았다.
+  Codex 0.154.0의 `mcp__filesystem__read_file` 경로에서 실제 PreToolUse 차단과
+  부작용 없음을 확인했다. 등록되지 않은 MCP 도구와 모든 MCP 경로를 지원한다고
+  해석하지 않는다.
 - 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
 - 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
 - 보호 실행 화면은 실행 중에도 검증된 Hook Action의 요약과 Incident를 갱신하며,
