@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 from typing import Any
 
 from ..codex_installation import AIA_CODEX_HOOK_MATCHER
@@ -107,25 +108,25 @@ class CodexAdapter:
             if self._is_executable_candidate(configured_path):
                 return configured_path
 
-        # PATH is the user's active Codex selection. Prefer it over another
-        # side-by-side installation so the executable used for Hook trust is
-        # the same one the user starts from their terminal/Codex setup.
-        for candidate in self._path_candidates():
-            if self._is_executable_candidate(candidate):
-                return candidate
-
-        candidates: list[Path] = []
-        candidates.extend(self._windows_install_candidates())
-        unique: list[Path] = []
-        seen: set[Path] = set()
-        for path in candidates:
+        # The interactive Windows command may be a PowerShell/npm wrapper while
+        # AIA launches the native executable. Compare all discoverable native
+        # candidates by their reported Codex version so Hook trust and the
+        # protected child use the same installed release. PATH candidates still
+        # win ties and remain the default when version output is unavailable.
+        candidates: dict[Path, int] = {}
+        for path in self._path_candidates():
             resolved = Path(path).expanduser().resolve(strict=False)
-            if not resolved.is_file() or resolved in seen:
-                continue
-            seen.add(resolved)
-            unique.append(resolved)
-        if unique:
-            return max(unique, key=self._discovery_sort_key)
+            candidates[resolved] = 2
+        for path in self._windows_install_candidates():
+            resolved = Path(path).expanduser().resolve(strict=False)
+            candidates[resolved] = max(candidates.get(resolved, 0), 1)
+        valid = [
+            (path, source_priority)
+            for path, source_priority in candidates.items()
+            if self._is_executable_candidate(path)
+        ]
+        if valid:
+            return max(valid, key=self._discovery_sort_key)[0]
         raise AdapterUnavailableError("Codex executable is unavailable")
 
     def _path_candidates(self) -> tuple[Path, ...]:
@@ -145,13 +146,45 @@ class CodexAdapter:
         return path.is_file() and path.suffix.lower() not in {".cmd", ".bat", ".ps1"}
 
     @classmethod
-    def _discovery_sort_key(cls, path: Path) -> float:
-        """Prefer the most recently installed Codex CLI when several exist."""
+    def _discovery_sort_key(
+        cls,
+        candidate: tuple[Path, int],
+    ) -> tuple[bool, tuple[int, int, int], int, float]:
+        """Prefer the newest verified Codex version, then PATH candidates."""
+
+        path, source_priority = candidate
+        version = cls._executable_version(path)
 
         try:
-            return path.stat().st_mtime
+            mtime = path.stat().st_mtime
         except OSError:
-            return 0.0
+            mtime = 0.0
+        return (
+            version is not None,
+            version or (0, 0, 0),
+            source_priority,
+            mtime,
+        )
+
+    @staticmethod
+    def _executable_version(path: Path) -> tuple[int, int, int] | None:
+        """Read a bounded semantic version without retaining command output."""
+
+        try:
+            completed = subprocess.run(
+                [str(path), "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=5.0,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        output = completed.stdout.decode("utf-8", errors="replace")
+        match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", output)
+        if match is None:
+            return None
+        return tuple(int(group) for group in match.groups())  # type: ignore[return-value]
 
     def _windows_install_candidates(self) -> tuple[Path, ...]:
         """Find the per-user Windows Codex install when it is outside PATH."""

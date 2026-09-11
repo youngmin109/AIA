@@ -481,6 +481,37 @@ def test_codex_adapter_prefers_newer_codex_install_when_multiple_exist(
     assert CodexAdapter().discover() == new.resolve()
 
 
+def test_codex_adapter_prefers_newer_reported_version_over_mtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    older_version = tmp_path / "older-version" / "codex.exe"
+    newer_version = tmp_path / "newer-version" / "codex.exe"
+    older_version.parent.mkdir(parents=True)
+    newer_version.parent.mkdir(parents=True)
+    older_version.write_bytes(b"older")
+    newer_version.write_bytes(b"newer")
+    newer_mtime = older_version.stat().st_mtime + 10
+    os.utime(older_version, (newer_mtime, newer_mtime))
+    monkeypatch.setattr(codex_module.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_windows_install_candidates",
+        lambda _adapter: (older_version, newer_version),
+    )
+    versions = {
+        older_version.resolve(): (0, 154, 0),
+        newer_version.resolve(): (0, 155, 0),
+    }
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_executable_version",
+        staticmethod(lambda path: versions.get(Path(path).resolve())),
+    )
+
+    assert CodexAdapter().discover() == newer_version.resolve()
+
+
 def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:
     adapter = CodexAdapter(
         hook_command="python -m aia.codex_hook_runtime",

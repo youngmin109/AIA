@@ -68,6 +68,18 @@ AIA에 도착하면 `POST_ACTION → PROCESS_TERMINATION`과 `RESTORED + VERIFIE
 PostToolUse가 0건이었다. 이 결과는
 정책 위반 Process 자동 집행의 PASS가 아니라 Codex PostToolUse 경로의 제한사항이다.
 
+Codex Hook lifecycle 자체를 AIA 평가와 분리해 확인하려면 다음 smoke를 실행한다.
+
+```powershell
+uv run python scripts/actual_codex_hook_lifecycle_smoke.py
+```
+
+이 도구는 AIA Gate를 호출하지 않고, 임시 inline Hook이 실제 Codex에서 받은
+이벤트 이름과 도구 이름만 보존한다. 현재 Windows 결과는
+`PreToolUse=1`, `PostToolUse=0`이며, stdout/stderr 원문은 저장하지 않고 크기와
+SHA-256만 남긴다. `PostToolUse=0`은 AIA가 사후 집행을 성공했다고 주장할 수
+없는 외부 인터페이스 제한으로 기록된다.
+
 `.env`를 shell 명령으로 읽는 경로도 별도 실행할 수 있다.
 
 ```powershell
