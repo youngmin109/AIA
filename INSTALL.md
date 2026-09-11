@@ -38,6 +38,12 @@ aia --version
 검토하고 신뢰한다. 이 단계는 사용자가 검토해야 하며 AIA가 자동으로 대신하지
 않는다.
 
+검토할 항목과 다음 순서를 한 번에 확인하려면 다음 읽기 전용 명령을 실행한다.
+
+```powershell
+uv run aia hook explain
+```
+
 그 다음 실제 Hook 연결을 확인한다. 이 명령은 임시 Workspace에서 무해한 Probe를
 실행하고, Probe Workspace는 삭제한다.
 

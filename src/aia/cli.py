@@ -699,6 +699,8 @@ def _doctor(args: argparse.Namespace) -> int:
                 )
             print(f"[다음] {recent_run['next_step']}")
         print(f"[필수 조치] {next_step}")
+        if not payload["ready"]:
+            print("[도움말] 검토 순서가 헷갈리면 'uv run aia hook explain'을 실행하세요.")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
 

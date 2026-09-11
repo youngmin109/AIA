@@ -54,6 +54,13 @@ uv run aia support-bundle --output .\aia-support-bundle.json
 uv run aia setup
 ```
 
+설치와 신뢰의 차이가 헷갈리면 다음 명령으로 AIA가 설치한 Hook의 검토 대상과
+다음 단계를 먼저 확인한다.
+
+```powershell
+uv run aia hook explain
+```
+
 그 다음 Codex에서 `/hooks`를 입력하고 AIA `PreToolUse` Hook의 명령과 Matcher를
 검토한다. 내용을 확인한 뒤 직접 Trust한다. AIA가 대신 Trust하지 않는 이유는
 사용자가 승인하지 않은 실행 경계를 AIA가 임의로 활성화하면 안 되기 때문이다.

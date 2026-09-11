@@ -59,6 +59,13 @@ uv run aia doctor
 uv run aia hook status
 ```
 
+처음 설치했고 `/hooks`에서 무엇을 확인해야 하는지 모르겠으면 다음 명령을
+실행한다.
+
+```powershell
+uv run aia hook explain
+```
+
 두 명령의 `codex_hook_trust`, `hook_verification`, `activation_status`를 함께
 확인한다.
 
