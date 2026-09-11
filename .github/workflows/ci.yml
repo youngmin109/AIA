@@ -27,6 +27,12 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked
 
+      - name: Check lockfile and source syntax
+        shell: pwsh
+        run: |
+          uv lock --check
+          python -m compileall -q src scripts
+
       - name: Run tests
         run: uv run pytest -ra
 
