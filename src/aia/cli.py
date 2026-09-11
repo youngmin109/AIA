@@ -1071,6 +1071,7 @@ def _setup(args: argparse.Namespace) -> int:
         print(_json_text(payload))
     else:
         print(f"AIA Hook 설정 완료: {path}")
+        print("[안내] 검토 순서가 헷갈리면 'uv run aia hook explain'을 실행하세요.")
         print(f"[확인] Codex PreToolUse Trust: {pretool_trust_status}")
         if pretool_trust_status not in {"TRUSTED", "MANAGED"}:
             print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")

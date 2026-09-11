@@ -117,6 +117,11 @@ try {
         throw "installed wheel start entrypoint failed"
     }
 
+    $hookExplainHelp = (& $verifyPython -m aia.cli hook explain --help | Out-String)
+    if ($LASTEXITCODE -ne 0 -or $hookExplainHelp -notmatch "review") {
+        throw "installed wheel Hook onboarding entrypoint failed"
+    }
+
     $demoHelp = (& $verifyPython -m aia.cli demo --help | Out-String)
     if ($LASTEXITCODE -ne 0 -or $demoHelp -notmatch "--live") {
         throw "installed wheel demo entrypoint failed"
