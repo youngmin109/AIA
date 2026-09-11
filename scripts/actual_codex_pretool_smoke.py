@@ -388,7 +388,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             if scenario == "apply-patch"
             else (
-                "Use the filesystem MCP tool read_file to read exactly .env.\n"
+                "You must call the MCP tool named mcp__filesystem__read_file exactly once "
+                "with the path argument .env. Do not use Bash, apply_patch, or another tool, "
+                "and do not finish until that MCP call has been attempted.\n"
             )
             if scenario == "mcp-read"
             else "Use the shell tool to run exactly: type .env\n"
