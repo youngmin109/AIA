@@ -24,7 +24,15 @@ Hook이 설치되지 않았거나 사용자가 검토·신뢰하지 않은 상�
 
 ## 실제 Canary 증명
 
-격리 Workspace를 만들고 실제 `codex exec`를 실행한다.
+설치된 제품을 사용하는 경우에는 다음 명령을 사용한다. AIA가 disposable Workspace와
+실제 `codex exec`를 직접 준비한다.
+
+```powershell
+aia proof
+aia proof --scenario block-env
+```
+
+소스 체크아웃에서 증명 스크립트를 직접 실행하려면 다음을 사용한다.
 
 ```powershell
 uv run python scripts/actual_codex_pretool_smoke.py
@@ -85,6 +93,10 @@ PRETOOL_BLOCK`이 기록되며, MCP 서버의 실행 marker가 생성되지 않�
 ```powershell
 uv run python scripts/actual_codex_abort_smoke.py --model gpt-5.5
 ```
+
+위 `scripts/...` 명령은 저장소 개발·검증용이며 릴리스 wheel 설치에 포함된 일반
+사용자 명령이 아니다. 릴리스 설치에서는 `aia proof`, `aia proof --scenario
+block-env`, `aia protect`, `aia status`, `aia stop`을 사용한다.
 
 이 시나리오는 Codex가 disposable Workspace에서 Root → Child → Grandchild를
 생성한 뒤 AIA가 사용자 중지를 요청하고, 관리 트리만 종료되는지 확인한다.
