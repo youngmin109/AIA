@@ -324,6 +324,94 @@ def test_setup_reports_trusted_codex_pretool_status_without_manual_review_flag(
     assert "신뢰된 상태" in payload["next_steps"][0]
 
 
+@pytest.mark.parametrize("trust_status", ["TRUSTED", "MANAGED"])
+def test_hook_status_reports_actual_trusted_codex_status(
+    tmp_path, monkeypatch, capsys, trust_status
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    control_root = tmp_path / "control"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": trust_status},
+                    ],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(control_root),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["trust_status"] == trust_status
+    assert payload["ready"] is False
+
+
+def test_hook_status_requires_manual_review_when_codex_hook_is_untrusted(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    control_root = tmp_path / "control"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                    ],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(control_root),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["trust_status"] == "MANUAL_REVIEW_REQUIRED"
+
+
 def test_console_parser_supports_explicit_bind_values() -> None:
     args = _parser().parse_args(
         ["console", "--host", "127.0.0.1", "--port", "8799", "--open"]

@@ -1055,6 +1055,11 @@ def _hook_status(args: argparse.Namespace) -> int:
         codex_trust.get("available")
         and pretool_trust_status in {"TRUSTED", "MANAGED"}
     )
+    trust_status = (
+        str(pretool_trust_status)
+        if trust_current
+        else "MANUAL_REVIEW_REQUIRED"
+    )
     verification_current = fingerprint_current and trust_current
     if verification_current:
         activation_status = "CURRENTLY_VERIFIED"
@@ -1075,7 +1080,7 @@ def _hook_status(args: argparse.Namespace) -> int:
         "verification_status": verification_status,
         "verification_path": str(verification_store.path),
         "ready": verification_current,
-        "trust_status": "MANUAL_REVIEW_REQUIRED",
+        "trust_status": trust_status,
         "activation_status": activation_status,
         "codex_hook_trust": codex_trust,
         "last_verified_run": (
