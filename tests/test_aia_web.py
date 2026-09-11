@@ -36,6 +36,8 @@ class FakeService:
     def preflight(self):
         return {
             "ready": True,
+            "readiness_code": "READY",
+            "next_step": "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다.",
             "checks": [
                 {
                     "name": "codex_executable",
@@ -157,6 +159,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "AIA는 실제 도구 요청을 관찰·통제합니다" in new_run.text
     assert "Codex 실제 Hook Trust" in new_run.text
     assert "preToolUse=MODIFIED" in new_run.text
+    assert 'id="readiness-code">READY' in new_run.text
+    assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/workspaces/validate", params={"path": "C:/workspace"}).json()["valid"] is True
     created = client.post("/api/runs", json={"workspace": "C:/workspace", "task": "inspect"})

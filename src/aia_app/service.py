@@ -320,6 +320,7 @@ class RunApplicationService:
             "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
             "hooks": [],
         }
+        pretool_status: str | None = None
         if executable is not None and pretool_installed:
             codex_hook_trust = inspect_codex_hook_trust(
                 executable,
@@ -398,6 +399,10 @@ class RunApplicationService:
             )
 
         required = [item for item in checks if not item.get("optional")]
+        control_root_check = next(
+            (item for item in checks if item.get("name") == "control_root"),
+            None,
+        )
         recent_verified = [
             item
             for item in self.list_runs()
@@ -424,8 +429,40 @@ class RunApplicationService:
         else:
             hook_activation_status = "NOT_OBSERVED"
             hook_activation_detail = "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
+
+        if not self.require_hook_verification:
+            readiness_code = "READY" if all(bool(item["ok"]) for item in required) else "NOT_READY"
+            next_step = (
+                "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
+                if readiness_code == "READY"
+                else "위의 필수 확인 항목을 해결한 뒤 다시 검사하세요."
+            )
+        elif executable is None:
+            readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
+            next_step = "Codex CLI 설치와 PATH를 확인한 뒤 다시 검사하세요."
+        elif not pretool_installed:
+            readiness_code = "CODEX_HOOK_NOT_INSTALLED"
+            next_step = "'aia setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+        elif pretool_status not in {"TRUSTED", "MANAGED"}:
+            readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
+            next_step = (
+                "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
+                "'aia hook verify'를 실행하세요."
+            )
+        elif not hook_verified:
+            readiness_code = "HOOK_VERIFICATION_REQUIRED"
+            next_step = "'aia hook verify'를 실행한 뒤 다시 검사하세요."
+        elif not (control_root_check and control_root_check.get("ok")):
+            readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
+            next_step = "AIA Control Root 권한을 확인한 뒤 다시 검사하세요."
+        else:
+            readiness_code = "READY"
+            next_step = "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
+
         return {
             "ready": all(bool(item["ok"]) for item in required),
+            "readiness_code": readiness_code,
+            "next_step": next_step,
             "checks": checks,
             "hook_trust": {
                 "status": "MANUAL_REVIEW_REQUIRED",

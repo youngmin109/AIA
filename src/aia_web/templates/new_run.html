@@ -48,6 +48,10 @@
   <div id="preflight-error" class="error" {% if preflight.ready %}hidden{% endif %}>
     <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 항목을 먼저 해결하세요. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
   </div>
+  <div id="readiness-summary" class="notice {% if preflight.ready %}success{% else %}warning{% endif %}">
+    <strong>준비 상태: <span id="readiness-code">{{ preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
+    <span id="readiness-next-step">{{ preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
+  </div>
   <div class="next-steps">
     <strong>처음 사용하는 경우</strong>
     <ol>
@@ -140,6 +144,9 @@ const workspaceInput = form.elements.workspace;
 const workspaceStatus = document.getElementById('workspace-status');
 const preflightChecks = document.getElementById('preflight-checks');
 const preflightError = document.getElementById('preflight-error');
+const readinessSummary = document.getElementById('readiness-summary');
+const readinessCode = document.getElementById('readiness-code');
+const readinessNextStep = document.getElementById('readiness-next-step');
 const submitRun = document.getElementById('submit-run');
 const hookActivation = document.getElementById('hook-activation');
 const codexHookTrust = document.getElementById('codex-hook-trust');
@@ -190,6 +197,9 @@ function renderPreflight(payload) {
     preflightChecks.append(row);
   });
   preflightError.hidden = payload.ready;
+  readinessSummary.className = `notice ${payload.ready ? 'success' : 'warning'}`;
+  readinessCode.textContent = payload.readiness_code || 'UNKNOWN';
+  readinessNextStep.textContent = payload.next_step || '위의 확인 필요 항목을 해결하세요.';
   const activation = payload.hook_activation || {};
   hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
   hookActivation.textContent = `실제 Hook 관찰: ${activation.detail || '상태를 확인할 수 없습니다.'}`;

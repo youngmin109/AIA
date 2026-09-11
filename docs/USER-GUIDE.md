@@ -38,6 +38,10 @@ uv run aia doctor
 `MODIFIED`, `UNTRUSTED`, `NOT_READY`가 나오면 Codex `/hooks`에서 AIA Hook을
 다시 확인하고 `uv run aia hook verify`를 다시 실행한다.
 
+웹 콘솔의 `실행 전 준비 상태`도 같은 `readiness_code`와 다음 조치를 표시한다.
+예를 들어 `CODEX_HOOK_TRUST_REQUIRED`이면 콘솔에서 실행 버튼을 누르기 전에
+Codex `/hooks`에서 AIA PreToolUse Hook을 검토·신뢰해야 한다.
+
 자동화나 상태 확인 화면에서는 `uv run aia doctor --json`의
 `readiness_code`와 `next_step`을 사용한다. 예를 들어
 `CODEX_HOOK_TRUST_REQUIRED`는 Codex `/hooks`에서 검토·신뢰한 뒤

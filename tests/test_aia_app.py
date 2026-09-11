@@ -633,6 +633,7 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
     try:
         result = service.preflight()
         assert result["ready"] is True
+        assert result["readiness_code"] == "READY"
         assert result["hook_trust"]["status"] == "MANUAL_REVIEW_REQUIRED"
         assert result["hook_activation"]["status"] == "NOT_OBSERVED"
         assert result["protection_claim"]["status"] == "CLAIM_ALLOWED_AFTER_SESSION_EVENT"
@@ -666,12 +667,71 @@ def test_application_preflight_requires_live_hook_verification_when_enabled(
         "aia_app.service.CodexHookInstaller.is_posttool_installed",
         lambda _installer: True,
     )
+    monkeypatch.setattr(
+        "aia_app.service.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "TRUSTED"},
+                    ],
+                }
+            },
+        )(),
+    )
     try:
         result = service.preflight()
         assert result["ready"] is False
+        assert result["readiness_code"] == "HOOK_VERIFICATION_REQUIRED"
+        assert "hook verify" in result["next_step"]
         checks = {item["name"]: item for item in result["checks"]}
         assert checks["hook_verification"]["ok"] is False
         assert "hook verify" in checks["hook_verification"]["detail"]
+    finally:
+        service.shutdown()
+
+
+def test_application_preflight_exposes_untrusted_hook_remediation(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(
+        tmp_path / "control",
+        require_hook_verification=True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_installed",
+        lambda _installer: True,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "MODIFIED"},
+                    ],
+                }
+            },
+        )(),
+    )
+    try:
+        result = service.preflight()
+        assert result["ready"] is False
+        assert result["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
+        assert "/hooks" in result["next_step"]
+        assert "aia hook verify" in result["next_step"]
     finally:
         service.shutdown()
 
