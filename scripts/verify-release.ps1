@@ -79,7 +79,49 @@ if ((ConvertTo-Json $manifestPackageNames -Compress) -ne (ConvertTo-Json $actual
     throw "Release manifest package list does not match the bundle"
 }
 
+# Verify the installable wheel in a clean temporary environment. Hash
+# verification alone cannot catch missing package data or a broken console
+# entry point after the source tree is no longer present.
+$wheel = @($packages | Where-Object { $_.Name -like "*.whl" })[0]
+$verifyTempRoot = Join-Path ([IO.Path]::GetTempPath()) ("aia-release-verify-" + [guid]::NewGuid().ToString("N"))
+$verifyVenv = Join-Path $verifyTempRoot ".venv"
+try {
+    New-Item -ItemType Directory -Path $verifyTempRoot -Force | Out-Null
+    & uv venv --python 3.13 $verifyVenv
+    if ($LASTEXITCODE -ne 0) {
+        throw "uv venv failed with exit code $LASTEXITCODE"
+    }
+
+    $verifyPython = Join-Path $verifyVenv "Scripts\python.exe"
+    $verifyAia = Join-Path $verifyVenv "Scripts\aia.exe"
+    & uv pip install --python $verifyPython $wheel.FullName
+    if ($LASTEXITCODE -ne 0) {
+        throw "clean wheel installation failed with exit code $LASTEXITCODE"
+    }
+
+    $versionOutput = (& $verifyAia --version | Out-String).Trim()
+    $expectedVersionOutput = "AIA $([string]$manifest.version)"
+    if ($LASTEXITCODE -ne 0 -or $versionOutput -ne $expectedVersionOutput) {
+        throw "installed wheel console entry point failed: $versionOutput"
+    }
+
+    $selfTestJson = (& $verifyAia self-test --json | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "installed wheel self-test failed with exit code $LASTEXITCODE"
+    }
+    $selfTest = $selfTestJson | ConvertFrom-Json
+    if ($selfTest.passed -ne $true) {
+        throw "installed wheel self-test did not report passed=true"
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $verifyTempRoot) {
+        Remove-Item -LiteralPath $verifyTempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Write-Host "AIA release bundle verified"
 Write-Host "Version: $($manifest.version)"
 Write-Host "Packages: $($packages.Count)"
 Write-Host "SHA-256: PASS"
+Write-Host "Clean wheel install: PASS"
