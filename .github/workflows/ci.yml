@@ -8,16 +8,13 @@ permissions:
   contents: read
 
 jobs:
-  windows-product-check:
-    name: Windows 11 product checks
+  test-and-build:
     runs-on: windows-latest
-    timeout-minutes: 20
-
     steps:
-      - name: Check out source
+      - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.13
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -27,18 +24,82 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install the locked development environment
-        run: uv sync --locked --dev
+      - name: Sync locked environment
+        run: uv sync --locked
 
-      - name: Check source formatting boundaries
+      - name: Check lockfile and source syntax
         shell: pwsh
-        run: git diff --check
+        run: |
+          uv lock --check
+          python -m compileall -q src scripts
 
-      - name: Compile the shipped Python source
-        run: python -m compileall -q src scripts
-
-      - name: Run the complete test suite
+      - name: Run tests
         run: uv run pytest -ra
 
-      - name: Run the product Core self-test
-        run: uv run aia self-test --json
+      - name: Check package build
+        run: uv build
+
+      - name: Check release bundle
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "aia-release"
+          pwsh -NoProfile -File .\scripts\package-release.ps1 -OutputRoot $output
+          $bundle = Get-ChildItem $output -Directory | Where-Object { $_.Name -like 'aia-*' } | Select-Object -First 1
+          pwsh -NoProfile -File .\scripts\verify-release.ps1 -BundlePath $bundle.FullName
+
+      - name: Smoke test release installer before PATH refresh
+        shell: pwsh
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP "aia-installer-path"
+          $toolDir = Join-Path $probe "tools"
+          $binDir = Join-Path $probe "bin"
+          $codexHome = Join-Path $probe "codex"
+          New-Item -ItemType Directory -Force -Path $toolDir, $binDir, $codexHome | Out-Null
+          $env:UV_TOOL_DIR = $toolDir
+          $env:UV_TOOL_BIN_DIR = $binDir
+          $env:CODEX_HOME = $codexHome
+          $bundle = Get-ChildItem (Join-Path $env:RUNNER_TEMP "aia-release") -Directory | Select-Object -First 1
+          pwsh -NoProfile -File (Join-Path $bundle.FullName "install.ps1") -SetupHook
+          $aia = Join-Path $binDir "aia.exe"
+          if (-not (Test-Path -LiteralPath $aia -PathType Leaf)) {
+            throw "The release installer did not create the uv tool executable in the configured bin directory."
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $codexHome "hooks.json") -PathType Leaf)) {
+            throw "The release installer did not configure the AIA Hook."
+          }
+          & $aia --version
+          & $aia self-test --json
+
+      - name: Reject a tampered release wheel before installation
+        shell: pwsh
+        run: |
+          $source = Get-ChildItem (Join-Path $env:RUNNER_TEMP "aia-release") -Directory | Select-Object -First 1
+          $probe = Join-Path $env:RUNNER_TEMP "aia-installer-integrity"
+          if (Test-Path -LiteralPath $probe) {
+            Remove-Item -LiteralPath $probe -Recurse -Force
+          }
+          Copy-Item -LiteralPath $source.FullName -Destination $probe -Recurse
+          $wheel = Get-ChildItem (Join-Path $probe "packages") -Filter "*.whl" -File | Select-Object -First 1
+          $stream = [System.IO.File]::Open($wheel.FullName, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+          try {
+            $stream.WriteByte(0x58)
+          }
+          finally {
+            $stream.Dispose()
+          }
+          $output = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $probe "install.ps1") 2>&1
+          if ($LASTEXITCODE -eq 0 -or (($output | Out-String) -notmatch "SHA-256 mismatch")) {
+            throw "The release installer did not reject the modified wheel."
+          }
+
+      - name: Install wheel smoke
+        shell: pwsh
+        run: |
+          $venv = Join-Path $env:RUNNER_TEMP "aia-wheel-venv"
+          uv venv $venv
+          $python = Join-Path $venv "Scripts\python.exe"
+          $wheel = Get-ChildItem .\dist\*.whl | Select-Object -First 1
+          uv pip install --python $python $wheel.FullName
+          & (Join-Path $venv "Scripts\aia.exe") --help
+          & (Join-Path $venv "Scripts\aia.exe") console --help
+          & (Join-Path $venv "Scripts\aia.exe") self-test --json
