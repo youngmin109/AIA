@@ -121,6 +121,16 @@ try {
         throw "installed wheel self-test did not report passed=true"
     }
 
+    $capabilitiesJson = (& $verifyPython -m aia.cli capabilities --json | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "installed wheel capabilities command failed with exit code $LASTEXITCODE"
+    }
+    $capabilities = $capabilitiesJson | ConvertFrom-Json
+    if ($capabilities.schema_version -ne "aia-capabilities-v1" -or
+        @($capabilities.support.pretool_matchers).Count -eq 0) {
+        throw "installed wheel capabilities contract is incomplete"
+    }
+
     $webAssetsCheck = @'
 from pathlib import Path
 import aia_web
