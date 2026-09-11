@@ -96,6 +96,16 @@ def test_env_block_confirmation_names_secret_non_disclosure() -> None:
     ) == "SECRET_LEAKED"
 
 
+def test_windows_delete_block_uses_the_same_no_side_effect_confirmation() -> None:
+    assert _block_confirmation(
+        scenario="block-windows-delete",
+        canary_executed=False,
+        secret_leaked=False,
+        gate_block_count=1,
+        confirmed_block_count=1,
+    ) == "CANARY_NO_SIDE_EFFECT"
+
+
 def test_human_proof_summary_does_not_print_captured_codex_output(tmp_path, capsys) -> None:
     report = {
         "scenario": "block-env",

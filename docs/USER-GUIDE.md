@@ -118,6 +118,12 @@ uv run aia proof
 uv run aia proof --scenario block-env
 ```
 
+Windows 기본 정책의 `Remove-Item` 파일 삭제 차단은 다음으로 확인한다.
+
+```powershell
+uv run aia proof --scenario block-windows-delete
+```
+
 이 명령들은 실제 Codex 실행을 사용한다. `permissionDecision=deny`만으로
 성공시키지 않고, Codex가 도구를 실행하지 않았고 부작용이 없었는지까지 확인한다.
 기본 출력은 사람이 읽는 한국어 요약이며, 전체 JSON 보고서가 필요하면

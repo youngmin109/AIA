@@ -63,6 +63,12 @@ uv run aia proof --scenario block-env
 이 시나리오는 실제 PreToolUse 차단과 실행 확인뿐 아니라, `.env`의 secret marker가
 Codex 출력·Evidence·Result에 나타나지 않는지도 확인한다.
 
+Windows 기본 정책의 `Remove-Item` 실행 전 차단은 다음으로 확인한다.
+
+```powershell
+uv run aia proof --scenario block-windows-delete
+```
+
 실제 Agent를 시작하기 전에 정책 결과를 미리 확인할 수도 있습니다. 정책 미리보기는
 대상 명령을 실행하지 않으며, 선택한 정책의 최종 판정과 매칭 Rule만 출력합니다.
 

@@ -53,6 +53,12 @@ def test_product_proof_parser_supports_env_secret_block() -> None:
     assert args.scenario == "block-env"
 
 
+def test_product_proof_parser_supports_windows_delete_block() -> None:
+    args = _parser().parse_args(["proof", "--scenario", "block-windows-delete"])
+
+    assert args.scenario == "block-windows-delete"
+
+
 def test_cli_version_uses_package_version(capsys) -> None:
     with pytest.raises(SystemExit) as error:
         _parser().parse_args(["--version"])
