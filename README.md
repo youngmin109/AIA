@@ -109,9 +109,10 @@ uv run aia setup
 uv run aia hook status
 ```
 
-`PreToolUse 설치: YES`는 설정 파일이 있다는 뜻이고, `실제 Hook 관찰:
-OBSERVED_FROM_RUN`일 때만 과거 실행에서 AIA Session에 연결된 Hook이 확인됐다는
-뜻입니다. 설치만 되어 있고 Event가 없으면 보호 성공으로 해석하지 않습니다.
+`PreToolUse 설치: YES`는 설정 파일이 있다는 뜻이고, `Hook 관찰 상태:
+OBSERVED_IN_PAST`일 때만 과거 실행에서 AIA Session에 연결된 Hook이 확인됐다는
+뜻입니다. 현재 설정과 검증 기록이 모두 유효한 상태는 `CURRENTLY_VERIFIED`이며,
+설치만 되어 있고 Event가 없으면 보호 성공으로 해석하지 않습니다.
 
 처음 실행할 때 AIA는 `PROTECTED_DEVELOPMENT` 프로필을 기본 사용합니다. 이 프로필은
 `.env` 같은 비밀정보 읽기와 대표적인 파괴 명령을 기본 차단하고, 일반 소스 변경은
@@ -148,7 +149,7 @@ uv run aia policy validate C:\workspace\policies\my-policy.json
 `aia setup`이 기존 Codex Hook 설정을 덮어쓰지 않고 AIA의 PreToolUse와
 PostToolUse 항목을 추가합니다. PreToolUse는 실행 전 정책 관문이고, PostToolUse는
 실제 실행 여부를 확인하기 위한 선택적 관찰 경로입니다. `aia doctor`가
-`PREREQUISITES_READY`를 보여주면 사전 조건이 준비된 것입니다. Codex에서 `/hooks`를 열어 AIA Hook을 검토하고 신뢰한 뒤
+`READY`를 보여주면 사전 조건이 준비된 것입니다. Codex에서 `/hooks`를 열어 AIA Hook을 검토하고 신뢰한 뒤
 보호 실행을 시작합니다. 이미 Hook만 설치해야 하는 경우에는 다음 명령을
 사용할 수도 있습니다.
 
