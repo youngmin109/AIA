@@ -39,14 +39,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 
 공개하기 전에는 release bundle 자체도 검증한다. 이 명령은 wheel·source archive의
 개수, release manifest의 패키지 목록, `SHA256SUMS.txt`와 실제 파일의 일치를
-확인한다.
+확인하고, 임시 Python 3.13 가상환경에 wheel을 실제 설치해 console entry point와
+Core self-test까지 실행한다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
   -BundlePath .\dist\release\aia-0.1.0
 ```
 
-검증 결과가 `SHA-256: PASS`가 아닌 bundle은 배포하지 않는다.
+검증 결과에 `SHA-256: PASS`와 `Clean wheel install: PASS`가 모두 없는 bundle은
+배포하지 않는다. 검증이 끝나면 임시 가상환경은 자동으로 삭제된다.
 
 ## Wheel 설치
 
