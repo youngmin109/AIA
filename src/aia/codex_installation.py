@@ -23,6 +23,13 @@ AIA_CODEX_SUPPORTED_MATCHERS = (
     "mcp__filesystem__read_file",
     "mcp__fs__read",
 )
+# Codex accepts these names as matcher aliases for the canonical
+# ``apply_patch`` tool. The Hook payload still reports ``tool_name`` as
+# ``apply_patch``; keep the aliases separate from semantic tool names so the
+# runtime never treats an alias as a different input schema.
+AIA_CODEX_TOOL_ALIASES = {
+    "apply_patch": ("Edit", "Write"),
+}
 # Receive every tool that Codex routes through the local PreToolUse/PostToolUse
 # hook path. Semantic support remains explicit in
 # ``AIA_CODEX_SUPPORTED_MATCHERS``; an unknown tool is denied by the bound
@@ -322,6 +329,7 @@ class CodexHookInstaller:
 
 __all__ = [
     "AIA_CODEX_SUPPORTED_MATCHERS",
+    "AIA_CODEX_TOOL_ALIASES",
     "AIA_CODEX_HOOK_MATCHER",
     "CodexHookInstallationError",
     "CodexHookInstaller",

@@ -8,6 +8,7 @@
 
 - `aia demo`로 실제 Workspace와 Codex를 건드리지 않는 안전한 제품 데모 추가
 - `aia demo --live`로 disposable Workspace의 실제 Codex PreToolUse 증명을 선택적으로 실행
+- Codex `Edit`·`Write` matcher 별칭을 canonical `apply_patch` 계약으로 명시
 - 빠른 시작 문서에 첫 실행 흐름과 데모 절차 추가
 
 ## [0.1.12] - 2026-09-11

@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from ._version import __version__
-from .codex_installation import AIA_CODEX_HOOK_MATCHER, AIA_CODEX_SUPPORTED_MATCHERS
+from .codex_installation import (
+    AIA_CODEX_HOOK_MATCHER,
+    AIA_CODEX_SUPPORTED_MATCHERS,
+    AIA_CODEX_TOOL_ALIASES,
+)
 
 
 def product_capabilities() -> dict[str, Any]:
@@ -23,6 +27,10 @@ def product_capabilities() -> dict[str, Any]:
             "modes": ["ENFORCE", "AUDIT"],
             "pretool_matcher": AIA_CODEX_HOOK_MATCHER,
             "pretool_matchers": list(AIA_CODEX_SUPPORTED_MATCHERS),
+            "pretool_aliases": {
+                canonical: list(aliases)
+                for canonical, aliases in AIA_CODEX_TOOL_ALIASES.items()
+            },
             "unsupported_tool_behavior": (
                 "Hook으로 수신되지만 의미를 해석하지 못하는 도구는 "
                 "UNSUPPORTED_TOOL_PATH로 거부하고 실행 성공으로 주장하지 않음"

@@ -46,8 +46,9 @@
 내부 부트스트랩 경계와 Trust 상태 표시를 보강했다. 0.1.11은 `aia hook status`가
 같은 Trust 상태를 실제 값으로 표시하도록 정합성을 보강했다. 따라서 아래 Actual
 Codex 결과는 0.1.13의 차단 계약에 대한 기존 통합 근거로 유지하며, 릴리스 번들
-검증은 0.1.13으로 다시 실행한다. 0.1.12는 공식 Codex 입력 계약이 없는 `Edit`·`Write`
-를 보호 지원 범위로 표시하지 않도록 정합성을 보강했다.
+검증은 0.1.13으로 다시 실행한다. 현재 semantic 지원 목록은 canonical
+`apply_patch`를 사용하며, Codex의 `Edit`·`Write` matcher 별칭은 같은
+`apply_patch` 입력으로 처리된다는 공식 Hook 계약을 별도 alias metadata로 표시한다.
 
 | 시나리오 | 실제 결과 | 확인한 사실 |
 |---|---|---|

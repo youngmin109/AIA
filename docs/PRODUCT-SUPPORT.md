@@ -16,6 +16,7 @@ Agent: Codex CLI
 Hook matcher: `*` (Codex가 로컬 Hook 경로로 전달하는 도구를 수신)
 의미 해석 지원: Bash, apply_patch,
 `mcp__filesystem__read_file`, `mcp__fs__read`
+Codex matcher 별칭: `Edit`, `Write`는 canonical `apply_patch` 경로로 처리
 지원 목록 밖 도구: `UNSUPPORTED_TOOL_PATH`로 거부하고 보호 성공으로 주장하지 않음
 실행 확인: 선택적 Codex PostToolUse evidence
 Control Root: Workspace 밖의 사용자별 AIA control directory

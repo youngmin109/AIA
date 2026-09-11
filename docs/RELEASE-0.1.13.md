@@ -18,6 +18,10 @@ aia demo --live
 기존 `aia proof`와 동일한 실제 Codex 증명 경로를 사용하고, Hook Trust가 확인되지
 않으면 Codex 도구를 실행하지 않는다.
 
+Codex matcher의 `Edit`·`Write` 별칭은 실제 Hook 입력의 canonical
+`apply_patch` 경로로 처리되며, `aia capabilities --json`의 alias metadata에서
+확인할 수 있다.
+
 ## 검증 명령
 
 ```powershell

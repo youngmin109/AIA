@@ -226,7 +226,7 @@ Hook Event 검증을 수행하며, 검증이 실패하면 Codex 도구를 실행
 
 ## 보호 범위
 
-현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Hook matcher는 `*`로 설치해 로컬 Hook 경로의 입력을 받지만, Bash, `apply_patch`, 그리고 명시적으로 등록된 파일 읽기 MCP만 의미를 해석한다. 목록 밖 도구는 `UNSUPPORTED_TOOL_PATH`로 거부한다. `Edit`·`Write`는 현재 공식 Codex 입력 계약이 확인되지 않아 보호 지원 범위에 포함하지 않는다. 등록되지 않은 MCP 도구가 Hook 경로 밖에서 실행되거나 Hook을 우회하는 경로는 지원 범위 밖이다.
+현재 제품 범위는 Windows 11의 AIA Protected Run으로 시작한 Codex CLI와 동기식 `PreToolUse` 경로다. Hook matcher는 `*`로 설치해 로컬 Hook 경로의 입력을 받지만, Bash, canonical `apply_patch`, 그리고 명시적으로 등록된 파일 읽기 MCP만 의미를 해석한다. Codex의 `Edit`·`Write` matcher 별칭은 Hook 입력에서 canonical `tool_name=apply_patch`로 전달되므로 같은 `apply_patch` 계약으로 포함한다. 별도 `Edit`·`Write` 입력 Schema를 추측하지 않는다. 목록 밖 도구는 `UNSUPPORTED_TOOL_PATH`로 거부한다. 등록되지 않은 MCP 도구가 Hook 경로 밖에서 실행되거나 Hook을 우회하는 경로는 지원 범위 밖이다.
 
 Hook을 거치지 않는 특수 도구, Hosted tool, 외부 Agent, 사용자가 Hook을 비활성화한 실행, 보호 실행 밖의 수동 작업은 AIA가 `PROTECTED` 또는 `BLOCKED`로 주장하지 않는다. Codex 공식 문서가 설명하듯 일부 특수 도구 경로는 기본 Hook 경로를 사용하지 않을 수 있으므로, Hook은 현재 제품의 지원 범위 안에서 검증하는 통제 지점이다.
 

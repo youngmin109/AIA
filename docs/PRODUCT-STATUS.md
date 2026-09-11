@@ -36,6 +36,8 @@ Codex 로컬 Hook 경로의 `PreToolUse` 수신이다. Hook matcher는 `*`로 �
 AIA가 정책 행위로 의미를 해석하는 도구는 `Bash`, `apply_patch`와 명시적으로
 등록된 파일 읽기 MCP로 제한한다. 목록 밖 도구는
 `UNSUPPORTED_TOOL_PATH`로 거부한다. Codex 0.154.0에서 실제
+Codex의 `Edit`·`Write` matcher 별칭은 Hook 입력의 canonical `apply_patch` 경로로
+처리되며, 별도 입력 Schema로 추측하지 않는다.
 `mcp__filesystem__read_file` 요청에 대해
 MCP 서버의 파일 읽기 호출 전에 `VIOLATION → CONTAIN → PRETOOL_BLOCK →
 BLOCKED / SUCCEEDED`를 확인했다. 실제 Codex Bash와 `apply_patch`에 대해
