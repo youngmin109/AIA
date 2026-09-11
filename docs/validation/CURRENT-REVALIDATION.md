@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `0.1.26` 현재 Workspace 시작·실행 중 파일 관찰·콘솔 Hook 검증 기준 |
-| 제품 버전 | `0.1.26` |
-| Actual Codex 보안 증거 기준 | `0.1.26`에서 사용자 Trust 후 제품 CLI 경로의 Bash·`.env`·`apply_patch`·Windows 삭제 차단과 정상 읽기를 disposable Workspace에서 재검증; MCP는 현재 제품 범위에서 제외 |
+| 코드 기준 | `0.1.27` 현재 Workspace 시작·세 센서 검증·콘솔 Evidence 표시 기준 |
+| 제품 버전 | `0.1.27` |
+| Actual Codex 보안 증거 기준 | `0.1.27`에서 사용자 Trust 후 제품 CLI 경로의 Bash·`.env`·`apply_patch`·Windows 삭제 차단과 정상 읽기를 disposable Workspace에서 재검증; MCP는 현재 제품 범위에서 제외 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -19,7 +19,7 @@
 
 | 검증 | 결과 |
 |---|---|
-| 전체 pytest | **583 passed, 3 skipped, 2 warnings** |
+| 전체 pytest | **580 passed, 3 skipped, 2 warnings** |
 | `uv lock --check` | **PASS** |
 | `uv build` wheel/sdist | **PASS** |
 | 릴리스 번들 생성 | **PASS** |

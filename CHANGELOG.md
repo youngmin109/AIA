@@ -2,6 +2,14 @@
 
 이 파일은 공개 배포 버전의 사용자에게 보이는 변경 사항을 기록한다.
 
+## [0.1.27] - 2026-09-11
+
+### 세 센서 검증과 결과 화면 보강
+
+- 검증된 Protected Run은 `AGENT_HOOK`, `FILESYSTEM_WATCHER`, `PROCESS_RUNTIME` 세 센서가 모두 실행 중 `HEALTHY`이고 종료 후 `STOPPED`인 경우에만 `*_VERIFIED`로 표시한다.
+- 센서가 누락되거나 실패하면 실행을 `*_DEGRADED`로 표시한다.
+- Result와 Live Run 화면에서 센서별 상태와 Process Evidence 건수를 확인할 수 있다.
+
 ## [0.1.26] - 2026-09-11
 
 ### MVP 지원 범위 고정
