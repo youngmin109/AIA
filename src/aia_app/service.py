@@ -821,6 +821,10 @@ class RunApplicationService:
                 "version": record.policy_version,
             },
             "result_available": bool(record.result_path),
+            "evidence_summary": self._evidence_summary(
+                session_id,
+                require_valid=record.result_path is not None,
+            ),
             "sensor_health": dict(record.sensor_health),
             "session": {
                 "agent": record.agent,
@@ -1114,11 +1118,26 @@ class RunApplicationService:
         view["evidence_summary"] = self._evidence_summary(session_id)
         return view
 
-    def _evidence_summary(self, session_id: str) -> dict[str, int | bool]:
-        """Return safe counts from the verified Evidence metadata index."""
+    def _evidence_summary(
+        self,
+        session_id: str,
+        *,
+        require_valid: bool = True,
+    ) -> dict[str, int | bool]:
+        """Return safe counts from the Evidence metadata index.
+
+        Completed result views require a valid bundle.  Live status may count
+        the append-only metadata file before finalization so the console can
+        show observation progress without exposing raw payload values.
+        """
 
         try:
-            return evidence_summary(self.reader.read_evidence_metadata(session_id))
+            return evidence_summary(
+                self.reader.read_evidence_metadata(
+                    session_id,
+                    require_valid=require_valid,
+                )
+            )
         except (OSError, ValueError, KeyError):
             return evidence_summary(())
 
@@ -2238,6 +2257,10 @@ class RunApplicationService:
             "stop": stop,
             "policy": policy,
             "result_available": bool(state.get("result_available")),
+            "evidence_summary": self._evidence_summary(
+                str(state.get("session_id")),
+                require_valid=False,
+            ),
             "sensor_health": state.get("sensor_health", {}),
             "runtime_reconciliation": state.get("runtime_reconciliation"),
             "session": session,
@@ -2296,6 +2319,7 @@ class RunApplicationService:
             "stop": {"requested": aborted, "error": None},
             "policy": view["policy"],
             "result_available": True,
+            "evidence_summary": self._evidence_summary(session_id),
             "sensor_health": {
                 item.get("sensor"): item.get("runtime_health_before_stop")
                 for item in result.get("sensor_summary", [])

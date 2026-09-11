@@ -17,6 +17,7 @@
   <div class="metric"><span>보호 상태</span><strong id="protection-state">{{ status.protection.state if status.protection else 'UNKNOWN' }}</strong></div>
   <div class="metric"><span>Hook Broker</span><strong id="hook-broker-health">{{ status.protection.hook_broker if status.protection else 'NOT_STARTED' }}</strong></div>
   <div class="metric"><span>사건 수</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
+  <div class="metric"><span>파일 관찰</span><strong id="filesystem-event-count">{{ (status.evidence_summary or {}).get('filesystem_events', 0) }}건</strong></div>
 </section>
 
 <div id="interactive-instructions" class="notice success" {% if not status.interactive %}hidden{% endif %}>
@@ -55,6 +56,7 @@ async function poll() {
     document.getElementById('checkpoint').textContent = status.checkpoint || 'PENDING';
     document.getElementById('lease').textContent = status.lease || 'PENDING';
     document.getElementById('incident-count').textContent = status.incident_count;
+    document.getElementById('filesystem-event-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
     const protection = status.protection || {};
     document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';

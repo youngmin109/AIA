@@ -131,6 +131,39 @@ def test_application_lists_live_runs_without_runtime_contents(tmp_path) -> None:
         service.shutdown()
 
 
+def test_live_status_exposes_only_filesystem_evidence_counts(tmp_path) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    service.registry.add(record)
+    evidence_path = (
+        control_root
+        / "sessions"
+        / record.session_id
+        / "evidence"
+        / "raw-evidence.jsonl"
+    )
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+                "payload": {"src_path": "C:/private.txt"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    try:
+        status = service.get_run_status(record.session_id)
+        assert status["evidence_summary"]["filesystem_events"] == 1
+        assert "C:/private.txt" not in repr(status)
+    finally:
+        service.shutdown()
+
+
 def test_application_does_not_present_unverified_runtime_as_committed_run(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     try:
@@ -668,6 +701,30 @@ def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_p
         reader.session_directory("../secret")
     with pytest.raises(ValueError, match="Integrity Failure"):
         reader.read_result("missing-session")
+
+
+def test_result_bundle_reader_can_read_live_metadata_without_valid_bundle(tmp_path) -> None:
+    reader = ResultBundleReader(tmp_path)
+    evidence_path = tmp_path / "sessions" / "session-1" / "evidence" / "raw-evidence.jsonl"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "evidence_id": "e1",
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "payload": {"command": "secret command"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    metadata = reader.read_evidence_metadata("session-1", require_valid=False)
+
+    assert metadata[0]["record_type"] == "PRETOOL_REQUEST"
+    assert "command" in metadata[0]["payload_keys"]
+    assert "secret command" not in repr(metadata)
 
 
 def test_result_bundle_reader_preserves_protection_downgrade_in_history(

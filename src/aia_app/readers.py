@@ -54,9 +54,23 @@ class ResultBundleReader:
         self._require_valid(session_id)
         return (result_directory / "result.json").read_bytes()
 
-    def read_evidence_metadata(self, session_id: str) -> list[dict[str, Any]]:
+    def read_evidence_metadata(
+        self,
+        session_id: str,
+        *,
+        require_valid: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Read metadata without returning Evidence payload values.
+
+        Completed-result callers keep the default verified-bundle requirement.
+        Live-run status may opt out because the bundle does not exist until
+        finalization; that path still returns metadata keys only and never
+        exposes raw payload values.
+        """
+
         session_directory = self.session_directory(session_id)
-        self._require_valid(session_id)
+        if require_valid:
+            self._require_valid(session_id)
         path = session_directory / "evidence" / "raw-evidence.jsonl"
         if not path.is_file():
             return []

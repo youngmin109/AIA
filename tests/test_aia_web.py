@@ -86,6 +86,13 @@ class FakeService:
             "stop": {"requested": False, "error": None},
             "policy": {"id": "basic", "profile": "BASIC_DEVELOPMENT", "version": "1.0"},
             "result_available": True,
+            "evidence_summary": {
+                "available": True,
+                "filesystem_events": 2,
+                "pretool_events": 1,
+                "posttool_events": 1,
+                "sensor_health_events": 1,
+            },
             "sensor_health": {"FILESYSTEM_WATCHER": "HEALTHY"},
             "session": {"agent": "codex", "status": "RUNNING", "session_id": session_id, "workspace": "C:/workspace"},
         }
@@ -186,6 +193,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     live = client.get("/runs/run-1")
     assert live.status_code == 200
     assert "보호 실행 상태" in live.text
+    assert 'id="filesystem-event-count">2건' in live.text
     assert "Hook Broker" in live.text
     assert "HEALTHY" in live.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
