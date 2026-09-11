@@ -429,6 +429,8 @@ def _doctor(args: argparse.Namespace) -> int:
         "reason": "CODEX_EXECUTABLE_OR_HOOK_UNAVAILABLE",
         "hooks": [],
     }
+    pretool_status: str | None = None
+    posttool_status: str | None = None
     if executable is not None and hook_installed:
         codex_hook_trust = inspect_codex_hook_trust(
             executable,
@@ -528,10 +530,37 @@ def _doctor(args: argparse.Namespace) -> int:
         }
     )
 
+    if not supported_python:
+        readiness_code = "PYTHON_VERSION_UNSUPPORTED"
+        next_step = "Python 3.13 환경에서 AIA를 다시 실행하세요."
+    elif executable is None:
+        readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
+        next_step = "Codex CLI 설치와 PATH를 확인한 뒤 'aia doctor'를 다시 실행하세요."
+    elif not hook_installed:
+        readiness_code = "CODEX_HOOK_NOT_INSTALLED"
+        next_step = "'aia setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+    elif pretool_status not in {"TRUSTED", "MANAGED"}:
+        readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
+        next_step = (
+            "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
+            "'aia hook verify'와 'aia doctor'를 순서대로 실행하세요."
+        )
+    elif not hook_verified:
+        readiness_code = "HOOK_VERIFICATION_REQUIRED"
+        next_step = "'aia hook verify'를 실행한 뒤 'aia doctor'를 다시 실행하세요."
+    elif not writable:
+        readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
+        next_step = "AIA Control Root 권한을 확인한 뒤 'aia doctor'를 다시 실행하세요."
+    else:
+        readiness_code = "READY"
+        next_step = "'aia protect <workspace>'로 보호 실행을 시작할 수 있습니다."
+
     payload = {
         "product": "AIA",
         "checks": checks,
         "ready": all(bool(item["ok"]) for item in checks),
+        "readiness_code": readiness_code,
+        "next_step": next_step,
         "codex_executable": str(executable) if executable is not None else None,
         "codex_version": executable_version,
         "optional_capabilities": {
@@ -586,6 +615,7 @@ def _doctor(args: argparse.Namespace) -> int:
                     f"approval={recent_run['effective_approval_policy'] or 'unknown'}"
                 )
             print(f"[다음] {recent_run['next_step']}")
+        print(f"[필수 조치] {next_step}")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
 

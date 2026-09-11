@@ -490,6 +490,8 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
     assert trust_check["ok"] is False
     assert "PreToolUse=MODIFIED" in trust_check["value"]
     assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
+    assert payload["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
+    assert "aia hook verify" in payload["next_step"]
 
 
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
