@@ -12,18 +12,57 @@ from datetime import datetime, timezone
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 from typing import Any
 from uuid import uuid4
 
-from aia import BundleVerificationStatus
+from aia import BundleVerificationStatus, CodexAdapter, CodexHookInstaller
 from aia_app.readers import ResultBundleReader
+from aia.hook_verification import HookVerificationStore
 
 
 _SESSION_RE = re.compile(r"AIA Protected Run:\s*([A-Za-z0-9-]+)")
+
+
+def _default_control_root() -> Path:
+    configured = os.environ.get("AIA_CONTROL_ROOT")
+    if configured:
+        return Path(configured).expanduser().resolve(strict=False)
+    return (Path.home() / ".aia" / "control").resolve(strict=False)
+
+
+def _copy_current_hook_verification(
+    *,
+    source_control_root: Path,
+    target_control_root: Path,
+    installer: CodexHookInstaller,
+    executable: Path,
+) -> bool:
+    """Copy a current installation-bound proof into a disposable run root.
+
+    Product proof runs use an isolated Control Root so their artifacts are
+    self-contained.  The Hook proof itself is bound to the installed Hook,
+    runtime, Codex executable, and Codex configuration fingerprints, rather
+    than to a particular result directory.  Reusing that current proof avoids
+    starting a second model-driven probe for every scenario while preserving
+    the normal Protected Run preflight checks.
+    """
+
+    source_store = HookVerificationStore(source_control_root)
+    if not source_store.is_current(installer, executable):
+        return False
+    source_document = source_store.read()
+    if not isinstance(source_document, dict) or source_document.get("verified") is not True:
+        return False
+    target_store = HookVerificationStore(target_control_root)
+    target_control_root.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source_store.path, target_store.path)
+    return target_store.is_current(installer, executable)
 
 
 def _sha256(path: Path) -> str:
@@ -379,39 +418,81 @@ def main(argv: list[str] | None = None) -> int:
         "_json_output": args.json,
     }
     try:
-        verify_command = [
-            sys.executable,
-            "-m",
-            "aia.cli",
-            "hook",
-            "verify",
-            "--control-root",
-            str(control_root),
-            "--timeout",
-            str(args.timeout),
-            "--json",
-        ]
-        verified = subprocess.run(
-            verify_command,
-            cwd=Path.cwd(),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=args.timeout + 60,
-            check=False,
-        )
-        report["hook_verification"] = {
-            "command": verify_command,
-            **_safe_hook_verification(
-                stdout=verified.stdout,
-                stderr=verified.stderr,
-                exit_code=verified.returncode,
-            ),
-        }
-        if verified.returncode != 0:
-            report["failure_classification"] = "HOOK_VERIFICATION_REQUIRED"
+        installer = CodexHookInstaller()
+        try:
+            executable = CodexAdapter().discover()
+        except Exception as error:
+            report["failure_classification"] = "CODEX_EXECUTABLE_UNAVAILABLE"
+            report["hook_verification"] = {
+                "verified": False,
+                "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
+                "error_type": type(error).__name__,
+            }
             return _write_report(root, report, 1)
+
+        global_control_root = _default_control_root()
+        current_proof = _copy_current_hook_verification(
+            source_control_root=global_control_root,
+            target_control_root=control_root,
+            installer=installer,
+            executable=executable,
+        )
+        if current_proof:
+            document = HookVerificationStore(global_control_root).read() or {}
+            report["hook_verification"] = {
+                "verified": True,
+                "protection_claim": "PROTECTION_PROVEN",
+                "reason": "CURRENT_INSTALLATION_HOOK_PROOF_REUSED",
+                "trust_status": "CURRENT",
+                "hook_event_count": document.get("hook_event_count", 0),
+                "probe_started": False,
+                "source": "AIA_CONTROL_ROOT",
+            }
+        else:
+            # If the installation-bound proof is stale, refresh it once in
+            # the user's normal Control Root.  The temporary product proof
+            # root receives the refreshed certificate after the probe.
+            verify_command = [
+                sys.executable,
+                "-m",
+                "aia.cli",
+                "hook",
+                "verify",
+                "--control-root",
+                str(global_control_root),
+                "--timeout",
+                str(args.timeout),
+                "--json",
+            ]
+            verified = subprocess.run(
+                verify_command,
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=args.timeout + 60,
+                check=False,
+            )
+            report["hook_verification"] = {
+                "command": verify_command,
+                **_safe_hook_verification(
+                    stdout=verified.stdout,
+                    stderr=verified.stderr,
+                    exit_code=verified.returncode,
+                ),
+            }
+            if verified.returncode != 0:
+                report["failure_classification"] = "HOOK_VERIFICATION_REQUIRED"
+                return _write_report(root, report, 1)
+            if not _copy_current_hook_verification(
+                source_control_root=global_control_root,
+                target_control_root=control_root,
+                installer=installer,
+                executable=executable,
+            ):
+                report["failure_classification"] = "HOOK_VERIFICATION_PERSIST_FAILED"
+                return _write_report(root, report, 1)
 
         completed = subprocess.run(
             command,

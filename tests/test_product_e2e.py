@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from aia.product_e2e import (
     _block_confirmation,
+    _copy_current_hook_verification,
     _output_metadata,
     _proof_passed,
     _safe_hook_verification,
     _write_report,
 )
-from aia import BundleVerificationStatus
+from aia import BundleVerificationStatus, CodexHookInstaller
+from aia.hook_verification import HookVerificationStore
 
 
 def _common_kwargs() -> dict[str, object]:
@@ -177,3 +180,27 @@ def test_hook_verification_reports_invalid_json_without_retaining_output() -> No
 
     assert result["parse_error"] == "INVALID_JSON"
     assert "AIA_SECRET_CANARY" not in str(result)
+
+
+def test_current_hook_verification_can_be_reused_for_isolated_proof_root(tmp_path: Path) -> None:
+    hook_path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test")
+    source_root = tmp_path / "source-control"
+    target_root = tmp_path / "target-control"
+    HookVerificationStore(source_root).write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="verified-session",
+        hook_event_count=1,
+    )
+
+    assert _copy_current_hook_verification(
+        source_control_root=source_root,
+        target_control_root=target_root,
+        installer=installer,
+        executable=executable,
+    ) is True
+    assert HookVerificationStore(target_root).is_current(installer, executable) is True

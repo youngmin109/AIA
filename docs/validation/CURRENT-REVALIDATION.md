@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 검증일 | 2026-09-11 |
-| 코드 기준 | `0.1.24` 현재 Workspace 시작·실행 중 파일 관찰·콘솔 Hook 검증 기준 |
-| 제품 버전 | `0.1.24` |
-| Actual Codex 보안 증거 기준 | `0.1.13`에서 실행한 disposable Actual Codex direct smoke와 `0.1.24`의 실행 기록·Hook 온보딩·Evidence 표시 보강; 일반 사용자 Hook Trust 절차는 별도 확인 필요 |
+| 코드 기준 | `0.1.25` 현재 Workspace 시작·실행 중 파일 관찰·콘솔 Hook 검증 기준 |
+| 제품 버전 | `0.1.25` |
+| Actual Codex 보안 증거 기준 | `0.1.25`에서 사용자 Trust 후 제품 CLI 경로의 Bash·`.env`·`apply_patch`·Windows 삭제 차단과 정상 읽기를 disposable Workspace에서 재검증; Hook 검증 증명은 설치 지문이 현재인 동안 반복 제품 증명에 재사용 |
 | 운영체제 | Windows |
 | Python | 3.13 |
 | 실행 환경 | `uv` 잠금 환경 |
@@ -58,7 +58,7 @@ Hook과 사용자 도구를 안전하게 제거하는 절차를 배포 번들에
 `aia setup`이 Hook 설치와 실제 Protected Run 준비 상태를 분리해 표시했으며, 0.1.21에서는
 검증된 Evidence Bundle의 파일 시스템 관찰 건수를 결과 화면에 표시한다. 0.1.22에서는
 현재 디렉터리를 Workspace 기본값으로 사용할 수 있게 했고, 0.1.23에서는
-실행 중 File Sensor 관찰 건수를 표시하고, 0.1.24에서는 로컬 콘솔에서 실제 Hook
+실행 중 File Sensor 관찰 건수를 표시하고, 0.1.25에서는 로컬 콘솔에서 실제 Hook
 검증을 요청할 수 있게 했다. 현재 semantic
 지원 목록은 canonical
 `apply_patch`를 사용하며, Codex의 `Edit`·`Write` matcher 별칭은 같은
