@@ -65,6 +65,7 @@ async function poll() {
       'DEGRADED': '보호 경계에서 오류가 발생했습니다. 해당 실행은 완전한 보호 실행으로 주장하지 않습니다.',
       'COMPLETED_DEGRADED': '실행은 끝났지만 보호 경계에 오류가 있어 결과를 제한적으로 해석해야 합니다.',
       'ABORTED_DEGRADED': '사용자 중지 요청은 처리됐지만 보호 상태를 완전히 검증하지 못했습니다.',
+      'FAILED_DEGRADED': '보호 경계가 끊겨 관리 트리 중지를 시도했습니다. 보호 성공으로 해석하지 마세요.',
       'ABORTED_BEFORE_LAUNCH': 'Agent를 실행하기 전에 사용자가 보호 실행을 취소했습니다.'
     };
     protectionNote.textContent = notes[protection.state] || '';

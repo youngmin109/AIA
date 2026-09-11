@@ -169,6 +169,9 @@ Integrity: VERIFIED
 Session-bound Hook Event와 센서 상태, 검증된 Result Bundle이 함께 확인된
 경우에만 사용한다. `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계에
 제한이 있었음을 뜻한다.
+실행 중 Hook Broker가 사라져 보호 경계가 끊기면 `FAILED_DEGRADED`가 기록될 수
+있습니다. 이 경우 AIA는 관리 Agent 트리 중지를 시도하지만, 종료 성공 여부는
+결과의 `protection_failure_termination_result`에서 별도로 확인해야 합니다.
 
 ## 현재 보호 범위
 

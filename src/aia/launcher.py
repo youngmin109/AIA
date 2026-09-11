@@ -458,6 +458,27 @@ class ProtectedLauncher:
             reason=None if succeeded else "PROCESS_TREE_TERMINATION_INCOMPLETE",
         )
 
+    def request_protection_failure_termination_result(
+        self,
+        reason: str,
+    ) -> dict[str, Any] | None:
+        """Stop the managed tree after a protection boundary failure.
+
+        This uses the same identity-safe tree termination as an explicit user
+        stop, but the result is returned through a separate Result field so it
+        cannot be mistaken for a user abort or policy enforcement action.
+        """
+
+        if not isinstance(reason, str) or not reason.strip():
+            raise LauncherError("protection failure reason must be non-empty")
+        result = self.request_user_abort_result()
+        if result is None:
+            return None
+        mapping = result.to_mapping()
+        mapping["reason"] = reason.strip()
+        mapping["control"] = "PROTECTION_FAILURE"
+        return mapping
+
     def _terminate_verified_tree(
         self,
         root_identity: ProcessIdentity,

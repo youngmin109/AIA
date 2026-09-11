@@ -34,6 +34,7 @@
   `POST_ACTION → PROCESS_TERMINATION` 보상 경로와 실제 Process Manager 결과 기록
 - Evidence Bundle `VALID`와 SHA-256 artifact 목록 생성
 - 실행 종료 후 `COMPLETED_VERIFIED` 또는 `COMPLETED_DEGRADED` 상태 구분
+- 실행 중 Hook Broker 손실 시 `PROTECTION_FAILURE`와 별도 관리 트리 중지 결과 기록
 - 실행 중 사용자 중지 요청과 `USER_ABORT` 결과 기록
 - 실제 Codex 사용자 중지에서 등록된 Agent Process Tree 종료와 unrelated 프로세스 보존
   확인

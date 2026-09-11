@@ -1128,8 +1128,11 @@ class RunApplicationService:
             )
             raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
             process_identity = launch.context.root_process_identity
+            protection_failure_reason = record.runtime.get("protection_failure_reason")
             end_reason = (
-                SessionEndReason.USER_ABORT
+                SessionEndReason.PROTECTION_FAILURE
+                if protection_failure_reason
+                else SessionEndReason.USER_ABORT
                 if record.stop_requested
                 else SessionEndReason.AGENT_EXITED
             )
@@ -1138,6 +1141,13 @@ class RunApplicationService:
                 if record.stop_error
                 else ()
             )
+            if protection_failure_reason:
+                limitations.append("PROTECTION_BOUNDARY_LOST")
+                protection_failure_result = (
+                    record.runtime.get("protection_failure_termination_result") or {}
+                )
+                if protection_failure_result.get("status") != "SUCCEEDED":
+                    limitations.append("PROTECTION_FAILURE_TERMINATION_UNCONFIRMED")
             if record.runtime.get("post_action_containment_errors"):
                 limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
             if record.runtime.get("codex_sandbox_downgraded"):
@@ -1180,6 +1190,9 @@ class RunApplicationService:
                 agent_end_verification="PROCESS_GONE",
                 agent_output_observation=record.runtime.get("codex_output_observation"),
                 user_abort_termination_result=record.runtime.get("user_abort_termination_result"),
+                protection_failure_termination_result=record.runtime.get(
+                    "protection_failure_termination_result"
+                ),
                 limitations=tuple(limitations),
             )
             finalization_done = True
@@ -1196,6 +1209,9 @@ class RunApplicationService:
                 result=result_mapping,
                 bundle_status=verification.status.value,
                 protection_state=(
+                    "FAILED_DEGRADED"
+                    if final.result.session_status is SessionStatus.FAILED
+                    else
                     "ABORTED_VERIFIED"
                     if final.result.session_status is SessionStatus.ABORTED
                     and not record.stop_error
@@ -1297,16 +1313,50 @@ class RunApplicationService:
             try:
                 return int(process.wait(timeout=0.5))
             except subprocess.TimeoutExpired:
-                if not self._is_stop_requested(record):
+                if self._is_stop_requested(record):
+                    if record.runtime.get("stop_action_attempted"):
+                        continue
+                    record.runtime["stop_action_attempted"] = True
+                    record.protection_state = "STOP_REQUESTED"
+                    if not self._request_user_abort(record, launcher):
+                        record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
+                        record.protection_state = "DEGRADED"
+                    self._persist_runtime_state(record)
                     continue
-                if record.runtime.get("stop_action_attempted"):
+                broker = getattr(launcher, "hook_broker", None)
+                broker_running = (
+                    broker is not None and bool(getattr(broker, "is_running", False))
+                )
+                if not broker_running:
+                    reason = "HOOK_BROKER_LOST"
+                    if not record.runtime.get("protection_failure_termination_attempted"):
+                        record.runtime["protection_failure_termination_attempted"] = True
+                        record.runtime["protection_failure_reason"] = reason
+                        record.protection_state = "DEGRADED"
+                        try:
+                            result = launcher.request_protection_failure_termination_result(
+                                reason
+                            )
+                        except Exception as error:
+                            result = {
+                                "status": "FAILED",
+                                "outcome": "FAILED",
+                                "verified_tree_gone": False,
+                                "reason": f"{type(error).__name__}",
+                                "control": "PROTECTION_FAILURE",
+                            }
+                        if result is None:
+                            result = {
+                                "status": "FAILED",
+                                "outcome": "FAILED",
+                                "verified_tree_gone": False,
+                                "reason": "PROTECTION_FAILURE_TERMINATION_UNAVAILABLE",
+                                "control": "PROTECTION_FAILURE",
+                            }
+                        record.runtime["protection_failure_termination_result"] = result
+                        self._persist_runtime_state(record)
                     continue
-                record.runtime["stop_action_attempted"] = True
-                record.protection_state = "STOP_REQUESTED"
-                if not self._request_user_abort(record, launcher):
-                    record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
-                    record.protection_state = "DEGRADED"
-                self._persist_runtime_state(record)
+                continue
 
     @staticmethod
     def _request_user_abort(record: RunRecord, launcher: ProtectedLauncher) -> bool:
@@ -1803,6 +1853,7 @@ class RunApplicationService:
                 "CODEX_SANDBOX_DOWNGRADED",
                 "CODEX_APPROVAL_POLICY_DOWNGRADED",
                 "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
+                "PROTECTION_BOUNDARY_LOST",
             }
             for item in result.get("limitations", [])
         )
@@ -1810,7 +1861,9 @@ class RunApplicationService:
             result.get("session_status") == "ABORTED"
             and result.get("session_end_reason") == "USER_ABORT"
         )
-        if aborted:
+        if result.get("session_status") == "FAILED" or result.get("session_end_reason") == "PROTECTION_FAILURE":
+            protection_state = "FAILED_DEGRADED"
+        elif aborted:
             protection_state = (
                 "ABORTED_VERIFIED"
                 if hook_events and sensor_verified and not sensor_failed and not protection_downgraded

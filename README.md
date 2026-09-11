@@ -191,6 +191,10 @@ uv run aia stop <SESSION_ID>
 `COMPLETED_VERIFIED`는 실제 Hook Event와 검증된 Result Bundle이 확인된 실행이고,
 `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계가 완전히 검증되지 않은 실행입니다.
 후자는 성공한 보호 실행으로 해석하지 말고 제한사항을 확인해야 합니다.
+실행 중 Hook Broker가 사라져 관리 트리 중지를 시도한 경우에는
+`FAILED_DEGRADED`로 기록될 수 있습니다. 이 상태는 보호 경계가 끊겼고
+보호 성공으로 해석할 수 없다는 뜻입니다. 관리 트리 종료 결과는 사용자 중지나
+정책 집행 결과와 별도의 `protection_failure_termination_result`에서 확인합니다.
 `aia stop`은 정책 위반 집행과 분리된 사용자 취소이며, 결과에는 `USER_ABORT`로 기록됩니다.
 완료된 Result Bundle에서는 `user_abort_termination_result.status`와
 `verified_tree_gone`으로 실제 관리 트리 종료 여부를 확인할 수 있습니다. 이 값은

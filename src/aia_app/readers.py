@@ -107,6 +107,7 @@ class ResultBundleReader:
                     "CODEX_SANDBOX_DOWNGRADED",
                     "CODEX_APPROVAL_POLICY_DOWNGRADED",
                     "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
+                    "PROTECTION_BOUNDARY_LOST",
                 }
                 for item in result.get("limitations", ())
             )
@@ -122,7 +123,10 @@ class ResultBundleReader:
                     "run_classification": result.get("run_classification"),
                     "bundle_status": verification.status.value,
                     "protection_state": (
-                        "ABORTED_VERIFIED"
+                        "FAILED_DEGRADED"
+                        if session_status == "FAILED"
+                        or session_end_reason == "PROTECTION_FAILURE"
+                        else "ABORTED_VERIFIED"
                         if session_status == "ABORTED"
                         and session_end_reason == "USER_ABORT"
                         and hook_event_count

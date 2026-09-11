@@ -171,6 +171,7 @@ class SessionResult:
     enforcement_results: tuple[Mapping[str, Any], ...]
     process_termination_result: Mapping[str, Any] | None
     user_abort_termination_result: Mapping[str, Any] | None
+    protection_failure_termination_result: Mapping[str, Any] | None
     recovery_result: Mapping[str, Any] | None
     integrity_result: Mapping[str, Any] | None
     limitations: tuple[str, ...]
@@ -254,6 +255,10 @@ class SessionResult:
         # The field is present only when a user stop actually occurred.
         if self.user_abort_termination_result is not None:
             mapping["user_abort_termination_result"] = _json_safe(self.user_abort_termination_result)
+        if self.protection_failure_termination_result is not None:
+            mapping["protection_failure_termination_result"] = _json_safe(
+                self.protection_failure_termination_result
+            )
         return mapping
 
     def to_json_bytes(self) -> bytes:
@@ -303,6 +308,9 @@ class SessionResult:
             enforcement_results=tuple(value.get("enforcement_results", ())),
             process_termination_result=value.get("process_termination_result"),
             user_abort_termination_result=value.get("user_abort_termination_result"),
+            protection_failure_termination_result=value.get(
+                "protection_failure_termination_result"
+            ),
             recovery_result=value.get("recovery_result"),
             integrity_result=value.get("integrity_result"),
             limitations=tuple(value.get("limitations", ())),

@@ -217,6 +217,42 @@ def test_user_abort_termination_is_recorded_outside_policy_enforcement(tmp_path:
     assert restored.user_abort_termination_result == result.result.user_abort_termination_result
 
 
+def test_protection_failure_termination_is_separate_from_user_abort_and_policy(
+    tmp_path: Path,
+):
+    session, store, _ = _session(tmp_path)
+    result = SessionFinalizer(evidence_store=store).finalize(
+        session,
+        end_reason=SessionEndReason.PROTECTION_FAILURE,
+        protection_failure_termination_result={
+            "termination_id": "protection-failure-017",
+            "status": "SUCCEEDED",
+            "outcome": "TERMINATED",
+            "root_pid": 1234,
+            "root_create_time": 10.5,
+            "verified_tree_gone": True,
+            "requested_at": NOW.isoformat(),
+            "completed_at": NOW.isoformat(),
+            "reason": "HOOK_BROKER_LOST",
+            "control": "PROTECTION_FAILURE",
+        },
+    )
+
+    assert result.result.session_status is SessionStatus.FAILED
+    assert result.result.session_end_reason is SessionEndReason.PROTECTION_FAILURE
+    assert result.result.user_abort_termination_result is None
+    assert result.result.protection_failure_termination_result["status"] == "SUCCEEDED"
+    assert any(
+        item.event_type.value == "PROTECTION_FAILURE_EXECUTED"
+        for item in result.audit_records
+    )
+    restored = type(result.result).from_mapping(result.result.to_mapping())
+    assert (
+        restored.protection_failure_termination_result
+        == result.result.protection_failure_termination_result
+    )
+
+
 def test_blocked_and_process_refuse_do_not_abort_session(tmp_path: Path):
     session, store, action = _session(tmp_path)
     blocked = SessionFinalizer(evidence_store=store).finalize(

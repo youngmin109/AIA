@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import subprocess
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -903,6 +904,44 @@ def test_shutdown_requests_stop_for_live_run_before_executor_closes(tmp_path) ->
         # The shutdown above is intentionally part of the assertion.  This
         # second call keeps the test safe if setup fails before that point.
         service.shutdown(wait=True)
+
+
+def test_wait_for_agent_stops_managed_tree_when_hook_broker_is_lost(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    service.registry.add(record)
+
+    class Process:
+        def __init__(self):
+            self.calls = 0
+
+        def wait(self, timeout):
+            self.calls += 1
+            if self.calls == 1:
+                raise subprocess.TimeoutExpired("codex", timeout)
+            return 0
+
+    class Launcher:
+        hook_broker = SimpleNamespace(is_running=False)
+
+        @staticmethod
+        def request_protection_failure_termination_result(reason):
+            return {
+                "termination_id": "protection-failure-1",
+                "status": "SUCCEEDED",
+                "outcome": "TERMINATED",
+                "verified_tree_gone": True,
+                "reason": reason,
+                "control": "PROTECTION_FAILURE",
+            }
+
+    try:
+        assert service._wait_for_agent(record, Process(), Launcher()) == 0
+        assert record.protection_state == "DEGRADED"
+        assert record.runtime["protection_failure_reason"] == "HOOK_BROKER_LOST"
+        assert record.runtime["protection_failure_termination_result"]["status"] == "SUCCEEDED"
+    finally:
+        service.shutdown()
 
 
 def test_request_stop_reports_persisted_terminal_run(tmp_path, monkeypatch) -> None:

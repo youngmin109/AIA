@@ -173,6 +173,7 @@ uv run aia policy evaluate --operation EXECUTE --command "python build.py"
 | `COMPLETED_DEGRADED` | 실행은 끝났지만 보호 경계 오류가 있어 제한적으로 해석해야 함 |
 | `ABORTED_VERIFIED` | 사용자가 중지했고, 실행 중인 per-run Hook Broker와 Agent의 Hook, 모든 런타임 센서가 실행 중 `HEALTHY`였으며 종료 시 `STOPPED`였음 |
 | `ABORTED_DEGRADED` | 중지됐지만 보호 경계 검증이 충분하지 않음 |
+| `FAILED_DEGRADED` | 실행 중 보호 경계가 끊겨 관리 트리 중지를 시도했고, 보호 성공으로 해석할 수 없음 |
 | `ABORTED_BEFORE_LAUNCH` | Agent를 실행하기 전에 사용자가 취소함 |
 
 `ACTIVE_UNVERIFIED`와 `DEGRADED`는 완전한 보호 성공으로 해석하지 않는다.
@@ -184,6 +185,11 @@ per-run Hook Broker가 살아 있었고 결과의
 `sensor_summary`에서 각 센서의 `runtime_health_before_stop=HEALTHY`와
 `final_sensor_state=STOPPED`가 모두 확인되어야 한다. 센서 요약이 없거나 일부라도
 실패·비정상 종료이면 해당 실행은 `*_DEGRADED`로 표시한다.
+
+실행 중 per-run Hook Broker가 사라지면 AIA는 이를 `HOOK_BROKER_LOST` 보호 경계
+실패로 기록하고 AIA가 등록한 Agent Root 트리의 종료를 시도한다. 이 조치는 사용자
+중지와 정책 집행 종료와 별도의 `protection_failure_termination_result`로 기록된다.
+종료가 확인되지 않으면 `FAILED_DEGRADED`와 제한사항을 남기며 성공으로 포장하지 않는다.
 
 Process Sensor는 Protected Run에서 관찰한 프로세스 명령행을 선택적으로 lexical
 Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 기록할 수 있지만,

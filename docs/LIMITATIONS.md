@@ -15,6 +15,7 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.
 - OS 수준의 파일 Writer 귀속은 제공하지 않는다.
+- 보호 경계 실패 시 AIA가 관리 Root 트리 중지를 시도하지만, 종료 성공 자체를 보장하지 않는다.
 - Network Security는 MVP 보호 범위가 아니다.
 - Database state protection은 제공하지 않는다.
 - ACL/ADS 메타데이터 복구를 보장하지 않는다.
