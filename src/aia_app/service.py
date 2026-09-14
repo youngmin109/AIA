@@ -1253,6 +1253,14 @@ class RunApplicationService:
                 "launch_mode": record.launch_mode,
             }
         for item in self.reader.list_completed():
+            existing = values.get(item["session_id"])
+            # Result Bundles created before launch_mode became a persisted
+            # history field still need to retain the live runtime metadata
+            # while that metadata is available.  Otherwise a Workbench run
+            # falls back to the generic status page after a refresh.
+            if existing and item.get("launch_mode", "inherit") == "inherit":
+                item = dict(item)
+                item["launch_mode"] = existing.get("launch_mode", "inherit")
             values[item["session_id"]] = item
         return sorted(
             values.values(),

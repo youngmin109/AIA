@@ -913,6 +913,7 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
         lambda _session_id: {
             "session_status": "COMPLETED",
             "session_end_reason": "AGENT_EXITED",
+            "launch_mode": "web_terminal",
             "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
             "action_outcomes": [],
         },
@@ -928,6 +929,7 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
     runs = reader.list_completed()
 
     assert runs[0]["protection_state"] == "COMPLETED_DEGRADED"
+    assert runs[0]["launch_mode"] == "web_terminal"
 
 
 def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
@@ -1308,6 +1310,41 @@ def test_list_runs_includes_runtime_state_from_another_service_process(tmp_path)
     finally:
         reader.shutdown()
         writer.shutdown()
+
+
+def test_list_runs_preserves_workbench_launch_mode_when_bundle_omits_it(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    runtime_state = {
+        "session_id": "session-1",
+        "launch_mode": "web_terminal",
+        "result_available": False,
+        "session": {
+            "status": "RUNNING",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "workspace": str(tmp_path),
+            "agent": "codex",
+        },
+        "policy": {"id": "basic", "version": "1.0"},
+        "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1},
+    }
+    monkeypatch.setattr(service, "_list_runtime_states", lambda: [runtime_state])
+    monkeypatch.setattr(
+        service.reader,
+        "list_completed",
+        lambda: [{
+            "session_id": "session-1",
+            "status": "COMPLETED",
+            "launch_mode": "inherit",
+        }],
+    )
+    try:
+        runs = service.list_runs()
+        assert runs[0]["launch_mode"] == "web_terminal"
+    finally:
+        service.shutdown()
 
 
 def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> None:

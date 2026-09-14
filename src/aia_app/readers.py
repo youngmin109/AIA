@@ -133,6 +133,7 @@ class ResultBundleReader:
                     "created_at": result.get("created_at"),
                     "workspace": result.get("workspace"),
                     "agent": result.get("agent"),
+                    "launch_mode": result.get("launch_mode", "inherit"),
                     "policy": result.get("policy", {}),
                     "run_classification": result.get("run_classification"),
                     "bundle_status": verification.status.value,

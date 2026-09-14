@@ -320,9 +320,37 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "실행 준비" in dashboard.text
     assert "Codex Hook Trust" in dashboard.text
     assert "대화형 보호 세션" not in dashboard.text
+    assert "준비 상태 확인" in dashboard.text
+    assert "Workbench에서 작업" in dashboard.text
+    assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
     assert "Bash" in dashboard.text
     assert "Edit·Write → apply_patch" in dashboard.text
     assert "아직 보호 실행 기록이 없습니다" in dashboard.text
+
+
+def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
+    service = FakeService()
+    service.list_runs = lambda: [{
+        "session_id": "run-1",
+        "status": "RUNNING",
+        "workspace": "C:/workspace",
+        "policy": {"id": "basic", "version": "1.0"},
+        "incident_count": 0,
+        "bundle_status": "PENDING",
+        "protection_state": "ACTIVE_UNVERIFIED",
+        "launch_mode": "web_terminal",
+        "result_url": "/runs/run-1/result",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }]
+    client = TestClient(create_app(service))
+
+    dashboard = client.get("/")
+    history = client.get("/runs")
+
+    assert 'href="/runs/run-1/workbench"' in dashboard.text
+    assert 'href="/runs/run-1/workbench"' in history.text
+    assert "Workbench 열기" in history.text
+    assert "/runs/run-1/result" not in history.text
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:

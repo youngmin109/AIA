@@ -85,10 +85,10 @@
   <section class="panel">
     <div class="panel-heading"><div><h2>제품 사용 순서</h2><p class="hint">처음 사용할 때의 최소 흐름입니다.</p></div></div>
     <ol class="product-steps">
-      <li><span>1</span><div><strong>Core 확인</strong><code>aia demo</code></div></li>
-      <li><span>2</span><div><strong>Hook 연결 확인</strong><code>aia hook verify</code></div></li>
-      <li><span>3</span><div><strong>보호 실행</strong><code>aia start &lt;workspace&gt;</code></div></li>
-      <li><span>4</span><div><strong>결과 확인</strong><code>aia runs</code></div></li>
+      <li><span>1</span><div><strong>준비 상태 확인</strong><code>aia doctor</code></div></li>
+      <li><span>2</span><div><strong>보호 실행 시작</strong><code>새 보호 실행</code></div></li>
+      <li><span>3</span><div><strong>Workbench에서 작업</strong><code>가운데 Codex 작업창</code></div></li>
+      <li><span>4</span><div><strong>센서·결과 확인</strong><code>오른쪽 보안 관찰 · 결과 보기</code></div></li>
     </ol>
   </section>
 </div>
@@ -97,7 +97,7 @@
   <div class="panel-heading"><div><h2>최근 보호 실행</h2><p class="hint">검증된 Bundle 상태를 기준으로 표시합니다.</p></div><a href="/runs" class="text-link">실행 기록 전체 →</a></div>
   {% if runs %}
   <div class="table-wrap"><table><thead><tr><th>Session</th><th>상태</th><th>Workspace</th><th>사건</th><th>Bundle</th></tr></thead>
-    <tbody>{% for run in runs[:5] %}<tr><td class="mono">{{ run.session_id }}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
+    <tbody>{% for run in runs[:5] %}<tr><td class="mono">{% if run.launch_mode == 'web_terminal' %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="Workbench 열기">{{ run.session_id }}</a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="실행 상태 열기">{{ run.session_id }}</a>{% endif %}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
   </table></div>
   {% else %}
   <div class="empty dashboard-empty">아직 보호 실행 기록이 없습니다. <a href="/new">첫 보호 실행을 시작하세요.</a></div>
