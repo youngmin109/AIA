@@ -253,7 +253,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     workbench = client.get("/runs/run-1/workbench")
     assert workbench.status_code == 200
     assert "Codex 작업창" in workbench.text
-    assert "Security Panel" in workbench.text
+    assert "보안 관찰" in workbench.text
+    assert "최근 이벤트" in workbench.text
+    assert 'id="event-count"' in workbench.text
     assert "Glass-box" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"

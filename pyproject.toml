@@ -16,6 +16,7 @@ dependencies = [
     "pywinpty==3.0.5",
     "uvicorn==0.52.4",
     "watchdog==6.0.0",
+    "websockets==15.0.1",
 ]
 
 [project.scripts]

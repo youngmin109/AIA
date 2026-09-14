@@ -5,41 +5,42 @@
   <header class="workbench-header">
     <div>
       <p class="eyebrow">AIA WORKBENCH · 보호 실행</p>
-      <h1>Codex 작업과 보안을 한 화면에서 확인합니다.</h1>
-      <p class="muted mono">{{ session_id }}</p>
+      <h1>Codex 작업 · AIA 보호 상태</h1>
+      <p class="muted">가운데에서 작업하고, 오른쪽에서 센서와 차단 결과를 확인합니다.</p>
+      <p class="muted mono workbench-session-id" title="{{ session_id }}">{{ session_id }}</p>
     </div>
     <div class="workbench-header-actions">
       <span id="run-status" class="status-badge">{{ status.session.status }}</span>
-      <button id="stop-run" class="button danger" type="button">보호 실행 중지</button>
-      <a id="result-link" class="button" href="/runs/{{ session_id }}/result" hidden>결과 보기</a>
+      <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} hidden{% endif %}>보호 실행 중지</button>
+      <a id="result-link" class="button" href="/runs/{{ session_id }}/result"{% if not status.result_available %} hidden{% endif %}>결과 보기</a>
     </div>
   </header>
 
   <div class="workbench-grid">
     <aside class="workbench-sidebar">
       <section class="workbench-card">
-        <div class="panel-heading"><h2>현재 실행</h2><span class="badge">{{ status.launch_mode or 'inherit' }}</span></div>
+        <div class="panel-heading"><h2>현재 실행</h2><span class="badge">{% if status.launch_mode == 'web_terminal' %}Workbench{% elif status.launch_mode == 'new_terminal' %}별도 터미널{% else %}기본 실행{% endif %}</span></div>
         <dl class="workbench-facts">
-          <dt>Workspace</dt><dd class="mono">{{ status.session.workspace }}</dd>
-          <dt>Agent</dt><dd>{{ status.session.agent }}</dd>
-          <dt>Policy</dt><dd>{{ status.policy.id }} · {{ status.policy.version }}</dd>
+          <dt>Workspace</dt><dd class="mono path-value" title="{{ status.session.workspace }}">{{ status.session.workspace }}</dd>
+          <dt>Agent</dt><dd>Codex CLI</dd>
+          <dt>Policy</dt><dd>{% if status.policy.id %}{{ status.policy.id }} · {{ status.policy.version }}{% elif status.policy.profile == 'PROTECTED_DEVELOPMENT' %}보호 개발 정책{% elif status.policy.profile == 'BASIC_DEVELOPMENT' %}기본 개발 정책{% elif status.policy.profile == 'CONSERVATIVE_SECURITY' %}보수적 보안 정책{% elif status.policy.profile == 'FREE_DEVELOPMENT' %}자유 개발 정책{% elif status.policy.profile %}{{ status.policy.profile }}{% else %}정책 정보 없음{% endif %}</dd>
           <dt>Phase</dt><dd id="phase">{{ status.phase }}</dd>
-          <dt>Checkpoint</dt><dd id="checkpoint">{{ status.checkpoint }}</dd>
+          <dt>Checkpoint</dt><dd id="checkpoint">{{ status.checkpoint or '정보 없음' }}</dd>
           <dt>Lease</dt><dd id="lease">{{ status.lease }}</dd>
         </dl>
       </section>
       <section class="workbench-card">
-        <div class="panel-heading"><h2>보호 범위</h2><span class="badge badge-valid">Codex CLI</span></div>
-        <p class="hint">AIA는 Codex의 실제 Hook·파일·프로세스 관찰 결과만 보안 사건으로 표시합니다.</p>
+        <div class="panel-heading"><h2>사용 방법</h2><span class="badge badge-valid">Codex CLI</span></div>
+        <p class="hint">AIA는 실제 Hook·파일·프로세스 관찰 결과를 기준으로 보호 상태를 표시합니다.</p>
         <div class="workbench-steps">
-          <span>1</span><div><strong>Codex 작업</strong><small>가운데 작업창에서 입력</small></div>
-          <span>2</span><div><strong>센서 관찰</strong><small>오른쪽 상태 패널에서 확인</small></div>
-          <span>3</span><div><strong>결과 검증</strong><small>종료 후 Evidence Bundle 확인</small></div>
+          <span>1</span><div><strong>작업 입력</strong><small>가운데 Codex 작업창에 입력</small></div>
+          <span>2</span><div><strong>보호 확인</strong><small>오른쪽 센서와 이벤트 확인</small></div>
+          <span>3</span><div><strong>결과 확인</strong><small>종료 후 결과 보기 선택</small></div>
         </div>
       </section>
       <section class="workbench-card glassbox-slot">
-        <div class="panel-heading"><h2>Glass-box</h2><span class="badge">확장 슬롯</span></div>
-        <p class="hint">향후 Agent Request → Hook → Process → File Effect → Policy → Enforcement → Recovery → Integrity 흐름을 이 영역에서 추적합니다.</p>
+        <div class="panel-heading"><h2>Glass-box</h2><span class="badge">다음 확장</span></div>
+        <p class="hint">요청 → Hook → 프로세스 → 파일 변화 → 정책 → 집행 → 복구 → 무결성 흐름을 이 화면에서 연결합니다.</p>
       </section>
     </aside>
 
@@ -49,30 +50,35 @@
         <span id="terminal-pid" class="badge">PID —</span>
       </div>
       <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
+        {% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
+        이 보호 실행은 종료되었습니다. 작업창 출력은 저장하지 않습니다. 결과 보기에서 실행 기록을 확인하세요.
+        {% else %}
         AIA Workbench가 보호된 Codex 작업창을 준비하고 있습니다…
+        {% endif %}
       </div>
       <div class="terminal-input-hint">
-        <span>여기를 클릭한 뒤 Codex에 입력하세요. Enter는 즉시 전달됩니다.</span>
-        <span class="mono">Web Terminal · 로컬 연결</span>
+        <span>작업창을 클릭하고 입력하세요. Enter는 Codex로 즉시 전달됩니다.</span>
+        <span class="mono">Workbench · 로컬 연결</span>
       </div>
       <div id="terminal-error" class="error" hidden></div>
     </main>
 
     <aside class="workbench-security-panel">
       <section class="workbench-card">
-        <div class="panel-heading"><div><h2>Security Panel</h2><p class="hint">AIA가 실제로 관찰하는 상태</p></div><span id="protection-state" class="badge">{{ status.protection.state }}</span></div>
+        <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다.</p></div><span id="protection-state" class="badge">{{ status.protection.state }}</span></div>
         <div class="workbench-sensors">
-          <div class="workbench-sensor"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">확인 중</small></div><b id="sensor-hook-count">0</b></div>
-          <div class="workbench-sensor"><span class="sensor-icon file">F</span><div><strong>File Sensor</strong><small id="sensor-file">확인 중</small></div><b id="sensor-file-count">0</b></div>
-          <div class="workbench-sensor"><span class="sensor-icon process">P</span><div><strong>Process Sensor</strong><small id="sensor-process">확인 중</small></div><b id="sensor-process-count">0</b></div>
+          <div class="workbench-sensor"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">확인 중</small></div><b id="sensor-hook-count">0건</b></div>
+          <div class="workbench-sensor"><span class="sensor-icon file">F</span><div><strong>File Sensor</strong><small id="sensor-file">확인 중</small></div><b id="sensor-file-count">0건</b></div>
+          <div class="workbench-sensor"><span class="sensor-icon process">P</span><div><strong>Process Sensor</strong><small id="sensor-process">확인 중</small></div><b id="sensor-process-count">0건</b></div>
         </div>
       </section>
       <section class="workbench-card">
-        <div class="panel-heading"><h2>최근 보안 이벤트</h2><span id="incident-count" class="badge">0건</span></div>
+        <div class="panel-heading"><h2>최근 이벤트</h2><span id="event-count" class="badge">0건</span></div>
+        <p id="incident-summary" class="workbench-card-subtitle">차단 사건 0건</p>
         <div id="security-events" class="workbench-events"><div class="empty">아직 관찰된 이벤트가 없습니다.</div></div>
       </section>
       <section id="incident-card" class="workbench-card incident-card" hidden>
-        <div class="panel-heading"><h2>최근 차단 사건</h2><span class="badge badge-warning">확인 필요</span></div>
+        <div class="panel-heading"><h2>최근 차단 사건</h2><span class="badge badge-warning">상세 확인</span></div>
         <strong id="incident-title">—</strong>
         <dl class="incident-facts">
           <dt>정책</dt><dd id="incident-policy">—</dd>
@@ -85,11 +91,11 @@
   </div>
 
   <section class="workbench-bottom">
-    <div class="workbench-bottom-card"><span>Evidence</span><strong id="evidence-count">0건</strong><small>Raw Evidence</small></div>
-    <div class="workbench-bottom-card"><span>Files</span><strong id="file-count">0건</strong><small>파일 변화</small></div>
-    <div class="workbench-bottom-card"><span>Processes</span><strong id="process-count">0건</strong><small>프로세스 관찰</small></div>
-    <div class="workbench-bottom-card"><span>Result Bundle</span><strong id="bundle-status">PENDING</strong><small>종료 후 검증</small></div>
-    <div class="workbench-bottom-card workbench-bottom-wide"><span>현재 원칙</span><strong>정책·귀속·집행은 AIA Core가 결정하고, Workbench는 증거를 표시합니다.</strong></div>
+    <div class="workbench-bottom-card"><span>증거</span><strong id="evidence-count">0건</strong><small>원시 증거 집계</small></div>
+    <div class="workbench-bottom-card"><span>파일 이벤트</span><strong id="file-count">0건</strong><small>Workspace 변화</small></div>
+    <div class="workbench-bottom-card"><span>프로세스</span><strong id="process-count">0건</strong><small>프로세스 관찰</small></div>
+    <div class="workbench-bottom-card"><span>결과 Bundle</span><strong id="bundle-status">검증 전</strong><small>종료 후 검증</small></div>
+    <div class="workbench-bottom-card workbench-bottom-wide"><span>보안 원칙</span><strong>AIA Core가 판정·집행하고, Workbench는 확인 가능한 증거를 보여줍니다.</strong></div>
   </section>
 </div>
 <script>
@@ -122,14 +128,24 @@ let lastRenderedEventKey = '';
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
-const sensorLabel = (value) => value === 'HEALTHY' ? '정상 관찰 중' : value === 'STOPPED' ? '중지됨' : value || '확인 중';
+const sensorLabel = (value, ended = false) => value === 'HEALTHY' && ended ? '검증됨 · 정상 종료' : value === 'HEALTHY' ? '정상 관찰 중' : value === 'STOPPED' ? '관찰 종료 · 정상' : value === 'FAILED' ? '관찰 실패' : value || '확인 중';
 
 function setTerminalStatus(status) {
   const value = status?.status || 'UNKNOWN';
-  terminalStatus.textContent = value === 'RUNNING' ? 'Codex가 보호된 작업창에서 실행 중입니다.' : `터미널 상태: ${value}`;
+  const terminalEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.textContent);
+  terminalStatus.textContent = value === 'RUNNING'
+    ? 'Codex가 보호된 작업창에서 실행 중입니다.'
+    : terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value)
+      ? '이 실행은 종료되었습니다. 결과 보기에서 기록을 확인하세요.'
+      : `터미널 상태: ${value}`;
   terminalStatus.className = value === 'RUNNING' ? 'hint success-text' : value === 'FAILED' ? 'hint error-text' : 'hint';
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
+  // A browser can connect during the short launch window before the terminal
+  // object is attached. Clear that transient message once the live session is
+  // confirmed so a stale warning does not look like a current failure.
+  if (value === 'RUNNING' && terminalError.textContent === 'Workbench terminal is not attached') terminalError.hidden = true;
   if (value === 'FAILED') showTerminalError(status?.error || '터미널 연결에 실패했습니다.');
+  stopButton.hidden = terminalEnded || !['RUNNING', 'NOT_STARTED'].includes(value);
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
 function appendTerminal(data) {
@@ -159,29 +175,33 @@ function renderSecurity(status) {
   runStatus.textContent = status.session?.status || status.phase || 'UNKNOWN';
   protectionState.textContent = status.protection?.state || 'UNKNOWN';
   document.getElementById('phase').textContent = status.phase || '—';
-  document.getElementById('checkpoint').textContent = status.checkpoint || '—';
+  document.getElementById('checkpoint').textContent = status.checkpoint && status.checkpoint !== 'UNKNOWN' ? status.checkpoint : '정보 없음';
   document.getElementById('lease').textContent = status.lease || '—';
   const summary = status.evidence_summary || {};
   const hook = status.sensor_health?.AGENT_HOOK || status.protection?.hook_broker || '확인 중';
   const file = status.sensor_health?.FILESYSTEM_WATCHER || '확인 중';
   const process = status.sensor_health?.PROCESS_RUNTIME || '확인 중';
-  document.getElementById('sensor-hook').textContent = sensorLabel(hook);
-  document.getElementById('sensor-file').textContent = sensorLabel(file);
-  document.getElementById('sensor-process').textContent = sensorLabel(process);
-  document.getElementById('sensor-hook-count').textContent = summary.pretool_events || status.protection?.hook_events || 0;
-  document.getElementById('sensor-file-count').textContent = summary.filesystem_events || 0;
-  document.getElementById('sensor-process-count').textContent = summary.process_observed || 0;
-  document.getElementById('evidence-count').textContent = `${summary.total || 0}건`;
+  const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session?.status);
+  document.getElementById('sensor-hook').textContent = sensorLabel(hook, ended);
+  document.getElementById('sensor-file').textContent = sensorLabel(file, ended);
+  document.getElementById('sensor-process').textContent = sensorLabel(process, ended);
+  const hookCount = (summary.pretool_events || 0) + (summary.posttool_events || 0);
+  const evidenceCount = hookCount + (summary.filesystem_events || 0) + (summary.process_observed || 0) + (summary.process_exit_observed || 0) + (summary.sensor_health_events || 0);
+  document.getElementById('sensor-hook-count').textContent = `${hookCount || status.protection?.hook_events || 0}건`;
+  document.getElementById('sensor-file-count').textContent = `${summary.filesystem_events || 0}건`;
+  document.getElementById('sensor-process-count').textContent = `${summary.process_observed || 0}건`;
+  document.getElementById('evidence-count').textContent = `${evidenceCount}건`;
   document.getElementById('file-count').textContent = `${summary.filesystem_events || 0}건`;
   document.getElementById('process-count').textContent = `${summary.process_observed || 0}건`;
-  document.getElementById('bundle-status').textContent = status.result_available ? (status.bundle_status || 'VALID') : 'PENDING';
+  document.getElementById('bundle-status').textContent = status.result_available ? (status.bundle_status || 'VALID') : '검증 전';
   const events = Array.isArray(status.events) ? status.events : [];
   const eventKey = events.map((item) => item.event_id || item.summary).join('|');
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><small>${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</small></div><span>${badge(event.decision || 'OBSERVED')}</span></div>`).join('') : '<div class="empty">아직 관찰된 이벤트가 없습니다.</div>';
+    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><small>${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED')}${event.execution_result && event.execution_result !== 'NOT_REPORTED' ? badge(event.execution_result) : ''}</span></div>`).join('') : '<div class="empty">아직 관찰된 이벤트가 없습니다.</div>';
   }
-  document.getElementById('incident-count').textContent = `${status.incident_count || 0}건`;
+  document.getElementById('event-count').textContent = `${events.length}건`;
+  document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
   const incident = events.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity));
   const incidentCard = document.getElementById('incident-card');
   if (incident) {
@@ -192,7 +212,7 @@ function renderSecurity(status) {
     document.getElementById('incident-execution').textContent = `${incident.decision === 'CONTAIN' ? 'BLOCKED' : '관찰'} / ${incident.execution_result || '확인 필요'}`;
     document.getElementById('incident-effect').textContent = incident.execution_result === 'SUCCEEDED' ? '확인되지 않음' : '확인 필요';
   }
-  if (status.result_available) resultLink.hidden = false;
+  resultLink.hidden = !status.result_available;
   setTerminalStatus(status.terminal || {});
 }
 
