@@ -1,0 +1,262 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from aia import CodexHookInstaller
+from aia.hook_verification import HookVerificationStore
+
+
+def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "description": "existing",
+                "hooks": {
+                    "SessionEnd": [{"hooks": [{"type": "command", "command": "echo end"}]}]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    installer = CodexHookInstaller(path, python_executable=tmp_path / "python.exe")
+
+    assert not installer.is_installed()
+    assert installer.install() == path
+    first = json.loads(path.read_text(encoding="utf-8"))
+    assert first["description"] == "existing"
+    assert "SessionEnd" in first["hooks"]
+    assert installer.is_installed()
+
+    installer.install()
+    second = json.loads(path.read_text(encoding="utf-8"))
+    assert len(second["hooks"]["PreToolUse"]) == 1
+    assert second["hooks"]["PreToolUse"][0]["hooks"][0]["type"] == "command"
+    assert second["hooks"]["PreToolUse"][0]["matcher"] == "*"
+    assert len(second["hooks"]["PostToolUse"]) == 1
+    assert second["hooks"]["PostToolUse"][0]["hooks"][0]["type"] == "command"
+
+
+def test_codex_hook_installer_uses_codex_home_when_path_is_omitted(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    installer = CodexHookInstaller()
+
+    assert installer.path == (codex_home / "hooks.json").resolve()
+    installer.install()
+    assert installer.path.exists()
+
+
+def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path) -> None:
+    path = tmp_path / "hooks.json"
+    python_executable = tmp_path / "python.exe"
+    installer = CodexHookInstaller(path, python_executable=python_executable)
+    installer.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    )
+    document["hooks"]["PreToolUse"][0]["matcher"] = "Bash|apply_patch"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    installer.install()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    assert updated["hooks"]["PreToolUse"][0]["matcher"] == "*"
+    assert updated["hooks"]["PreToolUse"][1]["matcher"] == "Bash"
+
+
+def test_codex_hook_install_replaces_stale_aia_command_but_preserves_user_hooks(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    old = CodexHookInstaller(path, python_executable=tmp_path / "old-python.exe")
+    old.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    )
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    current = CodexHookInstaller(path, python_executable=tmp_path / "new-python.exe")
+    current.install()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    handlers = [
+        handler
+        for entry in updated["hooks"]["PreToolUse"]
+        for handler in entry.get("hooks", [])
+    ]
+    aia_handlers = [
+        handler
+        for handler in handlers
+        if "aia.codex_hook_runtime" in str(handler.get("command", ""))
+    ]
+    assert len(aia_handlers) == 1
+    assert "new-python.exe" in aia_handlers[0]["command"]
+    assert {handler.get("command") for handler in handlers} >= {
+        "user-hook",
+        aia_handlers[0]["command"],
+    }
+    assert current.is_installed() is True
+
+
+def test_codex_hook_install_does_not_migrate_user_command_with_similar_argument(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "powershell -Command \"Write-Host '-m aia.codex_hook_runtime'\"",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    installer = CodexHookInstaller(path, python_executable=tmp_path / "python.exe")
+
+    installer.install()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    commands = [
+        handler.get("command")
+        for entry in updated["hooks"]["PreToolUse"]
+        for handler in entry.get("hooks", [])
+    ]
+    assert any(isinstance(command, str) and command.startswith("powershell") for command in commands)
+    assert sum("aia.codex_hook_runtime" in str(command) for command in commands) == 2
+
+
+def test_stale_aia_matcher_is_not_reported_as_installed(tmp_path: Path) -> None:
+    path = tmp_path / "hooks.json"
+    installer = CodexHookInstaller(
+        path,
+        python_executable=tmp_path / "python.exe",
+    )
+    installer.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"][0]["matcher"] = "Bash|apply_patch|Edit|Write"
+    document["hooks"]["PostToolUse"][0]["matcher"] = "Bash|apply_patch|Edit|Write"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    assert installer.is_installed() is False
+    assert installer.is_posttool_installed() is False
+
+
+def test_codex_hook_uninstall_removes_only_aia_handlers(tmp_path: Path) -> None:
+    path = tmp_path / "hooks.json"
+    python_executable = tmp_path / "python.exe"
+    installer = CodexHookInstaller(path, python_executable=python_executable)
+    installer.install()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    )
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    installer.uninstall()
+
+    updated = json.loads(path.read_text(encoding="utf-8"))
+    assert installer.is_installed() is False
+    assert installer.is_posttool_installed() is False
+    assert updated["hooks"]["PreToolUse"] == [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]}
+    ]
+    assert updated["hooks"]["PostToolUse"] == []
+
+
+def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text("approval_policy = 'on-request'\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    assert store.is_current(installer, executable) is True
+    document = store.read()
+    assert document is not None
+    assert document["schema_version"] == "aia-hook-verification-4"
+    assert document["codex_config_sha256"]
+    assert document["aia_hook_runtime_sha256"]
+    assert document["session_id"] == "session-1"
+
+    hook_path.write_text(hook_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    assert store.is_current(installer, executable) is False
+
+
+def test_hook_verification_is_invalid_after_codex_config_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text("approval_policy = 'on-request'\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    config_path.write_text("approval_policy = 'never'\n", encoding="utf-8")
+
+    assert store.is_current(installer, executable) is False
+
+
+def test_hook_verification_is_invalid_after_codex_executable_changes(tmp_path: Path) -> None:
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    executable.write_bytes(b"codex-test-build-2")
+
+    assert store.is_current(installer, executable) is False

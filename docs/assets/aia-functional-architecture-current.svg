@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef3f8"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dceeff"/>
+      <stop offset="1" stop-color="#b9dbff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dff8ed"/>
+      <stop offset="1" stop-color="#b9ead4"/>
+    </linearGradient>
+    <linearGradient id="yellow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff5cf"/>
+      <stop offset="1" stop-color="#ffe7a2"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eee4ff"/>
+      <stop offset="1" stop-color="#d9c8ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#18324d" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#45617c"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#2670b9"/>
+    </marker>
+    <style>
+      .title { font: 700 32px 'Malgun Gothic','Segoe UI',sans-serif; fill:#17324d; }
+      .subtitle { font: 400 16px 'Malgun Gothic','Segoe UI',sans-serif; fill:#5a7087; }
+      .layer { font: 700 18px 'Malgun Gothic','Segoe UI',sans-serif; fill:#31516e; }
+      .cardTitle { font: 700 16px 'Malgun Gothic','Segoe UI',sans-serif; fill:#17324d; }
+      .cardSub { font: 400 13px 'Malgun Gothic','Segoe UI',sans-serif; fill:#49647d; }
+      .small { font: 400 12px 'Malgun Gothic','Segoe UI',sans-serif; fill:#5d748b; }
+      .note { font: 600 14px 'Malgun Gothic','Segoe UI',sans-serif; fill:#294763; }
+      .state { font: 700 15px 'Segoe UI','Malgun Gothic',sans-serif; fill:#17324d; }
+      .arrowLabel { font: 600 12px 'Malgun Gothic','Segoe UI',sans-serif; fill:#56718a; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1120" fill="url(#bg)"/>
+  <text x="60" y="58" class="title">AIA 기능 기반 아키텍처</text>
+  <text x="60" y="88" class="subtitle">코딩 에이전트의 의도가 아니라, 실행 전 요청과 실제 Workspace·Process 변화를 관찰하고 통제하는 보안 레이어</text>
+
+  <!-- User entry -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="132" width="190" height="112" rx="18" fill="#17324d"/>
+    <text x="155" y="168" text-anchor="middle" class="cardTitle" fill="#ffffff">사용자</text>
+    <text x="155" y="196" text-anchor="middle" class="cardSub" fill="#d9eaff">Workspace 지정</text>
+    <text x="155" y="218" text-anchor="middle" class="cardSub" fill="#d9eaff">Protected Run 시작</text>
+  </g>
+  <path d="M250 188 L292 188" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- Session preparation -->
+  <rect x="292" y="116" width="1248" height="170" rx="22" fill="#ffffff" stroke="#9bb8d1" stroke-width="2"/>
+  <text x="322" y="148" class="layer">1. Protected Run Session 준비</text>
+  <g filter="url(#shadow)">
+    <rect x="322" y="168" width="190" height="84" rx="14" fill="url(#blue)"/>
+    <text x="417" y="198" text-anchor="middle" class="cardTitle">Workspace 확인</text>
+    <text x="417" y="221" text-anchor="middle" class="cardSub">경로 정규화 · 존재 확인</text>
+    <rect x="532" y="168" width="190" height="84" rx="14" fill="url(#blue)"/>
+    <text x="627" y="198" text-anchor="middle" class="cardTitle">정책 고정</text>
+    <text x="627" y="221" text-anchor="middle" class="cardSub">Strict Validation · Resolved</text>
+    <rect x="742" y="168" width="190" height="84" rx="14" fill="url(#blue)"/>
+    <text x="837" y="198" text-anchor="middle" class="cardTitle">Workspace Lease</text>
+    <text x="837" y="221" text-anchor="middle" class="cardSub">중복 보호 실행 방지</text>
+    <rect x="952" y="168" width="190" height="84" rx="14" fill="url(#blue)"/>
+    <text x="1047" y="198" text-anchor="middle" class="cardTitle">Checkpoint Manager</text>
+    <text x="1047" y="221" text-anchor="middle" class="cardSub">SHA-256 Manifest 기준점</text>
+    <rect x="1162" y="168" width="190" height="84" rx="14" fill="url(#blue)"/>
+    <text x="1257" y="198" text-anchor="middle" class="cardTitle">Readiness Barrier</text>
+    <text x="1257" y="221" text-anchor="middle" class="cardSub">보호 시작 조건 확인</text>
+  </g>
+  <path d="M780 286 L780 326" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="798" y="313" class="arrowLabel">READY</text>
+
+  <!-- Runtime -->
+  <rect x="60" y="326" width="1480" height="238" rx="22" fill="#ffffff" stroke="#9bb8d1" stroke-width="2"/>
+  <text x="90" y="358" class="layer">2. Runtime 실행과 Evidence 수집</text>
+  <g filter="url(#shadow)">
+    <rect x="90" y="384" width="250" height="112" rx="16" fill="url(#green)"/>
+    <text x="215" y="418" text-anchor="middle" class="cardTitle">Protected Launcher</text>
+    <text x="215" y="442" text-anchor="middle" class="cardSub">subprocess로 Codex 생성</text>
+    <text x="215" y="466" text-anchor="middle" class="cardSub">PID + create_time 등록</text>
+    <rect x="380" y="384" width="250" height="112" rx="16" fill="url(#green)"/>
+    <text x="505" y="418" text-anchor="middle" class="cardTitle">Hook Sensor</text>
+    <text x="505" y="442" text-anchor="middle" class="cardSub">PreTool 요청 수신</text>
+    <text x="505" y="466" text-anchor="middle" class="cardSub">실행 전 증거·차단 통로</text>
+    <rect x="670" y="384" width="250" height="112" rx="16" fill="url(#green)"/>
+    <text x="795" y="418" text-anchor="middle" class="cardTitle">File Sensor</text>
+    <text x="795" y="442" text-anchor="middle" class="cardSub">생성·수정·삭제·이동 관찰</text>
+    <text x="795" y="466" text-anchor="middle" class="cardSub">Workspace 변화 기록</text>
+    <rect x="960" y="384" width="250" height="112" rx="16" fill="url(#green)"/>
+    <text x="1085" y="418" text-anchor="middle" class="cardTitle">Process Sensor</text>
+    <text x="1085" y="442" text-anchor="middle" class="cardSub">Codex Root + 자식 트리</text>
+    <text x="1085" y="466" text-anchor="middle" class="cardSub">생존·PID 재사용 관찰</text>
+    <rect x="1250" y="384" width="250" height="112" rx="16" fill="#e9f0f7" stroke="#87a5bf" stroke-width="2"/>
+    <text x="1375" y="418" text-anchor="middle" class="cardTitle">Raw Evidence</text>
+    <text x="1375" y="442" text-anchor="middle" class="cardSub">Hook · File · Process 사실</text>
+    <text x="1375" y="466" text-anchor="middle" class="cardSub">append-only 보존</text>
+  </g>
+  <path d="M340 440 L1240 440" stroke="#2670b9" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#arrowBlue)"/>
+  <path d="M630 500 L1240 500" stroke="#2670b9" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#arrowBlue)"/>
+  <path d="M920 520 L1240 520" stroke="#2670b9" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#arrowBlue)"/>
+  <text x="1110" y="548" class="arrowLabel">관찰 가능한 사실만 수집</text>
+
+  <!-- Decision -->
+  <rect x="60" y="604" width="1480" height="224" rx="22" fill="#ffffff" stroke="#9bb8d1" stroke-width="2"/>
+  <text x="90" y="636" class="layer">3. 행위 정규화와 독립적인 판단</text>
+  <g filter="url(#shadow)">
+    <rect x="90" y="670" width="230" height="108" rx="16" fill="url(#yellow)"/>
+    <text x="205" y="704" text-anchor="middle" class="cardTitle">Normalizer</text>
+    <text x="205" y="728" text-anchor="middle" class="cardSub">서로 다른 Evidence 통합</text>
+    <text x="205" y="752" text-anchor="middle" class="cardSub">정규화된 행위 생성</text>
+    <rect x="370" y="670" width="230" height="108" rx="16" fill="url(#yellow)"/>
+    <text x="485" y="704" text-anchor="middle" class="cardTitle">Canonical Action</text>
+    <text x="485" y="728" text-anchor="middle" class="cardSub">READ · MODIFY · DELETE</text>
+    <text x="485" y="752" text-anchor="middle" class="cardSub">EXECUTE · 대상 · 단계</text>
+    <rect x="680" y="652" width="270" height="72" rx="14" fill="url(#purple)"/>
+    <text x="815" y="681" text-anchor="middle" class="cardTitle">Policy Evaluation</text>
+    <text x="815" y="703" text-anchor="middle" class="cardSub">COMPLIANT · VIOLATION · INDETERMINATE</text>
+    <rect x="680" y="738" width="270" height="72" rx="14" fill="url(#purple)"/>
+    <text x="815" y="767" text-anchor="middle" class="cardTitle">Attribution</text>
+    <text x="815" y="789" text-anchor="middle" class="cardSub">EXACT · PROCESS · TEMPORAL · UNKNOWN</text>
+    <rect x="1020" y="670" width="230" height="108" rx="16" fill="#ffd7d7" stroke="#db8b8b" stroke-width="2"/>
+    <text x="1135" y="704" text-anchor="middle" class="cardTitle">Enforcement Gate</text>
+    <text x="1135" y="728" text-anchor="middle" class="cardSub">CONTINUE · CONTAIN · REFUSE</text>
+    <text x="1135" y="752" text-anchor="middle" class="cardSub">승인만 수행, 직접 실행하지 않음</text>
+    <rect x="1320" y="670" width="180" height="108" rx="16" fill="#edf1f5" stroke="#9aabbc" stroke-width="2"/>
+    <text x="1410" y="704" text-anchor="middle" class="cardTitle">실행 경로</text>
+    <text x="1410" y="728" text-anchor="middle" class="cardSub">PreTool Adapter</text>
+    <text x="1410" y="752" text-anchor="middle" class="cardSub">Process Manager</text>
+  </g>
+  <path d="M320 724 L360 724" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M600 724 L660 690" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M600 724 L660 772" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M950 690 L1000 710" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M950 772 L1000 738" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M1250 724 L1300 724" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- Outcomes -->
+  <rect x="60" y="868" width="1480" height="190" rx="22" fill="#ffffff" stroke="#9bb8d1" stroke-width="2"/>
+  <text x="90" y="900" class="layer">4. 실제 결과 확인과 종료</text>
+  <g filter="url(#shadow)">
+    <rect x="90" y="925" width="250" height="92" rx="16" fill="#ffd7d7" stroke="#db8b8b" stroke-width="2"/>
+    <text x="215" y="958" text-anchor="middle" class="cardTitle">Enforcement Execution</text>
+    <text x="215" y="982" text-anchor="middle" class="cardSub">BLOCKED · TERMINATED 확인</text>
+    <rect x="390" y="925" width="250" height="92" rx="16" fill="#ffe9c7" stroke="#d7ad68" stroke-width="2"/>
+    <text x="515" y="958" text-anchor="middle" class="cardTitle">Recovery</text>
+    <text x="515" y="982" text-anchor="middle" class="cardSub">valid Checkpoint 기반 복구</text>
+    <rect x="690" y="925" width="250" height="92" rx="16" fill="#dff2ff" stroke="#8bb8d9" stroke-width="2"/>
+    <text x="815" y="958" text-anchor="middle" class="cardTitle">Integrity</text>
+    <text x="815" y="982" text-anchor="middle" class="cardSub">경로·존재·SHA-256 검증</text>
+    <rect x="990" y="925" width="250" height="92" rx="16" fill="#e4ddff" stroke="#a796d6" stroke-width="2"/>
+    <text x="1115" y="958" text-anchor="middle" class="cardTitle">Audit</text>
+    <text x="1115" y="982" text-anchor="middle" class="cardSub">Evidence Bundle · Result</text>
+    <rect x="1290" y="925" width="210" height="92" rx="16" fill="#17324d"/>
+    <text x="1395" y="958" text-anchor="middle" class="cardTitle" fill="#ffffff">Session 종료</text>
+    <text x="1395" y="982" text-anchor="middle" class="cardSub" fill="#d9eaff">Lease 해제 · ended_at</text>
+  </g>
+  <path d="M1410 778 L1410 910" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M340 971 L380 971" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M640 971 L680 971" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M940 971 L980 971" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M1240 971 L1280 971" stroke="#45617c" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- Principles -->
+  <rect x="60" y="1072" width="1480" height="30" rx="12" fill="#dbe8f4"/>
+  <text x="800" y="1093" text-anchor="middle" class="note">핵심 원칙: AIA는 Agent의 의도를 해석하지 않고, 관찰 가능한 실행 사실을 증거로 삼아 통제한다.</text>
+</svg>

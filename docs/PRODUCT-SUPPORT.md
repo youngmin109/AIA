@@ -1,0 +1,270 @@
+# AIA 제품 지원 범위
+
+현재 AIA는 모든 운영체제와 모든 Agent를 감시하는 범용 보안 제품이 아니다.
+제품의 첫 지원 계약은 다음과 같이 고정한다.
+
+보호 실행의 기본 정책은 `PROTECTED_DEVELOPMENT`다. 비밀정보와 대표적인 파괴
+명령을 기본 차단하며, 일반 개발 변경은 감사 기록으로 남긴다. 사용자는 실행 전에
+다른 내장 프로필이나 Strict Validation을 통과한 사용자 정책을 명시적으로 선택할
+수 있다.
+
+```text
+운영체제: Windows 11
+Agent: Codex CLI
+실행 방식: AIA Protected Run 안에서 시작한 Codex
+정책 관문: Codex PreToolUse command Hook
+Hook matcher: `*` (Codex가 로컬 Hook 경로로 전달하는 도구를 수신)
+의미 해석 지원: Bash, apply_patch
+Codex matcher 별칭: `Edit`, `Write`는 canonical `apply_patch` 경로로 처리
+지원 목록 밖 도구: `UNSUPPORTED_TOOL_PATH`로 거부하고 보호 성공으로 주장하지 않음
+실행 확인: 선택적 Codex PostToolUse evidence
+Control Root: Workspace 밖의 사용자별 AIA control directory
+```
+
+## 시작하기
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -SkipDoctor
+uv run aia hook install
+uv run aia policy validate C:\workspace\policies\protected-policy.json
+```
+
+설치 직후 Codex를 실행하지 않고 AIA Core만 점검하려면 다음을 사용한다.
+
+```powershell
+uv run aia self-test
+```
+
+이 점검은 임시 Workspace에서 정책 프로필, Active Policy Freeze, Workspace Lease,
+Safe Checkpoint, Raw Evidence Seal을 확인하고 임시 산출물을 삭제한다. `PASS`는
+Core 정상 상태를 뜻하며, 실제 Codex Hook 연결 증명은 포함하지 않는다.
+
+처음 `aia doctor`에서 `hook_verification`이 실패하는 것은 정상이다. Codex에서
+Hook을 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해 실제 연결을 확인해야
+`aia protect`를 시작할 수 있다.
+
+기계적으로 상태를 확인할 때는 `uv run aia doctor --json`의
+`readiness_code`와 `next_step`을 사용한다. `CODEX_HOOK_TRUST_REQUIRED`,
+`HOOK_VERIFICATION_REQUIRED`, `CODEX_HOOK_NOT_INSTALLED`는 각각 Trust 검토,
+실제 Hook 검증, Hook 설치가 더 필요하다는 뜻이다. `READY`가 아닌 상태에서
+보호 실행을 성공으로 해석하지 않는다.
+
+정책을 새로 만들 때는 기본 프로필을 복사한 뒤 수정합니다.
+
+```powershell
+uv run aia policy profiles
+uv run aia policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
+uv run aia policy validate C:\workspace\policies\my-policy.json
+```
+
+`aia hook install`은 정책 관문인 PreToolUse와 실행 확인용 PostToolUse Hook을
+함께 설치한다. 기존 PreToolUse만 설치된 설정도 보호 실행은 계속 사용할 수 있지만,
+PostToolUse가 없으면 실제 도구 실행 여부를 확인하는 증거가 줄어든다.
+
+설치 상태와 실제 실행 활성화 상태는 별도로 확인한다.
+
+```powershell
+uv run aia hook status
+```
+
+`PreToolUse 설치: YES`는 Hook 설정이 존재한다는 뜻이다. `CURRENTLY_VERIFIED`는
+현재 Hook 설정과 Codex 실행 파일에 연결된 실제 Session-bound Hook Event 검증이
+유효하다는 뜻이다. `OBSERVED_IN_PAST`는 과거 실행에서만 관찰된 상태이므로
+`aia hook verify`를 다시 실행해야 한다. 설치만 되어 있거나 `NOT_OBSERVED`이면
+해당 실행을 보호 성공으로 해석하지 않는다.
+
+`aia hook status`의 `현재 검증 증명: CURRENT`는 현재 Hook 설정, Codex 실행 파일,
+Codex 설정 파일, AIA Hook 런타임 코드 지문이 모두 일치하는 실제 Probe 검증이
+남아 있다는 뜻이다.
+`MISSING_OR_STALE`이면
+`uv run aia hook verify`를 다시 실행해야 한다.
+`CURRENT_BUT_UNTRUSTED`이면 이전 Probe 지문은 남아 있지만 현재 Codex가 보고한
+PreToolUse Trust가 `TRUSTED` 또는 `MANAGED`가 아니므로 보호 실행을 시작할 수 없다.
+Codex `/hooks`에서 다시 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해야 한다.
+
+검증 명령은 먼저 Codex PreToolUse Trust를 확인한다. `MODIFIED`, `UNTRUSTED` 또는
+`NOT_VISIBLE`이면 임시 Probe를 실행하지 않고 즉시 종료하며, AIA Hook을 자동으로
+신뢰하지 않는다. Codex `/hooks`에서 Hook을 직접 검토·신뢰한 뒤 다시 검증해야 한다.
+
+같은 명령의 `Codex 실제 Trust`는 Codex가 현재 읽은 AIA Hook의 신뢰 상태다.
+`TRUSTED`가 아닌 `MODIFIED` 또는 `UNTRUSTED`가 보이면 Hook 파일이 설치되어
+있어도 Codex가 실행하지 않는다. AIA는 이 상태를 자동으로 신뢰 처리하지 않으며,
+Codex `/hooks`에서 내용을 검토한 뒤 사용자가 직접 Trust해야 한다.
+
+처음 사용하거나 Hook 설정을 변경한 뒤에는 다음 명령으로 실제 Codex 연결을
+확인한다.
+
+```powershell
+uv run aia hook verify
+```
+
+이 명령은 임시 Workspace에서 무해한 Probe를 실행하고, Session-bound Hook Event와
+유효한 Result Bundle을 확인한다. Probe Workspace는 검증 뒤 삭제되며, 검증 결과
+Bundle은 Control Root에 남는다. `NOT_VERIFIED`이면 사용자는 Codex `/hooks`에서
+AIA Hook을 검토·신뢰한 뒤 다시 검증해야 한다. `CODEX_EXECUTION_POLICY_DOWNGRADED`가
+나오면 현재 Codex 실행 환경이 AIA가 요청한 sandbox 또는 approval 설정을 적용하지
+않은 상태이므로, 보호 실행을 시작하지 않고 실행 환경을 먼저 고쳐야 한다.
+Probe 파일이 생성됐지만 Hook Event가 0건이면 Probe가 실행된 것일 뿐 AIA 보호가
+증명된 것이 아니다. 이 경우 AIA는 `PROTECTION_NOT_PROVEN`으로 표시하고 보호 실행을
+성공으로 인정하지 않는다.
+
+비대화형 Protected Run은 현재 Codex CLI가 제공하는 `--approve-for-me` 경로를 통해
+`workspace-write`와 `on-request` 실행 정책을 요청한다. Result Bundle의 실제 실행
+정책이 이 요청과 다르면 AIA는 실행을 성공한 보호 실행으로 포장하지 않고
+`COMPLETED_DEGRADED`로 기록한다.
+
+AIA를 제거하거나 Hook 설정을 되돌릴 때는 다음 명령을 사용한다. AIA가 추가한
+Handler만 제거하고 다른 사용자 Hook은 보존한다.
+
+```powershell
+uv run aia hook uninstall
+```
+
+Codex의 `/hooks` 화면에서 AIA Hook을 직접 검토하고 신뢰한 다음 보호 실행을
+시작한다.
+
+```powershell
+uv run aia protect C:\workspace\my-project
+```
+
+실행 중 사용자가 중지해야 하면 별도 터미널이나 웹 콘솔에서 중지 요청을 보낼 수 있다.
+
+```powershell
+uv run aia stop <SESSION_ID>
+```
+
+이 동작은 정책 위반 집행과 구분되는 `USER_ABORT`다. AIA는 등록된 Agent Root와
+검증된 자식 프로세스만 대상으로 종료를 시도하고, 종료를 확인하지 못하면 성공으로
+표시하지 않는다. Result Bundle에는 정책 집행용 `process_termination_result`와
+분리된 `user_abort_termination_result`가 저장되며, 여기의 `status=SUCCEEDED`와
+`verified_tree_gone=true`가 함께 있어야 실제 종료 성공으로 해석한다.
+
+`aia status`는 보호 실행을 시작한 터미널과 다른 터미널에서 실행해도 Control Root의
+실행 상태 스냅샷을 읽을 수 있다. 완료된 실행은 검증된 Result Bundle이 최종 권위이며,
+실행 중인 세션은 비밀값이나 raw command를 포함하지 않는 상태 정보만 외부 조회에
+제공한다.
+
+명령을 한 번만 전달하려면 다음처럼 실행한다.
+
+```powershell
+uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변경 결과를 설명해줘"
+```
+
+정책을 수정한 뒤에는 실제 실행 전에 다음으로 판정을 미리 확인할 수 있다.
+
+```powershell
+uv run aia policy evaluate --operation READ --path .env
+uv run aia policy evaluate --operation EXECUTE --command "python build.py"
+```
+
+이 명령은 Agent나 대상 명령을 실행하지 않고, 이미 검증된 정책 객체의 판정만
+출력한다.
+
+첫 실행은 실제 Workspace 대신 복사본 또는 disposable Workspace에서 수행한다.
+
+## 보호 상태 해석
+
+| 상태 | 의미 |
+|---|---|
+| `PREPARING` | 정책, Lease, Checkpoint, Sensor를 준비하는 중 |
+| `LAUNCHING` | 준비를 마치고 Codex 프로세스·Hook Broker·Process Sensor를 등록하는 중 |
+| `READY_UNVERIFIED` | 준비는 끝났지만 검증된 Hook Event가 아직 없음 |
+| `ACTIVE_UNVERIFIED` | Codex는 실행 중이나 Hook 계보가 아직 확인되지 않음 |
+| `ACTIVE_VERIFIED` | AIA Session에 연결된 실제 Hook Event, 현재 센서의 `HEALTHY` 상태, 실행 중인 per-run Hook Broker를 확인함 |
+| `DEGRADED` | 보호 경계 또는 Hook 처리에 오류가 발생함 |
+| `COMPLETED_VERIFIED` | 실제 Hook Event와 실행 중인 per-run Hook Broker가 확인됐고, 모든 런타임 센서가 실행 중 `HEALTHY`였으며 종료 시 `STOPPED`였고, 결과 Bundle이 검증됨 |
+| `COMPLETED_DEGRADED` | 실행은 끝났지만 보호 경계 오류가 있어 제한적으로 해석해야 함 |
+| `ABORTED_VERIFIED` | 사용자가 중지했고, 실행 중인 per-run Hook Broker와 Agent의 Hook, 모든 런타임 센서가 실행 중 `HEALTHY`였으며 종료 시 `STOPPED`였음 |
+| `ABORTED_DEGRADED` | 중지됐지만 보호 경계 검증이 충분하지 않음 |
+| `FAILED_DEGRADED` | 실행 중 보호 경계가 끊겨 관리 트리 중지를 시도했고, 보호 성공으로 해석할 수 없음 |
+| `ABORTED_BEFORE_LAUNCH` | Agent를 실행하기 전에 사용자가 취소함 |
+
+`ACTIVE_UNVERIFIED`와 `DEGRADED`는 완전한 보호 성공으로 해석하지 않는다.
+지원되지 않는 도구 경로, Hook 비활성화, 외부 Agent, 사용자의 수동 실행은 AIA가
+`PROTECTED` 또는 `BLOCKED`로 주장하는 범위에 포함되지 않는다.
+
+`COMPLETED_VERIFIED`와 `ABORTED_VERIFIED`는 Hook Event만으로 결정하지 않는다. 실행 중
+per-run Hook Broker가 살아 있었고 결과의 `sensor_summary`에 현재 제품의 세 센서
+(`AGENT_HOOK`, `FILESYSTEM_WATCHER`, `PROCESS_RUNTIME`)가 모두 존재해야 하며,
+각 센서의 `runtime_health_before_stop=HEALTHY`와
+`final_sensor_state=STOPPED`가 모두 확인되어야 한다. 센서가 하나라도 빠졌거나 일부라도
+실패·비정상 종료이면 해당 실행은 `*_DEGRADED`로 표시한다.
+
+실행 중 per-run Hook Broker가 사라지면 AIA는 이를 `HOOK_BROKER_LOST` 보호 경계
+실패로 기록하고 AIA가 등록한 Agent Root 트리의 종료를 시도한다. 이 조치는 사용자
+중지와 정책 집행 종료와 별도의 `protection_failure_termination_result`로 기록된다.
+종료가 확인되지 않으면 `FAILED_DEGRADED`와 제한사항을 남기며 성공으로 포장하지 않는다.
+
+사용자가 `LAUNCHING` 단계에서 중지하면, 이미 Process Identity가 등록된 Root는 같은
+identity 검증 절차로 종료하고, 아직 Root가 등록되지 않은 경우에는 실행 전에 중지
+요청을 보류한다. AIA는 PID만으로 시작 중인 프로세스를 종료하지 않는다.
+
+Process Sensor는 Protected Run에서 관찰한 프로세스 명령행을 선택적으로 lexical
+Evidence로 보존할 수 있다. Command Rule과 일치하면 정책 위반을 기록할 수 있지만,
+`PROCESS` Attribution만으로 프로세스 자동 종료를 수행하지 않는다. 프로세스 명령행은
+스크립트 내부의 실제 파일 변경을 증명하지 않는다.
+
+## AIA가 현재 증명하는 것
+
+- 보호 실행 시작 전에 Workspace, 정책, Lease, Checkpoint를 준비한다.
+- Protected Launcher는 바깥 Codex의 일시적 Session ID·권한 Profile을 자식 실행에
+  전달하지 않고, 제품이 요청한 Sandbox·Approval 설정과 실제 Codex 시작 메타데이터를
+  비교할 수 있게 한다.
+- Active Policy를 하나의 Protected Run에 고정한다.
+- 지원되는 Codex PreToolUse 입력을 AIA Hook Evidence로 보존한다.
+- MCP 도구는 현재 MVP 지원 범위에서 제외한다. Hook으로 도착한 MCP 요청은
+  `UNSUPPORTED_TOOL_PATH`로 거부하며, MCP 서버 등록·호출을 제품 기능으로
+  제공하지 않는다.
+- 정책 위반에 대해 Codex `permissionDecision=deny`를 반환한다.
+- 실제 도구 실행 중단과 부작용 부재가 확인된 경우에만 `BLOCKED / SUCCEEDED`를 기록한다.
+- 보호 실행 화면은 실행 중에도 검증된 Hook Action의 요약과 Incident를 갱신하며,
+  원문 command나 민감한 payload를 화면으로 내보내지 않는다.
+- 검증된 PreTool deny 이후에도 동일 Tool의 `PostToolUse`가 확인되면, 원래
+  `PRE_ACTION` 차단 결과와 별도의 `POST_ACTION` Gate를 생성한다. 이때만
+  Process Manager에 보상적 종료를 요청하며, 실제 종료 결과가 확인된 경우에만
+  `TERMINATED / SUCCEEDED`를 기록한다.
+- Session, Evidence, Result Bundle을 별도로 저장하고 Bundle 무결성을 검증한다.
+- Recovery `RESTORED`와 Integrity `VERIFIED`를 독립적으로 표시한다.
+- 독립 Windows Process Manager smoke에서 등록된 프로세스 트리만 종료하고
+  unrelated process를 `LIVE_MATCH`로 보존한다.
+- 실제 Codex 사용자 중지 경로에서 등록된 Agent Root → Child → Grandchild만
+  종료하고 unrelated 프로세스를 보존하며, `user_abort_termination_result`의
+  `SUCCEEDED + verified_tree_gone=true`를 Result Bundle에 기록한다. 이 동작은
+  정책 위반 자동 집행과 별도인 사용자 세션 제어다.
+
+## 미지원 도구 처리
+
+AIA는 보호 실행에서 Hook matcher를 `*`로 설치해 지원되는 로컬 Hook 경로의
+도구가 명시적 의미 해석 없이 조용히 통과하지 않도록 한다. AIA가 파일·명령
+행위로 해석하는 도구는 별도의 명시적 목록으로 제한한다. 목록 밖의 도구가
+PreToolUse로 도착하면 도구 입력을 정책 행위로 추측하지 않고
+`UNSUPPORTED_TOOL_PATH` deny를 반환한다. 해당 실행은 정상적인 보호 성공으로
+표시하지 않고 `UNSUPPORTED_TOOL_PATH` 제한이 있는 degraded 결과로 남긴다.
+
+Codex가 Hook 경로로 보내지 않는 특수 도구, Hosted 도구, Hook 비활성화·불신뢰,
+외부 Agent와 사용자의 수동 실행은 이 경계로 포착할 수 없다. 이런 실행은
+보호 성공으로 주장하지 않는다.
+
+## 현재 주장하지 않는 것
+
+- Hook 경로 밖의 모든 Codex 도구와 MCP 경로에 대한 보편적 차단
+- Hook 장애가 발생해도 모든 경로가 OS 수준에서 fail-closed라는 보장
+- `PROCESS` Evidence만으로 정확한 파일 Writer를 증명하는 것
+- 모든 OS 프로세스의 종료 또는 사용자의 수동 작업 통제
+- Process Sensor 관찰만으로 자동 종료하는 것. Process termination은 검증된
+  Gate와 AIA가 등록한 Agent Root가 함께 확인된 경우에만 시도한다.
+- Network와 Database 상태 보안
+- 정상 제품 경로에서 모든 정책 위반에 대한 Actual Codex destructive Process Tree
+  자동 집행이 보편적으로 보장된다는 주장. 개발자 fault-injection 환경에서는
+  `PostToolUse → POST_ACTION → TERMINATED → RESTORED + VERIFIED`까지 확인했지만,
+  정상 제품 경로의 기본 관문은 여전히 `PreToolUse deny`이며 Hook이 도착하지 않는
+  실행은 보상적 집행 성공으로 주장하지 않는다.
+- MCP 도구를 허용하는 보호 계약
+- 대규모 Workspace에 대한 성능 SLA
+- 실행 환경이 제품이 요청한 Sandbox보다 약한 경우의 완전한 보호 보장. 이 경우
+  Result Bundle은 `COMPLETED_DEGRADED`로 남으며 실행을 검증된 보호 성공으로
+  해석하지 않는다.
+
+자세한 제한사항은 [LIMITATIONS.md](LIMITATIONS.md)와
+[빠른 시작](QUICKSTART.md)을 함께 확인한다. 평가 원본과 검증 증거는 공개 저장소에
+포함하지 않으며, 저장소의 재현 명령으로 새로 생성한다.

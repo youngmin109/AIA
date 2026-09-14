@@ -1,0 +1,45 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Runtime state and generated evidence
+.aia/
+.codex/
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.jsonl
+evaluation/
+**/workspace/
+**/workspaces/
+
+# Temporary local verification output
+.tmp-build/
+.verify-debug-*/
+aia-support-bundle*.json
+evaluation/actual-codex/
+evaluation/product-e2e-live/
+evaluation/product-e2e/
+# Actual Codex evaluation runs contain machine-specific paths and may contain
+# sensitive agent output. Keep generated runs local unless they are reviewed
+# and promoted as a sanitized validation fixture.
+evaluation/product-before-after/actual-codex-*/

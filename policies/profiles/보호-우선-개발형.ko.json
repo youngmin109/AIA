@@ -1,0 +1,170 @@
+{
+  "프로필": "보호 우선 개발형",
+  "정책명": "AIA 보호 우선 개발형 정책",
+  "정책ID": "aia-protected-development",
+  "정책버전": "1.1",
+  "스키마버전": "1",
+  "기본효과": "기록",
+  "규칙": [
+    {
+      "규칙ID": "protected-secret-files",
+      "우선순위": 1000,
+      "자산유형": "비밀정보",
+      "경로패턴": [
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*"
+      ],
+      "행위효과": {
+        "읽기": "금지",
+        "생성": "금지",
+        "수정": "금지",
+        "삭제": "금지",
+        "이동": "금지",
+        "이름변경": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-secret-read-commands",
+      "우선순위": 1010,
+      "자산유형": "비밀정보",
+      "명령패턴": [
+        "type .env*",
+        "cat .env*",
+        "Get-Content .env*",
+        "more .env*",
+        "cmd /c type .env*",
+        "powershell* get-content* .env*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-dependency-files",
+      "우선순위": 200,
+      "자산유형": "의존성 파일",
+      "경로패턴": [
+        "pyproject.toml",
+        "uv.lock",
+        "requirements*.txt",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock"
+      ],
+      "행위효과": {
+        "읽기": "허용",
+        "생성": "기록",
+        "수정": "기록",
+        "삭제": "금지",
+        "이동": "기록",
+        "이름변경": "기록"
+      }
+    },
+    {
+      "규칙ID": "protected-infrastructure-files",
+      "우선순위": 200,
+      "자산유형": "인프라 설정",
+      "경로패턴": [
+        "Dockerfile",
+        "docker-compose*.yml",
+        "docker-compose*.yaml",
+        "*.tf"
+      ],
+      "행위효과": {
+        "읽기": "허용",
+        "생성": "기록",
+        "수정": "기록",
+        "삭제": "금지",
+        "이동": "기록",
+        "이름변경": "기록"
+      }
+    },
+    {
+      "규칙ID": "protected-drop-database",
+      "우선순위": 500,
+      "자산유형": "데이터베이스 관련 자산",
+      "명령패턴": [
+        "DROP DATABASE*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-drop-table",
+      "우선순위": 500,
+      "자산유형": "데이터베이스 관련 자산",
+      "명령패턴": [
+        "DROP TABLE*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-truncate",
+      "우선순위": 500,
+      "자산유형": "데이터베이스 관련 자산",
+      "명령패턴": [
+        "TRUNCATE*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-alembic-downgrade",
+      "우선순위": 500,
+      "자산유형": "데이터베이스 관련 자산",
+      "명령패턴": [
+        "alembic downgrade*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-git-reset-hard",
+      "우선순위": 510,
+      "자산유형": "저장소 관련 자산",
+      "명령패턴": [
+        "git reset --hard*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-git-clean",
+      "우선순위": 510,
+      "자산유형": "저장소 관련 자산",
+      "명령패턴": [
+        "git clean -fd*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-rm-rf",
+      "우선순위": 520,
+      "자산유형": "작업공간",
+      "명령패턴": [
+        "rm -rf*",
+        "rmdir /s*",
+        "rd /s*",
+        "del *",
+        "erase *",
+        "Remove-Item*",
+        "Stop-Process*",
+        "taskkill /f*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    }
+  ]
+}

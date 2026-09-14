@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% block title %}새 보호 실행 · AIA{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
+  <h1>보호 실행 시작</h1>
+  <p class="lede">먼저 작업 폴더와 보호 정책을 선택합니다. 준비가 끝나면 AIA가 보호된 Codex 세션을 열고, 실행 전 도구 요청과 파일 변화를 기록합니다.</p>
+</section>
+
+<section class="run-steps" aria-label="보호 실행 순서">
+  <div class="run-step"><span>1</span><strong>작업 폴더 선택</strong><small>사용자가 만든 Workspace를 지정합니다.</small></div>
+  <div class="run-step"><span>2</span><strong>정책·기준점 준비</strong><small>정책을 고정하고 Checkpoint를 만듭니다.</small></div>
+  <div class="run-step"><span>3</span><strong>Codex 보호 실행</strong><small>지원되는 도구 요청을 실행 전에 평가합니다.</small></div>
+  <div class="run-step"><span>4</span><strong>결과 확인</strong><small>차단·허용·증거·무결성을 결과로 남깁니다.</small></div>
+</section>
+
+<section class="panel preflight-panel">
+  <div class="panel-heading">
+    <h2>실행 전 준비 상태</h2>
+    <button id="refresh-preflight" class="button" type="button">다시 검사</button>
+  </div>
+  <div id="preflight-checks" class="preflight-list">
+    {% for check in preflight.checks %}
+    <div class="preflight-row">
+      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인 필요' }}</span>
+      <strong>{{ check.label }}</strong>
+      <span class="hint">{{ check.detail }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
+  {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
+  <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust">{{ preflight.hook_trust.detail }}</div>
+  <div id="codex-hook-trust" class="notice {{ 'success' if preflight_trust_ok else 'warning' }}">
+    <strong>Codex 실제 Hook Trust:</strong>
+    {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
+    {% if trust_hooks %}
+      {% for hook in trust_hooks %}{{ hook.event }}={{ hook.trust_status }}{% if not loop.last %} · {% endif %}{% endfor %}
+    {% else %}
+      확인할 수 없음
+    {% endif %}
+  </div>
+  <div class="notice preflight-claim">
+    <strong>보호 성공 판정 규칙:</strong>
+    {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
+  </div>
+  <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}success{% else %}warning{% endif %}">
+    <strong>실제 Hook 관찰:</strong> {{ (preflight.get('hook_activation') or {}).get('detail', '아직 실제 보호 실행 Hook Event가 관찰되지 않았습니다.') }}
+  </div>
+  <div id="preflight-error" class="error" {% if preflight.ready %}hidden{% endif %}>
+    <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 항목을 먼저 해결하세요. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
+  </div>
+  <div id="readiness-summary" class="notice {% if preflight.ready %}success{% else %}warning{% endif %}">
+    <strong>준비 상태: <span id="readiness-code">{{ preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
+    <span id="readiness-next-step">{{ preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
+  </div>
+  <div class="next-steps">
+    <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
+    <ol>
+      {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
+      <li>PowerShell에서 <span class="mono">uv run aia hook verify</span>를 실행합니다.</li>
+      <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
+    </ol>
+  </div>
+  <div class="form-actions">
+    <button id="verify-hook" class="button" type="button">실제 Hook 연결 검증</button>
+    <span id="verify-hook-status" class="hint">먼저 Codex에서 /hooks를 검토·Trust한 뒤 실행하세요.</span>
+  </div>
+</section>
+
+<section class="panel preview-panel">
+  <div class="panel-heading">
+    <div>
+      <h2>정책 미리보기</h2>
+      <p class="hint">보호 실행을 시작하지 않고, 선택한 정책이 한 행위를 어떻게 판정하는지 확인합니다.</p>
+    </div>
+    <span class="badge">실행 없음</span>
+  </div>
+  <div class="preview-grid">
+    <label class="field">행위 종류
+      <select id="preview-operation">
+        <option value="READ">READ · 파일 읽기</option>
+        <option value="CREATE">CREATE · 파일 생성</option>
+        <option value="MODIFY">MODIFY · 파일 수정</option>
+        <option value="DELETE">DELETE · 파일 삭제</option>
+        <option value="MOVE">MOVE · 파일 이동</option>
+        <option value="RENAME">RENAME · 이름 변경</option>
+        <option value="EXECUTE">EXECUTE · 명령 실행</option>
+      </select>
+    </label>
+    <label class="field field-wide">확인할 대상
+      <input id="preview-target" placeholder="예: .env 또는 type .env" autocomplete="off">
+      <span id="preview-target-hint" class="hint">파일 경로를 입력합니다. 예: .env</span>
+    </label>
+  </div>
+  <div class="form-actions preview-actions"><button id="preview-policy" class="button" type="button">판정 확인</button><span id="preview-status" class="hint">선택한 정책 프로필을 사용합니다.</span></div>
+  <div id="preview-result" class="preview-result" hidden></div>
+</section>
+
+<section class="panel policy-editor-panel">
+  <div class="panel-heading"><div><h2>정책 만들기</h2><p class="hint">현재 Strict Schema로 검증된 사용자 정책을 저장합니다. 저장된 정책만 보호 실행에 선택할 수 있습니다.</p></div><span class="badge">CUSTOM POLICY</span></div>
+  <div class="form-grid">
+    <label class="field">정책 ID<input id="editor-policy-id" value="my-protected-policy" autocomplete="off"></label>
+    <label class="field">정책 버전<input id="editor-policy-version" value="1.0" autocomplete="off"></label>
+    <label class="field">기본 효과<select id="editor-default-effect"><option value="기록">기록</option><option value="허용">허용</option><option value="금지">금지</option></select></label>
+    <label class="field">저장 경로 (선택)<input id="editor-policy-path" placeholder="비워두면 %USERPROFILE%\\.aia\\policies에 저장"></label>
+  </div>
+  <div class="editor-rule-builder">
+    <h3>Rule 추가</h3>
+    <div class="form-grid">
+      <label class="field">자산 유형<select id="editor-asset-type"><option>비밀정보</option><option>핵심 코드</option><option>데이터베이스 관련 자산</option><option>인프라 설정</option><option>의존성 파일</option><option>저장소 관련 자산</option><option>작업공간</option></select></label>
+      <label class="field">Rule ID<input id="editor-rule-id" value="rule-1" autocomplete="off"></label>
+      <label class="field">대상 종류<select id="editor-target-kind"><option value="path">파일 경로</option><option value="command">명령</option></select></label>
+      <label class="field">우선순위<input id="editor-priority" type="number" value="100" min="0" step="1"></label>
+      <label class="field field-wide">패턴<textarea id="editor-patterns" rows="2" placeholder="한 줄에 하나. 예: .env"></textarea></label>
+      <label class="field">행위<select id="editor-operation"><option value="읽기">읽기</option><option value="생성">생성</option><option value="수정">수정</option><option value="삭제">삭제</option><option value="이동">이동</option><option value="이름변경">이름변경</option><option value="실행">실행</option></select></label>
+      <label class="field">효과<select id="editor-effect"><option value="금지">금지</option><option value="기록">기록</option><option value="허용">허용</option></select></label>
+    </div>
+    <div class="form-actions"><button id="add-policy-rule" class="button" type="button">Rule 추가</button><span id="editor-rule-status" class="hint">파일 Rule과 명령 Rule은 한 Rule에 섞지 않습니다.</span></div>
+  </div>
+  <div id="editor-rules" class="editor-rule-list"><div class="empty">아직 추가된 Rule이 없습니다.</div></div>
+  <div class="form-actions"><button id="validate-policy" class="button" type="button">Strict Validation</button><button id="save-policy" class="button primary" type="button" disabled>정책 저장</button><span id="editor-save-status" class="hint">먼저 Strict Validation을 통과하세요.</span></div>
+</section>
+
+  <section class="panel form-panel">
+  <form id="new-run-form">
+    <div class="form-grid">
+      <label class="field field-wide">Workspace 경로
+        <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
+        <span id="workspace-status" class="hint">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
+      </label>
+      <label class="field">코딩 에이전트
+        <input name="agent" value="Codex" readonly>
+      </label>
+      <label class="field">모델 (선택)
+        <input name="model" placeholder="Codex 기본 모델 사용">
+      </label>
+      <label class="field">정책 프로필
+        <select name="policy_profile" id="policy-profile">
+          {% for profile in profiles %}<option value="{{ profile.value }}" {% if loop.first %}selected{% endif %}>{{ profile.label }}{% if loop.first %} · 권장{% endif %}</option>{% endfor %}
+        </select>
+        <span id="policy-description" class="hint">선택한 정책의 보호 범위가 표시됩니다.</span>
+      </label>
+      <label class="field" id="custom-policy-field" hidden>사용자 정책 JSON 경로
+        <input name="custom_policy_path" placeholder="C:\\policies\\policy.json">
+      </label>
+      <label class="field">보호 모드
+        <select name="mode"><option value="ENFORCE">ENFORCE · 위반 차단</option><option value="AUDIT">AUDIT · 관찰만</option></select>
+      </label>
+      <fieldset class="field field-wide run-mode-field">
+        <legend>작업 시작 방식</legend>
+        <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
+        <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
+        <label class="choice"><input type="checkbox" id="new-terminal" checked> 별도 Windows 터미널에서 Codex 열기</label>
+        <span class="hint">AIA 콘솔과 Codex 작업 화면을 분리합니다. Windows 11에서만 지원합니다.</span>
+        <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
+        <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
+      </fieldset>
+      <label class="field field-wide" id="task-field" hidden>작업 요청
+        <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
+        <span class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다. 명령을 실행할지 여부는 Codex가 결정하며, AIA는 실제 도구 요청을 관찰·통제합니다.</span>
+      </label>
+    </div>
+    <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
+    <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · Hook matcher는 모든 로컬 Hook 대상(*)을 받으며, AIA가 의미를 해석하는 도구는 아래 목록으로 제한됩니다. 목록 밖 도구는 보호 실행에서 거부됩니다.</div>
+    <div id="form-error" class="error" hidden></div>
+    <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 시작</button><span class="hint">준비 상태가 모두 통과되어야 활성화됩니다.</span></div>
+  </form>
+</section>
+<section class="panel capability-panel">
+  <div class="panel-heading"><div><h2>현재 보호 범위</h2><p class="hint">지원 범위 밖의 실행은 AIA가 보호 성공으로 표시하지 않습니다.</p></div><span class="badge">{{ capabilities.product }} {{ capabilities.version }}</span></div>
+  <div class="capability-grid">
+    <div><strong>지원 환경</strong><p class="hint">{{ capabilities.support.operating_system|join(', ') }} · Python {{ capabilities.support.python|join(', ') }} · {{ capabilities.support.agent|join(', ') }}</p></div>
+    <div><strong>PreToolUse</strong><p class="hint mono">matcher={{ capabilities.support.pretool_matcher }}<br>semantic={{ capabilities.support.pretool_matchers|join(', ') }}{% for canonical, aliases in capabilities.support.pretool_aliases.items() %}<br>aliases={{ aliases|join(', ') }} → {{ canonical }}{% endfor %}</p><p class="hint">알 수 없는 도구는 <code>UNSUPPORTED_TOOL_PATH</code>로 거부됩니다.</p></div>
+    <div><strong>필수 사용자 단계</strong><ul class="limitations">{% for item in capabilities.requires_user_action %}<li>{{ item }}</li>{% endfor %}</ul></div>
+    <div><strong>지원하지 않거나 주장하지 않는 범위</strong><ul class="limitations">{% for item in capabilities.unsupported_or_unclaimed %}<li>{{ item }}</li>{% endfor %}</ul></div>
+  </div>
+</section>
+<script>
+const form = document.getElementById('new-run-form');
+const profile = document.getElementById('policy-profile');
+const customField = document.getElementById('custom-policy-field');
+const errorBox = document.getElementById('form-error');
+const workspaceInput = form.elements.workspace;
+const workspaceStatus = document.getElementById('workspace-status');
+const preflightChecks = document.getElementById('preflight-checks');
+const preflightError = document.getElementById('preflight-error');
+const readinessSummary = document.getElementById('readiness-summary');
+const readinessCode = document.getElementById('readiness-code');
+const readinessNextStep = document.getElementById('readiness-next-step');
+const submitRun = document.getElementById('submit-run');
+const verifyHookButton = document.getElementById('verify-hook');
+const verifyHookStatus = document.getElementById('verify-hook-status');
+const hookActivation = document.getElementById('hook-activation');
+const codexHookTrust = document.getElementById('codex-hook-trust');
+const profileDescriptions = {{ profiles|tojson }};
+const taskField = document.getElementById('task-field');
+const taskInput = document.getElementById('task-input');
+const runModeInputs = [...form.querySelectorAll('input[name="run_mode"]')];
+const previewOperation = document.getElementById('preview-operation');
+const previewTarget = document.getElementById('preview-target');
+const previewTargetHint = document.getElementById('preview-target-hint');
+const previewButton = document.getElementById('preview-policy');
+const previewStatus = document.getElementById('preview-status');
+const previewResult = document.getElementById('preview-result');
+const newTerminal = document.getElementById('new-terminal');
+const editorRules = [];
+let editorValidated = false;
+const editorRuleList = document.getElementById('editor-rules');
+function renderEditorRules() {
+  if (!editorRules.length) { editorRuleList.innerHTML = '<div class="empty">아직 추가된 Rule이 없습니다.</div>'; return; }
+  editorRuleList.innerHTML = editorRules.map((rule, index) => `<div class="editor-rule-row"><div><strong>${escapeHtml(rule['규칙ID'])}</strong><span class="muted">${escapeHtml(rule['자산유형'])} · ${rule['경로패턴'] ? '파일' : '명령'} · Priority ${rule['우선순위']}</span></div><span>${escapeHtml(Object.entries(rule['행위효과']).map(([operation, effect]) => `${operation}=${effect}`).join(', '))}</span><button class="button" type="button" data-remove-rule="${index}">삭제</button></div>`).join('');
+  editorRuleList.querySelectorAll('[data-remove-rule]').forEach((button) => button.addEventListener('click', () => { editorRules.splice(Number(button.dataset.removeRule), 1); editorValidated = false; document.getElementById('save-policy').disabled = true; renderEditorRules(); }));
+}
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function editorDocument() {
+  return { '정책명': document.getElementById('editor-policy-id').value.trim(), '정책ID': document.getElementById('editor-policy-id').value.trim(), '정책버전': document.getElementById('editor-policy-version').value.trim(), '스키마버전': '1', '기본효과': document.getElementById('editor-default-effect').value, '규칙': editorRules };
+}
+document.getElementById('editor-target-kind').addEventListener('change', () => { document.getElementById('editor-operation').value = document.getElementById('editor-target-kind').value === 'command' ? '실행' : '읽기'; });
+document.getElementById('add-policy-rule').addEventListener('click', () => {
+  const targetKind = document.getElementById('editor-target-kind').value;
+  const operation = document.getElementById('editor-operation').value;
+  if ((targetKind === 'command' && operation !== '실행') || (targetKind === 'path' && operation === '실행')) { document.getElementById('editor-rule-status').textContent = '대상 종류와 행위를 맞춰야 합니다.'; return; }
+  const patterns = document.getElementById('editor-patterns').value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  if (!patterns.length) { document.getElementById('editor-rule-status').textContent = '패턴을 하나 이상 입력하세요.'; return; }
+  const rule = { '규칙ID': document.getElementById('editor-rule-id').value.trim() || `rule-${editorRules.length + 1}`, '우선순위': Number(document.getElementById('editor-priority').value || 0), '자산유형': document.getElementById('editor-asset-type').value, '행위효과': {[operation]: document.getElementById('editor-effect').value} };
+  rule[targetKind === 'command' ? '명령패턴' : '경로패턴'] = patterns;
+  editorRules.push(rule); editorValidated = false; document.getElementById('save-policy').disabled = true; renderEditorRules(); document.getElementById('editor-rule-status').textContent = `${editorRules.length}개 Rule이 준비되었습니다.`;
+});
+document.getElementById('validate-policy').addEventListener('click', async () => {
+  const status = document.getElementById('editor-save-status'); status.textContent = 'Strict Validation 중…';
+  try { const response = await fetch('/api/policy/validate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({document: editorDocument()})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || '정책 검증 실패'); editorValidated = true; document.getElementById('save-policy').disabled = false; status.textContent = `검증 통과: ${result.rule_count}개 Rule · 저장할 수 있습니다.`; } catch (error) { editorValidated = false; document.getElementById('save-policy').disabled = true; status.textContent = error.message; }
+});
+document.getElementById('save-policy').addEventListener('click', async () => {
+  if (!editorValidated) return; const status = document.getElementById('editor-save-status'); status.textContent = '정책 저장 중…';
+  try { const response = await fetch('/api/policy/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({document: editorDocument(), path: document.getElementById('editor-policy-path').value.trim() || null})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || '정책 저장 실패'); profile.value = 'CUSTOM'; updateCustomPolicyField(); form.elements.custom_policy_path.value = result.path; status.textContent = `저장됨: ${result.path}`; } catch (error) { status.textContent = error.message; }
+});
+function updateRunMode() {
+  const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
+  taskField.hidden = interactive;
+  taskInput.required = !interactive;
+  if (interactive) taskInput.value = '';
+}
+runModeInputs.forEach((input) => input.addEventListener('change', updateRunMode));
+updateRunMode();
+function updateProfileDescription() {
+  const selected = profileDescriptions.find((item) => item.value === profile.value);
+  document.getElementById('policy-description').textContent = selected?.description || '';
+}
+function updateCustomPolicyField() {
+  const custom = profile.value === 'CUSTOM';
+  customField.hidden = !custom;
+  form.elements.custom_policy_path.required = custom;
+}
+profile.addEventListener('change', () => { updateCustomPolicyField(); updateProfileDescription(); });
+updateCustomPolicyField();
+updateProfileDescription();
+function renderPreflight(payload) {
+  preflightChecks.replaceChildren();
+  payload.checks.forEach((check) => {
+    const row = document.createElement('div');
+    row.className = 'preflight-row';
+    const mark = document.createElement('span');
+    mark.className = `preflight-mark ${check.ok ? 'ok' : 'fail'}`;
+    mark.textContent = check.ok ? '통과' : '확인 필요';
+    const label = document.createElement('strong');
+    label.textContent = check.label;
+    const detail = document.createElement('span');
+    detail.className = 'hint';
+    detail.textContent = check.detail;
+    row.append(mark, label, detail);
+    preflightChecks.append(row);
+  });
+  preflightError.hidden = payload.ready;
+  readinessSummary.className = `notice ${payload.ready ? 'success' : 'warning'}`;
+  readinessCode.textContent = payload.readiness_code || 'UNKNOWN';
+  readinessNextStep.textContent = payload.next_step || '위의 확인 필요 항목을 해결하세요.';
+  const activation = payload.hook_activation || {};
+  hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
+  hookActivation.textContent = `실제 Hook 관찰: ${activation.detail || '상태를 확인할 수 없습니다.'}`;
+  const trust = payload.codex_hook_trust || {};
+  const trustHooks = Array.isArray(trust.hooks) ? trust.hooks : [];
+  const trustSummary = trustHooks.map((hook) => `${hook.event}=${hook.trust_status}`).join(' · ');
+  const preToolTrust = trustHooks.find((hook) => hook.event === 'preToolUse')?.trust_status;
+  codexHookTrust.className = `notice ${['TRUSTED', 'MANAGED'].includes(preToolTrust) ? 'success' : 'warning'}`;
+  codexHookTrust.textContent = `Codex 실제 Hook Trust: ${trustSummary || '확인할 수 없음'}`;
+  submitRun.disabled = !payload.ready;
+}
+document.getElementById('refresh-preflight').addEventListener('click', async () => {
+  const response = await fetch('/api/preflight');
+  if (response.ok) renderPreflight(await response.json());
+});
+verifyHookButton.addEventListener('click', async () => {
+  verifyHookButton.disabled = true;
+  verifyHookStatus.className = 'hint';
+  verifyHookStatus.textContent = '임시 Workspace에서 실제 Hook 연결을 검증하는 중…';
+  try {
+    const response = await fetch('/api/hook/verify', {method: 'POST'});
+    const payload = await response.json();
+    if (payload.verified) {
+      verifyHookStatus.className = 'hint success-text';
+      verifyHookStatus.textContent = 'VERIFIED: Session-bound Hook Event가 확인되었습니다.';
+    } else {
+      verifyHookStatus.className = 'hint error-text';
+      verifyHookStatus.textContent = `검증되지 않음: ${payload.reason || '현재 Hook 연결을 확인할 수 없습니다.'}`;
+    }
+    const refreshed = await fetch('/api/preflight');
+    if (refreshed.ok) renderPreflight(await refreshed.json());
+  } catch (error) {
+    verifyHookStatus.className = 'hint error-text';
+    verifyHookStatus.textContent = `검증 요청 실패: ${error.message}`;
+  } finally {
+    verifyHookButton.disabled = false;
+  }
+});
+workspaceInput.addEventListener('blur', async () => {
+  if (!workspaceInput.value.trim()) return;
+  workspaceStatus.textContent = 'Workspace를 확인하는 중…';
+  const response = await fetch(`/api/workspaces/validate?path=${encodeURIComponent(workspaceInput.value)}`);
+  const payload = await response.json();
+  workspaceStatus.textContent = response.ok ? `확인됨: ${payload.canonical_path}` : (payload.error || 'Workspace를 확인할 수 없습니다.');
+  workspaceStatus.className = response.ok ? 'hint success-text' : 'hint error-text';
+});
+function updatePreviewTarget() {
+  const command = previewOperation.value === 'EXECUTE';
+  previewTarget.placeholder = command ? '예: type .env' : '예: .env';
+  previewTargetHint.textContent = command
+    ? '명령 원문을 입력합니다. 예: type .env'
+    : '파일 경로를 입력합니다. 예: .env';
+}
+previewOperation.addEventListener('change', updatePreviewTarget);
+updatePreviewTarget();
+previewButton.addEventListener('click', async () => {
+  previewButton.disabled = true;
+  previewResult.hidden = true;
+  previewStatus.textContent = '정책을 판정하는 중…';
+  const operation = previewOperation.value;
+  const target = previewTarget.value.trim();
+  const payload = {
+    operation,
+    policy_profile: profile.value,
+  };
+  if (form.elements.custom_policy_path.value.trim()) payload.custom_policy_path = form.elements.custom_policy_path.value.trim();
+  if (operation === 'EXECUTE') payload.command = target;
+  else payload.path = target;
+  try {
+    const response = await fetch('/api/policy/preview', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '정책을 판정할 수 없습니다.');
+    const decisionLabel = result.policy_decision === 'VIOLATION' ? '차단 대상' : result.policy_decision === 'COMPLIANT' ? '허용·기록 대상' : '판정 불가';
+    const decisionClass = result.policy_decision === 'VIOLATION' ? 'danger-text' : result.policy_decision === 'COMPLIANT' ? 'success-text' : 'warning-text';
+    const decision = document.createElement('strong');
+    decision.className = decisionClass;
+    decision.textContent = decisionLabel;
+    const facts = [
+      `정책 효과: ${result.operation_effect || '없음'}`,
+      `보안 자산: ${result.asset_type || '규칙에서 특정되지 않음'}`,
+      `적용 Rule: ${(result.matched_rule_ids || []).join(', ') || 'default_effect'}`,
+    ];
+    previewResult.replaceChildren(decision);
+    facts.forEach((fact) => {
+      const item = document.createElement('span');
+      item.textContent = fact;
+      previewResult.append(item);
+    });
+    previewResult.hidden = false;
+    previewStatus.textContent = '이 결과는 실행 없이 Frozen Policy를 조회한 결과입니다.';
+  } catch (error) {
+    previewStatus.textContent = error.message;
+  } finally {
+    previewButton.disabled = false;
+  }
+});
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  errorBox.hidden = true;
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.agent = data.agent.toLowerCase();
+  data.interactive = data.run_mode === 'interactive';
+  data.launch_mode = data.interactive && newTerminal.checked ? 'new_terminal' : 'inherit';
+  delete data.run_mode;
+  if (data.interactive) data.task = '';
+  if (!data.model) delete data.model;
+  if (!data.custom_policy_path) delete data.custom_policy_path;
+  try {
+    const response = await fetch('/api/runs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || '보호 실행을 시작할 수 없습니다.');
+    window.location.href = payload.redirect_url;
+  } catch (error) {
+    errorBox.textContent = error.message;
+    errorBox.hidden = false;
+  }
+});
+</script>
+{% endblock %}
