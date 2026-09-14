@@ -102,6 +102,13 @@ class WinPtyTerminalSession:
         self.argv = tuple(argv)
         self.cwd = Path(cwd).expanduser().resolve(strict=False)
         self.env = dict(env)
+        # Codex refuses its interactive TUI when inherited TERM is ``dumb``
+        # (common when AIA itself is started from a plain PowerShell).  The
+        # browser terminal is a real pseudo terminal, so advertise a normal
+        # Windows-compatible terminal capability to the child process.
+        if self.env.get("TERM", "").lower() in {"", "dumb"}:
+            self.env["TERM"] = "xterm-256color"
+        self.env.setdefault("COLORTERM", "truecolor")
         self._rows = self._validate_dimension(rows, "rows")
         self._cols = self._validate_dimension(cols, "cols")
         self._pty: Any | None = None
