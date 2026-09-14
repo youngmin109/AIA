@@ -234,6 +234,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "MCP" in new_run.text
     assert "aliases=Edit, Write" in new_run.text
     assert "정책 만들기" in new_run.text
+    assert "new-run-page" in new_run.text
+    assert 'id="jump-to-run"' in new_run.text
+    assert 'id="run-settings"' in new_run.text
+    assert 'id="preflight-next-steps"' in new_run.text
     assert "Strict Validation" in new_run.text
     assert "별도 Windows 터미널에서 Codex 열기" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
@@ -255,8 +259,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
     assert "최근 이벤트" in workbench.text
+    assert "마지막 이벤트" in workbench.text
+    assert "화면 갱신" in workbench.text
     assert 'id="event-count"' in workbench.text
     assert "Glass-box" in workbench.text
+    assert "실행 흐름" in workbench.text
+    assert "보호 준비" in workbench.text
+    assert "현재 Workbench" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.post("/api/runs/run-1/stop").status_code == 202

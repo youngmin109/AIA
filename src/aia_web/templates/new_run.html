@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}새 보호 실행 · AIA{% endblock %}
 {% block content %}
+<div class="new-run-page">
 <section class="hero">
   <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
   <h1>보호 실행 시작</h1>
@@ -17,7 +18,7 @@
 <section class="panel preflight-panel">
   <div class="panel-heading">
     <h2>실행 전 준비 상태</h2>
-    <button id="refresh-preflight" class="button" type="button">다시 검사</button>
+    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button></div>
   </div>
   <div id="preflight-checks" class="preflight-list">
     {% for check in preflight.checks %}
@@ -54,7 +55,7 @@
     <strong>준비 상태: <span id="readiness-code">{{ preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
     <span id="readiness-next-step">{{ preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
   </div>
-  <div class="next-steps">
+  <div id="preflight-next-steps" class="next-steps"{% if preflight.ready %} hidden{% endif %}>
     <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
     <ol>
       {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
@@ -122,7 +123,7 @@
   <div class="form-actions"><button id="validate-policy" class="button" type="button">Strict Validation</button><button id="save-policy" class="button primary" type="button" disabled>정책 저장</button><span id="editor-save-status" class="hint">먼저 Strict Validation을 통과하세요.</span></div>
 </section>
 
-  <section class="panel form-panel">
+  <section id="run-settings" class="panel form-panel">
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
@@ -179,6 +180,7 @@
     <div><strong>지원하지 않거나 주장하지 않는 범위</strong><ul class="limitations">{% for item in capabilities.unsupported_or_unclaimed %}<li>{{ item }}</li>{% endfor %}</ul></div>
   </div>
 </section>
+</div>
 <script>
 const form = document.getElementById('new-run-form');
 const profile = document.getElementById('policy-profile');
@@ -196,6 +198,8 @@ const verifyHookButton = document.getElementById('verify-hook');
 const verifyHookStatus = document.getElementById('verify-hook-status');
 const hookActivation = document.getElementById('hook-activation');
 const codexHookTrust = document.getElementById('codex-hook-trust');
+const jumpToRun = document.getElementById('jump-to-run');
+const preflightNextSteps = document.getElementById('preflight-next-steps');
 const profileDescriptions = {{ profiles|tojson }};
 const taskField = document.getElementById('task-field');
 const taskInput = document.getElementById('task-input');
@@ -277,6 +281,8 @@ function renderPreflight(payload) {
   readinessSummary.className = `notice ${payload.ready ? 'success' : 'warning'}`;
   readinessCode.textContent = payload.readiness_code || 'UNKNOWN';
   readinessNextStep.textContent = payload.next_step || '위의 확인 필요 항목을 해결하세요.';
+  jumpToRun.hidden = !payload.ready;
+  preflightNextSteps.hidden = payload.ready;
   const activation = payload.hook_activation || {};
   hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
   hookActivation.textContent = `실제 Hook 관찰: ${activation.detail || '상태를 확인할 수 없습니다.'}`;

@@ -1347,6 +1347,32 @@ def test_list_runs_preserves_workbench_launch_mode_when_bundle_omits_it(
         service.shutdown()
 
 
+def test_completed_status_preserves_workbench_launch_mode_from_runtime_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    monkeypatch.setattr(
+        service,
+        "_status_from_completed_bundle",
+        lambda _session_id: {
+            "launch_mode": "inherit",
+            "session": {"status": "ABORTED"},
+        },
+    )
+    monkeypatch.setattr(
+        service,
+        "_read_runtime_state",
+        lambda _session_id: {"launch_mode": "web_terminal"},
+    )
+    try:
+        status = service.get_run_status("session-1")
+        assert status["launch_mode"] == "web_terminal"
+        assert status["session"]["launch_mode"] == "web_terminal"
+    finally:
+        service.shutdown()
+
+
 def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)

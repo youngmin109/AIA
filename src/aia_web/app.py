@@ -223,7 +223,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request,
             "workbench.html",
-            {"session_id": session_id, "status": status},
+            {"session_id": session_id, "status": status, "is_workbench": True},
         )
 
     @app.get("/api/runs/{session_id}")

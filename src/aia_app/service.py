@@ -880,12 +880,33 @@ class RunApplicationService:
         record = self.registry.snapshot(session_id)
         if record is None:
             try:
-                return self._status_from_completed_bundle(session_id)
+                status = self._status_from_completed_bundle(session_id)
             except (KeyError, OSError, ValueError):
                 runtime_state = self._read_runtime_state(session_id)
                 if runtime_state is None:
                     raise
                 return self._status_from_runtime_state(runtime_state)
+            # Older Result Bundles do not contain the UI-only launch mode.
+            # Preserve it from the durable runtime snapshot so a completed
+            # Workbench run still opens with the correct terminal context.
+            runtime_state = self._read_runtime_state(session_id)
+            runtime_launch_mode = (
+                runtime_state.get("launch_mode")
+                if isinstance(runtime_state, Mapping)
+                else None
+            )
+            if (
+                status.get("launch_mode", "inherit") == "inherit"
+                and runtime_launch_mode
+                and runtime_launch_mode != "inherit"
+            ):
+                status = dict(status)
+                status["launch_mode"] = runtime_launch_mode
+                status["session"] = {
+                    **(status.get("session") or {}),
+                    "launch_mode": runtime_launch_mode,
+                }
+            return status
         hook_broker_healthy = (
             live_hook_broker_healthy
             if live_record is not None

@@ -10,7 +10,7 @@
       <p class="muted mono workbench-session-id" title="{{ session_id }}">{{ session_id }}</p>
     </div>
     <div class="workbench-header-actions">
-      <span id="run-status" class="status-badge">{{ status.session.status }}</span>
+      <span id="run-status" class="status-badge">상태 확인 중</span>
       <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} hidden{% endif %}>보호 실행 중지</button>
       <a id="result-link" class="button" href="/runs/{{ session_id }}/result"{% if not status.result_available %} hidden{% endif %}>결과 보기</a>
     </div>
@@ -24,7 +24,7 @@
           <dt>Workspace</dt><dd class="mono path-value" title="{{ status.session.workspace }}">{{ status.session.workspace }}</dd>
           <dt>Agent</dt><dd>Codex CLI</dd>
           <dt>Policy</dt><dd>{% if status.policy.id %}{{ status.policy.id }} · {{ status.policy.version }}{% elif status.policy.profile == 'PROTECTED_DEVELOPMENT' %}보호 개발 정책{% elif status.policy.profile == 'BASIC_DEVELOPMENT' %}기본 개발 정책{% elif status.policy.profile == 'CONSERVATIVE_SECURITY' %}보수적 보안 정책{% elif status.policy.profile == 'FREE_DEVELOPMENT' %}자유 개발 정책{% elif status.policy.profile %}{{ status.policy.profile }}{% else %}정책 정보 없음{% endif %}</dd>
-          <dt>Phase</dt><dd id="phase">{{ status.phase }}</dd>
+          <dt>Phase</dt><dd id="phase">상태 확인 중</dd>
           <dt>Checkpoint</dt><dd id="checkpoint">{{ status.checkpoint or '정보 없음' }}</dd>
           <dt>Lease</dt><dd id="lease">{{ status.lease }}</dd>
         </dl>
@@ -39,8 +39,14 @@
         </div>
       </section>
       <section class="workbench-card glassbox-slot">
-        <div class="panel-heading"><h2>Glass-box</h2><span class="badge">다음 확장</span></div>
-        <p class="hint">요청 → Hook → 프로세스 → 파일 변화 → 정책 → 집행 → 복구 → 무결성 흐름을 이 화면에서 연결합니다.</p>
+        <div class="panel-heading"><div><h2>실행 흐름</h2><p class="hint">AIA가 확인 가능한 실행 경로입니다.</p></div><span class="badge">Glass-box 기반</span></div>
+        <p class="hint">모델의 내부 생각이 아니라 실제 실행 증거를 단계별로 확인합니다.</p>
+        <ol class="workbench-flow">
+          <li><span>1</span><div><strong>보호 준비</strong><small>Workspace · 정책 · Checkpoint</small></div></li>
+          <li><span>2</span><div><strong>Codex 작업</strong><small>Hook · Process 관찰</small></div></li>
+          <li><span>3</span><div><strong>파일 변화</strong><small>File Sensor 기록</small></div></li>
+          <li><span>4</span><div><strong>결과 검증</strong><small>Evidence · Integrity · Audit</small></div></li>
+        </ol>
       </section>
     </aside>
 
@@ -75,6 +81,10 @@
       <section class="workbench-card">
         <div class="panel-heading"><h2>최근 이벤트</h2><span id="event-count" class="badge">0건</span></div>
         <p id="incident-summary" class="workbench-card-subtitle">차단 사건 0건</p>
+        <div class="workbench-observation-meta">
+          <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
+          <span>화면 갱신 <strong id="last-refresh-time">확인 중</strong></span>
+        </div>
         <div id="security-events" class="workbench-events"><div class="empty">아직 관찰된 이벤트가 없습니다.</div></div>
       </section>
       <section id="incident-card" class="workbench-card incident-card" hidden>
@@ -124,12 +134,39 @@ const terminalError = document.getElementById('terminal-error');
 const stopButton = document.getElementById('stop-run');
 const resultLink = document.getElementById('result-link');
 const incidentDetailLink = document.getElementById('incident-detail-link');
+const lastEventTime = document.getElementById('last-event-time');
+const lastRefreshTime = document.getElementById('last-refresh-time');
 let socket = null;
 let socketRetry = null;
 let lastRenderedEventKey = '';
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
+const formatTime = (value) => {
+  if (!value) return '기록 없음';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '기록됨' : date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+};
+const sessionLabel = (value) => ({
+  CREATED: '생성됨',
+  PREPARING: '보호 준비 중',
+  READY: '실행 준비 완료',
+  LAUNCHING: 'Codex 시작 중',
+  RUNNING: '실행 중',
+  COMPLETED: '완료',
+  ABORTED: '사용자 중지',
+  FAILED: '실패',
+})[value] || value || '확인 중';
+const phaseLabel = (value) => ({
+  CREATED: '세션 생성됨',
+  PREPARING: '보호 준비 중',
+  READY: '실행 준비 완료',
+  LAUNCHING: 'Codex 시작 중',
+  RUNNING: 'Agent 실행 중',
+  COMPLETED: '실행 완료',
+  ABORTED: '사용자 중지',
+  FAILED: '실행 실패',
+})[value] || value || '확인 중';
 const protectionLabel = (value) => ({
   ACTIVE_VERIFIED: '보호 검증됨',
   ACTIVE_UNVERIFIED: '보호 확인 중',
@@ -138,17 +175,23 @@ const protectionLabel = (value) => ({
   COMPLETED_DEGRADED: '완료 · 일부 확인',
   ABORTED_DEGRADED: '중지 · 일부 확인',
   FAILED_DEGRADED: '실패 · 확인 필요',
+  ORPHANED_DEGRADED: '보호 조정 필요',
+  STOP_REQUESTED: '중지 처리 중',
 })[value] || value || '확인 중';
 const sensorLabel = (value, ended = false) => value === 'HEALTHY' && ended ? '검증됨 · 정상 종료' : value === 'HEALTHY' ? '정상 관찰 중' : value === 'STOPPED' ? '관찰 종료 · 정상' : value === 'FAILED' ? '관찰 실패' : value || '확인 중';
 
 function setTerminalStatus(status) {
   const value = status?.status || 'UNKNOWN';
-  const terminalEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.textContent);
+  const terminalEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
   terminalStatus.textContent = value === 'RUNNING'
     ? 'Codex가 보호된 작업창에서 실행 중입니다.'
+    : value === 'EXITED'
+      ? 'Codex 작업창이 종료되었습니다. 결과 보기에서 기록을 확인하세요.'
     : terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value)
       ? '이 실행은 종료되었습니다. 결과 보기에서 기록을 확인하세요.'
-      : `터미널 상태: ${value}`;
+      : value === 'NOT_ATTACHED'
+        ? 'Codex 작업창 연결을 기다리는 중입니다.'
+        : `터미널 상태: ${value}`;
   terminalStatus.className = value === 'RUNNING' ? 'hint success-text' : value === 'FAILED' ? 'hint error-text' : 'hint';
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
   // A browser can connect during the short launch window before the terminal
@@ -179,13 +222,15 @@ function openSocket() {
     else if (message.type === 'error') showTerminalError(message.message || '터미널 요청이 거부되었습니다.');
     else if (message.type === 'closed') { setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
   };
-  socket.onclose = () => { if (!['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.textContent)) socketRetry = setTimeout(openSocket, 1000); };
+  socket.onclose = () => { if (!['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status)) socketRetry = setTimeout(openSocket, 1000); };
   socket.onerror = () => showTerminalError('Workbench 터미널 연결을 확인할 수 없습니다.');
 }
 function renderSecurity(status) {
-  runStatus.textContent = status.session?.status || status.phase || 'UNKNOWN';
+  const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
+  runStatus.dataset.status = sessionStatus;
+  runStatus.textContent = sessionLabel(sessionStatus);
   protectionState.textContent = protectionLabel(status.protection?.state);
-  document.getElementById('phase').textContent = status.phase || '—';
+  document.getElementById('phase').textContent = phaseLabel(status.phase);
   document.getElementById('checkpoint').textContent = status.checkpoint && status.checkpoint !== 'UNKNOWN' ? status.checkpoint : '정보 없음';
   document.getElementById('lease').textContent = status.lease || '—';
   const summary = status.evidence_summary || {};
@@ -206,10 +251,13 @@ function renderSecurity(status) {
   document.getElementById('process-count').textContent = `${summary.process_observed || 0}건`;
   document.getElementById('bundle-status').textContent = status.result_available ? (status.bundle_status || 'VALID') : '검증 전';
   const events = Array.isArray(status.events) ? status.events : [];
+  const latestEvent = events.slice().reverse().find((event) => event.observed_at);
+  lastEventTime.textContent = formatTime(latestEvent?.observed_at);
+  lastRefreshTime.textContent = formatTime(new Date().toISOString());
   const eventKey = events.map((item) => item.event_id || item.summary).join('|');
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><small>${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED')}${event.execution_result && event.execution_result !== 'NOT_REPORTED' ? badge(event.execution_result) : ''}</span></div>`).join('') : '<div class="empty">아직 관찰된 이벤트가 없습니다.</div>';
+    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED')}${event.execution_result && event.execution_result !== 'NOT_REPORTED' ? badge(event.execution_result) : ''}</span></div>`).join('') : '<div class="empty">아직 관찰된 이벤트가 없습니다.</div>';
   }
   document.getElementById('event-count').textContent = `${events.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
@@ -220,8 +268,9 @@ function renderSecurity(status) {
     document.getElementById('incident-title').textContent = `${incident.summary || '보호 대상 행위'} · ${incident.target_label || '대상'}`;
     document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? 'VIOLATION' : incident.decision || '확인 필요';
     document.getElementById('incident-decision').textContent = incident.decision || '확인 필요';
-    document.getElementById('incident-execution').textContent = `${incident.decision === 'CONTAIN' ? 'BLOCKED' : '관찰'} / ${incident.execution_result || '확인 필요'}`;
-    document.getElementById('incident-effect').textContent = incident.execution_result === 'SUCCEEDED' ? '확인되지 않음' : '확인 필요';
+    const blockedConfirmed = incident.decision === 'CONTAIN' && incident.execution_result === 'SUCCEEDED';
+    document.getElementById('incident-execution').textContent = blockedConfirmed ? '실행 전 차단됨 · 확인됨' : `${incident.decision === 'CONTAIN' ? '차단 판단' : '관찰'} · ${incident.execution_result || '확인 필요'}`;
+    document.getElementById('incident-effect').textContent = blockedConfirmed ? '도구 실행 전 차단 · 부작용 없음 확인' : '확인 필요';
     if (incident.incident_action_id) {
       incidentDetailLink.hidden = false;
       incidentDetailLink.href = `/runs/${encodeURIComponent(sessionId)}/incidents/${encodeURIComponent(incident.incident_action_id)}`;

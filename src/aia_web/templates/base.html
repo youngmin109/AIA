@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AIA Local Security Console{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-2">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-5">
 </head>
 <body>
   <header class="topbar">
@@ -13,7 +13,7 @@
       <a href="/">대시보드</a>
       <a href="/new">새 보호 실행</a>
       <a href="/runs">실행 기록</a>
-      {% if session_id %}<a href="/runs/{{ session_id }}">현재 실행</a>{% endif %}
+      {% if session_id %}<a href="{% if is_workbench %}/runs/{{ session_id }}/workbench{% else %}/runs/{{ session_id }}{% endif %}">{% if is_workbench %}현재 Workbench{% else %}현재 실행{% endif %}</a>{% endif %}
     </nav>
   </header>
   <main class="page-shell">
