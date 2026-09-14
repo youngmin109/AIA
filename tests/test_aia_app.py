@@ -85,6 +85,17 @@ def test_create_request_supports_separate_windows_terminal_only_for_interactive(
         )
 
 
+def test_create_request_supports_workbench_terminal_only_for_interactive() -> None:
+    request = CreateRunRequest.from_mapping(
+        {"workspace": ".", "interactive": True, "launch_mode": "web_terminal"}
+    )
+    assert request.launch_mode == "web_terminal"
+    with pytest.raises(DTOValidationError, match="requires interactive"):
+        CreateRunRequest.from_mapping(
+            {"workspace": ".", "task": "inspect", "launch_mode": "web_terminal"}
+        )
+
+
 def test_new_terminal_launch_maps_to_windows_create_new_console(monkeypatch) -> None:
     monkeypatch.setattr(service_module.os, "name", "nt")
     options = service_module._popen_kwargs_for_launch_mode("new_terminal")

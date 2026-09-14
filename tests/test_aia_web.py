@@ -99,6 +99,35 @@ class FakeService:
             "session": {"agent": "codex", "status": "RUNNING", "session_id": session_id, "workspace": "C:/workspace"},
         }
 
+    def get_terminal_status(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return {
+            "mode": "web_terminal",
+            "status": "RUNNING",
+            "pid": 1234,
+            "rows": 32,
+            "cols": 120,
+            "started_at": None,
+            "ended_at": None,
+            "error": None,
+        }
+
+    def drain_terminal_output(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return []
+
+    def send_terminal_input(self, session_id, value):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return {"accepted": True, "session_id": session_id}
+
+    def resize_terminal(self, session_id, rows, cols):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return {"accepted": True, "session_id": session_id, "rows": rows, "cols": cols}
+
     def get_run_actions(self, session_id):
         return [
             {
@@ -221,6 +250,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실시간 센서 상태" in live.text
     assert 'id="event-timeline"' in live.text
     assert "HEALTHY" in live.text
+    workbench = client.get("/runs/run-1/workbench")
+    assert workbench.status_code == 200
+    assert "Codex 작업창" in workbench.text
+    assert "Security Panel" in workbench.text
+    assert "Glass-box" in workbench.text
+    assert "SUPER_SECRET" not in workbench.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.post("/api/runs/run-1/stop").status_code == 202
     assert client.post("/api/runs/missing/stop").status_code == 404
@@ -241,6 +276,21 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
     assert "SUPER_SECRET" not in result.text
+
+
+def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
+    client = TestClient(create_app(FakeService()))
+    with client.websocket_connect("/api/runs/run-1/terminal") as websocket:
+        first = websocket.receive_json()
+        assert first["type"] == "status"
+        assert first["status"] == "RUNNING"
+        websocket.send_json({"type": "input", "data": "hello"})
+        accepted = websocket.receive_json()
+        assert accepted["type"] == "accepted"
+        websocket.send_json({"type": "resize", "rows": 40, "cols": 140})
+        accepted = websocket.receive_json()
+        assert accepted["type"] == "accepted"
+        assert accepted["cols"] == 140
 
 
 def test_console_can_request_hook_verification_without_changing_trust(monkeypatch) -> None:

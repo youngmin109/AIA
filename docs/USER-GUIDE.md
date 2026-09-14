@@ -243,9 +243,13 @@ uv run aia reconcile <SESSION_ID>
 ## 제품 화면에서 확인하는 것
 
 `uv run aia console --open`을 실행하면 브라우저에서 `새 보호 실행`을 선택할 수
-있다. 사용자가 만든 기존 Workspace와 정책을 선택한 뒤 `별도 Windows 터미널에서
-Codex 열기`를 켜고 시작하면, AIA가 보호 준비를 마친 다음 Codex를 별도 창으로
-연다. 사용자는 Codex에서 작업하고 브라우저에서 AIA를 확인한다.
+있다. 사용자가 만든 기존 Workspace와 정책을 선택한 뒤 기본값인 `AIA Workbench에서
+Codex 작업창 열기`로 시작하면, 같은 화면에서 Codex 작업창과 AIA 보안 패널을 함께
+사용할 수 있다. Workbench는 Windows ConPTY를 통해 Codex 입출력을 전달하고,
+Hook·File·Process Sensor 상태를 기존 API polling으로 갱신한다.
+
+기존 방식이 필요하면 `별도 Windows 터미널에서 Codex 열기`를 선택한다. 이 경우
+Codex는 별도 창에서 실행되고 AIA 웹 화면에서 보호 상태를 확인한다.
 
 실행 중 화면에는 Hook·File·Process Sensor 카드, 최근 안전 이벤트, 차단 사건이
 표시된다. 이벤트 요약에는 명령 원문, 비밀값, 파일 내용이 들어가지 않는다.

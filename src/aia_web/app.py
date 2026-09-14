@@ -6,16 +6,18 @@ import json
 import os
 import subprocess
 import sys
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from aia_app.service import RunApplicationService
+from aia_app.terminal import TerminalSessionError
 from aia.capabilities import product_capabilities
 
 
@@ -212,6 +214,18 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             request, "live_run.html", {"session_id": session_id, "status": status}
         )
 
+    @app.get("/runs/{session_id}/workbench", response_class=HTMLResponse)
+    def workbench(request: Request, session_id: str) -> HTMLResponse:
+        try:
+            status = app.state.service.get_run_status(session_id)
+        except (KeyError, ValueError):
+            return _not_found("Run not found")
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "workbench.html",
+            {"session_id": session_id, "status": status},
+        )
+
     @app.get("/api/runs/{session_id}")
     def run_status(session_id: str) -> JSONResponse:
         try:
@@ -225,6 +239,67 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse({"actions": app.state.service.get_run_actions(session_id)})
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
+
+    @app.get("/api/runs/{session_id}/terminal/status")
+    def terminal_status(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.get_terminal_status(session_id))
+        except KeyError:
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+
+    @app.websocket("/api/runs/{session_id}/terminal")
+    async def terminal_socket(websocket: WebSocket, session_id: str) -> None:
+        await websocket.accept()
+        last_status: str | None = None
+        try:
+            while True:
+                try:
+                    message = await asyncio.wait_for(
+                        websocket.receive_json(),
+                        timeout=0.10,
+                    )
+                    if not isinstance(message, dict):
+                        await websocket.send_json(
+                            {"type": "error", "message": "terminal message must be an object"}
+                        )
+                    elif message.get("type") == "input":
+                        result = app.state.service.send_terminal_input(
+                            session_id,
+                            message.get("data", ""),
+                        )
+                        await websocket.send_json({"type": "accepted", **result})
+                    elif message.get("type") == "resize":
+                        result = app.state.service.resize_terminal(
+                            session_id,
+                            int(message.get("rows", 32)),
+                            int(message.get("cols", 120)),
+                        )
+                        await websocket.send_json({"type": "accepted", **result})
+                    else:
+                        await websocket.send_json(
+                            {"type": "error", "message": "unsupported terminal message"}
+                        )
+                except asyncio.TimeoutError:
+                    pass
+                except (KeyError, ValueError, TypeError, TerminalSessionError) as error:
+                    await websocket.send_json({"type": "error", "message": str(error)})
+
+                for item in app.state.service.drain_terminal_output(session_id):
+                    await websocket.send_json(item)
+                status = app.state.service.get_terminal_status(session_id)
+                status_name = str(status.get("status", "UNKNOWN"))
+                if status_name != last_status:
+                    await websocket.send_json({"type": "status", **status})
+                    last_status = status_name
+                if status_name in {"FAILED", "EXITED"}:
+                    # Drain once more before closing so the last prompt/output
+                    # is visible in the Workbench.
+                    for item in app.state.service.drain_terminal_output(session_id):
+                        await websocket.send_json(item)
+                    await websocket.send_json({"type": "closed", "status": status_name})
+                    return
+        except WebSocketDisconnect:
+            return
 
     @app.post("/api/runs/{session_id}/stop")
     def stop_run(session_id: str) -> JSONResponse:

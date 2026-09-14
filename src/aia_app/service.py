@@ -65,6 +65,7 @@ from .presenters import (
 )
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
+from .terminal import TerminalSessionError, WinPtyTerminalSession
 
 
 class ApplicationValidationError(ValueError):
@@ -811,9 +812,9 @@ class RunApplicationService:
             )
         if request.agent.lower() != "codex":
             raise ApplicationValidationError("only Codex is supported in this console")
-        if request.launch_mode == "new_terminal" and os.name != "nt":
+        if request.launch_mode in {"new_terminal", "web_terminal"} and os.name != "nt":
             raise ApplicationValidationError(
-                "new_terminal launch mode requires Windows 11"
+                f"{request.launch_mode} launch mode requires Windows 11"
             )
         try:
             mode = SessionMode(request.mode.upper())
@@ -861,7 +862,11 @@ class RunApplicationService:
         self.registry.add(record)
         self._executor.submit(self._run, record)
         return {
-            "redirect_url": f"/runs/{session.session_id}",
+            "redirect_url": (
+                f"/runs/{session.session_id}/workbench"
+                if request.launch_mode == "web_terminal"
+                else f"/runs/{session.session_id}"
+            ),
             "session_id": session.session_id,
             "status": session.status.value,
         }
@@ -933,6 +938,7 @@ class RunApplicationService:
                 "workspace": str(record.workspace),
                 "launch_mode": record.launch_mode,
             },
+            "terminal": self.get_terminal_status(session_id),
             "launch_mode": record.launch_mode,
         }
 
@@ -1104,6 +1110,72 @@ class RunApplicationService:
             return record.actions
         result = self.reader.read_result(session_id)
         return [action_view(item) for item in result.get("action_outcomes", [])]
+
+    def get_terminal_status(self, session_id: str) -> dict[str, Any]:
+        """Return the live Workbench terminal state without exposing process output."""
+
+        record = self.registry.get(session_id)
+        if record is None:
+            status = self.get_run_status(session_id)
+            return {
+                "mode": status.get("launch_mode", "inherit"),
+                "status": "EXITED" if status.get("session", {}).get("status") in {
+                    "COMPLETED",
+                    "ABORTED",
+                    "FAILED",
+                } else "NOT_ATTACHED",
+                "pid": None,
+                "rows": None,
+                "cols": None,
+                "started_at": None,
+                "ended_at": None,
+                "error": None,
+            }
+        terminal = record.runtime.get("terminal_session")
+        if terminal is None:
+            return {
+                "mode": record.launch_mode,
+                "status": "NOT_ATTACHED",
+                "pid": None,
+                "rows": None,
+                "cols": None,
+                "started_at": None,
+                "ended_at": None,
+                "error": None,
+            }
+        return terminal.snapshot()
+
+    def drain_terminal_output(self, session_id: str) -> list[dict[str, Any]]:
+        record = self.registry.get(session_id)
+        if record is None:
+            self.get_run_status(session_id)
+            return []
+        terminal = record.runtime.get("terminal_session")
+        if terminal is None:
+            return []
+        return terminal.drain_output()
+
+    def send_terminal_input(self, session_id: str, value: str) -> dict[str, Any]:
+        record = self.registry.get(session_id)
+        if record is None:
+            raise KeyError(session_id)
+        if record.launch_mode != "web_terminal":
+            raise TerminalSessionError("this run is not using the Workbench terminal")
+        terminal = record.runtime.get("terminal_session")
+        if terminal is None:
+            raise TerminalSessionError("Workbench terminal is not attached")
+        terminal.send_input(value)
+        return {"accepted": True, "session_id": session_id}
+
+    def resize_terminal(self, session_id: str, rows: int, cols: int) -> dict[str, Any]:
+        record = self.registry.get(session_id)
+        if record is None:
+            raise KeyError(session_id)
+        terminal = record.runtime.get("terminal_session")
+        if terminal is None:
+            raise TerminalSessionError("Workbench terminal is not attached")
+        terminal.resize(rows, cols)
+        return {"accepted": True, "session_id": session_id, "rows": rows, "cols": cols}
 
     def list_runs(self) -> list[dict[str, Any]]:
         """Return live runs plus valid persisted Bundles for the local console."""
@@ -1443,6 +1515,18 @@ class RunApplicationService:
             def capture_popen(argv: list[str], **kwargs: Any) -> Any:
                 """Capture non-interactive Codex output in temporary handles only."""
 
+                if record.launch_mode == "web_terminal":
+                    try:
+                        terminal = WinPtyTerminalSession(
+                            argv,
+                            cwd=Path(kwargs["cwd"]),
+                            env=kwargs["env"],
+                        )
+                        terminal.start()
+                    except (KeyError, TerminalSessionError) as error:
+                        raise RuntimeError(f"WEB_TERMINAL_START_FAILED: {error}") from error
+                    record.runtime["terminal_session"] = terminal
+                    return terminal.process_handle
                 if record.interactive:
                     kwargs.update(_popen_kwargs_for_launch_mode(record.launch_mode))
                     return subprocess.Popen(argv, **kwargs)
@@ -1700,6 +1784,12 @@ class RunApplicationService:
             for handle in codex_output_handles:
                 try:
                     handle.close()
+                except Exception:
+                    pass
+            terminal = record.runtime.get("terminal_session")
+            if terminal is not None:
+                try:
+                    terminal.close(force=False)
                 except Exception:
                     pass
             if not finalization_done:

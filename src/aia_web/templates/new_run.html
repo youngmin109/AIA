@@ -152,8 +152,10 @@
         <legend>작업 시작 방식</legend>
         <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
         <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
-        <label class="choice"><input type="checkbox" id="new-terminal" checked> 별도 Windows 터미널에서 Codex 열기</label>
-        <span class="hint">AIA 콘솔과 Codex 작업 화면을 분리합니다. Windows 11에서만 지원합니다.</span>
+        <label class="choice"><input type="radio" name="terminal_surface" value="workbench" checked> AIA Workbench에서 Codex 작업창 열기</label>
+        <span class="hint">대시보드·Codex 작업창·세 센서 상태를 한 화면에 표시합니다.</span>
+        <label class="choice"><input type="radio" id="new-terminal" name="terminal_surface" value="new_terminal"> 별도 Windows 터미널에서 Codex 열기</label>
+        <span class="hint">기존 호환 모드입니다. Codex 작업 화면을 별도 창에서 엽니다.</span>
         <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
         <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
       </fieldset>
@@ -204,7 +206,6 @@ const previewTargetHint = document.getElementById('preview-target-hint');
 const previewButton = document.getElementById('preview-policy');
 const previewStatus = document.getElementById('preview-status');
 const previewResult = document.getElementById('preview-result');
-const newTerminal = document.getElementById('new-terminal');
 const editorRules = [];
 let editorValidated = false;
 const editorRuleList = document.getElementById('editor-rules');
@@ -382,8 +383,12 @@ form.addEventListener('submit', async (event) => {
   const data = Object.fromEntries(new FormData(form).entries());
   data.agent = data.agent.toLowerCase();
   data.interactive = data.run_mode === 'interactive';
-  data.launch_mode = data.interactive && newTerminal.checked ? 'new_terminal' : 'inherit';
+  const terminalSurface = form.querySelector('input[name="terminal_surface"]:checked')?.value;
+  data.launch_mode = data.interactive
+    ? terminalSurface === 'workbench' ? 'web_terminal' : 'new_terminal'
+    : 'inherit';
   delete data.run_mode;
+  delete data.terminal_surface;
   if (data.interactive) data.task = '';
   if (!data.model) delete data.model;
   if (!data.custom_policy_path) delete data.custom_policy_path;
