@@ -161,6 +161,7 @@ class FakeService:
     def get_result(self, session_id):
         return {
             "bundle_status": "VALID",
+            "launch_mode": "web_terminal",
             "session_status": "COMPLETED",
             "recovery_status": "RESTORED",
             "integrity_status": "VERIFIED",
@@ -238,6 +239,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="jump-to-run"' in new_run.text
     assert 'id="run-settings"' in new_run.text
     assert 'id="preflight-next-steps"' in new_run.text
+    assert new_run.text.index('id="run-settings"') < new_run.text.index("정책 미리보기")
+    assert new_run.text.index("정책 미리보기") < new_run.text.index("정책 만들기")
     assert "Strict Validation" in new_run.text
     assert "별도 Windows 터미널에서 Codex 열기" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
@@ -282,6 +285,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "VERIFIED" in result.text
     assert "런타임 센서 상태" in result.text
     assert "PROCESS_RUNTIME" in result.text
+    assert "현재 Workbench" in result.text
+    assert "Workbench로 돌아가기" in result.text
     assert 'href="/new">새 보호 실행</a>' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"

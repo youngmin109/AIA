@@ -521,18 +521,17 @@ class RunApplicationService:
 
         installer = CodexHookInstaller()
         pretool_installed = installer.is_installed()
-        checks.append(
-            {
-                "name": "pretool_hook",
-                "label": "PreToolUse Hook",
-                "ok": pretool_installed,
-                "detail": (
-                    "설치됨 · Codex에서 /hooks 검토 필요"
-                    if pretool_installed
-                    else "설치되지 않음 · aia setup 필요"
-                ),
-            }
-        )
+        pretool_check: dict[str, Any] = {
+            "name": "pretool_hook",
+            "label": "PreToolUse Hook",
+            "ok": pretool_installed,
+            "detail": (
+                "설치됨 · Trust 상태 확인 중"
+                if pretool_installed
+                else "설치되지 않음 · aia setup 필요"
+            ),
+        }
+        checks.append(pretool_check)
         posttool_installed = installer.is_posttool_installed()
         checks.append(
             {
@@ -571,6 +570,11 @@ class RunApplicationService:
                 None,
             )
             trust_ok = pretool_status in {"TRUSTED", "MANAGED"}
+            pretool_check["detail"] = (
+                "설치됨 · Trust 확인됨"
+                if trust_ok
+                else "설치됨 · Codex /hooks 검토 필요"
+            )
             checks.append(
                 {
                     "name": "codex_hook_trust",
@@ -1311,12 +1315,16 @@ class RunApplicationService:
         record = self.registry.snapshot(session_id)
         if record is not None and record.result is not None and record.bundle_status is not None:
             view = result_view(record.result, record.bundle_status)
+            view["launch_mode"] = record.launch_mode
             view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
             view["evidence_summary"] = self._evidence_summary(session_id)
             return view
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
         view = result_view(result, verification.status.value if verification else "NOT_FOUND")
+        runtime_state = self._read_runtime_state(session_id)
+        if isinstance(runtime_state, Mapping):
+            view["launch_mode"] = runtime_state.get("launch_mode", "inherit")
         view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
         view["evidence_summary"] = self._evidence_summary(session_id)
         return view

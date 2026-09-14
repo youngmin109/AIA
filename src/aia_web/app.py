@@ -336,7 +336,13 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (KeyError, ValueError) as exc:
             return _not_found(str(exc))
         return _TEMPLATES.TemplateResponse(
-            request, "result.html", {"session_id": session_id, "result": result_data}
+            request,
+            "result.html",
+            {
+                "session_id": session_id,
+                "result": result_data,
+                "is_workbench": result_data.get("launch_mode") == "web_terminal",
+            },
         )
 
     @app.get("/runs/{session_id}/report")

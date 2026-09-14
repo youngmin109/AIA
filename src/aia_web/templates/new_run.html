@@ -69,6 +69,55 @@
   </div>
 </section>
 
+  <section id="run-settings" class="panel form-panel">
+  <form id="new-run-form">
+    <div class="form-grid">
+      <label class="field field-wide">Workspace 경로
+        <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
+        <span id="workspace-status" class="hint">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
+      </label>
+      <label class="field">코딩 에이전트
+        <input name="agent" value="Codex" readonly>
+      </label>
+      <label class="field">모델 (선택)
+        <input name="model" placeholder="Codex 기본 모델 사용">
+      </label>
+      <label class="field">정책 프로필
+        <select name="policy_profile" id="policy-profile">
+          {% for profile in profiles %}<option value="{{ profile.value }}" {% if loop.first %}selected{% endif %}>{{ profile.label }}{% if loop.first %} · 권장{% endif %}</option>{% endfor %}
+        </select>
+        <span id="policy-description" class="hint">선택한 정책의 보호 범위가 표시됩니다.</span>
+      </label>
+      <label class="field" id="custom-policy-field" hidden>사용자 정책 JSON 경로
+        <input name="custom_policy_path" placeholder="C:\\policies\\policy.json">
+      </label>
+      <label class="field">보호 모드
+        <select name="mode"><option value="ENFORCE">ENFORCE · 위반 차단</option><option value="AUDIT">AUDIT · 관찰만</option></select>
+      </label>
+      <fieldset class="field field-wide run-mode-field">
+        <legend>작업 시작 방식</legend>
+        <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
+        <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
+        <label class="choice"><input type="radio" name="terminal_surface" value="workbench" checked> AIA Workbench에서 Codex 작업창 열기</label>
+        <span class="hint">대시보드·Codex 작업창·세 센서 상태를 한 화면에 표시합니다.</span>
+        <label class="choice"><input type="radio" id="new-terminal" name="terminal_surface" value="new_terminal"> 별도 Windows 터미널에서 Codex 열기</label>
+        <span class="hint">기존 호환 모드입니다. Codex 작업 화면을 별도 창에서 엽니다.</span>
+        <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
+        <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
+      </fieldset>
+      <label class="field field-wide" id="task-field" hidden>작업 요청
+        <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
+        <span class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다. 명령을 실행할지 여부는 Codex가 결정하며, AIA는 실제 도구 요청을 관찰·통제합니다.</span>
+      </label>
+    </div>
+    <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
+    <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · Hook matcher는 모든 로컬 Hook 대상(*)을 받으며, AIA가 의미를 해석하는 도구는 아래 목록으로 제한됩니다. 목록 밖 도구는 보호 실행에서 거부됩니다.</div>
+    <div id="form-error" class="error" hidden></div>
+    <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 시작</button><span class="hint">준비 상태가 모두 통과되어야 활성화됩니다.</span></div>
+  </form>
+</section>
+
 <section class="panel preview-panel">
   <div class="panel-heading">
     <div>
@@ -123,54 +172,6 @@
   <div class="form-actions"><button id="validate-policy" class="button" type="button">Strict Validation</button><button id="save-policy" class="button primary" type="button" disabled>정책 저장</button><span id="editor-save-status" class="hint">먼저 Strict Validation을 통과하세요.</span></div>
 </section>
 
-  <section id="run-settings" class="panel form-panel">
-  <form id="new-run-form">
-    <div class="form-grid">
-      <label class="field field-wide">Workspace 경로
-        <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
-        <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
-        <span id="workspace-status" class="hint">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
-      </label>
-      <label class="field">코딩 에이전트
-        <input name="agent" value="Codex" readonly>
-      </label>
-      <label class="field">모델 (선택)
-        <input name="model" placeholder="Codex 기본 모델 사용">
-      </label>
-      <label class="field">정책 프로필
-        <select name="policy_profile" id="policy-profile">
-          {% for profile in profiles %}<option value="{{ profile.value }}" {% if loop.first %}selected{% endif %}>{{ profile.label }}{% if loop.first %} · 권장{% endif %}</option>{% endfor %}
-        </select>
-        <span id="policy-description" class="hint">선택한 정책의 보호 범위가 표시됩니다.</span>
-      </label>
-      <label class="field" id="custom-policy-field" hidden>사용자 정책 JSON 경로
-        <input name="custom_policy_path" placeholder="C:\\policies\\policy.json">
-      </label>
-      <label class="field">보호 모드
-        <select name="mode"><option value="ENFORCE">ENFORCE · 위반 차단</option><option value="AUDIT">AUDIT · 관찰만</option></select>
-      </label>
-      <fieldset class="field field-wide run-mode-field">
-        <legend>작업 시작 방식</legend>
-        <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
-        <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
-        <label class="choice"><input type="radio" name="terminal_surface" value="workbench" checked> AIA Workbench에서 Codex 작업창 열기</label>
-        <span class="hint">대시보드·Codex 작업창·세 센서 상태를 한 화면에 표시합니다.</span>
-        <label class="choice"><input type="radio" id="new-terminal" name="terminal_surface" value="new_terminal"> 별도 Windows 터미널에서 Codex 열기</label>
-        <span class="hint">기존 호환 모드입니다. Codex 작업 화면을 별도 창에서 엽니다.</span>
-        <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
-        <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
-      </fieldset>
-      <label class="field field-wide" id="task-field" hidden>작업 요청
-        <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
-        <span class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다. 명령을 실행할지 여부는 Codex가 결정하며, AIA는 실제 도구 요청을 관찰·통제합니다.</span>
-      </label>
-    </div>
-    <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
-    <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · Hook matcher는 모든 로컬 Hook 대상(*)을 받으며, AIA가 의미를 해석하는 도구는 아래 목록으로 제한됩니다. 목록 밖 도구는 보호 실행에서 거부됩니다.</div>
-    <div id="form-error" class="error" hidden></div>
-    <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 시작</button><span class="hint">준비 상태가 모두 통과되어야 활성화됩니다.</span></div>
-  </form>
-</section>
 <section class="panel capability-panel">
   <div class="panel-heading"><div><h2>현재 보호 범위</h2><p class="hint">지원 범위 밖의 실행은 AIA가 보호 성공으로 표시하지 않습니다.</p></div><span class="badge">{{ capabilities.product }} {{ capabilities.version }}</span></div>
   <div class="capability-grid">

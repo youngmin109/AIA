@@ -1007,6 +1007,7 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         assert result["protection_claim"]["status"] == "CLAIM_ALLOWED_AFTER_SESSION_EVENT"
         checks = {item["name"]: item for item in result["checks"]}
         assert checks["pretool_hook"]["ok"] is True
+        assert "검토 필요" in checks["pretool_hook"]["detail"]
         assert checks["posttool_hook"]["optional"] is True
         assert checks["posttool_hook"]["ok"] is False
         assert checks["codex_hook_trust"]["optional"] is True
@@ -1050,6 +1051,8 @@ def test_application_preflight_reports_actual_trusted_hook_status(tmp_path, monk
         result = service.preflight()
         assert result["hook_trust"]["status"] == "TRUSTED"
         assert "신뢰된 상태" in result["hook_trust"]["detail"]
+        checks = {item["name"]: item for item in result["checks"]}
+        assert checks["pretool_hook"]["detail"] == "설치됨 · Trust 확인됨"
     finally:
         service.shutdown()
 
