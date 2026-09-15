@@ -830,8 +830,11 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
         lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
     )
     monkeypatch.setattr(service.reader, "hook_event_count", lambda _session_id: 1)
+    monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
     try:
-        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_VERIFIED"
+        status = service._status_from_completed_bundle("session-1")
+        assert status["protection"]["state"] == "COMPLETED_VERIFIED"
+        assert status["checkpoint"] == "READY"
         base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
         assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
         base["sensor_summary"][0]["final_sensor_state"] = "STOPPED"
@@ -1220,6 +1223,64 @@ def test_result_bundle_reader_can_read_live_metadata_without_valid_bundle(tmp_pa
     assert metadata[0]["record_type"] == "PRETOOL_REQUEST"
     assert "command" in metadata[0]["payload_keys"]
     assert "secret command" not in repr(metadata)
+
+
+def test_result_bundle_reader_reports_verified_checkpoint_status(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    session_id = "session-1"
+    checkpoint_id = "checkpoint-1"
+    session_dir = tmp_path / "sessions" / session_id
+    checkpoint_dir = session_dir / "checkpoints" / checkpoint_id
+    result_dir = session_dir / "result"
+    checkpoint_dir.mkdir(parents=True)
+    result_dir.mkdir()
+    (checkpoint_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    (checkpoint_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": checkpoint_id,
+                "schema_version": "1.0",
+                "session_id": session_id,
+                "validity": "VALID",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (result_dir / "evidence-manifest.json").write_text(
+        json.dumps(
+            {
+                "artifacts": [
+                    {
+                        "artifact_type": "CHECKPOINT_MANIFEST",
+                        "relative_path": f"checkpoints/{checkpoint_id}/manifest.json",
+                    },
+                    {
+                        "artifact_type": "CHECKPOINT_METADATA",
+                        "relative_path": f"checkpoints/{checkpoint_id}/metadata.json",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(reader, "_require_valid", lambda _session_id: None)
+    assert reader.checkpoint_status(session_id) == "READY"
+
+    (checkpoint_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": checkpoint_id,
+                "schema_version": "1.0",
+                "session_id": session_id,
+                "validity": "INVALID",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert reader.checkpoint_status(session_id) == "UNKNOWN"
 
 
 def test_result_bundle_reader_preserves_protection_downgrade_in_history(

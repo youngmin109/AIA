@@ -2773,7 +2773,7 @@ class RunApplicationService:
                 else "COMPLETED_DEGRADED"
             )
         return {
-            "checkpoint": "UNKNOWN",
+            "checkpoint": self.reader.checkpoint_status(session_id),
             "error": None,
             "incident_count": len(view["incidents"]),
             "latest_actions": view["actions"][-20:],
