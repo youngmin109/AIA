@@ -12,7 +12,8 @@
     <div class="workbench-header-actions">
       <button id="refresh-status" class="button secondary workbench-refresh" type="button" title="센서와 실행 상태를 다시 확인합니다.">상태 새로고침</button>
       <span id="run-status" class="status-badge" aria-live="polite">상태 확인 중</span>
-      <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} hidden{% endif %}>보호 실행 중지</button>
+      <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] or (status.runtime_reconciliation or {}).get('orphaned') %} hidden{% endif %}>보호 실행 중지</button>
+      <button id="reconcile-run" class="button" type="button"{% if not (status.runtime_reconciliation or {}).get('orphaned') %} hidden{% endif %}>고아 실행 정리 확인</button>
       <a id="result-link" class="button" href="/runs/{{ session_id }}/result"{% if not status.result_available %} hidden{% endif %}>결과 보기</a>
     </div>
   </header>
@@ -189,6 +190,7 @@ const initialStatus = {
   bundle_status: {{ (status.bundle_status or None)|tojson }},
   session: {{ (status.session or {})|tojson }},
   terminal: {{ (status.terminal or {})|tojson }},
+  runtime_reconciliation: {{ (status.runtime_reconciliation or {})|tojson }},
 };
 const runStatus = document.getElementById('run-status');
 const protectionState = document.getElementById('protection-state');
@@ -210,6 +212,7 @@ const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
 const workbenchGuidanceOwner = document.getElementById('workbench-guidance-owner');
 const stopButton = document.getElementById('stop-run');
+const reconcileButton = document.getElementById('reconcile-run');
 const resultLink = document.getElementById('result-link');
 const incidentDetailLink = document.getElementById('incident-detail-link');
 const lastEventTime = document.getElementById('last-event-time');
@@ -232,6 +235,7 @@ let lastTerminalOutputAt = 0;
 let terminalClosed = false;
 let terminalRuntimeStatus = 'UNKNOWN';
 let terminalSocketConnected = false;
+let terminalSocketEverConnected = false;
 let awaitingResponse = false;
 let terminalAction = null;
 let terminalDetectionBuffer = '';
@@ -443,8 +447,9 @@ const terminalScreen = (() => {
     const next = Array.from({length: nextRows}, (_, row) => Array.from({length: nextCols}, (_, col) => cells[row]?.[col] ?? ' '));
     rows = nextRows; cols = nextCols; cells = next; scrollTop = 0; scrollBottom = nextRows - 1; clamp(); scheduleRender();
   };
+  const clear = () => { reset(); hasOutput = false; scheduleRender(); };
   reset();
-  return {consume, resize, text: visibleText, hasOutput: () => hasOutput};
+  return {consume, resize, reset: clear, text: visibleText, hasOutput: () => hasOutput};
 })();
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -562,6 +567,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = 'Codex 작업창의 “신뢰하고 계속”을 눌러 작업을 시작하세요.';
     owner = '사용자';
     kind = 'warning';
+  } else if (protection === 'ORPHANED_DEGRADED') {
+    title = 'AIA 보호 연결이 끊겼습니다.';
+    detail = '이 실행은 보호된 상태로 간주하지 않습니다. 고아 실행 정리를 확인하거나 실행 기록을 검토하세요.';
+    owner = 'AIA';
+    kind = 'danger';
   } else if (activityMode === 'SUBMITTING' || activityMode === 'WORKING') {
     title = 'Codex가 요청을 처리하고 있습니다.';
     detail = '작업 중에는 같은 요청을 다시 전송하지 마세요. 아래 작업창에서 출력이 갱신됩니다.';
@@ -825,7 +835,8 @@ function setTerminalStatus(status) {
   // The run can still be safely stopped while the terminal is launching or
   // reconnecting.  Hiding the control for NOT_ATTACHED/UNKNOWN left users
   // without a way to cancel a session during that window.
-  stopButton.hidden = terminalEnded;
+  const orphaned = Boolean(latestStatus?.runtime_reconciliation?.orphaned);
+  stopButton.hidden = terminalEnded || orphaned;
 }
 function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
@@ -899,7 +910,16 @@ function openSocket() {
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${scheme}://${location.host}/api/runs/${encodeURIComponent(sessionId)}/terminal`);
   socket.onopen = () => {
+    // The server replays the bounded terminal buffer from sequence zero for
+    // every new WebSocket. Clear the browser renderer before a reconnect so
+    // replay restores the screen instead of duplicating old output.
+    if (terminalSocketEverConnected) {
+      terminalScreen.reset();
+      terminalDetectionBuffer = '';
+    }
+    terminalSocketEverConnected = true;
     terminalSocketConnected = true;
+    terminalOutput.classList.remove('terminal-closed');
     setTerminalConnection('연결 확인 중', 'connection-pending');
     updateTerminalInputState();
   };
@@ -952,7 +972,11 @@ function renderSecurity(status) {
   const process = status.sensor_health?.PROCESS_RUNTIME || '확인 중';
   const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session?.status);
   const stopPending = Boolean(status.stop?.requested) || status.protection?.state === 'STOP_REQUESTED';
-  stopButton.hidden = ended;
+  const reconciliation = status.runtime_reconciliation || {};
+  const orphaned = Boolean(reconciliation.orphaned);
+  stopButton.hidden = ended || orphaned;
+  reconcileButton.hidden = !orphaned || reconciliation.action === 'RECONCILED';
+  reconcileButton.disabled = reconciliation.action === 'RECONCILED';
   if (stopPending) {
     stopButton.disabled = true;
     stopButton.classList.add('is-busy');
@@ -1177,6 +1201,24 @@ stopButton.addEventListener('click', async () => {
     stopButton.textContent = '보호 실행 중지';
     showTerminalError(error.message || '보호 실행 중지 요청에 실패했습니다.');
     setTerminalActivity('STARTING', '보호 실행 상태를 다시 확인하는 중입니다.');
+  }
+});
+reconcileButton.addEventListener('click', async () => {
+  reconcileButton.disabled = true;
+  reconcileButton.classList.add('is-busy');
+  reconcileButton.setAttribute('aria-busy', 'true');
+  reconcileButton.textContent = '정리 확인 중…';
+  try {
+    const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}/reconcile`, {method: 'POST'});
+    const payload = await response.json();
+    if (!response.ok || !payload.reconciled) throw new Error(payload.reason || payload.error || '고아 실행 정리를 확인하지 못했습니다.');
+    await pollStatus();
+  } catch (error) {
+    reconcileButton.disabled = false;
+    reconcileButton.classList.remove('is-busy');
+    reconcileButton.removeAttribute('aria-busy');
+    reconcileButton.textContent = '고아 실행 정리 확인';
+    showTerminalError(error.message || '고아 실행 정리를 확인하지 못했습니다.');
   }
 });
 async function pollStatus() {

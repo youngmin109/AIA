@@ -363,6 +363,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="refresh-status"' in workbench.text
     assert "상태 새로고침" in workbench.text
     assert "terminalSocketConnected" in workbench.text
+    assert "terminalSocketEverConnected" in workbench.text
+    assert "terminalScreen.reset()" in workbench.text
+    assert "terminalOutput.classList.remove('terminal-closed')" in workbench.text
+    assert "stopButton.hidden = terminalEnded || orphaned;" in workbench.text
     assert "button.classList.add('is-busy')" in workbench.text
     assert "button.setAttribute('aria-busy', 'true')" in workbench.text
     assert "Workbench 터미널 연결이 끊겨 다시 연결하는 중입니다." in workbench.text
@@ -390,6 +394,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "· 선택됨" in workbench.text
     assert "원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성" in workbench.text
     assert "Codex는 실행 중이며 Workbench 연결을 기다리고 있습니다." in workbench.text
+    assert "AIA 보호 연결이 끊겼습니다." in workbench.text
+    assert "고아 실행 정리 확인" in workbench.text
     assert "Codex 작업창 시작이 지연되고 있습니다. 연결 상태를 확인하세요." in workbench.text
     assert "terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value)" in workbench.text
     assert "setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.')" in workbench.text
