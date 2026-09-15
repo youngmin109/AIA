@@ -789,6 +789,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "준비 상태 확인" in dashboard.text
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
+    assert "저장소에서는" in dashboard.text
+    assert "uv run aia doctor" in dashboard.text
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
     assert 'aria-label="AIA 주요 메뉴"' in dashboard.text
     assert 'aria-current="page"' in dashboard.text
