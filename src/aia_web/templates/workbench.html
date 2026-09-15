@@ -39,6 +39,11 @@
   </section>
 
   <nav class="workbench-jumpbar" aria-label="Workbench 바로가기">
+    <span id="workbench-sticky-status" class="workbench-sticky-status" role="status" aria-live="polite">
+      <i id="workbench-sticky-status-mark" aria-hidden="true"></i>
+      <strong id="workbench-sticky-status-label">상태 확인 중</strong>
+      <small id="workbench-sticky-status-detail">터미널 연결 확인 중</small>
+    </span>
     <span class="workbench-jumpbar-label">바로가기</span>
     <a class="workbench-jump-link is-active" data-workbench-jump="terminal-panel" href="#terminal-panel">Codex 작업창</a>
     <a class="workbench-jump-link" data-workbench-jump="security-panel" href="#security-panel">보안 관찰</a>
@@ -252,6 +257,10 @@ const workbenchAlertTitle = document.getElementById('workbench-alert-title');
 const workbenchAlertDetail = document.getElementById('workbench-alert-detail');
 const workbenchAlertLink = document.getElementById('workbench-alert-link');
 const workbenchAlertDismiss = document.getElementById('workbench-alert-dismiss');
+const stickyStatus = document.getElementById('workbench-sticky-status');
+const stickyStatusMark = document.getElementById('workbench-sticky-status-mark');
+const stickyStatusLabel = document.getElementById('workbench-sticky-status-label');
+const stickyStatusDetail = document.getElementById('workbench-sticky-status-detail');
 const securityPanel = document.getElementById('security-panel');
 const securityPanelToggle = document.getElementById('security-panel-toggle');
 const securityPanelToggleLabel = document.getElementById('security-panel-toggle-label');
@@ -624,6 +633,32 @@ const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'AB
 const chainStatusLabel = (value) => ({LINKED: '연결됨', RUN_OBSERVED: '실행 중 관찰', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
 const chainStageClass = (stage) => ['LINKED', 'COMPLIANT', 'SUCCEEDED', 'RESTORED', 'VERIFIED', 'CONTINUE', 'BLOCKED', 'TERMINATED'].includes(stage) ? 'chain-success' : ['PARTIAL', 'NOT_REPORTED', 'NOT_ATTEMPTED', 'RUN_LEVEL', 'INDETERMINATE', 'CONTAIN', 'REFUSE'].includes(stage) ? 'chain-warning' : ['VIOLATION', 'FAILED'].includes(stage) ? 'chain-danger' : '';
 const guidanceClass = (kind) => ({success: 'guidance-success', warning: 'guidance-warning', danger: 'guidance-danger', active: 'guidance-active'})[kind] || 'guidance-neutral';
+const terminalActivitySummaryLabel = (mode) => ({
+  IDLE: '상태 확인 중',
+  STARTING: '터미널 시작 중',
+  SUBMITTING: '요청 전송 중',
+  WORKING: 'Codex 응답 처리 중',
+  WAITING: '다음 작업 대기 중',
+  ACTION: '사용자 확인 필요',
+  STOPPING: '보호 실행 중지 중',
+  STOPPED: '터미널 종료됨',
+})[mode] || '상태 확인 중';
+function updateStickyStatus(status = latestStatus) {
+  if (!stickyStatus || !stickyStatusLabel || !stickyStatusDetail) return;
+  const sessionValue = status?.session?.status || status?.phase || 'UNKNOWN';
+  const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(sessionValue);
+  const connectionDetail = terminalSocketConnected
+    ? '터미널 연결됨'
+    : terminalClosed || ['EXITED', 'FAILED'].includes(terminalRuntimeStatus)
+      ? '터미널 종료됨'
+      : terminalSocketEverConnected
+        ? '터미널 재연결 대기'
+        : '터미널 연결 확인 중';
+  stickyStatusLabel.textContent = sessionLabel(sessionValue);
+  stickyStatusDetail.textContent = ended ? '실행 기록 확인 가능' : `${terminalActivitySummaryLabel(activityMode)} · ${connectionDetail}`;
+  stickyStatus.className = `workbench-sticky-status ${statusClass(sessionValue)}`;
+  stickyStatusMark.className = `workbench-sticky-status-mark ${statusClass(sessionValue)}`;
+}
 function setSecurityPanelCollapsed(collapsed) {
   if (!securityPanel || !securityPanelToggle) return;
   securityPanel.classList.toggle('is-collapsed', collapsed);
@@ -931,12 +966,14 @@ function setTerminalActivity(mode, label) {
   }
   terminalOutput.setAttribute('aria-busy', String(['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)));
   updateTerminalInputState();
+  updateStickyStatus();
   updateWorkbenchGuidance();
 }
 
 function setTerminalConnection(label, className) {
   terminalConnection.className = `terminal-connection ${className}`;
   terminalConnection.innerHTML = `<i aria-hidden="true"></i>${label}`;
+  updateStickyStatus();
 }
 
 function setTerminalStatus(status) {
@@ -980,6 +1017,7 @@ function setTerminalStatus(status) {
     setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
   }
   updateWorkbenchGuidance();
+  updateStickyStatus();
   // The run can still be safely stopped while the terminal is launching or
   // reconnecting.  Hiding the control for NOT_ATTACHED/UNKNOWN left users
   // without a way to cancel a session during that window.
@@ -1316,6 +1354,7 @@ function renderSecurity(status) {
   resultLink.hidden = !status.result_available;
   setTerminalStatus(status.terminal || {});
   updateWorkbenchGuidance(status);
+  updateStickyStatus(status);
 }
 
 eventFilterButtons.forEach((button) => button.addEventListener('click', () => {
