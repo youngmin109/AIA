@@ -556,7 +556,12 @@ function updateWorkbenchGuidance(status = latestStatus) {
   let owner = 'AIA';
   let kind = 'neutral';
 
-  if (ended) {
+  if (statusPollFailures >= 2) {
+    title = 'AIA 상태를 확인할 수 없습니다.';
+    detail = '로컬 서버 연결을 확인한 뒤 “상태 새로고침”을 눌러 주세요.';
+    owner = '사용자';
+    kind = 'danger';
+  } else if (ended) {
     if (status?.result_available) {
       title = '실행이 끝났습니다. 결과를 확인하세요.';
       detail = status?.bundle_status ? `Evidence Bundle: ${bundleLabel(status.bundle_status)}` : '결과 화면에서 센서·정책·무결성 기록을 확인할 수 있습니다.';
@@ -618,11 +623,6 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = '가운데 입력창에 작업을 입력하세요. AIA는 오른쪽에서 센서 결과를 표시합니다.';
     owner = '사용자';
     kind = 'success';
-  } else if (statusPollFailures >= 2) {
-    title = 'AIA 상태를 확인할 수 없습니다.';
-    detail = '로컬 서버 연결을 확인한 뒤 “상태 새로고침”을 눌러 주세요.';
-    owner = '사용자';
-    kind = 'danger';
   }
   workbenchGuidance.className = `workbench-guidance ${guidanceClass(kind)}`;
   workbenchGuidanceTitle.textContent = title;
@@ -1280,6 +1280,7 @@ async function pollStatus() {
     statusPollFailures += 1;
     lastRefreshTime.textContent = statusPollFailures >= 2 ? '연결 확인 필요' : '갱신 실패';
     lastRefreshTime.classList.add('error-text');
+    updateWorkbenchGuidance();
   }
 }
 document.getElementById('refresh-status').addEventListener('click', async (event) => {

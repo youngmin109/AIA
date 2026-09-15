@@ -331,6 +331,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex가 다음 작업을 기다리고 있습니다." in workbench.text
     assert "실행이 끝났습니다. 결과를 확인하세요." in workbench.text
     assert "updateWorkbenchGuidance" in workbench.text
+    assert "statusPollFailures >= 2" in workbench.text
+    assert "updateWorkbenchGuidance();" in workbench.text
     assert "마지막 이벤트" in workbench.text
     assert "마지막 출력 수신" in workbench.text
     assert "화면 갱신" in workbench.text
