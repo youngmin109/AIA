@@ -316,9 +316,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "신뢰하고 계속" in workbench.text
     assert "TRUST_DIRECTORY" in workbench.text
     assert "Workspace 신뢰 확인을 기다리고 있습니다." in workbench.text
-    assert "차단 응답 전송 · 실행 확인 중" in workbench.text
+    assert "차단 응답 전송" in workbench.text
+    assert "실행 확인 중" in workbench.text
     assert "도구 실행 여부 확인 중" in workbench.text
     assert "실행 확인 전" in workbench.text
+    assert "실행 여부 미확인" in workbench.text
+    assert "센서가 관찰하면 여기에 표시됩니다" in workbench.text
+    assert "eventSummaryLabel(incident.summary)" in workbench.text
     assert "Working\\s*\\(\\s*\\d+s" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
