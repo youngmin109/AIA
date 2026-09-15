@@ -502,7 +502,7 @@ const phaseLabel = (value) => ({
 })[value] || value || '확인 중';
 const protectionLabel = (value) => ({
   ACTIVE_VERIFIED: '보호 검증됨',
-  ACTIVE_UNVERIFIED: '보호 확인 중',
+  ACTIVE_UNVERIFIED: '행위 관찰 전',
   ACTIVE_DEGRADED: '보호 상태 저하',
   COMPLETED_VERIFIED: '완료 · 검증됨',
   ABORTED_VERIFIED: '중지 · 검증됨',
@@ -514,7 +514,7 @@ const protectionLabel = (value) => ({
 })[value] || value || '확인 중';
 const protectionNote = (value) => ({
   ACTIVE_VERIFIED: '실제 Hook 이벤트가 확인되어 AIA 보호 상태가 검증되었습니다.',
-  ACTIVE_UNVERIFIED: 'Codex는 실행 중이지만 아직 실제 Hook 이벤트가 확인되지 않았습니다. 보호 검증 전 상태입니다.',
+  ACTIVE_UNVERIFIED: 'Codex는 실행 중이지만 아직 실제 도구 행위가 관찰되지 않았습니다. 파일이나 명령 작업을 보내면 Hook Evidence를 확인할 수 있습니다.',
   ACTIVE_DEGRADED: '보호 센서 또는 연결에 문제가 있어 완전한 보호로 간주하지 않습니다.',
   COMPLETED_VERIFIED: '실행이 끝났고 보호 상태와 결과 Bundle을 검증했습니다.',
   ABORTED_VERIFIED: '실행이 중지됐고 수집된 보호 증거와 결과를 검증했습니다.',
@@ -1045,15 +1045,16 @@ function renderSecurity(status) {
   document.getElementById('sensor-card-hook').className = `workbench-sensor ${sensorClass(hook)}`;
   document.getElementById('sensor-card-file').className = `workbench-sensor ${sensorClass(file)}`;
   document.getElementById('sensor-card-process').className = `workbench-sensor ${sensorClass(process)}`;
-  document.getElementById('sensor-hook').textContent = sensorLabel(hook, ended);
   document.getElementById('sensor-file').textContent = sensorLabel(file, ended);
   document.getElementById('sensor-process').textContent = sensorLabel(process, ended);
   const hookCount = (summary.pretool_events || 0) + (summary.posttool_events || 0);
   const evidenceCount = hookCount + (summary.filesystem_events || 0) + (summary.process_observed || 0) + (summary.process_exit_observed || 0) + (summary.sensor_health_events || 0);
   const observedHookCount = hookCount || status.protection?.hook_events || 0;
+  const waitingForFirstAction = !ended && status.protection?.state === 'ACTIVE_UNVERIFIED' && observedHookCount === 0;
   if (!ended && activityMode === 'WAITING' && status.protection?.state === 'ACTIVE_UNVERIFIED' && observedHookCount === 0) {
     protectionStateNote.textContent = '이번 작업에는 도구 요청이 없어 Hook Evidence가 없습니다. 파일이나 명령 작업을 수행하면 AIA가 실행 전 요청과 결과를 표시합니다.';
   }
+  document.getElementById('sensor-hook').textContent = waitingForFirstAction ? '도구 요청 대기 중' : sensorLabel(hook, ended);
   document.getElementById('sensor-hook-count').textContent = `${observedHookCount}건`;
   document.getElementById('sensor-file-count').textContent = `${summary.filesystem_events || 0}건`;
   document.getElementById('sensor-process-count').textContent = `${summary.process_observed || 0}건`;
