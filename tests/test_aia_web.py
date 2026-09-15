@@ -484,6 +484,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.')" in workbench.text
     assert 'id="terminal-closed-card"' in workbench.text
     assert 'id="terminal-closed-result"' in workbench.text
+    assert 'href="/new">새 보호 실행</a>' in workbench.text
     assert workbench.text.index('id="terminal-closed-card"') < workbench.text.index('id="terminal-output"')
     assert "updateTerminalClosedCard" in workbench.text
     assert "Codex 작업창 출력은 보안을 위해 저장하지 않습니다." in workbench.text
