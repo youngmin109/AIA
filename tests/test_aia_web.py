@@ -270,6 +270,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Glass-box" in workbench.text
     assert "실행 흐름" in workbench.text
     assert "보호 준비" in workbench.text
+    assert 'id="workbench-flow"' in workbench.text
+    assert 'data-flow-step="1"' in workbench.text
+    assert 'data-flow-step="4"' in workbench.text
     assert "현재 Workbench" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"

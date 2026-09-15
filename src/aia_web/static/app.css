@@ -85,6 +85,10 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .workbench-flow li > span { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: rgba(101,217,232,.14); color: var(--cyan); font-size: 11px; font-weight: 800; }
 .workbench-flow strong, .workbench-flow small { display: block; }
 .workbench-flow small { color: var(--muted); margin-top: 2px; font-size: 11px; }
+.workbench-flow li.active > span { background: var(--cyan); color: #071117; box-shadow: 0 0 0 4px rgba(101,217,232,.12); }
+.workbench-flow li.active strong { color: var(--cyan); }
+.workbench-flow li.done > span { background: rgba(103,229,154,.18); color: var(--green); }
+.workbench-flow li.done strong { color: var(--green); }
 .glassbox-slot { border-style: dashed; background: rgba(182,156,255,.06); }
 .workbench-terminal-panel { display: grid; grid-template-rows: auto 1fr auto auto; min-height: 620px; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; background: #080d13; }
 .terminal-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); background: #111b26; }

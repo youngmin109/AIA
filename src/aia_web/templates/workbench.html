@@ -41,11 +41,11 @@
       <section class="workbench-card glassbox-slot">
         <div class="panel-heading"><div><h2>실행 흐름</h2><p class="hint">AIA가 확인 가능한 실행 경로입니다.</p></div><span class="badge">Glass-box 기반</span></div>
         <p class="hint">모델의 내부 생각이 아니라 실제 실행 증거를 단계별로 확인합니다.</p>
-        <ol class="workbench-flow">
-          <li><span>1</span><div><strong>보호 준비</strong><small>Workspace · 정책 · Checkpoint</small></div></li>
-          <li><span>2</span><div><strong>Codex 작업</strong><small>Hook · Process 관찰</small></div></li>
-          <li><span>3</span><div><strong>파일 변화</strong><small>File Sensor 기록</small></div></li>
-          <li><span>4</span><div><strong>결과 검증</strong><small>Evidence · Integrity · Audit</small></div></li>
+        <ol class="workbench-flow" id="workbench-flow" aria-label="보호 실행 진행 단계">
+          <li data-flow-step="1"><span>1</span><div><strong>보호 준비</strong><small>Workspace · 정책 · Checkpoint</small></div></li>
+          <li data-flow-step="2"><span>2</span><div><strong>Codex 작업</strong><small>Hook · Process 관찰</small></div></li>
+          <li data-flow-step="3"><span>3</span><div><strong>파일 변화</strong><small>File Sensor 기록</small></div></li>
+          <li data-flow-step="4"><span>4</span><div><strong>결과 검증</strong><small>Evidence · Integrity · Audit</small></div></li>
         </ol>
       </section>
     </aside>
@@ -136,6 +136,7 @@ const resultLink = document.getElementById('result-link');
 const incidentDetailLink = document.getElementById('incident-detail-link');
 const lastEventTime = document.getElementById('last-event-time');
 const lastRefreshTime = document.getElementById('last-refresh-time');
+const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
 let socket = null;
 let socketRetry = null;
 let lastRenderedEventKey = '';
@@ -210,6 +211,19 @@ function setTerminalStatus(status) {
   stopButton.hidden = terminalEnded || !['RUNNING', 'NOT_STARTED'].includes(value);
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
+function updateFlow(phase) {
+  const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(phase);
+  const currentStep = phase === 'CREATED' || phase === 'PREPARING' ? 1 : terminal ? 4 : 2;
+  flowSteps.forEach((step) => {
+    const number = Number(step.dataset.flowStep);
+    const active = number === currentStep;
+    const done = terminal ? phase === 'COMPLETED' : number < currentStep;
+    step.classList.toggle('active', active);
+    step.classList.toggle('done', done);
+    if (active) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
+}
 function appendTerminal(data) {
   // The terminal is intentionally memory-only. Strip control sequences for a
   // readable browser view; the underlying Codex process still receives raw keys.
@@ -237,6 +251,7 @@ function renderSecurity(status) {
   const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
   runStatus.dataset.status = sessionStatus;
   runStatus.textContent = sessionLabel(sessionStatus);
+  updateFlow(status.phase || sessionStatus);
   protectionState.textContent = protectionLabel(status.protection?.state);
   protectionState.title = status.protection?.state || '';
   document.getElementById('phase').textContent = phaseLabel(status.phase);
