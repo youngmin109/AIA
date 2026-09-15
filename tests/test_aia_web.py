@@ -577,6 +577,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
+    assert 'id="dashboard-primary-action"' in dashboard.text
+    assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-run-count"' in dashboard.text
     assert 'id="dashboard-sync-status"' in dashboard.text
@@ -613,6 +615,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'href="/runs/run-1/workbench"' in history.text
     assert "보호 실행이 진행 중입니다" in dashboard.text
     assert "Workbench 열기" in dashboard.text
+    assert 'id="dashboard-primary-action" class="button primary" href="/runs/run-1/workbench">Workbench 열기</a>' in dashboard.text
     assert "결과 검증" in dashboard.text
     assert "사건" in dashboard.text
     assert "Workbench 열기" in history.text
