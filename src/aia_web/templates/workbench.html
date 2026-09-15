@@ -207,6 +207,31 @@ const terminalScreen = (() => {
     else if (mode === 1) clearRange(cursorRow, 0, cursorCol + 1);
     else clearRange(cursorRow, cursorCol, cols);
   };
+  // Codex renders East Asian characters as two terminal cells. Treating them
+  // as one cell makes cursor movement drift and causes Korean text to appear
+  // spaced out or overwritten in the browser terminal.
+  const cellWidth = (character) => {
+    const codePoint = character.codePointAt(0);
+    if (!codePoint) return 0;
+    if (codePoint >= 0x0300 && codePoint <= 0x036f) return 0;
+    if (codePoint >= 0x1ab0 && codePoint <= 0x1aff) return 0;
+    if (codePoint >= 0x1dc0 && codePoint <= 0x1dff) return 0;
+    if (codePoint >= 0x20d0 && codePoint <= 0x20ff) return 0;
+    if (codePoint >= 0xfe00 && codePoint <= 0xfe0f) return 0;
+    if (
+      (codePoint >= 0x1100 && codePoint <= 0x115f) ||
+      (codePoint >= 0x2329 && codePoint <= 0x232a) ||
+      (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+      (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+      (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+      (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+      (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+      (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+      (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+      (codePoint >= 0x1f300 && codePoint <= 0x1faff)
+    ) return 2;
+    return 1;
+  };
   const paramNumbers = (raw) => raw.replace(/^\?/, '').split(';').map((item) => Number.parseInt(item || '0', 10) || 0);
   const first = (values, fallback = 1) => values[0] || fallback;
   const csi = (raw, final) => {
@@ -237,12 +262,20 @@ const terminalScreen = (() => {
   const put = (character) => {
     if (character === '\r') { cursorCol = 0; return; }
     if (character === '\n') { cursorRow += 1; if (cursorRow >= rows) scroll(); return; }
-    if (character === '\b') { cursorCol = Math.max(0, cursorCol - 1); return; }
+    if (character === '\b') {
+      cursorCol = Math.max(0, cursorCol - 1);
+      if (cells[cursorRow][cursorCol] === '' && cursorCol > 0) cursorCol -= 1;
+      return;
+    }
     if (character === '\t') { cursorCol = Math.min(cols, cursorCol + (8 - (cursorCol % 8))); return; }
     if (character < ' ' || character === '\x7f') return;
-    if (cursorCol >= cols) { cursorCol = 0; cursorRow += 1; if (cursorRow >= rows) scroll(); }
+    const width = cellWidth(character);
+    if (!width) return;
+    if (cursorCol >= cols || (width === 2 && cursorCol === cols - 1)) { cursorCol = 0; cursorRow += 1; if (cursorRow >= rows) scroll(); }
+    if (cells[cursorRow][cursorCol] === '' && cursorCol > 0) cells[cursorRow][cursorCol - 1] = ' ';
     cells[cursorRow][cursorCol] = character;
-    cursorCol += 1;
+    if (width === 2 && cursorCol + 1 < cols) cells[cursorRow][cursorCol + 1] = '';
+    cursorCol += width;
   };
   const scheduleRender = () => {
     if (renderPending) return;
@@ -257,8 +290,9 @@ const terminalScreen = (() => {
     buffer += String(data || '');
     let index = 0;
     while (index < buffer.length) {
-      const character = buffer[index];
-      if (character !== '\x1b') { put(character); index += 1; continue; }
+      const character = String.fromCodePoint(buffer.codePointAt(index));
+      const characterLength = character.length;
+      if (character !== '\x1b') { put(character); index += characterLength; continue; }
       if (index + 1 >= buffer.length) break;
       const kind = buffer[index + 1];
       if (kind === '[') {
@@ -372,7 +406,7 @@ function setTerminalActivity(mode, label) {
   if (activityMode !== mode || !activityStartedAt) activityStartedAt = Date.now();
   activityMode = mode;
   if (['SUBMITTING', 'WORKING'].includes(mode)) awaitingResponse = true;
-  if (['WAITING', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
+  if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
   terminalActivity.className = `terminal-activity activity-${String(mode).toLowerCase()}`;
   terminalActivityLabel.textContent = label;
   terminalActivity.hidden = mode === 'IDLE' || mode === 'STOPPED';

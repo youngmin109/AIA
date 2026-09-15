@@ -323,6 +323,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "data: value" in workbench.text
     assert "type:'submit'" in workbench.text
     assert "terminalScreen" in workbench.text
+    assert "cellWidth" in workbench.text
+    assert "codePointAt" in workbench.text
     assert "requestAnimationFrame" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
