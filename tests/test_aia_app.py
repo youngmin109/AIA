@@ -124,6 +124,27 @@ def test_safe_event_view_never_copies_command_or_secret() -> None:
     assert "type SUPER_SECRET" not in repr(events)
 
 
+def test_safe_event_view_preserves_containment_decision_before_block_confirmation() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "VIOLATION",
+                "enforcement_action": "NONE",
+                "enforcement_decision": "CONTAIN",
+                "enforcement_route": "PRETOOL_BLOCK",
+                "execution_result": "NOT_ATTEMPTED",
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["category"] == "ENFORCEMENT"
+    assert events[0]["decision"] == "CONTAIN"
+    assert events[0]["execution_result"] == "NOT_ATTEMPTED"
+
+
 def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:
     document = {
         "정책명": "사용자 보호 정책",

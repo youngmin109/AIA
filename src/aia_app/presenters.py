@@ -22,18 +22,27 @@ def safe_event_views(
         operation = str(action.get("operation") or "ACTION")
         policy = action.get("policy_decision") or action.get("policy")
         enforcement = action.get("enforcement_action") or action.get("enforcement")
+        enforcement_decision = action.get("enforcement_decision")
         execution = action.get("execution_result")
         target = action.get("target") if isinstance(action.get("target"), Mapping) else {}
         target_kind = str(target.get("target_kind") or "")
         target_label = "명령 실행" if operation == "EXECUTE" or target_kind == "COMMAND" else "파일·프로세스 행위"
         severity = "CRITICAL" if execution == "FAILED" else "WARNING" if policy in {"VIOLATION", "INDETERMINATE"} or enforcement not in {None, "NONE"} else "INFO"
+        display_decision = (
+            enforcement_decision
+            if enforcement_decision not in {None, "NONE"}
+            else enforcement
+            if enforcement not in {None, "NONE"}
+            else policy
+            or "OBSERVED"
+        )
         events.append(
             {
                 "event_id": str(action.get("action_id") or f"action-{len(events) + 1}"),
-                "category": "ENFORCEMENT" if enforcement not in {None, "NONE"} else "POLICY",
+                "category": "ENFORCEMENT" if display_decision in {"CONTAIN", "REFUSE", "BLOCKED", "TERMINATED"} else "POLICY",
                 "summary": f"{operation} 행위 관찰",
                 "target_label": target_label,
-                "decision": enforcement or policy or "OBSERVED",
+                "decision": display_decision,
                 "execution_result": execution or "NOT_REPORTED",
                 "sensor": "AGENT_HOOK" if action.get("observation_stage") else "RUNTIME",
                 "severity": severity,

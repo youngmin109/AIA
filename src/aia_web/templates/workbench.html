@@ -382,8 +382,8 @@ const sensorClass = (value) => value === 'HEALTHY' ? 'sensor-healthy' : value ==
 const checkpointLabel = (value) => ({NOT_READY: '준비되지 않음', READY: '생성됨 · 사용 가능', FAILED: '생성 실패', UNKNOWN: '정보 없음'})[value] || value || '정보 없음';
 const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: '해제됨', FAILED: 'Lease 오류', NOT_STARTED: '준비 전'})[value] || value || '확인 중';
 const bundleLabel = (value) => ({VALID: '유효 · 검증됨', INVALID: '검증 실패', UNVERIFIED: '검증 전', PENDING: '검증 중', NOT_FOUND: '확인 불가'})[value] || value || '검증 전';
-const decisionLabel = (value) => ({VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', OBSERVED: '관찰됨', AUDIT: '기록', ALLOW: '허용', DENY: '금지', NONE: '조치 없음', NOT_APPLICABLE: '해당 없음', CONTINUE: '계속 진행', CONTAIN: '격리 승인', REFUSE: '자동 조치 보류', HEALTHY: '정상', FAILED: '실패', STOPPED: '종료됨'})[value] || value || '확인 필요';
-const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행하지 않음', NOT_REPORTED: '결과 미확인', NOT_APPLICABLE: '해당 없음', NONE: '결과 없음'})[value] || value || '확인 필요';
+const decisionLabel = (value) => ({VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', OBSERVED: '관찰됨', AUDIT: '기록', ALLOW: '허용', DENY: '금지', NONE: '조치 없음', NOT_APPLICABLE: '해당 없음', CONTINUE: '계속 진행', CONTAIN: '차단 응답 전송', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', HEALTHY: '정상', FAILED: '실패', STOPPED: '종료됨'})[value] || value || '확인 필요';
+const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: 'AIA 조치 없음', NOT_REPORTED: '결과 미확인', NOT_APPLICABLE: '해당 없음', NONE: '결과 없음'})[value] || value || '확인 필요';
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor'})[value] || value || 'AIA';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 행위 관찰`);
@@ -592,8 +592,17 @@ function renderSecurity(status) {
     document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? '정책 위반' : decisionLabel(incident.decision);
     document.getElementById('incident-decision').textContent = decisionLabel(incident.decision);
     const blockedConfirmed = incident.decision === 'CONTAIN' && incident.execution_result === 'SUCCEEDED';
-    document.getElementById('incident-execution').textContent = blockedConfirmed ? '실행 전 차단됨 · 확인됨' : `${incident.decision === 'CONTAIN' ? '차단 판단' : '관찰'} · ${incident.execution_result || '확인 필요'}`;
-    document.getElementById('incident-effect').textContent = blockedConfirmed ? '도구 실행 전 차단 · 부작용 없음 확인' : '확인 필요';
+    const blockPending = incident.decision === 'CONTAIN' && incident.execution_result === 'NOT_ATTEMPTED';
+    document.getElementById('incident-execution').textContent = blockedConfirmed
+      ? '실행 전 차단됨 · 확인됨'
+      : blockPending
+        ? '차단 응답 전송 · 실행 확인 중'
+        : `${incident.decision === 'CONTAIN' ? '차단 판단' : '관찰'} · ${executionLabel(incident.execution_result || 'NOT_REPORTED')}`;
+    document.getElementById('incident-effect').textContent = blockedConfirmed
+      ? '도구 실행 전 차단 · 부작용 없음 확인'
+      : blockPending
+        ? '도구 실행 여부 확인 중'
+        : '확인 필요';
     if (incident.incident_action_id) {
       incidentDetailLink.hidden = false;
       incidentDetailLink.href = `/runs/${encodeURIComponent(sessionId)}/incidents/${encodeURIComponent(incident.incident_action_id)}`;
