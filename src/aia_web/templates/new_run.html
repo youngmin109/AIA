@@ -147,6 +147,13 @@
       <span id="preview-target-hint" class="hint">파일 경로를 입력합니다. 예: .env</span>
     </label>
   </div>
+  <div class="preview-presets" aria-label="빠른 정책 확인 예시">
+    <span class="hint">빠른 예시</span>
+    <button class="preview-preset" type="button" data-preview-operation="READ" data-preview-target=".env">.env 읽기</button>
+    <button class="preview-preset" type="button" data-preview-operation="DELETE" data-preview-target="protected/main.py">핵심 코드 삭제</button>
+    <button class="preview-preset" type="button" data-preview-operation="EXECUTE" data-preview-target="pytest">테스트 실행</button>
+    <button class="preview-preset" type="button" data-preview-operation="MODIFY" data-preview-target="src/app.py">소스 파일 수정</button>
+  </div>
   <div class="form-actions preview-actions"><button id="preview-policy" class="button" type="button">판정 확인</button><span id="preview-status" class="hint">선택한 정책 프로필을 사용합니다.</span></div>
   <div id="preview-result" class="preview-result" hidden></div>
 </section>
@@ -221,6 +228,7 @@ const previewTargetHint = document.getElementById('preview-target-hint');
 const previewButton = document.getElementById('preview-policy');
 const previewStatus = document.getElementById('preview-status');
 const previewResult = document.getElementById('preview-result');
+const previewPresets = [...document.querySelectorAll('[data-preview-operation]')];
 const editorRules = [];
 let editorValidated = false;
 let runSubmissionInProgress = false;
@@ -356,6 +364,13 @@ function updatePreviewTarget() {
 }
 previewOperation.addEventListener('change', updatePreviewTarget);
 updatePreviewTarget();
+previewPresets.forEach((preset) => preset.addEventListener('click', () => {
+  previewOperation.value = preset.dataset.previewOperation;
+  previewTarget.value = preset.dataset.previewTarget;
+  updatePreviewTarget();
+  previewStatus.textContent = '예시를 적용했습니다. 정책 판정을 확인하는 중…';
+  previewButton.click();
+}));
 previewButton.addEventListener('click', async () => {
   previewButton.disabled = true;
   previewResult.hidden = true;

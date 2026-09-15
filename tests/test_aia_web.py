@@ -242,6 +242,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preToolUse=MODIFIED" in new_run.text
     assert 'id="readiness-code">READY' in new_run.text
     assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." in new_run.text
+    assert "빠른 정책 확인 예시" in new_run.text
+    assert 'data-preview-target=".env"' in new_run.text
+    assert "핵심 코드 삭제" in new_run.text
+    assert "previewPresets" in new_run.text
     assert "현재 보호 범위" in new_run.text
     assert "MCP" in new_run.text
     assert "aliases=Edit, Write" in new_run.text
