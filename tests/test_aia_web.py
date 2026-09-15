@@ -589,6 +589,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
+    assert 'aria-label="AIA 주요 메뉴"' in dashboard.text
+    assert 'aria-current="page"' in dashboard.text
     assert 'id="dashboard-primary-action"' in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
@@ -632,6 +634,8 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "사건" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "전체 실행" in history.text
+    assert 'href="/runs"' in history.text
+    assert 'class="is-active" aria-current="page" href="/runs"' in history.text
     assert 'id="history-result-count"' in history.text
     assert "정상 완료" in history.text
     assert "완료 · 검증됨" in history.text
