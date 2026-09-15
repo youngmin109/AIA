@@ -147,6 +147,10 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .workbench-technical-meta summary { width: fit-content; cursor: pointer; }
 .workbench-technical-meta summary:hover, .workbench-technical-meta summary:focus-visible { color: var(--cyan); }
 .workbench-technical-meta code { display: block; max-width: min(560px, 60vw); margin-top: 6px; overflow-wrap: anywhere; color: var(--muted); }
+.technical-meta { margin-top: 8px; color: var(--muted); font-size: 11px; }
+.technical-meta summary { width: fit-content; cursor: pointer; }
+.technical-meta summary:hover, .technical-meta summary:focus-visible { color: var(--cyan); }
+.technical-meta code { display: block; max-width: min(560px, 60vw); margin-top: 6px; overflow-wrap: anywhere; color: var(--muted); }
 .workbench-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .workbench-refresh { font-size: 11px; padding: 7px 10px; }
 .workbench-guidance { display: flex; align-items: center; gap: 11px; margin: 0 0 14px; min-height: 58px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(17,27,38,.78); }
