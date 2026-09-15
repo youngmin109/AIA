@@ -225,11 +225,12 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .sensor-evidence-row.is-linked .evidence-chain-node { background: var(--green); }
 .sensor-evidence-row.is-unlinked .evidence-chain-node { background: var(--yellow); }
 .sensor-evidence-row .badge { flex: 0 0 auto; }
-.workbench-bottom { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)) minmax(240px, 2fr); gap: 12px; margin-top: 14px; }
+.workbench-bottom { display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); gap: 12px; margin-top: 14px; margin-bottom: 14px; }
 .workbench-bottom-card { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 11px; padding: 13px; background: rgba(17,27,38,.78); }
 .workbench-bottom-card span, .workbench-bottom-card small { color: var(--muted); font-size: 11px; }
 .workbench-bottom-card strong { font-size: 16px; overflow-wrap: anywhere; }
 .workbench-bottom-wide strong { font-size: 12px; font-weight: 500; line-height: 1.5; }
+@media (max-width: 1250px) { .workbench-bottom { grid-template-columns: repeat(4, minmax(110px, 1fr)); } }
 @media (max-width: 1120px) { .workbench-grid { grid-template-columns: minmax(200px, .8fr) minmax(400px, 1.7fr); } .workbench-security-panel { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; } .workbench-security-panel .incident-card { grid-column: 1 / -1; } }
 @media (max-width: 900px) { .evidence-chain-stages, .result-chain-stages { grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
 @media (max-width: 760px) { .workbench-header { display: block; } .workbench-header-actions { justify-content: flex-start; margin-top: 14px; } .workbench-guidance { align-items: flex-start; } .workbench-guidance > .badge { margin-left: auto; } .workbench-grid { grid-template-columns: 1fr; } .workbench-security-panel { grid-template-columns: 1fr; } .workbench-security-panel .incident-card { grid-column: auto; } .workbench-terminal-panel { min-height: 500px; } .terminal-output { min-height: 340px; } .terminal-input-hint { display: block; } .terminal-input-hint .mono { display: block; margin-top: 4px; } .workbench-bottom { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workbench-bottom-wide { grid-column: 1 / -1; } .evidence-chain-stages, .result-chain-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } .evidence-chain-stage:not(:last-child)::after, .result-chain-stage:not(:last-child)::after { display: none; } }

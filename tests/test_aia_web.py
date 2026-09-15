@@ -289,6 +289,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-guidance-detail"' in workbench.text
     assert 'id="workbench-guidance-owner"' in workbench.text
     assert "현재 상태" in workbench.text
+    assert 'aria-label="실행 요약"' in workbench.text
+    assert 'id="summary-protection"' in workbench.text
+    assert 'id="summary-sensors"' in workbench.text
+    assert 'id="summary-incidents"' in workbench.text
+    assert "정상 관찰" in workbench.text
+    assert "확인 필요" in workbench.text
     assert "Workspace 신뢰 확인이 필요합니다." in workbench.text
     assert "Codex가 요청을 처리하고 있습니다." in workbench.text
     assert "Codex가 다음 작업을 기다리고 있습니다." in workbench.text
