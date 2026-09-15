@@ -705,6 +705,7 @@ const terminalActivitySummaryLabel = (mode) => ({
   STARTING: '작업창 준비 중',
   SUBMITTING: '요청 전송 중',
   WORKING: 'Codex 응답 처리 중',
+  OUTPUTTING: 'Codex 응답 수신 중',
   WAITING: '다음 작업 대기 중',
   ACTION: '사용자 확인 필요',
   STOPPING: '보호 실행 중지 중',
@@ -787,7 +788,7 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = '이 실행은 보호된 상태로 간주하지 않습니다. 고아 실행 정리를 확인하거나 실행 기록을 검토하세요.';
     owner = 'AIA';
     kind = 'danger';
-  } else if (activityDelayed && ['STARTING', 'WORKING'].includes(activityMode)) {
+  } else if (activityDelayed && ['STARTING', 'WORKING', 'OUTPUTTING'].includes(activityMode)) {
     title = activityMode === 'STARTING' ? 'Codex 작업창 연결이 지연되고 있습니다.' : 'Codex 응답이 지연되고 있습니다.';
     detail = activityMode === 'STARTING'
       ? '터미널 연결 상태를 확인하거나 잠시 후 “터미널 다시 연결”을 눌러 주세요.'
@@ -801,9 +802,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
       : 'AIA가 보호된 터미널 연결을 확인하는 중입니다.';
     owner = 'AIA';
     kind = 'active';
-  } else if (activityMode === 'SUBMITTING' || activityMode === 'WORKING') {
-    title = 'Codex가 요청을 처리하고 있습니다.';
-    detail = '작업 중에는 같은 요청을 다시 전송하지 마세요. 아래 작업창에서 출력이 갱신됩니다.';
+  } else if (activityMode === 'SUBMITTING' || activityMode === 'WORKING' || activityMode === 'OUTPUTTING') {
+    title = activityMode === 'OUTPUTTING' ? 'Codex 응답을 화면에 표시하는 중입니다.' : 'Codex가 요청을 처리하고 있습니다.';
+    detail = activityMode === 'OUTPUTTING'
+      ? '새 출력이 도착할 때마다 가운데 작업창이 갱신됩니다.'
+      : '작업 중에는 같은 요청을 다시 전송하지 마세요. 아래 작업창에서 출력이 갱신됩니다.';
     owner = 'Codex';
     kind = 'active';
   } else if (activityMode === 'WAITING' && protection === 'ACTIVE_UNVERIFIED' && hookEvidenceCount === 0) {
@@ -1067,10 +1070,10 @@ function updateActivityClock() {
   } else if (activityMode === 'STARTING' && elapsed >= 8) {
     terminalActivityLabel.textContent = 'Codex 작업창에 연결하는 중입니다. 잠시 기다려 주세요.';
     terminalActivity.classList.add('activity-delayed');
-  } else if (activityMode === 'WORKING' && elapsed >= 15) {
+  } else if (['WORKING', 'OUTPUTTING'].includes(activityMode) && elapsed >= 15) {
     terminalActivityLabel.textContent = '응답이 지연되고 있습니다. Codex 상태를 확인하세요.';
     terminalActivity.classList.add('activity-delayed');
-  } else if (activityMode === 'WORKING' && elapsed >= 5) {
+  } else if (['WORKING', 'OUTPUTTING'].includes(activityMode) && elapsed >= 5) {
     terminalActivityLabel.textContent = 'Codex 응답을 기다리는 중입니다.';
     terminalActivity.classList.add('activity-delayed');
   }
@@ -1083,8 +1086,8 @@ function setTerminalActivity(mode, label) {
   const resetClock = previousMode !== mode || !activityStartedAt || (mode === 'WAITING' && awaitingResponse);
   if (resetClock) activityStartedAt = Date.now();
   activityMode = mode;
-  if (!['SUBMITTING', 'WORKING'].includes(mode)) interruptPending = false;
-  if (['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)) awaitingResponse = true;
+  if (!['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(mode)) interruptPending = false;
+  if (['SUBMITTING', 'WORKING', 'OUTPUTTING', 'STOPPING'].includes(mode)) awaitingResponse = true;
   if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
   // A replayed terminal screen can contain an old "Working" line. Only a
   // real browser submission may start the response clock; this lets a reload
@@ -1101,7 +1104,7 @@ function setTerminalActivity(mode, label) {
     activityTimer = setInterval(updateActivityClock, 1000);
   }
   if (mode === 'WAITING') terminalScreen.refresh();
-  terminalOutput.setAttribute('aria-busy', String(['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)));
+  terminalOutput.setAttribute('aria-busy', String(['SUBMITTING', 'WORKING', 'OUTPUTTING', 'STOPPING'].includes(mode)));
   updateTerminalInputState();
   updateStickyStatus();
   updateWorkbenchGuidance();
@@ -1168,7 +1171,7 @@ function updateTerminalInputState() {
   terminalSend.disabled = !terminalReady || awaitingResponse;
   terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
   terminalSend.setAttribute('aria-busy', String(awaitingResponse));
-  const interruptVisible = ['SUBMITTING', 'WORKING'].includes(activityMode) && !terminalClosed;
+  const interruptVisible = ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode) && !terminalClosed;
   terminalInterrupt.hidden = !interruptVisible;
   terminalInterrupt.disabled = !terminalReady || interruptPending;
   terminalInterrupt.classList.toggle('is-busy', interruptPending);
@@ -1254,6 +1257,7 @@ function appendTerminal(data) {
   const tailLines = visibleLines.slice(-4);
   const workingAtTail = tailLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
   const composerVisible = visibleLines.some((line) => /Ask Codex to do anything|무엇을 도와드릴까요/.test(line));
+  const responseOutputReceived = text.length > 0 && awaitingResponse && ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode);
   // The initial Codex screen keeps a copy of the composer prompt above the
   // model metadata, so merely finding that text is not enough to prove that a
   // submitted request has finished.  After a response (including an error),
@@ -1265,8 +1269,10 @@ function appendTerminal(data) {
     terminalComposerReady = false;
     setTerminalAction('TRUST_DIRECTORY');
     setTerminalActivity('ACTION', 'Codex가 Workspace 신뢰 확인을 기다리고 있습니다. “신뢰하고 계속”을 눌러주세요.');
-  } else if (workingAtTail && ['SUBMITTING', 'WORKING', 'WAITING'].includes(activityMode)) {
-    setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+  } else if (responseOutputReceived && !(composerAtTail && !workingAtTail)) {
+    setTerminalActivity('OUTPUTTING', 'Codex 응답을 수신하는 중입니다.');
+  } else if (workingAtTail && ['SUBMITTING', 'WORKING', 'OUTPUTTING', 'WAITING'].includes(activityMode)) {
+    setTerminalActivity('OUTPUTTING', 'Codex 응답을 수신하는 중입니다.');
   } else if (composerVisible) {
     // Do not enable the browser composer merely because the child process is
     // alive.  Codex can spend a short period rendering its first prompt; an
@@ -1274,10 +1280,10 @@ function appendTerminal(data) {
     // TUI before its composer is ready.
     terminalComposerReady = true;
     updateTerminalInputState();
-    if (awaitingResponse && activityMode === 'WORKING' && composerAtTail && !workingAtTail && responseStartedAt && Date.now() - responseStartedAt >= 750) {
+    if (awaitingResponse && ['WORKING', 'OUTPUTTING'].includes(activityMode) && composerAtTail && !workingAtTail && responseStartedAt && Date.now() - responseStartedAt >= 750) {
       setTerminalAction(null);
       setTerminalActivity('WAITING', '응답 완료 · 다음 작업을 입력할 수 있습니다.');
-    } else if (activityMode === 'WORKING' && composerAtTail && !workingAtTail && !responseStartedAt) {
+    } else if (['WORKING', 'OUTPUTTING'].includes(activityMode) && composerAtTail && !workingAtTail && !responseStartedAt) {
       // On reload, the replay may have promoted an old Working line to the
       // local activity state before the final idle composer arrived. There
       // was no browser submission in this page, so restore the truthful idle
