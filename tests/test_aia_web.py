@@ -534,6 +534,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "securityEventKey" in workbench.text
     assert "eventHighlightKeys" in workbench.text
     assert "scheduleEventHighlightClear" in workbench.text
+    assert "highlightAdded" in workbench.text
     assert "새로 관찰" in workbench.text
     assert "event-new" in workbench.text
     assert "compositionstart" in workbench.text

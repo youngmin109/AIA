@@ -1350,10 +1350,14 @@ function renderSecurity(status) {
   const allEvents = Array.isArray(status.events) ? status.events : [];
   const currentEventKeys = new Set(allEvents.map(securityEventKey));
   if (seenSecurityEventKeys !== null) {
+    let highlightAdded = false;
     currentEventKeys.forEach((key) => {
-      if (!seenSecurityEventKeys.has(key)) eventHighlightKeys.add(key);
+      if (!seenSecurityEventKeys.has(key)) {
+        eventHighlightKeys.add(key);
+        highlightAdded = true;
+      }
     });
-    scheduleEventHighlightClear();
+    if (highlightAdded) scheduleEventHighlightClear();
   }
   seenSecurityEventKeys = currentEventKeys;
   announceNewSecurityEvents(allEvents, ended);
