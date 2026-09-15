@@ -866,9 +866,14 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "보호 실행이 진행 중입니다" in dashboard.text
     assert "Workbench 열기" in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/runs/run-1/workbench">Workbench 열기</a>' in dashboard.text
-    assert 'id="dashboard-readiness-label">시스템 준비</span>' in dashboard.text
+    assert 'id="dashboard-readiness-label">현재 보호 실행</span>' in dashboard.text
+    assert 'id="dashboard-readiness-value">실행 중</strong>' in dashboard.text
+    assert 'id="dashboard-readiness-code">ACTIVE</small>' in dashboard.text
     assert 'id="dashboard-readiness-title">현재 보호 세션이 실행 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-readiness-status" class="status-badge status-active" title="ACTIVE">현재 실행 중</span>' in dashboard.text
+    assert "active ? '현재 보호 실행' : '실행 준비'" in dashboard.text
+    assert "active ? '실행 중' : (dashboardReadinessOk ? '준비 완료' : '확인 필요')" in dashboard.text
+    assert "dashboardReadinessCodeElement.textContent = active ? 'ACTIVE' : dashboardReadinessCode" in dashboard.text
     assert 'id="dashboard-readiness-active-link" class="text-link" href="/runs/run-1/workbench">Workbench 열기 →</a>' in dashboard.text
     assert '현재 작업은 Workbench에서 계속하세요.' in dashboard.text
     assert 'id="dashboard-sensor-hook-status"' in dashboard.text

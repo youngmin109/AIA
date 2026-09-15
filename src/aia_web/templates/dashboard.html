@@ -36,9 +36,9 @@
 
 <section class="metric-grid dashboard-metrics" aria-label="현재 제품 상태">
   <div class="metric metric-status {{ 'metric-ok' if readiness_ok else 'metric-warning' }}">
-    <span id="dashboard-readiness-label">{{ '시스템 준비' if active_run.item else '실행 준비' }}</span>
-    <strong id="dashboard-readiness-value">{{ '준비 완료' if readiness_ok else '확인 필요' }}</strong>
-    <small>{{ readiness }}</small>
+    <span id="dashboard-readiness-label">{{ '현재 보호 실행' if active_run.item else '실행 준비' }}</span>
+    <strong id="dashboard-readiness-value">{{ '실행 중' if active_run.item else ('준비 완료' if readiness_ok else '확인 필요') }}</strong>
+    <small id="dashboard-readiness-code">{{ 'ACTIVE' if active_run.item else readiness }}</small>
   </div>
   <div class="metric">
     <span>Codex Hook Trust</span>
@@ -192,6 +192,7 @@ const dashboardPrimaryAction = document.getElementById('dashboard-primary-action
 const dashboardReadiness = document.getElementById('dashboard-readiness');
 const dashboardReadinessLabel = document.getElementById('dashboard-readiness-label');
 const dashboardReadinessValue = document.getElementById('dashboard-readiness-value');
+const dashboardReadinessCodeElement = document.getElementById('dashboard-readiness-code');
 const dashboardReadinessTitle = document.getElementById('dashboard-readiness-title');
 const dashboardReadinessHint = document.getElementById('dashboard-readiness-hint');
 const dashboardReadinessStatus = document.getElementById('dashboard-readiness-status');
@@ -232,8 +233,9 @@ function renderDashboardReadiness(run) {
   dashboardReadiness.classList.toggle('panel-active', active);
   dashboardReadiness.classList.toggle('panel-ready', !active && dashboardReadinessOk);
   dashboardReadiness.classList.toggle('panel-attention', !active && !dashboardReadinessOk);
-  if (dashboardReadinessLabel) dashboardReadinessLabel.textContent = active ? '시스템 준비' : '실행 준비';
-  if (dashboardReadinessValue) dashboardReadinessValue.textContent = dashboardReadinessOk ? '준비 완료' : '확인 필요';
+  if (dashboardReadinessLabel) dashboardReadinessLabel.textContent = active ? '현재 보호 실행' : '실행 준비';
+  if (dashboardReadinessValue) dashboardReadinessValue.textContent = active ? '실행 중' : (dashboardReadinessOk ? '준비 완료' : '확인 필요');
+  if (dashboardReadinessCodeElement) dashboardReadinessCodeElement.textContent = active ? 'ACTIVE' : dashboardReadinessCode;
   if (dashboardReadinessStatus) {
     dashboardReadinessStatus.classList.toggle('status-active', active);
     dashboardReadinessStatus.classList.toggle('status-success', !active && dashboardReadinessOk);
