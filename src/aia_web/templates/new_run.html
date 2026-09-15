@@ -70,6 +70,7 @@
 </section>
 
   <section id="run-settings" class="panel form-panel">
+  <div class="panel-heading"><div><h2>실행 설정</h2><p class="hint">보호할 Workspace와 작업 방식을 정합니다.</p></div><span class="badge">첫 단계</span></div>
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
@@ -205,6 +206,7 @@ const profileDescriptions = {{ profiles|tojson }};
 const taskField = document.getElementById('task-field');
 const taskInput = document.getElementById('task-input');
 const runModeInputs = [...form.querySelectorAll('input[name="run_mode"]')];
+const terminalSurfaceInputs = [...form.querySelectorAll('input[name="terminal_surface"]')];
 const previewOperation = document.getElementById('preview-operation');
 const previewTarget = document.getElementById('preview-target');
 const previewTargetHint = document.getElementById('preview-target-hint');
@@ -247,6 +249,10 @@ function updateRunMode() {
   taskField.hidden = interactive;
   taskInput.required = !interactive;
   if (interactive) taskInput.value = '';
+  terminalSurfaceInputs.forEach((input) => {
+    input.disabled = !interactive;
+    input.closest('.choice')?.classList.toggle('choice-disabled', !interactive);
+  });
 }
 runModeInputs.forEach((input) => input.addEventListener('change', updateRunMode));
 updateRunMode();

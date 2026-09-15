@@ -235,6 +235,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "MCP" in new_run.text
     assert "aliases=Edit, Write" in new_run.text
     assert "정책 만들기" in new_run.text
+    assert "실행 설정" in new_run.text
+    assert "terminalSurfaceInputs" in new_run.text
     assert "new-run-page" in new_run.text
     assert 'id="jump-to-run"' in new_run.text
     assert 'id="run-settings"' in new_run.text
