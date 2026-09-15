@@ -986,13 +986,21 @@ function appendTerminal(data) {
   const trustPromptVisible = /Do you trust the contents of this directory\?/i.test(terminalDetectionBuffer) || /Press enter to continue/i.test(terminalDetectionBuffer);
   terminalScreen.consume(text);
   const visibleLines = terminalScreen.text().split('\n').filter((line) => line.trim()).slice(-10);
-  const workingVisible = visibleLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
+  const tailLines = visibleLines.slice(-4);
+  const workingAtTail = tailLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
   const composerVisible = visibleLines.some((line) => /Ask Codex to do anything|무엇을 도와드릴까요/.test(line));
+  // The initial Codex screen keeps a copy of the composer prompt above the
+  // model metadata, so merely finding that text is not enough to prove that a
+  // submitted request has finished.  After a response (including an error),
+  // the composer prompt returns at the bottom of the current screen.  Use the
+  // tail together with the absence of a live Working line to clear the
+  // progress state without mistaking the initial screen for a response.
+  const composerAtTail = tailLines.some((line) => /Ask Codex to do anything|무엇을 도와드릴까요/.test(line));
   if (trustPromptVisible) {
     terminalComposerReady = false;
     setTerminalAction('TRUST_DIRECTORY');
     setTerminalActivity('ACTION', 'Codex가 Workspace 신뢰 확인을 기다리고 있습니다. “신뢰하고 계속”을 눌러주세요.');
-  } else if (workingVisible && ['SUBMITTING', 'WORKING', 'WAITING'].includes(activityMode)) {
+  } else if (workingAtTail && ['SUBMITTING', 'WORKING', 'WAITING'].includes(activityMode)) {
     setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
   } else if (composerVisible) {
     // Do not enable the browser composer merely because the child process is
@@ -1001,7 +1009,7 @@ function appendTerminal(data) {
     // TUI before its composer is ready.
     terminalComposerReady = true;
     updateTerminalInputState();
-    if (awaitingResponse && activityMode === 'WORKING' && responseStartedAt && Date.now() - responseStartedAt >= 750) {
+    if (awaitingResponse && activityMode === 'WORKING' && composerAtTail && !workingAtTail && responseStartedAt && Date.now() - responseStartedAt >= 750) {
       setTerminalAction(null);
       setTerminalActivity('WAITING', '응답 완료 · 다음 작업을 입력할 수 있습니다.');
     } else if (activityMode === 'STARTING') {

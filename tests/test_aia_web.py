@@ -494,7 +494,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "예시를 눌러도 자동 실행되지 않습니다." in workbench.text
     assert "data-terminal-example" in workbench.text
     assert "terminalOutput.setAttribute('aria-busy'" in workbench.text
-    assert "workingVisible" in workbench.text
+    assert "workingAtTail" in workbench.text
+    assert "composerAtTail" in workbench.text
     assert "composerVisible" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
