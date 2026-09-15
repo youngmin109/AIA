@@ -55,6 +55,10 @@
         <div class="terminal-heading-copy">
           <h2>Codex 작업창</h2>
           <span id="terminal-status" class="hint" aria-live="polite">터미널 연결을 기다리는 중입니다.</span>
+          <div class="terminal-live-meta" role="status" aria-live="polite">
+            <span id="terminal-connection" class="terminal-connection connection-pending"><i aria-hidden="true"></i>연결 확인 중</span>
+            <span>마지막 출력 <strong id="terminal-last-output">기록 없음</strong></span>
+          </div>
           <div id="terminal-activity" class="terminal-activity" role="status" aria-live="polite" hidden>
             <span class="terminal-activity-bar" aria-hidden="true"></span>
             <span id="terminal-activity-label">Codex 작업 상태를 확인하는 중입니다.</span>
@@ -146,6 +150,8 @@ const terminalInput = document.getElementById('terminal-input-proxy');
 const terminalSend = document.getElementById('terminal-send');
 const terminalStatus = document.getElementById('terminal-status');
 const terminalPid = document.getElementById('terminal-pid');
+const terminalConnection = document.getElementById('terminal-connection');
+const terminalLastOutput = document.getElementById('terminal-last-output');
 const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
 const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
@@ -162,6 +168,7 @@ let lastRenderedEventKey = '';
 let activityMode = 'IDLE';
 let activityStartedAt = 0;
 let activityTimer = null;
+let lastTerminalOutputAt = 0;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -371,6 +378,17 @@ function setTerminalStatus(status) {
         ? 'Codex 작업창 연결을 기다리는 중입니다.'
     : `터미널 상태: ${value === 'NOT_STARTED' ? '시작 전' : value === 'NOT_ATTACHED' ? '연결 대기' : value === 'EXITED' ? '종료됨' : value}`;
   terminalStatus.className = value === 'RUNNING' ? 'hint success-text' : value === 'FAILED' ? 'hint error-text' : 'hint';
+  const connection = value === 'RUNNING'
+    ? ['연결됨', 'connection-live']
+    : value === 'FAILED'
+      ? ['연결 실패', 'connection-failed']
+      : value === 'EXITED'
+        ? ['종료됨', 'connection-stopped']
+        : value === 'NOT_ATTACHED'
+          ? ['연결 대기', 'connection-pending']
+          : ['확인 중', 'connection-pending'];
+  terminalConnection.className = `terminal-connection ${connection[1]}`;
+  terminalConnection.innerHTML = `<i aria-hidden="true"></i>${connection[0]}`;
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
   terminalInput.disabled = value !== 'RUNNING';
   terminalSend.disabled = value !== 'RUNNING';
@@ -403,6 +421,10 @@ function appendTerminal(data) {
   // Codex so full-screen redraws replace the current view instead of being
   // appended as duplicate text.
   const text = String(data || '');
+  if (text.length) {
+    lastTerminalOutputAt = Date.now();
+    terminalLastOutput.textContent = formatTime(new Date(lastTerminalOutputAt).toISOString());
+  }
   if (/Working|working/.test(text)) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
   else if (/Ask Codex to do anything|무엇을 도와드릴까요/.test(text)) setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
   else if (activityMode === 'STARTING') setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
