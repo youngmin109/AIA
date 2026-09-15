@@ -103,6 +103,11 @@
           <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
           <span>화면 갱신 <strong id="last-refresh-time">확인 중</strong></span>
         </div>
+        <div class="workbench-event-filters" role="group" aria-label="최근 이벤트 필터">
+          <button type="button" class="event-filter is-active" data-event-filter="ALL" aria-pressed="true">전체</button>
+          <button type="button" class="event-filter" data-event-filter="ACTION" aria-pressed="false">행위</button>
+          <button type="button" class="event-filter" data-event-filter="SENSOR" aria-pressed="false">센서 상태</button>
+        </div>
         <div id="security-events" class="workbench-events" role="log" aria-live="polite" aria-label="보안 이벤트"><div class="empty">아직 관찰된 이벤트가 없습니다.</div></div>
       </section>
       <section id="incident-card" class="workbench-card incident-card" hidden>
@@ -164,9 +169,12 @@ const incidentDetailLink = document.getElementById('incident-detail-link');
 const lastEventTime = document.getElementById('last-event-time');
 const lastRefreshTime = document.getElementById('last-refresh-time');
 const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
+const eventFilterButtons = [...document.querySelectorAll('[data-event-filter]')];
 let socket = null;
 let socketRetry = null;
 let lastRenderedEventKey = '';
+let eventFilter = 'ALL';
+let latestStatus = initialStatus;
 let activityMode = 'IDLE';
 let activityStartedAt = 0;
 let activityTimer = null;
@@ -567,6 +575,7 @@ function openSocket() {
   };
 }
 function renderSecurity(status) {
+  latestStatus = status;
   const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
   runStatus.dataset.status = sessionStatus;
   runStatus.className = `status-badge ${statusClass(sessionStatus)}`;
@@ -601,25 +610,35 @@ function renderSecurity(status) {
   document.getElementById('process-count').textContent = `${summary.process_observed || 0}건`;
   document.getElementById('bundle-status').textContent = status.result_available ? bundleLabel(status.bundle_status || 'VALID') : '검증 전';
   document.getElementById('bundle-status').title = status.bundle_status || 'PENDING';
-  const events = Array.isArray(status.events) ? status.events : [];
-  const latestEvent = events.slice().reverse().find((event) => event.observed_at);
+  const allEvents = Array.isArray(status.events) ? status.events : [];
+  const events = eventFilter === 'SENSOR'
+    ? allEvents.filter((event) => event.category === 'SENSOR')
+    : eventFilter === 'ACTION'
+      ? allEvents.filter((event) => event.category !== 'SENSOR')
+      : allEvents;
+  const latestEvent = allEvents.slice().reverse().find((event) => event.observed_at);
   lastEventTime.textContent = formatTime(latestEvent?.observed_at);
   lastRefreshTime.textContent = formatTime(new Date().toISOString());
   lastRefreshTime.classList.remove('error-text');
-  const eventKey = events.map((item) => [
+  const eventKey = `${eventFilter}|${events.map((item) => [
     item.event_id || item.summary,
     item.decision || '',
     item.execution_result || '',
     item.execution_observed ? 'observed' : '',
     item.observed_at || '',
-  ].join('~')).join('|');
+  ].join('~')).join('|')}`;
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${ended ? '이 실행에는 보안 이벤트가 없습니다.' : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.'}</div>`;
+    const emptyMessage = allEvents.length
+      ? '현재 필터에 해당하는 이벤트가 없습니다.'
+      : ended
+        ? '이 실행에는 보안 이벤트가 없습니다.'
+        : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.';
+    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
   }
   document.getElementById('event-count').textContent = `${events.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
-  const incident = events.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity) || ['CONTAIN', 'REFUSE'].includes(event.decision));
+  const incident = allEvents.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity) || ['CONTAIN', 'REFUSE'].includes(event.decision));
   const incidentCard = document.getElementById('incident-card');
   const incidentNote = document.getElementById('incident-note');
   if (incident) {
@@ -657,6 +676,17 @@ function renderSecurity(status) {
   resultLink.hidden = !status.result_available;
   setTerminalStatus(status.terminal || {});
 }
+
+eventFilterButtons.forEach((button) => button.addEventListener('click', () => {
+  eventFilter = button.dataset.eventFilter || 'ALL';
+  eventFilterButtons.forEach((item) => {
+    const active = item === button;
+    item.classList.toggle('is-active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+  lastRenderedEventKey = '';
+  renderSecurity(latestStatus);
+}));
 
 terminalOutput.addEventListener('click', () => terminalInput.focus());
 let composing = false;

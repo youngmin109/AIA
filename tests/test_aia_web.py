@@ -334,6 +334,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="incident-note"' in workbench.text
     assert "Codex의 설명만으로는 실제 실행 여부를 확정하지 않습니다." in workbench.text
     assert "실행 확인 중" in workbench.text
+    assert 'data-event-filter="ALL"' in workbench.text
+    assert 'data-event-filter="ACTION"' in workbench.text
+    assert 'data-event-filter="SENSOR"' in workbench.text
+    assert "현재 필터에 해당하는 이벤트가 없습니다." in workbench.text
+    assert "eventFilterButtons" in workbench.text
+    assert "eventFilter === 'SENSOR'" in workbench.text
+    assert "eventFilter === 'ACTION'" in workbench.text
     assert "responseStartedAt" in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
     assert "terminalOutput.setAttribute('aria-busy'" in workbench.text
