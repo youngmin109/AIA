@@ -21,7 +21,7 @@
 </section>
 <section class="metric-grid history-summary" aria-label="실행 기록 요약">
   <div class="metric"><span>전체 실행</span><strong>{{ runs|length }}건</strong><small>로컬에 보존된 보호 실행</small></div>
-  <div class="metric metric-status {{ 'metric-ok' if history_summary.active == 0 else 'metric-warning' }}"><span>현재 진행 중</span><strong>{{ history_summary.active }}건</strong><small>연결된 실행만 집계</small></div>
+  <button type="button" class="metric metric-status metric-action {{ 'metric-ok' if history_summary.active == 0 else 'metric-warning' }}" data-history-quick-filter="active" aria-label="현재 실행 중인 보호 실행만 보기"{% if history_summary.active == 0 %} disabled{% endif %}><span>현재 진행 중</span><strong>{{ history_summary.active }}건</strong><small>연결된 실행만 집계 · 클릭하여 보기</small></button>
   <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="사건 발생 실행만 보기"><span>사건 발생 실행</span><strong>{{ history_summary.incidents }}건</strong><small>차단·정책 사건이 있는 실행 · 클릭하여 보기</small></button>
   <button type="button" class="metric metric-ok metric-action" data-history-quick-filter="valid" aria-label="검증 완료 실행만 보기"><span>검증 완료</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle VALID · 클릭하여 보기</small></button>
 </section>
@@ -44,7 +44,7 @@
   <div class="table-wrap"><table><thead><tr><th>시작 시각</th><th>실행</th><th>상태</th><th>Workspace</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
   <tbody>
   {% for run in runs %}
-    <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-bundle="{{ run.bundle_status|default('') }}" data-date="{{ (run.created_at or '')[:10] }}">
+    <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-bundle="{{ run.bundle_status|default('') }}" data-date="{{ (run.created_at or '')[:10] }}" data-active="{{ 'yes' if run.status in active_statuses and not (run.runtime_reconciliation or {}).get('orphaned') and run.run_classification != 'UNVERIFIED_RUNTIME_STATE' else 'no' }}">
       <td><time class="history-time" datetime="{{ run.created_at|default('') }}">{{ (run.created_at or '시각 확인 필요') }}</time></td>
       {% set result_ready = run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}
       <td class="mono">{% if result_ready %}<a class="run-link" href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}" title="결과 보기"><strong>#{{ run.session_id[:8] }}</strong></a>{% elif run.launch_mode == 'web_terminal' %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="Workbench 열기"><strong>#{{ run.session_id[:8] }}</strong></a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="실행 상태 열기"><strong>#{{ run.session_id[:8] }}</strong></a>{% endif %}<br><span class="muted" title="전체 Session ID: {{ run.session_id }}">{{ '결과 Bundle' if result_ready else 'Workbench' if run.launch_mode == 'web_terminal' else 'CLI 실행' }}</span></td>
@@ -72,10 +72,11 @@ const filterIds = ['filter-workspace','filter-status','filter-protection','filte
 const historyQuickFilters = [...document.querySelectorAll('[data-history-quick-filter]')];
 const historyPageSize = 20;
 let historyPage = 1;
+let activeOnly = false;
 const values = (id) => document.getElementById(id).value.trim().toLowerCase();
 function filterRuns() {
   const workspace = values('filter-workspace'); const status = values('filter-status'); const protection = values('filter-protection'); const incident = values('filter-incident'); const bundle = values('filter-bundle'); const date = document.getElementById('filter-date').value;
-  const matchingRows = rows.filter((row) => (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!bundle || row.dataset.bundle.toLowerCase() === bundle) && (!date || row.dataset.date === date));
+  const matchingRows = rows.filter((row) => (!activeOnly || row.dataset.active === 'yes') && (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!bundle || row.dataset.bundle.toLowerCase() === bundle) && (!date || row.dataset.date === date));
   const pageCount = Math.max(1, Math.ceil(matchingRows.length / historyPageSize));
   historyPage = Math.min(historyPage, pageCount);
   rows.forEach((row) => { row.hidden = true; });
@@ -94,12 +95,13 @@ function filterRuns() {
   if (incident) activeFilters.push(`사건 ${document.getElementById('filter-incident').selectedOptions[0].textContent}`);
   if (bundle) activeFilters.push(`결과 ${document.getElementById('filter-bundle').selectedOptions[0].textContent}`);
   if (date) activeFilters.push('날짜');
+  if (activeOnly) activeFilters.push('현재 진행 중');
   const filterStatus = document.getElementById('history-filter-status');
   filterStatus.hidden = activeFilters.length === 0;
   filterStatus.textContent = activeFilters.length ? `현재 조건: ${activeFilters.join(' · ')}` : '';
   historyQuickFilters.forEach((button) => {
     const quickFilter = button.dataset.historyQuickFilter;
-    const active = (quickFilter === 'incident' && incident === 'yes') || (quickFilter === 'valid' && bundle === 'valid');
+    const active = (quickFilter === 'active' && activeOnly) || (!activeOnly && quickFilter === 'incident' && incident === 'yes') || (!activeOnly && quickFilter === 'valid' && bundle === 'valid');
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
   });
@@ -113,18 +115,29 @@ document.querySelectorAll('.history-time').forEach((time) => {
   time.title = date.toLocaleString('ko-KR');
 });
 filterIds.forEach((id) => {
-  document.getElementById(id).addEventListener('input', () => { historyPage = 1; filterRuns(); });
-  document.getElementById(id).addEventListener('change', () => { historyPage = 1; filterRuns(); });
+  document.getElementById(id).addEventListener('input', () => { activeOnly = false; historyPage = 1; filterRuns(); });
+  document.getElementById(id).addEventListener('change', () => { activeOnly = false; historyPage = 1; filterRuns(); });
 });
 historyQuickFilters.forEach((button) => button.addEventListener('click', () => {
   const quickFilter = button.dataset.historyQuickFilter;
   const incidentFilter = document.getElementById('filter-incident');
   const bundleFilter = document.getElementById('filter-bundle');
-  if (quickFilter === 'incident') {
+  if (quickFilter === 'active') {
+    activeOnly = !activeOnly;
+    if (activeOnly) {
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-protection').value = '';
+      incidentFilter.value = '';
+      bundleFilter.value = '';
+      document.getElementById('filter-date').value = '';
+    }
+  } else if (quickFilter === 'incident') {
+    activeOnly = false;
     incidentFilter.value = incidentFilter.value === 'yes' ? '' : 'yes';
     bundleFilter.value = '';
     incidentFilter.focus();
   } else if (quickFilter === 'valid') {
+    activeOnly = false;
     bundleFilter.value = bundleFilter.value === 'VALID' ? '' : 'VALID';
     incidentFilter.value = '';
     bundleFilter.focus();
@@ -133,6 +146,7 @@ historyQuickFilters.forEach((button) => button.addEventListener('click', () => {
   filterRuns();
 }));
 document.getElementById('reset-history-filters').addEventListener('click', () => {
+  activeOnly = false;
   filterIds.forEach((id) => { document.getElementById(id).value = ''; });
   historyPage = 1;
   filterRuns();

@@ -871,6 +871,10 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "1건 표시 / 1건 전체" in history.text
     assert "실행 기록 요약" in history.text
     assert "현재 진행 중" in history.text
+    assert 'data-history-quick-filter="active"' in history.text
+    assert "data-active=" in history.text
+    assert "activeOnly" in history.text
+    assert "현재 실행 중인 보호 실행만 보기" in history.text
     assert "시작 시각" in history.text
     assert "history-time" in history.text
     assert "Result Bundle VALID" in history.text
