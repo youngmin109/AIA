@@ -23,6 +23,7 @@ from aia_app.presenters import (
     incident_view,
     result_view,
     safe_event_views,
+    evidence_timeline_views,
 )
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
@@ -218,6 +219,41 @@ def test_evidence_chain_marks_missing_sensor_link_as_partial() -> None:
     assert chains[0]["evidence_link_status"] == "PARTIAL"
     assert chains[0]["linked_evidence_count"] == 1
     assert chains[0]["stages"][0]["evidence_count"] == 2
+
+
+def test_evidence_timeline_links_sensor_records_to_action_without_payload() -> None:
+    timeline = evidence_timeline_views(
+        [
+            {
+                "evidence_id": "h1",
+                "captured_at": "2026-09-15T05:00:00+00:00",
+                "line": 1,
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "payload_keys": ["raw_command", "secret"],
+            },
+            {
+                "evidence_id": "f1",
+                "captured_at": "2026-09-15T05:00:01+00:00",
+                "line": 2,
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+            },
+        ],
+        actions=[
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "evidence_ids": ["h1"],
+                "target": {"target_kind": "COMMAND", "raw_command": "type SECRET"},
+            }
+        ],
+    )
+
+    assert timeline[0]["linked_action_id"] == "a1"
+    assert timeline[0]["link_status"] == "LINKED"
+    assert timeline[1]["link_status"] == "UNLINKED"
+    assert "SECRET" not in repr(timeline)
 
 
 def test_safe_event_view_preserves_containment_decision_before_block_confirmation() -> None:

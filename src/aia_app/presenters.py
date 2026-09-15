@@ -479,6 +479,78 @@ def evidence_chain_views(
     return chains
 
 
+def evidence_timeline_views(
+    evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    *,
+    actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    limit: int = 80,
+) -> list[dict[str, Any]]:
+    """Build a chronological, metadata-only sensor timeline.
+
+    The timeline is intentionally separate from the policy event list.  It
+    shows what each sensor recorded, then links the record to an Action ID
+    when the existing evidence identifier relationship proves that link.
+    Payload values are never copied into this view.
+    """
+
+    action_by_evidence: dict[str, Mapping[str, Any]] = {}
+    for action in actions:
+        if not isinstance(action, Mapping):
+            continue
+        for evidence_id in action.get("evidence_ids") or ():
+            if isinstance(evidence_id, str) and evidence_id:
+                action_by_evidence[evidence_id] = action
+
+    summaries = {
+        "PRETOOL_REQUEST": "PreToolUse 요청",
+        "POSTTOOL_OBSERVED": "도구 실행 결과 관찰",
+        "FILESYSTEM_EVENT": "파일 시스템 변화",
+        "PROCESS_OBSERVED": "프로세스 관찰",
+        "PROCESS_EXIT_OBSERVED": "프로세스 종료 관찰",
+        "SENSOR_HEALTH": "센서 상태 기록",
+    }
+    records: list[dict[str, Any]] = []
+    for item in evidence_metadata:
+        if not isinstance(item, Mapping) or not item.get("evidence_id"):
+            continue
+        evidence_id = str(item["evidence_id"])
+        record_type = str(item.get("record_type") or "EVIDENCE")
+        source = str(item.get("source") or "UNKNOWN")
+        action = action_by_evidence.get(evidence_id)
+        operation = str(action.get("operation")) if action and action.get("operation") else None
+        target = action.get("target") if action and isinstance(action.get("target"), Mapping) else {}
+        target_label = (
+            "명령 실행"
+            if operation == "EXECUTE" or target.get("target_kind") == "COMMAND"
+            else "파일·프로세스 행위"
+            if action
+            else "센서 기록"
+        )
+        records.append(
+            {
+                "evidence_id": evidence_id,
+                "captured_at": item.get("captured_at"),
+                "line": item.get("line"),
+                "source": source,
+                "record_type": record_type,
+                "observation_stage": item.get("observation_stage"),
+                "summary": summaries.get(record_type, "Evidence 관찰"),
+                "linked_action_id": action.get("action_id") if action else None,
+                "operation": operation,
+                "target_label": target_label,
+                "link_status": "LINKED" if action else "UNLINKED",
+            }
+        )
+    def _line_number(value: Any) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    records.sort(key=lambda item: (str(item.get("captured_at") or ""), _line_number(item.get("line"))))
+    return records[-max(0, limit) :] if limit > 0 else []
+
+
 def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
     incidents = incident_views_for_result(result)
     incident_action_ids = {
@@ -618,4 +690,5 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
             recovery=result.get("recovery_result"),
             integrity=result.get("integrity_result"),
         ),
+        "evidence_timeline": [],
     }

@@ -127,6 +127,10 @@
         <p class="workbench-card-subtitle">원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성</p>
         <div id="evidence-chains" class="evidence-chains" aria-live="polite"><div class="empty">아직 연결된 행위 증거가 없습니다.</div></div>
       </section>
+      <section id="sensor-evidence-panel" class="workbench-card">
+        <div class="panel-heading"><div><h2>센서 Evidence 타임라인</h2><p class="hint">센서가 기록한 사실과 Action 연결만 표시합니다.</p></div><span id="sensor-evidence-count" class="badge">0건</span></div>
+        <div id="sensor-evidence-timeline" class="sensor-evidence-timeline" aria-live="polite"><div class="empty">아직 센서 Evidence가 없습니다.</div></div>
+      </section>
     </aside>
   </div>
 
@@ -147,6 +151,7 @@ const initialStatus = {
   incident_count: {{ status.incident_count|tojson }},
   events: {{ (status.events or [])|tojson }},
   evidence_chains: {{ (status.evidence_chains or [])|tojson }},
+  evidence_timeline: {{ (status.evidence_timeline or [])|tojson }},
   protection: {{ (status.protection or {})|tojson }},
   sensor_health: {{ (status.sensor_health or {})|tojson }},
   evidence_summary: {{ (status.evidence_summary or {})|tojson }},
@@ -455,6 +460,22 @@ function selectEvidenceChain(actionId) {
   if (card) card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
+const evidenceRecordLabel = (value) => ({PRETOOL_REQUEST: 'PreToolUse 요청', POSTTOOL_OBSERVED: '도구 실행 결과 관찰', FILESYSTEM_EVENT: '파일 시스템 변화', PROCESS_OBSERVED: '프로세스 관찰', PROCESS_EXIT_OBSERVED: '프로세스 종료 관찰', SENSOR_HEALTH: '센서 상태 기록'})[value] || 'Evidence 관찰';
+function renderEvidenceTimeline(records) {
+  const container = document.getElementById('sensor-evidence-timeline');
+  const items = Array.isArray(records) ? records.slice().reverse().slice(0, 24) : [];
+  document.getElementById('sensor-evidence-count').textContent = `${items.length}건`;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty">아직 센서 Evidence가 없습니다.</div>';
+    return;
+  }
+  container.innerHTML = items.map((item) => {
+    const linked = item.link_status === 'LINKED';
+    const action = linked ? ` · Action ${esc(String(item.linked_action_id || '연결됨'))}` : ' · Action 연결 없음';
+    return `<div class="sensor-evidence-row ${linked ? 'is-linked' : 'is-unlinked'}"><span class="evidence-chain-node" aria-hidden="true"></span><div><strong>${esc(evidenceRecordLabel(item.record_type || item.summary))}</strong><small>${esc(formatTime(item.captured_at))} · ${esc(sensorNameLabel(item.source || 'UNKNOWN'))}${esc(action)}</small></div><span class="badge ${linked ? 'badge-succeeded' : 'badge-warning'}">${linked ? '행위 연결됨' : '독립 관찰'}</span></div>`;
+  }).join('');
+}
+
 function updateActivityClock() {
   if (!activityStartedAt) return;
   if (activityMode === 'WAITING') {
@@ -669,6 +690,7 @@ function renderSecurity(status) {
   lastRefreshTime.textContent = formatTime(new Date().toISOString());
   lastRefreshTime.classList.remove('error-text');
   renderEvidenceChains(status.evidence_chains || []);
+  renderEvidenceTimeline(status.evidence_timeline || []);
   const eventKey = `${eventFilter}|${events.map((item) => [
     item.event_id || item.summary,
     item.decision || '',

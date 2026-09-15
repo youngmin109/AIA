@@ -59,6 +59,7 @@ from .presenters import (
     action_view,
     evidence_chain_views,
     evidence_summary,
+    evidence_timeline_views,
     incident_view,
     incident_views_for_result,
     result_view,
@@ -423,6 +424,10 @@ def _annotate_execution_observations(
         evidence_metadata=evidence_metadata or (),
         recovery=view.get("recovery"),
         integrity=view.get("integrity"),
+    )
+    view["evidence_timeline"] = evidence_timeline_views(
+        evidence_metadata or (),
+        actions=actions,
     )
     return view
 
@@ -1037,6 +1042,7 @@ class RunApplicationService:
             "latest_actions": display_view["actions"][-20:],
             "events": safe_event_views(display_view["actions"], sensor_health=record.sensor_health),
             "evidence_chains": display_view["evidence_chains"],
+            "evidence_timeline": display_view["evidence_timeline"],
             "lease": record.lease,
             "mode": record.mode,
             "interactive": record.interactive,
@@ -2702,6 +2708,7 @@ class RunApplicationService:
                 sensor_health=state.get("sensor_health", {}),
             ),
             "evidence_chains": display_view["evidence_chains"],
+            "evidence_timeline": display_view["evidence_timeline"],
             "lease": state.get("lease", "UNKNOWN"),
             "mode": state.get("mode"),
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
@@ -2770,6 +2777,7 @@ class RunApplicationService:
             "latest_actions": view["actions"][-20:],
             "events": view.get("events", []),
             "evidence_chains": view.get("evidence_chains", []),
+            "evidence_timeline": view.get("evidence_timeline", []),
             "lease": "RELEASED",
             "mode": view["mode"],
             "phase": view["session_status"],
