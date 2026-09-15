@@ -23,6 +23,52 @@ from aia.capabilities import product_capabilities
 
 _ROOT = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_ROOT / "templates"))
+_TERMINAL_OUTPUT_BATCH_MIN_ITEMS = 16
+_TERMINAL_OUTPUT_BATCH_MAX_CHARS = 64 * 1024
+
+
+def _coalesce_terminal_output(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Reduce WebSocket message overhead when replaying terminal history.
+
+    A Workbench reconnect can replay up to 2,000 bounded PTY chunks. Sending
+    every chunk as a separate JSON message makes the browser spend most of the
+    reconnect window parsing and rendering transport overhead. Keep small live
+    reads unchanged for latency and coalesce only a large replay into ordered
+    output batches. The final sequence in a batch is sufficient for the
+    connection cursor because all preceding data is included in that batch.
+    """
+
+    if len(items) <= _TERMINAL_OUTPUT_BATCH_MIN_ITEMS:
+        return items
+
+    batches: list[dict[str, Any]] = []
+    current: list[dict[str, Any]] = []
+    current_chars = 0
+
+    def flush() -> None:
+        nonlocal current, current_chars
+        if not current:
+            return
+        last = current[-1]
+        batches.append(
+            {
+                "type": "output",
+                "sequence": last.get("sequence", 0),
+                "data": "".join(str(item.get("data", "")) for item in current),
+                "recorded_at": last.get("recorded_at"),
+            }
+        )
+        current = []
+        current_chars = 0
+
+    for item in items:
+        data = str(item.get("data", ""))
+        if current and current_chars + len(data) > _TERMINAL_OUTPUT_BATCH_MAX_CHARS:
+            flush()
+        current.append(item)
+        current_chars += len(data)
+    flush()
+    return batches
 
 
 def default_control_root() -> Path:
@@ -255,10 +301,11 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
 
         async def send_pending_output() -> None:
             nonlocal last_sequence
-            for item in app.state.service.read_terminal_output(
+            items = app.state.service.read_terminal_output(
                 session_id,
                 after_sequence=last_sequence,
-            ):
+            )
+            for item in _coalesce_terminal_output(items):
                 await websocket.send_json(item)
                 last_sequence = max(last_sequence, int(item.get("sequence", last_sequence)))
 

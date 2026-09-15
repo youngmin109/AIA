@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 import importlib
 
-from aia_web.app import create_app
+from aia_web.app import _coalesce_terminal_output, create_app
 from aia_app.service import RunApplicationService
 
 
@@ -798,6 +798,24 @@ def test_workbench_terminal_socket_replays_bounded_output_after_reconnect() -> N
     with client.websocket_connect("/api/runs/run-1/terminal") as second_connection:
         assert second_connection.receive_json()["sequence"] == 1
         assert second_connection.receive_json()["sequence"] == 2
+
+
+def test_large_terminal_replay_is_coalesced_without_losing_order() -> None:
+    items = [
+        {
+            "type": "output",
+            "sequence": index,
+            "data": f"chunk-{index}",
+            "recorded_at": f"2026-01-01T00:00:{index:02d}+00:00",
+        }
+        for index in range(1, 41)
+    ]
+
+    batches = _coalesce_terminal_output(items)
+
+    assert len(batches) < len(items)
+    assert [batch["sequence"] for batch in batches] == [40]
+    assert "".join(batch["data"] for batch in batches) == "".join(item["data"] for item in items)
 
 
 def test_console_can_request_hook_verification_without_changing_trust(monkeypatch) -> None:
