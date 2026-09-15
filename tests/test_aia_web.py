@@ -274,6 +274,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "보안 관찰" in workbench.text
     assert "최근 이벤트" in workbench.text
     assert "마지막 이벤트" in workbench.text
+    assert "마지막 출력 수신" in workbench.text
     assert "화면 갱신" in workbench.text
     assert 'id="event-count"' in workbench.text
     assert "Glass-box" in workbench.text
@@ -291,6 +292,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="terminal-activity"' in workbench.text
     assert 'id="terminal-connection"' in workbench.text
     assert 'id="terminal-last-output"' in workbench.text
+    assert "formatOutputAge" in workbench.text
     assert "terminalInputForm" in workbench.text
     assert "activityMode" in workbench.text
     assert "submitTerminalLine" in workbench.text

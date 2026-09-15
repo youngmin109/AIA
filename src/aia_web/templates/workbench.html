@@ -57,7 +57,7 @@
           <span id="terminal-status" class="hint" aria-live="polite">터미널 연결을 기다리는 중입니다.</span>
           <div class="terminal-live-meta" role="status" aria-live="polite">
             <span id="terminal-connection" class="terminal-connection connection-pending"><i aria-hidden="true"></i>연결 확인 중</span>
-            <span>마지막 출력 <strong id="terminal-last-output">기록 없음</strong></span>
+            <span>마지막 출력 수신 <strong id="terminal-last-output">기록 없음</strong></span>
           </div>
           <div id="terminal-activity" class="terminal-activity" role="status" aria-live="polite" hidden>
             <span class="terminal-activity-bar" aria-hidden="true"></span>
@@ -295,6 +295,17 @@ const formatTime = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '기록됨' : date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
 };
+const formatOutputAge = (timestamp) => {
+  if (!timestamp) return '기록 없음';
+  const elapsed = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (elapsed < 2) return '방금';
+  if (elapsed < 60) return `${elapsed}초 전`;
+  if (elapsed < 3600) return `${Math.floor(elapsed / 60)}분 전`;
+  return formatTime(new Date(timestamp).toISOString());
+};
+function updateTerminalOutputAge() {
+  terminalLastOutput.textContent = formatOutputAge(lastTerminalOutputAt);
+}
 const sessionLabel = (value) => ({
   CREATED: '생성됨',
   PREPARING: '보호 준비 중',
@@ -423,7 +434,8 @@ function appendTerminal(data) {
   const text = String(data || '');
   if (text.length) {
     lastTerminalOutputAt = Date.now();
-    terminalLastOutput.textContent = formatTime(new Date(lastTerminalOutputAt).toISOString());
+    terminalLastOutput.title = formatTime(new Date(lastTerminalOutputAt).toISOString());
+    updateTerminalOutputAge();
   }
   if (/Working|working/.test(text)) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
   else if (/Ask Codex to do anything|무엇을 도와드릴까요/.test(text)) setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
@@ -556,5 +568,6 @@ renderSecurity(initialStatus);
 openSocket();
 pollStatus();
 setInterval(pollStatus, 1000);
+setInterval(updateTerminalOutputAge, 1000);
 </script>
 {% endblock %}
