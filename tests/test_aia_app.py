@@ -8,6 +8,13 @@ from uuid import uuid4
 
 import pytest
 
+from aia.evidence import (
+    EvidenceRecordType,
+    EvidenceSource,
+    ObservationStage,
+    RawEvidenceRecord,
+    RawEvidenceStore,
+)
 from aia_app.dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
 from aia_app.presenters import action_view, action_summary, incident_view, result_view, safe_event_views
 from aia_app.readers import ResultBundleReader
@@ -160,6 +167,62 @@ def test_safe_event_view_exposes_observation_time_for_live_timeline() -> None:
     )
 
     assert events[0]["observed_at"] == "2026-09-15T05:00:00+00:00"
+
+
+def test_safe_event_view_exposes_posttool_execution_observation() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "COMPLIANT",
+                "execution_result": "NOT_ATTEMPTED",
+                "execution_observed": True,
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["execution_result"] == "NOT_ATTEMPTED"
+    assert events[0]["execution_observed"] is True
+
+
+def test_result_view_reconnects_pretool_action_to_posttool_evidence(tmp_path) -> None:
+    session_id = "session-posttool"
+    store = RawEvidenceStore.for_session(tmp_path / "control", session_id)
+    captured_at = datetime.now(timezone.utc)
+    pretool = store.append(
+        RawEvidenceRecord(
+            session_id=session_id,
+            source=EvidenceSource.AGENT_HOOK,
+            record_type=EvidenceRecordType.PRETOOL_REQUEST,
+            captured_at=captured_at,
+            observation_stage=ObservationStage.PRE_ACTION,
+            payload={"tool_use_id": "tool-1"},
+            evidence_id="pretool-1",
+        )
+    )
+    store.append(
+        RawEvidenceRecord(
+            session_id=session_id,
+            source=EvidenceSource.AGENT_HOOK,
+            record_type=EvidenceRecordType.POSTTOOL_OBSERVED,
+            captured_at=captured_at,
+            observation_stage=ObservationStage.POST_ACTION,
+            payload={"tool_use_id": "tool-1"},
+            evidence_id="posttool-1",
+        )
+    )
+    view = {"actions": [{"evidence_ids": [pretool.evidence_id]}]}
+
+    service_module._annotate_execution_observations(
+        view,
+        control_root=tmp_path / "control",
+        session_id=session_id,
+    )
+
+    assert view["actions"][0]["execution_observed"] is True
+    assert view["events"][0]["execution_observed"] is True
 
 
 def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:

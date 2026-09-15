@@ -328,6 +328,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "중지 요청 중…" in workbench.text
     assert "STOPPING" in workbench.text
     assert "item.execution_result || ''" in workbench.text
+    assert "item.execution_observed ? 'observed'" in workbench.text
+    assert "execution_observed" in workbench.text
+    assert "실행 관찰됨" in workbench.text
     assert "Working\\s*\\(\\s*\\d+s" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text

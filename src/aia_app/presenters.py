@@ -24,6 +24,7 @@ def safe_event_views(
         enforcement = action.get("enforcement_action") or action.get("enforcement")
         enforcement_decision = action.get("enforcement_decision")
         execution = action.get("execution_result")
+        execution_observed = bool(action.get("execution_observed"))
         target = action.get("target") if isinstance(action.get("target"), Mapping) else {}
         target_kind = str(target.get("target_kind") or "")
         target_label = "명령 실행" if operation == "EXECUTE" or target_kind == "COMMAND" else "파일·프로세스 행위"
@@ -44,6 +45,7 @@ def safe_event_views(
                 "target_label": target_label,
                 "decision": display_decision,
                 "execution_result": execution or "NOT_REPORTED",
+                "execution_observed": execution_observed,
                 "sensor": "AGENT_HOOK" if action.get("observation_stage") else "RUNTIME",
                 "severity": severity,
                 "observed_at": action.get("observed_at"),
@@ -92,6 +94,7 @@ def action_view(action: Mapping[str, Any]) -> dict[str, Any]:
         "enforcement_action": action.get("enforcement_action"),
         "enforcement_decision": action.get("enforcement_decision"),
         "execution_result": action.get("execution_result"),
+        "execution_observed": bool(action.get("execution_observed")),
         "evidence_ids": list(action.get("evidence_ids") or []),
         "matched_asset_types": list(action.get("matched_asset_types") or []),
         "matched_rule_ids": list(action.get("matched_rule_ids") or []),

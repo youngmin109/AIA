@@ -284,6 +284,8 @@ def _runtime_action_view(
     policy_result: Any,
     attribution_result: Any,
     gate_result: Any,
+    *,
+    execution_observed: bool = False,
 ) -> dict[str, Any]:
     """Build the redacted live/result action view from authoritative facts."""
 
@@ -295,6 +297,7 @@ def _runtime_action_view(
         "enforcement_action": gate_result.action.value,
         "enforcement_decision": gate_result.decision.value,
         "execution_result": gate_result.execution_result.value,
+        "execution_observed": execution_observed,
         "operation": action.operation.value,
         "observed_at": observed_at.isoformat() if observed_at is not None else None,
         "policy_decision": policy_result.policy_decision.value,
@@ -322,6 +325,98 @@ def _runtime_action_view(
             "target_kind": action.target_kind.value,
         },
     }
+
+
+def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
+    """Return only tool-use identifiers proven by PostToolUse Evidence.
+
+    This is presentation metadata. It does not alter the Core enforcement
+    result, which intentionally keeps ``NOT_ATTEMPTED`` when no enforcement
+    action was executed.
+    """
+
+    try:
+        records = RawEvidenceStore.for_session(control_root, session_id).records()
+    except (OSError, ValueError):
+        return set()
+    return {
+        str(record.payload["tool_use_id"])
+        for record in records
+        if record.record_type.value == "POSTTOOL_OBSERVED"
+        and isinstance(record.payload.get("tool_use_id"), str)
+        and record.payload.get("tool_use_id")
+    }
+
+
+def _execution_observation_metadata(
+    control_root: Path,
+    session_id: str,
+) -> tuple[set[str], dict[str, str]]:
+    """Return PostToolUse links and capture times for display metadata."""
+
+    try:
+        records = RawEvidenceStore.for_session(control_root, session_id).records()
+    except (OSError, ValueError):
+        return set(), {}
+    posttool_ids = {
+        str(record.payload["tool_use_id"])
+        for record in records
+        if record.record_type.value == "POSTTOOL_OBSERVED"
+        and isinstance(record.payload.get("tool_use_id"), str)
+        and record.payload.get("tool_use_id")
+    }
+    observed: set[str] = {
+        record.evidence_id
+        for record in records
+        if record.record_type.value == "POSTTOOL_OBSERVED"
+        and isinstance(record.payload.get("tool_use_id"), str)
+        and record.payload.get("tool_use_id") in posttool_ids
+    }
+    observed.update(
+        record.evidence_id
+        for record in records
+        if record.record_type.value == "PRETOOL_REQUEST"
+        and isinstance(record.payload.get("tool_use_id"), str)
+        and record.payload.get("tool_use_id") in posttool_ids
+    )
+    capture_times = {
+        record.evidence_id: record.captured_at.isoformat()
+        for record in records
+    }
+    return observed, capture_times
+
+
+def _annotate_execution_observations(
+    view: dict[str, Any],
+    *,
+    control_root: Path,
+    session_id: str,
+) -> dict[str, Any]:
+    """Add display-only PostToolUse status to a result view."""
+
+    observed_evidence_ids, capture_times = _execution_observation_metadata(
+        control_root,
+        session_id,
+    )
+    actions = []
+    for action in view.get("actions", []):
+        item = dict(action)
+        item["execution_observed"] = any(
+            evidence_id in observed_evidence_ids
+            for evidence_id in item.get("evidence_ids", [])
+        )
+        if not item.get("observed_at"):
+            timestamps = [
+                capture_times[evidence_id]
+                for evidence_id in item.get("evidence_ids", [])
+                if evidence_id in capture_times
+            ]
+            if timestamps:
+                item["observed_at"] = max(timestamps)
+        actions.append(item)
+    view["actions"] = actions
+    view["events"] = safe_event_views(actions)
+    return view
 
 
 class RunApplicationService:
@@ -1348,6 +1443,11 @@ class RunApplicationService:
         record = self.registry.snapshot(session_id)
         if record is not None and record.result is not None and record.bundle_status is not None:
             view = result_view(record.result, record.bundle_status)
+            _annotate_execution_observations(
+                view,
+                control_root=self.control_root,
+                session_id=session_id,
+            )
             view["launch_mode"] = record.launch_mode
             view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
             view["evidence_summary"] = self._evidence_summary(session_id)
@@ -1355,6 +1455,11 @@ class RunApplicationService:
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
         view = result_view(result, verification.status.value if verification else "NOT_FOUND")
+        _annotate_execution_observations(
+            view,
+            control_root=self.control_root,
+            session_id=session_id,
+        )
         runtime_state = self._read_runtime_state(session_id)
         if isinstance(runtime_state, Mapping):
             view["launch_mode"] = runtime_state.get("launch_mode", "inherit")
@@ -2106,6 +2211,7 @@ class RunApplicationService:
         action_views = []
         codex_controller = record.runtime.get("codex_controller")
         codex_events = tuple(codex_controller.events) if codex_controller is not None else ()
+        posttool_ids = _posttool_use_ids(self.control_root, session.session_id)
 
         def matching_codex_event(action: Any) -> Any | None:
             action_evidence_ids = set(action.evidence_ids)
@@ -2119,6 +2225,8 @@ class RunApplicationService:
             policy_result: Any,
             attribution_result: Any,
             gate_result: Any,
+            *,
+            execution_observed: bool = False,
         ) -> None:
             action_views.append(
                 _runtime_action_view(
@@ -2126,6 +2234,7 @@ class RunApplicationService:
                     policy_result,
                     attribution_result,
                     gate_result,
+                    execution_observed=execution_observed,
                 )
             )
 
@@ -2157,7 +2266,16 @@ class RunApplicationService:
             policy_results.append(policy_result)
             attribution_results.append(attribution_result)
             gate_results.append(gate_result)
-            append_action_view(action, policy_result, attribution_result, gate_result)
+            append_action_view(
+                action,
+                policy_result,
+                attribution_result,
+                gate_result,
+                execution_observed=(
+                    codex_event is not None
+                    and codex_event.tool_use_id in posttool_ids
+                ),
+            )
 
         post_action_containments = (
             tuple(codex_controller.post_action_containments)
@@ -2173,6 +2291,7 @@ class RunApplicationService:
                 containment.policy_evaluation,
                 containment.attribution,
                 containment.gate_result,
+                execution_observed=True,
             )
             if containment.termination_error:
                 record.runtime.setdefault("post_action_containment_errors", []).append(
@@ -2291,9 +2410,16 @@ class RunApplicationService:
                     containment.policy_evaluation,
                     containment.attribution,
                     containment.gate_result,
+                    execution_observed=True,
                 )
             )
-        record.actions = action_views
+        display_view = {"actions": action_views}
+        _annotate_execution_observations(
+            display_view,
+            control_root=self.control_root,
+            session_id=record.session_id,
+        )
+        record.actions = display_view["actions"]
         record.incidents = [
             item
             for item in (incident_view(action) for action in action_views)
@@ -2517,13 +2643,24 @@ class RunApplicationService:
         protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
         policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
         stop = state.get("stop") if isinstance(state.get("stop"), dict) else {}
+        actions = [
+            dict(item)
+            for item in state.get("latest_actions", [])
+            if isinstance(item, Mapping)
+        ]
+        display_view = {"actions": actions}
+        _annotate_execution_observations(
+            display_view,
+            control_root=self.control_root,
+            session_id=str(state.get("session_id")),
+        )
         return {
             "checkpoint": state.get("checkpoint", "UNKNOWN"),
             "error": state.get("error"),
             "incident_count": state.get("incident_count", 0),
-            "latest_actions": state.get("latest_actions", []),
+            "latest_actions": display_view["actions"],
             "events": safe_event_views(
-                state.get("latest_actions", []),
+                display_view["actions"],
                 sensor_health=state.get("sensor_health", {}),
             ),
             "lease": state.get("lease", "UNKNOWN"),
@@ -2547,6 +2684,11 @@ class RunApplicationService:
     def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
         result = self.reader.read_result(session_id)
         view = result_view(result, self.reader.verification(session_id).status.value)
+        _annotate_execution_observations(
+            view,
+            control_root=self.control_root,
+            session_id=session_id,
+        )
         hook_events = self.reader.hook_event_count(session_id)
         sensor_failed = any(
             item.get("runtime_health_before_stop") == "FAILED"

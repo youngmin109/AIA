@@ -389,7 +389,7 @@ const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: 
 const bundleLabel = (value) => ({VALID: '유효 · 검증됨', INVALID: '검증 실패', UNVERIFIED: '검증 전', PENDING: '검증 중', NOT_FOUND: '확인 불가'})[value] || value || '검증 전';
 const decisionLabel = (value) => ({VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', OBSERVED: '관찰됨', AUDIT: '기록', ALLOW: '허용', DENY: '금지', NONE: '조치 없음', NOT_APPLICABLE: '해당 없음', CONTINUE: '계속 진행', CONTAIN: '차단 응답 전송', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', HEALTHY: '정상', FAILED: '실패', STOPPED: '종료됨'})[value] || value || '확인 필요';
 const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', NOT_REPORTED: '결과 미확인', NOT_APPLICABLE: '해당 없음', NONE: '결과 없음'})[value] || value || '확인 필요';
-const executionDisplayLabel = (value, ended = false) => ended && value === 'NOT_ATTEMPTED' ? '실행 여부 미확인' : executionLabel(value);
+const executionDisplayLabel = (value, ended = false, observed = false) => observed && value === 'NOT_ATTEMPTED' ? '실행 관찰됨' : ended && value === 'NOT_ATTEMPTED' ? '실행 여부 미확인' : executionLabel(value);
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor'})[value] || value || 'AIA';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
@@ -588,11 +588,12 @@ function renderSecurity(status) {
     item.event_id || item.summary,
     item.decision || '',
     item.execution_result || '',
+    item.execution_observed ? 'observed' : '',
     item.observed_at || '',
   ].join('~')).join('|');
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${event.execution_result && event.execution_result !== 'NOT_REPORTED' ? badge(event.execution_result, executionDisplayLabel(event.execution_result, ended)) : ''}</span></div>`).join('') : `<div class="empty">${ended ? '이 실행에는 보안 이벤트가 없습니다.' : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.'}</div>`;
+    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${ended ? '이 실행에는 보안 이벤트가 없습니다.' : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.'}</div>`;
   }
   document.getElementById('event-count').textContent = `${events.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
