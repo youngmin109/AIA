@@ -13,14 +13,16 @@
   <a class="button primary" href="/new">새 보호 실행</a>
 </section>
 <section class="panel">
+  <div class="panel-heading history-heading"><div><h2>전체 실행</h2><p class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div>
   <div class="history-filters">
     <label class="field">Workspace<input id="filter-workspace" placeholder="경로 검색"></label>
-    <label class="field">실행 상태<select id="filter-status"><option value="">전체</option><option>RUNNING</option><option>COMPLETED</option><option>ABORTED</option><option>FAILED</option></select></label>
-    <label class="field">보호 상태<input id="filter-protection" placeholder="예: VERIFIED"></label>
+    <label class="field">실행 상태<select id="filter-status"><option value="">전체 상태</option><option value="CREATED">생성됨</option><option value="PREPARING">보호 준비 중</option><option value="READY">실행 준비 완료</option><option value="LAUNCHING">Codex 시작 중</option><option value="RUNNING">실행 중</option><option value="COMPLETED">정상 완료</option><option value="ABORTED">사용자 중지</option><option value="FAILED">실패</option></select></label>
+    <label class="field">보호 상태<select id="filter-protection"><option value="">전체 보호 상태</option><option value="ACTIVE_VERIFIED">실행 중 · 검증됨</option><option value="ACTIVE_UNVERIFIED">실행 중 · 확인 중</option><option value="ACTIVE_DEGRADED">실행 중 · 일부 확인</option><option value="COMPLETED_VERIFIED">완료 · 검증됨</option><option value="COMPLETED_DEGRADED">완료 · 일부 확인</option><option value="ABORTED_VERIFIED">중지 · 검증됨</option><option value="ABORTED_DEGRADED">중지 · 일부 확인</option><option value="ORPHANED_DEGRADED">보호 경계 저하</option></select></label>
     <label class="field">차단 사건<select id="filter-incident"><option value="">전체</option><option value="yes">있음</option><option value="no">없음</option></select></label>
     <label class="field">날짜<input id="filter-date" type="date"></label>
   </div>
-  <div class="table-wrap"><table><thead><tr><th>Session</th><th>상태</th><th>Workspace</th><th>Policy</th><th>사건</th><th>Bundle</th><th></th></tr></thead>
+  <div class="history-filter-actions"><button id="reset-history-filters" class="button" type="button">필터 초기화</button></div>
+  <div class="table-wrap"><table><thead><tr><th>세션</th><th>상태</th><th>Workspace</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
   <tbody>
   {% for run in runs %}
     <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-date="{{ (run.created_at or '')[:10] }}">
@@ -28,7 +30,7 @@
       <td><span class="badge badge-{{ (run.status or 'unknown')|lower }}" title="{{ run.status }}">{{ status_labels.get(run.status, run.status or '확인 필요') }}</span>{% if run.protection_state %}<br><span class="muted" title="{{ run.protection_state }}">{{ protection_labels.get(run.protection_state, run.protection_state) }}</span>{% endif %}{% if (run.runtime_reconciliation or {}).get('orphaned') %}<br><span class="error-text">AIA 조정 프로세스 확인 필요</span>{% endif %}</td>
       <td class="mono target-cell">{{ run.workspace }}</td>
       <td>{{ (run.policy or {}).get('id') or (run.policy or {}).get('policy_id', '—') }}<br><span class="muted">{{ (run.policy or {}).get('version') or (run.policy or {}).get('policy_version', '—') }}</span></td>
-      <td>{{ run.incident_count }}</td>
+      <td>{{ run.incident_count }}건</td>
       <td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}" title="{{ run.bundle_status }}">{{ bundle_labels.get(run.bundle_status, run.bundle_status or '확인 필요') }}</span>{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% elif run.run_classification == 'LIVE_PROTECTED_RUN' %}<br><span class="muted">실행 중 상태</span>{% endif %}</td>
       <td>{% if run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}<a href="{{ run.result_url }}">결과 보기</a>{% elif run.launch_mode == 'web_terminal' %}<a href="/runs/{{ run.session_id }}/workbench">Workbench 열기</a>{% else %}<a href="/runs/{{ run.session_id }}">상태 보기</a>{% endif %}</td>
     </tr>
@@ -36,17 +38,28 @@
     <tr><td colspan="7" class="empty">아직 보호 실행 기록이 없습니다.</td></tr>
   {% endfor %}
   </tbody></table></div>
-  <p id="history-empty" class="empty" hidden>조건에 맞는 실행 기록이 없습니다.</p>
+  <p id="history-empty" class="empty" hidden>조건에 맞는 실행 기록이 없습니다. 필터를 초기화하거나 새 보호 실행을 시작하세요.</p>
 </section>
 <script>
 const rows = [...document.querySelectorAll('.run-row')];
+const filterIds = ['filter-workspace','filter-status','filter-protection','filter-incident','filter-date'];
 const values = (id) => document.getElementById(id).value.trim().toLowerCase();
 function filterRuns() {
   const workspace = values('filter-workspace'); const status = values('filter-status'); const protection = values('filter-protection'); const incident = values('filter-incident'); const date = document.getElementById('filter-date').value;
   let visible = 0;
   rows.forEach((row) => { const match = (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!date || row.dataset.date === date); row.hidden = !match; if (match) visible += 1; });
+  document.getElementById('history-result-count').textContent = `${visible}건 표시 / ${rows.length}건 전체`;
   document.getElementById('history-empty').hidden = visible !== 0;
 }
-['filter-workspace','filter-status','filter-protection','filter-incident','filter-date'].forEach((id) => document.getElementById(id).addEventListener('input', filterRuns));
+filterIds.forEach((id) => {
+  document.getElementById(id).addEventListener('input', filterRuns);
+  document.getElementById(id).addEventListener('change', filterRuns);
+});
+document.getElementById('reset-history-filters').addEventListener('click', () => {
+  filterIds.forEach((id) => { document.getElementById(id).value = ''; });
+  filterRuns();
+  document.getElementById('filter-workspace').focus();
+});
+filterRuns();
 </script>
 {% endblock %}

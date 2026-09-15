@@ -588,6 +588,13 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "보호 실행이 진행 중입니다" in dashboard.text
     assert "Workbench 열기" in dashboard.text
     assert "Workbench 열기" in history.text
+    assert "전체 실행" in history.text
+    assert 'id="history-result-count"' in history.text
+    assert "정상 완료" in history.text
+    assert "완료 · 검증됨" in history.text
+    assert "필터 초기화" in history.text
+    assert "filterIds" in history.text
+    assert "1건 표시 / 1건 전체" in history.text
     assert "/runs/run-1/result" not in history.text
 
 
