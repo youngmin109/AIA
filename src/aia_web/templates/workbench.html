@@ -63,6 +63,7 @@
             <span class="terminal-activity-bar" aria-hidden="true"></span>
             <span id="terminal-activity-label">Codex 작업 상태를 확인하는 중입니다.</span>
             <span id="terminal-activity-elapsed" class="mono"></span>
+            <button id="terminal-action" class="button terminal-action" type="button" hidden>신뢰하고 계속</button>
           </div>
         </div>
         <span id="terminal-pid" class="badge">PID —</span>
@@ -172,6 +173,8 @@ let lastTerminalOutputAt = 0;
 let terminalClosed = false;
 let terminalRuntimeStatus = 'UNKNOWN';
 let awaitingResponse = false;
+let terminalAction = null;
+let terminalDetectionBuffer = '';
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -420,7 +423,11 @@ function setTerminalStatus(status) {
   if (value === 'RUNNING' && terminalError.textContent === 'Workbench terminal is not attached') terminalError.hidden = true;
   if (value === 'FAILED') showTerminalError(status?.error || '터미널 연결에 실패했습니다.');
   if (value === 'RUNNING' && activityMode === 'IDLE') setTerminalActivity('STARTING', 'Codex 작업창에 연결하는 중입니다.');
-  if (value !== 'RUNNING') setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
+  if (value === 'NOT_STARTED' && activityMode === 'IDLE') setTerminalActivity('STARTING', 'Codex 작업창을 시작하는 중입니다.');
+  if (['FAILED', 'EXITED'].includes(value)) {
+    setTerminalAction(null);
+    setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
+  }
   stopButton.hidden = terminalEnded || !['RUNNING', 'NOT_STARTED'].includes(value);
 }
 function updateTerminalInputState() {
@@ -429,8 +436,17 @@ function updateTerminalInputState() {
   terminalSend.disabled = !terminalReady || awaitingResponse;
   terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
   terminalSend.setAttribute('aria-busy', String(awaitingResponse));
+  const actionButton = document.getElementById('terminal-action');
+  actionButton.disabled = !terminalReady || terminalAction !== 'TRUST_DIRECTORY';
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
+function setTerminalAction(action) {
+  terminalAction = action;
+  const actionButton = document.getElementById('terminal-action');
+  actionButton.hidden = action !== 'TRUST_DIRECTORY';
+  actionButton.textContent = action === 'TRUST_DIRECTORY' ? '신뢰하고 계속' : '';
+  updateTerminalInputState();
+}
 function updateFlow(phase) {
   const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(phase);
   const currentStep = phase === 'CREATED' || phase === 'PREPARING' ? 1 : terminal ? 4 : 2;
@@ -449,13 +465,17 @@ function appendTerminal(data) {
   // Codex so full-screen redraws replace the current view instead of being
   // appended as duplicate text.
   const text = String(data || '');
+  terminalDetectionBuffer = (terminalDetectionBuffer + text).slice(-16000);
   if (text.length) {
     lastTerminalOutputAt = Date.now();
     terminalLastOutput.title = formatTime(new Date(lastTerminalOutputAt).toISOString());
     updateTerminalOutputAge();
   }
-  if (/Working|working/.test(text)) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
-  else if (/Ask Codex to do anything|무엇을 도와드릴까요/.test(text)) setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
+  if (/Do you trust the contents of this directory\?/i.test(terminalDetectionBuffer) || /Press enter to continue/i.test(terminalDetectionBuffer)) {
+    setTerminalAction('TRUST_DIRECTORY');
+    setTerminalActivity('ACTION', 'Codex가 Workspace 신뢰 확인을 기다리고 있습니다. “신뢰하고 계속”을 눌러주세요.');
+  } else if (/Working\s*\(\s*\d+s/i.test(text)) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+  else if (/Ask Codex to do anything|무엇을 도와드릴까요/.test(text)) { setTerminalAction(null); setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.'); }
   else if (activityMode === 'STARTING') setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
   terminalScreen.consume(text);
 }
@@ -557,6 +577,10 @@ terminalOutput.addEventListener('click', () => terminalInput.focus());
 let composing = false;
 let submitAfterComposition = false;
 function submitTerminalLine() {
+  if (terminalAction === 'TRUST_DIRECTORY' && !terminalInput.value.length) {
+    continueTerminalAction();
+    return;
+  }
   if (awaitingResponse) return;
   const value = terminalInput.value;
   if (!value.length) return;
@@ -571,6 +595,16 @@ function submitTerminalLine() {
     if (send({type:'submit'})) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
     else showTerminalError('Codex에 전송하지 못했습니다. 터미널 연결을 확인하세요.');
   }, SUBMIT_SETTLE_MS);
+}
+function continueTerminalAction() {
+  if (terminalAction !== 'TRUST_DIRECTORY') return;
+  if (!send({type:'input', data:'\r'})) {
+    showTerminalError('Codex에 계속 진행 신호를 보내지 못했습니다. 터미널 연결을 확인하세요.');
+    return;
+  }
+  terminalDetectionBuffer = '';
+  setTerminalAction(null);
+  setTerminalActivity('WORKING', 'Codex가 Workspace 확인을 처리하는 중입니다.');
 }
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
 terminalInput.addEventListener('compositionend', () => {
@@ -589,6 +623,7 @@ terminalInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') { event.preventDefault(); submitTerminalLine(); return; }
   if (controls[event.key] && !terminalInput.value) { event.preventDefault(); send({type:'input', data: controls[event.key]}); return; }
 });
+document.getElementById('terminal-action').addEventListener('click', continueTerminalAction);
 window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
 stopButton.addEventListener('click', async () => { stopButton.disabled = true; await fetch(`/api/runs/${encodeURIComponent(sessionId)}/stop`, {method:'POST'}); });
 async function pollStatus() { try { const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`); if (response.ok) renderSecurity(await response.json()); } catch (_) {} }

@@ -312,6 +312,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "submitTerminalLine" in workbench.text
     assert "SUBMIT_SETTLE_MS = 250" in workbench.text
     assert "Codex에 질문을 제출하는 중입니다." in workbench.text
+    assert 'id="terminal-action"' in workbench.text
+    assert "신뢰하고 계속" in workbench.text
+    assert "TRUST_DIRECTORY" in workbench.text
+    assert "Workspace 신뢰 확인을 기다리고 있습니다." in workbench.text
+    assert "Working\\s*\\(\\s*\\d+s" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "submitAfterComposition" in workbench.text
@@ -455,6 +460,35 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "Workbench 열기" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "/runs/run-1/result" not in history.text
+
+
+def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
+    service = FakeService()
+    service.list_runs = lambda: [{
+        "session_id": "stale-run",
+        "status": "RUNNING",
+        "workspace": "C:/workspace",
+        "policy": {"id": "basic", "version": "1.0"},
+        "incident_count": 0,
+        "bundle_status": "PENDING",
+        "protection_state": "ORPHANED_DEGRADED",
+        "run_classification": "LIVE_PROTECTED_RUN",
+        "runtime_reconciliation": {
+            "status": "STALE_PROCESS_GONE",
+            "orphaned": True,
+            "action": "REVIEW_AND_RESTART",
+        },
+        "launch_mode": "web_terminal",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }]
+    client = TestClient(create_app(service))
+
+    dashboard = client.get("/")
+
+    assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
+    assert "보호 실행이 진행 중입니다" not in dashboard.text
+    assert "이전 보호 실행이 현재 연결되어 있지 않습니다" in dashboard.text
+    assert 'href="/runs/stale-run"' in dashboard.text
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:
