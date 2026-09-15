@@ -52,7 +52,15 @@
 
     <main class="workbench-terminal-panel">
       <div class="terminal-heading">
-        <div><h2>Codex 작업창</h2><span id="terminal-status" class="hint" aria-live="polite">터미널 연결을 기다리는 중입니다.</span></div>
+        <div class="terminal-heading-copy">
+          <h2>Codex 작업창</h2>
+          <span id="terminal-status" class="hint" aria-live="polite">터미널 연결을 기다리는 중입니다.</span>
+          <div id="terminal-activity" class="terminal-activity" role="status" aria-live="polite" hidden>
+            <span class="terminal-activity-bar" aria-hidden="true"></span>
+            <span id="terminal-activity-label">Codex 작업 상태를 확인하는 중입니다.</span>
+            <span id="terminal-activity-elapsed" class="mono"></span>
+          </div>
+        </div>
         <span id="terminal-pid" class="badge">PID —</span>
       </div>
       <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
@@ -62,10 +70,11 @@
         AIA Workbench가 보호된 Codex 작업창을 준비하고 있습니다…
         {% endif %}
       </div>
-      <div class="terminal-input-row">
+      <form id="terminal-input-form" class="terminal-input-row">
         <span class="terminal-input-prefix" aria-hidden="true">›</span>
         <textarea id="terminal-input-proxy" rows="1" aria-label="Codex 입력" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="여기에 입력하세요 · 한글 입력 지원 · Enter로 전송"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}></textarea>
-      </div>
+        <button id="terminal-send" class="button primary terminal-send" type="submit"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}>전송</button>
+      </form>
       <div class="terminal-input-hint">
         <span>입력창에서 작성한 뒤 Enter로 Codex에 전송합니다. Ctrl+C·방향키도 지원합니다.</span>
         <span class="mono">Workbench · 로컬 연결</span>
@@ -132,9 +141,14 @@ const initialStatus = {
 const runStatus = document.getElementById('run-status');
 const protectionState = document.getElementById('protection-state');
 const terminalOutput = document.getElementById('terminal-output');
+const terminalInputForm = document.getElementById('terminal-input-form');
 const terminalInput = document.getElementById('terminal-input-proxy');
+const terminalSend = document.getElementById('terminal-send');
 const terminalStatus = document.getElementById('terminal-status');
 const terminalPid = document.getElementById('terminal-pid');
+const terminalActivity = document.getElementById('terminal-activity');
+const terminalActivityLabel = document.getElementById('terminal-activity-label');
+const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
 const terminalError = document.getElementById('terminal-error');
 const stopButton = document.getElementById('stop-run');
 const resultLink = document.getElementById('result-link');
@@ -145,6 +159,9 @@ const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
 let socket = null;
 let socketRetry = null;
 let lastRenderedEventKey = '';
+let activityMode = 'IDLE';
+let activityStartedAt = 0;
+let activityTimer = null;
 
 const terminalScreen = (() => {
   let rows = Number(initialStatus.terminal?.rows) || 32;
@@ -311,6 +328,32 @@ const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(REA
 const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
 const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
 
+function updateActivityClock() {
+  if (!activityStartedAt) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - activityStartedAt) / 1000));
+  terminalActivityElapsed.textContent = `${elapsed}초`;
+  if (activityMode === 'WORKING' && elapsed >= 15) {
+    terminalActivityLabel.textContent = '응답이 지연되고 있습니다. Codex 상태를 확인하세요.';
+    terminalActivity.classList.add('activity-delayed');
+  } else if (activityMode === 'WORKING' && elapsed >= 5) {
+    terminalActivityLabel.textContent = 'Codex 응답을 기다리는 중입니다.';
+    terminalActivity.classList.add('activity-delayed');
+  }
+}
+function setTerminalActivity(mode, label) {
+  if (activityMode !== mode || !activityStartedAt) activityStartedAt = Date.now();
+  activityMode = mode;
+  terminalActivity.className = `terminal-activity activity-${String(mode).toLowerCase()}`;
+  terminalActivityLabel.textContent = label;
+  terminalActivity.hidden = mode === 'IDLE' || mode === 'STOPPED';
+  terminalActivityElapsed.textContent = '';
+  if (activityTimer) { clearInterval(activityTimer); activityTimer = null; }
+  if (!terminalActivity.hidden) {
+    updateActivityClock();
+    activityTimer = setInterval(updateActivityClock, 1000);
+  }
+}
+
 function setTerminalStatus(status) {
   const value = status?.status || 'UNKNOWN';
   const terminalEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
@@ -326,12 +369,15 @@ function setTerminalStatus(status) {
   terminalStatus.className = value === 'RUNNING' ? 'hint success-text' : value === 'FAILED' ? 'hint error-text' : 'hint';
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
   terminalInput.disabled = value !== 'RUNNING';
+  terminalSend.disabled = value !== 'RUNNING';
   if (status?.rows && status?.cols) terminalScreen.resize(Number(status.rows), Number(status.cols));
   // A browser can connect during the short launch window before the terminal
   // object is attached. Clear that transient message once the live session is
   // confirmed so a stale warning does not look like a current failure.
   if (value === 'RUNNING' && terminalError.textContent === 'Workbench terminal is not attached') terminalError.hidden = true;
   if (value === 'FAILED') showTerminalError(status?.error || '터미널 연결에 실패했습니다.');
+  if (value === 'RUNNING' && activityMode === 'IDLE') setTerminalActivity('STARTING', 'Codex 작업창에 연결하는 중입니다.');
+  if (value !== 'RUNNING') setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
   stopButton.hidden = terminalEnded || !['RUNNING', 'NOT_STARTED'].includes(value);
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
@@ -352,7 +398,11 @@ function appendTerminal(data) {
   // Terminal output is memory-only. Interpret the small ANSI subset used by
   // Codex so full-screen redraws replace the current view instead of being
   // appended as duplicate text.
-  terminalScreen.consume(data);
+  const text = String(data || '');
+  if (/Working|working/.test(text)) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+  else if (/Ask Codex to do anything|무엇을 도와드릴까요/.test(text)) setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
+  else if (activityMode === 'STARTING') setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
+  terminalScreen.consume(text);
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
 function openSocket() {
@@ -444,13 +494,17 @@ let submitAfterComposition = false;
 function submitTerminalLine() {
   const value = terminalInput.value;
   const accepted = send({type:'input', data: `${value}\r`});
-  if (accepted) terminalInput.value = '';
+  if (accepted) { terminalInput.value = ''; setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.'); }
 }
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
 terminalInput.addEventListener('compositionend', () => {
   composing = false;
-  if (submitAfterComposition) { submitAfterComposition = false; submitTerminalLine(); }
+  if (submitAfterComposition) {
+    submitAfterComposition = false;
+    window.setTimeout(submitTerminalLine, 0);
+  }
 });
+terminalInputForm.addEventListener('submit', (event) => { event.preventDefault(); submitTerminalLine(); });
 terminalInput.addEventListener('keydown', (event) => {
   const controls = {'Enter':'\r','Backspace':'\x7f','Tab':'\t','ArrowUp':'\x1b[A','ArrowDown':'\x1b[B','ArrowRight':'\x1b[C','ArrowLeft':'\x1b[D','Escape':'\x1b'};
   if (event.key === 'Enter' && event.isComposing) { submitAfterComposition = true; return; }
