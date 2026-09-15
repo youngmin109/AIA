@@ -434,6 +434,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalInput.scrollIntoView({behavior: 'smooth', block: 'center'})" in workbench.text
     assert 'id="terminal-activity"' in workbench.text
     assert 'class="terminal-output' in workbench.text
+    assert 'id="terminal-placeholder"' in workbench.text
     assert "is-loading" in workbench.text
     assert 'id="terminal-connection"' in workbench.text
     assert 'id="terminal-last-output"' in workbench.text

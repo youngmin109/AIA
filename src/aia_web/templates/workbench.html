@@ -137,7 +137,7 @@
         {% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
         이 보호 실행은 종료되었습니다. 작업창 출력은 저장하지 않습니다. 결과 보기에서 실행 기록을 확인하세요.
         {% else %}
-        AIA Workbench가 보호된 Codex 작업창을 준비하고 있습니다…
+        <span id="terminal-placeholder" hidden aria-hidden="true">AIA Workbench가 보호된 Codex 작업창을 준비하고 있습니다…</span>
         {% endif %}
       </div>
       <div id="terminal-examples" class="terminal-examples" hidden>
