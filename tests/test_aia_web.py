@@ -243,6 +243,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     new_run = client.get("/new")
     assert new_run.status_code == 200
     assert "보호 실행 시작" in new_run.text
+    assert 'id="run-next-action"' in new_run.text
+    assert 'id="run-next-action-title"' in new_run.text
+    assert 'id="run-next-action-detail"' in new_run.text
+    assert 'id="run-next-action-link"' in new_run.text
+    assert 'id="preflight-panel"' in new_run.text
+    assert 'id="workspace-input"' in new_run.text
+    assert "updateNextAction" in new_run.text
     assert "작업 폴더 선택" in new_run.text
     assert 'data-run-step="1"' in new_run.text
     assert 'data-run-step="4"' in new_run.text

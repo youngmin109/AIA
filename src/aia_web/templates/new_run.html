@@ -6,6 +6,15 @@
   <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
   <h1>보호 실행 시작</h1>
   <p class="lede">먼저 작업 폴더와 보호 정책을 선택합니다. 준비가 끝나면 AIA가 보호된 Codex 세션을 열고, 실행 전 도구 요청과 파일 변화를 기록합니다.</p>
+  <div id="run-next-action" class="run-next-action" data-state="workspace" aria-live="polite">
+    <span class="run-next-action-mark" aria-hidden="true">1</span>
+    <div class="run-next-action-copy">
+      <span class="run-next-action-kicker">지금 할 일</span>
+      <strong id="run-next-action-title">보호할 Workspace 경로를 입력하세요.</strong>
+      <small id="run-next-action-detail">사용자가 만든 기존 프로젝트 폴더를 아래 실행 설정에 입력하면 AIA가 실제 경로를 확인합니다.</small>
+    </div>
+    <a id="run-next-action-link" class="run-next-action-link" href="#run-settings">Workspace 입력으로 이동</a>
+  </div>
 </section>
 
 <section class="run-steps" aria-label="보호 실행 순서">
@@ -15,7 +24,7 @@
   <div class="run-step" data-run-step="4"><span>4</span><strong>결과 확인</strong><small>차단·허용·증거·무결성을 결과로 남깁니다.</small></div>
 </section>
 
-<section class="panel preflight-panel">
+<section id="preflight-panel" class="panel preflight-panel">
   <div class="panel-heading">
     <h2>실행 전 준비 상태</h2>
     <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">자동 확인 완료</span></div>
@@ -96,7 +105,7 @@
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
-        <input name="workspace" list="recent-workspaces" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <input id="workspace-input" name="workspace" list="recent-workspaces" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
         <datalist id="recent-workspaces"></datalist>
         <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
         <span id="workspace-status" class="hint" role="status" aria-live="polite">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
@@ -253,6 +262,11 @@ const jumpToRun = document.getElementById('jump-to-run');
 const preflightNextSteps = document.getElementById('preflight-next-steps');
 const refreshPreflightButton = document.getElementById('refresh-preflight');
 const preflightRefreshStatus = document.getElementById('preflight-refresh-status');
+const runNextAction = document.getElementById('run-next-action');
+const runNextActionMark = document.querySelector('.run-next-action-mark');
+const runNextActionTitle = document.getElementById('run-next-action-title');
+const runNextActionDetail = document.getElementById('run-next-action-detail');
+const runNextActionLink = document.getElementById('run-next-action-link');
 const profileDescriptions = {{ profiles|tojson }};
 const taskField = document.getElementById('task-field');
 const taskInput = document.getElementById('task-input');
@@ -492,6 +506,51 @@ function updateRunSubmitState() {
       : '실행 설정이 준비되었습니다.';
   updateRunProgress();
 }
+function updateNextAction() {
+  if (!runNextAction) return;
+  let state = 'workspace';
+  let mark = '1';
+  let title = '보호할 Workspace 경로를 입력하세요.';
+  let detail = '사용자가 만든 기존 프로젝트 폴더를 아래 실행 설정에 입력하면 AIA가 실제 경로를 확인합니다.';
+  let link = '#run-settings';
+  let linkLabel = 'Workspace 입력으로 이동';
+  if (runSubmissionInProgress) {
+    state = 'busy';
+    mark = '…';
+    title = '보호 실행을 준비하는 중입니다.';
+    detail = '정책·Checkpoint·센서를 준비하고 있습니다. 잠시 후 Workbench로 이동합니다.';
+    link = '';
+    linkLabel = '';
+  } else if (!preflightReady) {
+    state = 'preflight';
+    mark = '2';
+    title = '실행 전 준비를 먼저 완료하세요.';
+    detail = 'Hook Trust와 현재 연결 증명을 확인한 뒤 보호 실행을 시작할 수 있습니다.';
+    link = '#preflight-panel';
+    linkLabel = '준비 상태 확인';
+  } else if (!workspaceIsValid || validatedWorkspacePath !== workspaceInput.value.trim()) {
+    state = workspaceInput.value.trim() ? 'workspace-invalid' : 'workspace';
+    mark = '1';
+    title = workspaceInput.value.trim() ? 'Workspace 경로를 확인하세요.' : '보호할 Workspace 경로를 입력하세요.';
+    detail = workspaceInput.value.trim() ? 'AIA가 확인할 수 있는 기존 폴더를 입력해야 실행 버튼이 활성화됩니다.' : '사용자가 만든 기존 프로젝트 폴더를 아래 실행 설정에 입력하면 AIA가 실제 경로를 확인합니다.';
+    link = '#run-settings';
+    linkLabel = 'Workspace 입력으로 이동';
+  } else {
+    state = 'ready';
+    mark = '✓';
+    title = '보호 실행을 시작할 수 있습니다.';
+    detail = '정책과 작업 방식을 확인한 뒤 아래 버튼을 누르면 보호된 Codex 세션이 열립니다.';
+    link = '#submit-run';
+    linkLabel = '실행 버튼으로 이동';
+  }
+  runNextAction.dataset.state = state;
+  runNextActionMark.textContent = mark;
+  runNextActionTitle.textContent = title;
+  runNextActionDetail.textContent = detail;
+  runNextActionLink.hidden = !link;
+  if (link) runNextActionLink.href = link;
+  runNextActionLink.textContent = linkLabel;
+}
 function updateRunProgress() {
   const workspaceReady = workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
   const currentStep = !workspaceReady ? 1 : !preflightReady ? 2 : 3;
@@ -504,6 +563,7 @@ function updateRunProgress() {
     if (active) step.setAttribute('aria-current', 'step');
     else step.removeAttribute('aria-current');
   });
+  updateNextAction();
 }
 async function validateWorkspacePath() {
   const path = workspaceInput.value.trim();
