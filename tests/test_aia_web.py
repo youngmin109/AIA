@@ -315,6 +315,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "topbar-workbench" in workbench.text
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
+    assert 'id="security-panel-toggle"' in workbench.text
+    assert 'id="security-panel-content"' in workbench.text
+    assert "setSecurityPanelCollapsed" in workbench.text
+    assert 'aria-expanded="true"' in workbench.text
     assert 'id="protection-state-note"' in workbench.text
     assert "최근 이벤트" in workbench.text
     assert 'id="workbench-guidance"' in workbench.text
