@@ -140,6 +140,44 @@ def test_safe_event_view_never_copies_command_or_secret() -> None:
     assert "type SUPER_SECRET" not in repr(events)
 
 
+def test_safe_event_view_does_not_treat_observation_stage_as_hook_sensor() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "observation_stage": "POST_ACTION",
+                "evidence_ids": ["process-1"],
+                "target": {"target_kind": "PROCESS"},
+            }
+        ],
+        evidence_metadata=[
+            {
+                "evidence_id": "process-1",
+                "source": "PROCESS_RUNTIME",
+                "record_type": "PROCESS_OBSERVED",
+            }
+        ],
+    )
+
+    assert events[0]["sensor"] == "PROCESS_RUNTIME"
+
+
+def test_safe_event_view_uses_runtime_when_sensor_evidence_is_not_linked() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "observation_stage": "POST_ACTION",
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["sensor"] == "RUNTIME"
+
+
 def test_evidence_chain_links_sensor_metadata_without_copying_payload() -> None:
     chains = evidence_chain_views(
         [

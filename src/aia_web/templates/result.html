@@ -12,7 +12,7 @@
 {% set bundle_verified = result.bundle_status == 'VALID' %}
 {% set protection_degraded = protection_state in ['COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'FAILED_DEGRADED', 'ACTIVE_DEGRADED', 'UNKNOWN'] %}
 {% set sensor_order = ['AGENT_HOOK', 'FILESYSTEM_WATCHER', 'PROCESS_RUNTIME'] %}
-{% set sensor_names = {'AGENT_HOOK': 'Hook Sensor', 'FILESYSTEM_WATCHER': 'File Sensor', 'PROCESS_RUNTIME': 'Process Sensor'} %}
+{% set sensor_names = {'AGENT_HOOK': 'Hook Sensor', 'FILESYSTEM_WATCHER': 'File Sensor', 'PROCESS_RUNTIME': 'Process Sensor', 'RUNTIME': 'Runtime Sensor', 'MULTI_SENSOR': '복수 센서'} %}
 {% set health_names = {'HEALTHY': '정상 관찰', 'FAILED': '관찰 실패', 'STOPPED': '관찰 종료'} %}
 {% set final_names = {'STOPPED': '정상 종료', 'FAILED': '종료 실패', 'RUNNING': '실행 중'} %}
 {% set session_names = {'CREATED': '생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': '실행 중', 'COMPLETED': '정상 완료', 'ABORTED': '사용자 중지', 'FAILED': '실행 실패'} %}

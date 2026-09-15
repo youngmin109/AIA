@@ -418,7 +418,10 @@ def _annotate_execution_observations(
                 item["observed_at"] = max(timestamps)
         actions.append(item)
     view["actions"] = actions
-    view["events"] = safe_event_views(actions)
+    view["events"] = safe_event_views(
+        actions,
+        evidence_metadata=evidence_metadata or (),
+    )
     view["evidence_chains"] = evidence_chain_views(
         actions,
         evidence_metadata=evidence_metadata or (),
@@ -1042,7 +1045,11 @@ class RunApplicationService:
             "error": record.error,
             "incident_count": len(incidents),
             "latest_actions": display_view["actions"][-20:],
-            "events": safe_event_views(display_view["actions"], sensor_health=record.sensor_health),
+            "events": safe_event_views(
+                display_view["actions"],
+                sensor_health=record.sensor_health,
+                evidence_metadata=evidence_metadata,
+            ),
             "evidence_chains": display_view["evidence_chains"],
             "evidence_timeline": display_view["evidence_timeline"],
             "lease": record.lease,
@@ -2711,14 +2718,15 @@ class RunApplicationService:
             if isinstance(item, Mapping)
         ]
         display_view = {"actions": actions}
+        evidence_metadata = self._evidence_metadata(
+            str(state.get("session_id")),
+            require_valid=False,
+        )
         _annotate_execution_observations(
             display_view,
             control_root=self.control_root,
             session_id=str(state.get("session_id")),
-            evidence_metadata=self._evidence_metadata(
-                str(state.get("session_id")),
-                require_valid=False,
-            ),
+            evidence_metadata=evidence_metadata,
         )
         return {
             "checkpoint": state.get("checkpoint", "UNKNOWN"),
@@ -2728,6 +2736,7 @@ class RunApplicationService:
             "events": safe_event_views(
                 display_view["actions"],
                 sensor_health=state.get("sensor_health", {}),
+                evidence_metadata=evidence_metadata,
             ),
             "evidence_chains": display_view["evidence_chains"],
             "evidence_timeline": display_view["evidence_timeline"],

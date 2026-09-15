@@ -9,6 +9,7 @@ def safe_event_views(
     actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     *,
     sensor_health: Mapping[str, str] | None = None,
+    evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
 ) -> list[dict[str, Any]]:
     """Build a display-only timeline without raw targets or payload values.
 
@@ -16,6 +17,38 @@ def safe_event_views(
     commands, secrets, and full evidence payloads remain in the protected
     bundle and are never copied into this live view.
     """
+
+    known_sensors = {
+        "AGENT_HOOK",
+        "FILESYSTEM_WATCHER",
+        "PROCESS_RUNTIME",
+        "RUNTIME",
+        "MULTI_SENSOR",
+    }
+    evidence_sources_by_id = {
+        str(item.get("evidence_id")): str(item.get("source"))
+        for item in evidence_metadata
+        if isinstance(item, Mapping)
+        and item.get("evidence_id")
+        and item.get("source") in known_sensors
+    }
+
+    def event_sensor(action: Mapping[str, Any]) -> str:
+        explicit_sensor = action.get("sensor") or action.get("source")
+        if explicit_sensor in known_sensors:
+            return str(explicit_sensor)
+        evidence_sources = {
+            evidence_sources_by_id[evidence_id]
+            for evidence_id in action.get("evidence_ids", ())
+            if isinstance(evidence_id, str) and evidence_id in evidence_sources_by_id
+        }
+        if len(evidence_sources) == 1:
+            return next(iter(evidence_sources))
+        if len(evidence_sources) > 1:
+            return "MULTI_SENSOR"
+        # observation_stage describes when an action was observed, not which
+        # sensor produced it.  Never infer Hook Sensor from PRE/POST_ACTION.
+        return "RUNTIME"
 
     events: list[dict[str, Any]] = []
     for action in actions:
@@ -46,7 +79,7 @@ def safe_event_views(
                 "decision": display_decision,
                 "execution_result": execution or "NOT_REPORTED",
                 "execution_observed": execution_observed,
-                "sensor": "AGENT_HOOK" if action.get("observation_stage") else "RUNTIME",
+                "sensor": event_sensor(action),
                 "severity": severity,
                 "observed_at": action.get("observed_at"),
                 "chain_action_id": action.get("action_id"),
