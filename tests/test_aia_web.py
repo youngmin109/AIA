@@ -618,6 +618,10 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "중지 처리 중" in history.text
     assert "보호 실패" in history.text
     assert "READY_UNVERIFIED" in history.text
+    assert 'id="history-pagination"' in history.text
+    assert 'id="history-prev"' in history.text
+    assert 'id="history-next"' in history.text
+    assert "historyPageSize = 20" in history.text
     assert "/runs/run-1/result" not in history.text
 
 

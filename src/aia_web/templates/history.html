@@ -54,21 +54,36 @@
       <td>{% if run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}<a href="{{ run.result_url }}">결과 보기</a>{% elif run.launch_mode == 'web_terminal' %}<a href="/runs/{{ run.session_id }}/workbench">Workbench 열기</a>{% else %}<a href="/runs/{{ run.session_id }}">상태 보기</a>{% endif %}</td>
     </tr>
   {% else %}
-    <tr><td colspan="7" class="empty">아직 보호 실행 기록이 없습니다.</td></tr>
+    <tr><td colspan="8" class="empty">아직 보호 실행 기록이 없습니다.</td></tr>
   {% endfor %}
   </tbody></table></div>
   <p id="history-empty" class="empty" hidden>조건에 맞는 실행 기록이 없습니다. 필터를 초기화하거나 새 보호 실행을 시작하세요.</p>
+  <div id="history-pagination" class="history-pagination" aria-label="실행 기록 페이지 이동" hidden>
+    <button id="history-prev" class="button" type="button">이전</button>
+    <span id="history-page" class="hint" aria-live="polite">1 / 1 페이지</span>
+    <button id="history-next" class="button" type="button">다음</button>
+  </div>
 </section>
 <script>
 const rows = [...document.querySelectorAll('.run-row')];
 const filterIds = ['filter-workspace','filter-status','filter-protection','filter-incident','filter-date'];
+const historyPageSize = 20;
+let historyPage = 1;
 const values = (id) => document.getElementById(id).value.trim().toLowerCase();
 function filterRuns() {
   const workspace = values('filter-workspace'); const status = values('filter-status'); const protection = values('filter-protection'); const incident = values('filter-incident'); const date = document.getElementById('filter-date').value;
-  let visible = 0;
-  rows.forEach((row) => { const match = (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!date || row.dataset.date === date); row.hidden = !match; if (match) visible += 1; });
-  document.getElementById('history-result-count').textContent = `${visible}건 표시 / ${rows.length}건 전체`;
-  document.getElementById('history-empty').hidden = visible !== 0;
+  const matchingRows = rows.filter((row) => (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!date || row.dataset.date === date));
+  const pageCount = Math.max(1, Math.ceil(matchingRows.length / historyPageSize));
+  historyPage = Math.min(historyPage, pageCount);
+  rows.forEach((row) => { row.hidden = true; });
+  matchingRows.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize).forEach((row) => { row.hidden = false; });
+  document.getElementById('history-result-count').textContent = `${matchingRows.length}건 찾음 / ${rows.length}건 전체`;
+  document.getElementById('history-empty').hidden = matchingRows.length !== 0;
+  const pagination = document.getElementById('history-pagination');
+  pagination.hidden = matchingRows.length <= historyPageSize;
+  document.getElementById('history-page').textContent = `${historyPage} / ${pageCount} 페이지`;
+  document.getElementById('history-prev').disabled = historyPage <= 1;
+  document.getElementById('history-next').disabled = historyPage >= pageCount;
 }
 document.querySelectorAll('.history-time').forEach((time) => {
   const value = time.getAttribute('datetime');
@@ -79,14 +94,17 @@ document.querySelectorAll('.history-time').forEach((time) => {
   time.title = date.toLocaleString('ko-KR');
 });
 filterIds.forEach((id) => {
-  document.getElementById(id).addEventListener('input', filterRuns);
-  document.getElementById(id).addEventListener('change', filterRuns);
+  document.getElementById(id).addEventListener('input', () => { historyPage = 1; filterRuns(); });
+  document.getElementById(id).addEventListener('change', () => { historyPage = 1; filterRuns(); });
 });
 document.getElementById('reset-history-filters').addEventListener('click', () => {
   filterIds.forEach((id) => { document.getElementById(id).value = ''; });
+  historyPage = 1;
   filterRuns();
   document.getElementById('filter-workspace').focus();
 });
+document.getElementById('history-prev').addEventListener('click', () => { if (historyPage > 1) { historyPage -= 1; filterRuns(); } });
+document.getElementById('history-next').addEventListener('click', () => { historyPage += 1; filterRuns(); });
 filterRuns();
 </script>
 {% endblock %}
