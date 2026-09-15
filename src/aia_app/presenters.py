@@ -88,12 +88,21 @@ def safe_target(target: Mapping[str, Any] | None) -> dict[str, Any]:
 
 def action_view(action: Mapping[str, Any]) -> dict[str, Any]:
     target = safe_target(action.get("target"))
+    policy_decision = action.get("policy_decision") or action.get("policy")
+    attribution = (
+        action.get("attribution_grade")
+        or action.get("attribution_class")
+        or action.get("attribution")
+    )
+    enforcement = action.get("enforcement_action") or action.get("enforcement")
+    operation_effect = action.get("operation_effect") or action.get("policy_effect")
+    route = action.get("enforcement_route") or action.get("route")
     return {
         "action_id": action.get("action_id"),
-        "attribution": action.get("attribution_grade"),
+        "attribution": attribution,
         "attribution_reason": action.get("attribution_reason"),
-        "enforcement": action.get("enforcement_action"),
-        "enforcement_action": action.get("enforcement_action"),
+        "enforcement": enforcement,
+        "enforcement_action": enforcement,
         "enforcement_decision": action.get("enforcement_decision"),
         "execution_result": action.get("execution_result"),
         "execution_observed": bool(action.get("execution_observed")),
@@ -103,13 +112,13 @@ def action_view(action: Mapping[str, Any]) -> dict[str, Any]:
         "observation_stage": action.get("observation_stage"),
         "observed_at": action.get("observed_at"),
         "operation": action.get("operation"),
-        "policy": action.get("policy_decision"),
-        "policy_decision": action.get("policy_decision"),
-        "operation_effect": action.get("operation_effect"),
-        "policy_effect": action.get("operation_effect") or action.get("policy_decision"),
-        "attribution_class": action.get("attribution_grade"),
-        "route": action.get("enforcement_route") or action.get("route"),
-        "enforcement_route": action.get("enforcement_route") or action.get("route"),
+        "policy": policy_decision,
+        "policy_decision": policy_decision,
+        "operation_effect": operation_effect,
+        "policy_effect": operation_effect or policy_decision,
+        "attribution_class": attribution,
+        "route": route,
+        "enforcement_route": route,
         "target": target,
     }
 

@@ -935,6 +935,10 @@ def test_presenters_keep_sensitive_target_values_out_of_views() -> None:
     assert incident is not None
     assert incident["attribution_class"] == "EXACT"
 
+    reparsed = action_view(view)
+    assert reparsed["attribution_class"] == "EXACT"
+    assert reparsed["enforcement_action"] == "CONTAIN"
+
 
 def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> None:
     view = result_view(
@@ -1153,6 +1157,37 @@ def test_result_presenter_marks_action_incidents_for_result_links() -> None:
         "VALID",
     )
     assert view["actions"][0]["incident"] is True
+
+
+def test_result_presenter_preserves_attribution_in_evidence_chain() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "action_outcomes": [
+                {
+                    "action_id": "a1",
+                    "operation": "MODIFY",
+                    "policy_decision": "COMPLIANT",
+                    "attribution_grade": "EXACT",
+                    "enforcement_action": "NONE",
+                    "execution_result": "SUCCEEDED",
+                    "evidence_ids": ["h1"],
+                },
+            ],
+            "attribution_results": [
+                {
+                    "action_id": "a1",
+                    "grade": "EXACT",
+                    "supporting_evidence_ids": ["h1"],
+                },
+            ],
+        },
+        "VALID",
+    )
+
+    assert view["evidence_chains"][0]["stages"][3]["status"] == "EXACT"
 
 
 def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_path) -> None:
