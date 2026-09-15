@@ -145,6 +145,7 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .workbench-observation-meta strong { color: var(--text); font-weight: 600; margin-left: 3px; }
 .incident-card { border-color: rgba(245,199,106,.45); }
 .incident-card > strong { display: block; margin-bottom: 13px; overflow-wrap: anywhere; }
+.incident-note { margin: 13px 0 0; padding-top: 11px; border-top: 1px solid rgba(245,199,106,.2); color: var(--muted); font-size: 11px; line-height: 1.55; }
 .workbench-bottom { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)) minmax(240px, 2fr); gap: 12px; margin-top: 14px; }
 .workbench-bottom-card { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 11px; padding: 13px; background: rgba(17,27,38,.78); }
 .workbench-bottom-card span, .workbench-bottom-card small { color: var(--muted); font-size: 11px; }

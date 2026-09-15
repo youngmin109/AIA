@@ -114,6 +114,7 @@
           <dt>실제 결과</dt><dd id="incident-execution">—</dd>
           <dt>부작용</dt><dd id="incident-effect">확인 중</dd>
         </dl>
+        <p id="incident-note" class="incident-note" aria-live="polite"></p>
         <a id="incident-detail-link" class="text-link" href="#" hidden>사건 상세 보기 →</a>
       </section>
     </aside>
@@ -391,7 +392,7 @@ const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: 
 const bundleLabel = (value) => ({VALID: '유효 · 검증됨', INVALID: '검증 실패', UNVERIFIED: '검증 전', PENDING: '검증 중', NOT_FOUND: '확인 불가'})[value] || value || '검증 전';
 const decisionLabel = (value) => ({VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', OBSERVED: '관찰됨', AUDIT: '기록', ALLOW: '허용', DENY: '금지', NONE: '조치 없음', NOT_APPLICABLE: '해당 없음', CONTINUE: '계속 진행', CONTAIN: '차단 응답 전송', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', HEALTHY: '정상', FAILED: '실패', STOPPED: '종료됨'})[value] || value || '확인 필요';
 const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', NOT_REPORTED: '결과 미확인', NOT_APPLICABLE: '해당 없음', NONE: '결과 없음'})[value] || value || '확인 필요';
-const executionDisplayLabel = (value, ended = false, observed = false) => observed && value === 'NOT_ATTEMPTED' ? '실행 관찰됨' : ended && value === 'NOT_ATTEMPTED' ? '실행 여부 미확인' : executionLabel(value);
+const executionDisplayLabel = (value, ended = false, observed = false) => observed && value === 'NOT_ATTEMPTED' ? '실행 관찰됨' : ended && value === 'NOT_ATTEMPTED' ? '실행 여부 미확인' : value === 'NOT_ATTEMPTED' ? '실행 확인 중' : executionLabel(value);
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor'})[value] || value || 'AIA';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
@@ -620,6 +621,7 @@ function renderSecurity(status) {
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
   const incident = events.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity) || ['CONTAIN', 'REFUSE'].includes(event.decision));
   const incidentCard = document.getElementById('incident-card');
+  const incidentNote = document.getElementById('incident-note');
   if (incident) {
     incidentCard.hidden = false;
     document.getElementById('incident-title').textContent = `${eventSummaryLabel(incident.summary) || '보호 대상 행위'} · ${incident.target_label || '대상'}`;
@@ -637,6 +639,11 @@ function renderSecurity(status) {
       : blockPending
         ? ended ? '실행 여부를 확인할 증거 없음' : '도구 실행 여부 확인 중'
         : '확인 필요';
+    incidentNote.textContent = blockedConfirmed
+      ? 'AIA의 독립 증거로 차단과 부작용 없음을 확인했습니다.'
+      : blockPending
+        ? 'Codex의 설명만으로는 실제 실행 여부를 확정하지 않습니다. PostToolUse 또는 부작용 검증 증거를 기다립니다.'
+        : 'AIA가 확인 가능한 독립 증거가 부족합니다.';
     if (incident.incident_action_id) {
       incidentDetailLink.hidden = false;
       incidentDetailLink.href = `/runs/${encodeURIComponent(sessionId)}/incidents/${encodeURIComponent(incident.incident_action_id)}`;
@@ -645,6 +652,7 @@ function renderSecurity(status) {
     }
   } else {
     incidentDetailLink.hidden = true;
+    incidentNote.textContent = '';
   }
   resultLink.hidden = !status.result_available;
   setTerminalStatus(status.terminal || {});

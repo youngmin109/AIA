@@ -331,6 +331,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "item.execution_observed ? 'observed'" in workbench.text
     assert "execution_observed" in workbench.text
     assert "실행 관찰됨" in workbench.text
+    assert 'id="incident-note"' in workbench.text
+    assert "Codex의 설명만으로는 실제 실행 여부를 확정하지 않습니다." in workbench.text
+    assert "실행 확인 중" in workbench.text
     assert "responseStartedAt" in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
     assert "terminalOutput.setAttribute('aria-busy'" in workbench.text
