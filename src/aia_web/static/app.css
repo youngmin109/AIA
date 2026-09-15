@@ -26,8 +26,12 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .new-run-page > .policy-editor-panel { order: 6; }
 .new-run-page > .capability-panel { order: 7; }
 #run-settings { scroll-margin-top: 94px; }
-.run-step { min-height: 128px; padding: 17px; border: 1px solid var(--line); border-radius: 13px; background: rgba(17,27,38,.62); }
+.run-step { min-height: 128px; padding: 17px; border: 1px solid var(--line); border-radius: 13px; background: rgba(17,27,38,.62); transition: border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+.run-step.is-active { border-color: rgba(101,217,232,.72); background: rgba(101,217,232,.075); box-shadow: 0 0 0 2px rgba(101,217,232,.08); }
+.run-step.is-done { border-color: rgba(103,229,154,.42); background: rgba(103,229,154,.045); }
 .run-step span { display: grid; place-items: center; width: 27px; height: 27px; margin-bottom: 12px; border-radius: 50%; background: rgba(101,217,232,.16); color: var(--cyan); font-weight: 800; }
+.run-step.is-done span { color: #071117; background: var(--green); font-size: 0; }
+.run-step.is-done span::after { content: '✓'; font-size: 14px; }
 .run-step strong, .run-step small { display: block; }
 .run-step small { margin-top: 6px; color: var(--muted); line-height: 1.4; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; } .field { display: grid; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 650; } .field-wide { grid-column: 1 / -1; } input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 11px 13px; background: #0c151e; color: var(--text); font: inherit; outline: none; } input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(101,217,232,.12); } textarea { resize: vertical; min-height: 125px; }

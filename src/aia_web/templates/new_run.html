@@ -9,10 +9,10 @@
 </section>
 
 <section class="run-steps" aria-label="보호 실행 순서">
-  <div class="run-step"><span>1</span><strong>작업 폴더 선택</strong><small>사용자가 만든 Workspace를 지정합니다.</small></div>
-  <div class="run-step"><span>2</span><strong>정책·기준점 준비</strong><small>정책을 고정하고 Checkpoint를 만듭니다.</small></div>
-  <div class="run-step"><span>3</span><strong>Codex 보호 실행</strong><small>지원되는 도구 요청을 실행 전에 평가합니다.</small></div>
-  <div class="run-step"><span>4</span><strong>결과 확인</strong><small>차단·허용·증거·무결성을 결과로 남깁니다.</small></div>
+  <div class="run-step is-active" data-run-step="1" aria-current="step"><span>1</span><strong>작업 폴더 선택</strong><small>사용자가 만든 Workspace를 지정합니다.</small></div>
+  <div class="run-step" data-run-step="2"><span>2</span><strong>정책·기준점 준비</strong><small>정책을 고정하고 Checkpoint를 만듭니다.</small></div>
+  <div class="run-step" data-run-step="3"><span>3</span><strong>Codex 보호 실행</strong><small>지원되는 도구 요청을 실행 전에 평가합니다.</small></div>
+  <div class="run-step" data-run-step="4"><span>4</span><strong>결과 확인</strong><small>차단·허용·증거·무결성을 결과로 남깁니다.</small></div>
 </section>
 
 <section class="panel preflight-panel">
@@ -239,6 +239,7 @@ let workspaceValidationRequest = 0;
 let workspaceValidationTimer = null;
 let validatedWorkspacePath = '';
 let workspaceIsValid = false;
+const runProgressSteps = [...document.querySelectorAll('[data-run-step]')];
 const editorRuleList = document.getElementById('editor-rules');
 const policyEditorPanel = document.querySelector('.policy-editor-panel');
 function renderEditorRules() {
@@ -295,6 +296,7 @@ function updateRunMode() {
 }
 runModeInputs.forEach((input) => input.addEventListener('change', updateRunMode));
 updateRunMode();
+updateRunProgress();
 function updateProfileDescription() {
   const selected = profileDescriptions.find((item) => item.value === profile.value);
   document.getElementById('policy-description').textContent = selected?.description || '';
@@ -387,9 +389,23 @@ function updateRunSubmitState() {
   submitRun.disabled = !ready || runSubmissionInProgress;
   document.getElementById('run-submit-hint').textContent = !preflightReady
     ? '실행 전 준비 상태를 먼저 해결하세요.'
-    : !workspaceIsValid
+      : !workspaceIsValid
       ? '존재하는 Workspace 경로를 확인하면 실행할 수 있습니다.'
       : '실행 설정이 준비되었습니다.';
+  updateRunProgress();
+}
+function updateRunProgress() {
+  const workspaceReady = workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  const currentStep = !workspaceReady ? 1 : !preflightReady ? 2 : 3;
+  runProgressSteps.forEach((step) => {
+    const number = Number(step.dataset.runStep);
+    const active = number === currentStep;
+    const done = number < currentStep;
+    step.classList.toggle('is-active', active);
+    step.classList.toggle('is-done', done);
+    if (active) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
 }
 async function validateWorkspacePath() {
   const path = workspaceInput.value.trim();
