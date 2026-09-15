@@ -170,6 +170,8 @@ let activityStartedAt = 0;
 let activityTimer = null;
 let lastTerminalOutputAt = 0;
 let terminalClosed = false;
+let terminalRuntimeStatus = 'UNKNOWN';
+let awaitingResponse = false;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -366,6 +368,8 @@ function updateActivityClock() {
 function setTerminalActivity(mode, label) {
   if (activityMode !== mode || !activityStartedAt) activityStartedAt = Date.now();
   activityMode = mode;
+  if (['SUBMITTING', 'WORKING'].includes(mode)) awaitingResponse = true;
+  if (['WAITING', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
   terminalActivity.className = `terminal-activity activity-${String(mode).toLowerCase()}`;
   terminalActivityLabel.textContent = label;
   terminalActivity.hidden = mode === 'IDLE' || mode === 'STOPPED';
@@ -375,6 +379,7 @@ function setTerminalActivity(mode, label) {
     updateActivityClock();
     activityTimer = setInterval(updateActivityClock, 1000);
   }
+  updateTerminalInputState();
 }
 
 function setTerminalConnection(label, className) {
@@ -384,6 +389,7 @@ function setTerminalConnection(label, className) {
 
 function setTerminalStatus(status) {
   const value = status?.status || 'UNKNOWN';
+  terminalRuntimeStatus = value;
   const terminalEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
   terminalStatus.textContent = value === 'RUNNING'
     ? 'Codex가 보호된 작업창에서 실행 중입니다.'
@@ -406,8 +412,7 @@ function setTerminalStatus(status) {
           : ['확인 중', 'connection-pending'];
   setTerminalConnection(connection[0], connection[1]);
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
-  terminalInput.disabled = value !== 'RUNNING';
-  terminalSend.disabled = value !== 'RUNNING';
+  updateTerminalInputState();
   if (status?.rows && status?.cols) terminalScreen.resize(Number(status.rows), Number(status.cols));
   // A browser can connect during the short launch window before the terminal
   // object is attached. Clear that transient message once the live session is
@@ -417,6 +422,13 @@ function setTerminalStatus(status) {
   if (value === 'RUNNING' && activityMode === 'IDLE') setTerminalActivity('STARTING', 'Codex 작업창에 연결하는 중입니다.');
   if (value !== 'RUNNING') setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
   stopButton.hidden = terminalEnded || !['RUNNING', 'NOT_STARTED'].includes(value);
+}
+function updateTerminalInputState() {
+  const terminalReady = terminalRuntimeStatus === 'RUNNING';
+  terminalInput.disabled = !terminalReady;
+  terminalSend.disabled = !terminalReady || awaitingResponse;
+  terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
+  terminalSend.setAttribute('aria-busy', String(awaitingResponse));
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
 function updateFlow(phase) {
@@ -545,6 +557,7 @@ terminalOutput.addEventListener('click', () => terminalInput.focus());
 let composing = false;
 let submitAfterComposition = false;
 function submitTerminalLine() {
+  if (awaitingResponse) return;
   const value = terminalInput.value;
   if (!value.length) return;
   const accepted = send({type:'input', data: value});
