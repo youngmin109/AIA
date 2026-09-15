@@ -365,6 +365,28 @@ def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
         assert accepted["cols"] == 140
 
 
+def test_workbench_terminal_socket_replays_bounded_output_after_reconnect() -> None:
+    class ReplayService(FakeService):
+        _output = [
+            {"type": "output", "sequence": 1, "data": "first", "recorded_at": "2026-01-01T00:00:00+00:00"},
+            {"type": "output", "sequence": 2, "data": "second", "recorded_at": "2026-01-01T00:00:01+00:00"},
+        ]
+
+        def read_terminal_output(self, session_id, *, after_sequence=0):
+            super().read_terminal_output(session_id, after_sequence=after_sequence)
+            return [item for item in self._output if item["sequence"] > after_sequence]
+
+    client = TestClient(create_app(ReplayService()))
+    with client.websocket_connect("/api/runs/run-1/terminal") as first_connection:
+        assert first_connection.receive_json()["sequence"] == 1
+        assert first_connection.receive_json()["sequence"] == 2
+        assert first_connection.receive_json()["type"] == "status"
+
+    with client.websocket_connect("/api/runs/run-1/terminal") as second_connection:
+        assert second_connection.receive_json()["sequence"] == 1
+        assert second_connection.receive_json()["sequence"] == 2
+
+
 def test_console_can_request_hook_verification_without_changing_trust(monkeypatch) -> None:
     def fake_verify(control_root, *, timeout=180.0):
         assert timeout == 180.0
