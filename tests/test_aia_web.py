@@ -520,6 +520,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-sticky-status"' in workbench.text
     assert "updateStickyStatus" in workbench.text
     assert "Codex 응답 처리 중" in workbench.text
+    assert "terminalActivityIsDelayed" in workbench.text
+    assert "응답 지연 확인 필요" in workbench.text
+    assert "Codex 응답이 지연되고 있습니다." in workbench.text
+    assert "더 기다리거나 “현재 요청 중지”를 선택할 수 있습니다." in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text
