@@ -391,7 +391,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "마지막 출력 수신" in workbench.text
     assert "화면 갱신" in workbench.text
     assert 'id="event-count"' in workbench.text
-    assert "Glass-box" in workbench.text
+    assert "Glass-box 확장 영역" in workbench.text
     assert "실행 흐름" in workbench.text
     assert "보호 준비" in workbench.text
     assert 'id="workbench-flow"' in workbench.text
