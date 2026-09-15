@@ -864,6 +864,11 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'id="dashboard-readiness-status" class="status-badge status-active" title="ACTIVE">현재 실행 중</span>' in dashboard.text
     assert 'id="dashboard-readiness-active-link" class="text-link" href="/runs/run-1/workbench">Workbench 열기 →</a>' in dashboard.text
     assert '현재 작업은 Workbench에서 계속하세요.' in dashboard.text
+    assert 'id="dashboard-sensor-hook-status"' in dashboard.text
+    assert 'id="dashboard-sensor-file-status" class="status-badge status-active">관찰 중</span>' in dashboard.text
+    assert 'id="dashboard-sensor-file-detail" class="hint">현재 Workbench에서 Workspace 변화를 확인합니다.</span>' in dashboard.text
+    assert 'id="dashboard-sensor-process-status" class="status-badge status-active">관찰 중</span>' in dashboard.text
+    assert 'id="dashboard-sensor-process-detail" class="hint">현재 Workbench에서 실행 트리를 확인합니다.</span>' in dashboard.text
     assert "결과 검증" in dashboard.text
     assert "행위 관찰 전" in dashboard.text
     assert "사건" in dashboard.text
