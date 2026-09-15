@@ -531,6 +531,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "updateSensorCount" in workbench.text
     assert "sensor-updated" in workbench.text
     assert "+${delta} 새 증거" in workbench.text
+    assert "securityEventKey" in workbench.text
+    assert "eventHighlightKeys" in workbench.text
+    assert "scheduleEventHighlightClear" in workbench.text
+    assert "새로 관찰" in workbench.text
+    assert "event-new" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text

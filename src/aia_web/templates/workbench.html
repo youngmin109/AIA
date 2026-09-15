@@ -278,6 +278,9 @@ let socketRetry = null;
 let lastRenderedEventKey = '';
 let lastRenderedChainKey = '';
 let lastRenderedEvidenceKey = '';
+let seenSecurityEventKeys = null;
+const eventHighlightKeys = new Set();
+let eventHighlightTimer = null;
 let eventFilter = 'ALL';
 let evidenceFilter = 'ALL';
 let latestStatus = initialStatus;
@@ -798,6 +801,27 @@ function updateSensorCount(sensorKey, elementId, value) {
 function dismissWorkbenchAlert() {
   if (workbenchAlertTimer) { window.clearTimeout(workbenchAlertTimer); workbenchAlertTimer = null; }
   if (workbenchAlert) workbenchAlert.hidden = true;
+}
+function securityEventKey(event) {
+  return [
+    event.event_id || event.summary || '',
+    event.observed_at || '',
+    event.decision || '',
+    event.execution_result || '',
+    event.execution_observed ? 'observed' : '',
+  ].join('~');
+}
+function scheduleEventHighlightClear() {
+  if (!eventHighlightKeys.size) return;
+  if (eventHighlightTimer) window.clearTimeout(eventHighlightTimer);
+  eventHighlightTimer = window.setTimeout(() => {
+    eventHighlightKeys.clear();
+    document.querySelectorAll('.workbench-event.event-new').forEach((event) => {
+      event.classList.remove('event-new');
+      event.querySelector('.event-new-label')?.remove();
+    });
+    eventHighlightTimer = null;
+  }, 6000);
 }
 function announceNewSecurityEvents(events, ended = false) {
   const source = Array.isArray(events) ? events : [];
@@ -1324,6 +1348,14 @@ function renderSecurity(status) {
   document.getElementById('bundle-status').textContent = status.result_available ? bundleLabel(status.bundle_status || 'VALID') : '검증 전';
   document.getElementById('bundle-status').title = status.bundle_status || 'PENDING';
   const allEvents = Array.isArray(status.events) ? status.events : [];
+  const currentEventKeys = new Set(allEvents.map(securityEventKey));
+  if (seenSecurityEventKeys !== null) {
+    currentEventKeys.forEach((key) => {
+      if (!seenSecurityEventKeys.has(key)) eventHighlightKeys.add(key);
+    });
+    scheduleEventHighlightClear();
+  }
+  seenSecurityEventKeys = currentEventKeys;
   announceNewSecurityEvents(allEvents, ended);
   const events = eventFilter === 'SENSOR'
     ? allEvents.filter((event) => event.category === 'SENSOR')
@@ -1350,7 +1382,7 @@ function renderSecurity(status) {
       : ended
         ? '이 실행에는 보안 이벤트가 없습니다.'
         : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.';
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
+    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; const isNew = eventHighlightKeys.has(securityEventKey(event)); return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
     bindChainSelectors();
   }
   document.getElementById('event-count').textContent = `${events.length}건`;
