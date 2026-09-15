@@ -188,6 +188,8 @@ const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실�
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor'})[value] || value || 'AIA';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 행위 관찰`);
+const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
+const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
 
 function setTerminalStatus(status) {
   const value = status?.status || 'UNKNOWN';
@@ -250,9 +252,11 @@ function openSocket() {
 function renderSecurity(status) {
   const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
   runStatus.dataset.status = sessionStatus;
+  runStatus.className = `status-badge ${statusClass(sessionStatus)}`;
   runStatus.textContent = sessionLabel(sessionStatus);
   updateFlow(status.phase || sessionStatus);
   protectionState.textContent = protectionLabel(status.protection?.state);
+  protectionState.className = `badge ${protectionClass(status.protection?.state)}`;
   protectionState.title = status.protection?.state || '';
   document.getElementById('phase').textContent = phaseLabel(status.phase);
   document.getElementById('checkpoint').textContent = checkpointLabel(status.checkpoint);

@@ -70,6 +70,7 @@ const labels = {
   operation: {READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'},
 };
 const label = (group, value, fallback = '확인 필요') => labels[group]?.[value] || value || fallback;
+const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
 const checkpointLabel = (value) => ({NOT_READY: '준비되지 않음', READY: '생성됨 · 사용 가능', FAILED: '생성 실패', UNKNOWN: '정보 없음'})[value] || value || '정보 없음';
 const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: '해제됨', FAILED: 'Lease 오류', NOT_STARTED: '준비 전'})[value] || value || '확인 중';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${label('operation', operation)} 행위 관찰`);
@@ -104,8 +105,10 @@ async function poll() {
     if (!statusResponse.ok) throw new Error('Run status unavailable');
     const status = await statusResponse.json();
     const actions = actionsResponse.ok ? await actionsResponse.json() : {actions: []};
-    document.getElementById('status-badge').textContent = label('session', status.session.status);
-    document.getElementById('status-badge').title = status.session.status || '';
+    const statusBadge = document.getElementById('status-badge');
+    statusBadge.className = `status-badge ${statusClass(status.session.status)}`;
+    statusBadge.textContent = label('session', status.session.status);
+    statusBadge.title = status.session.status || '';
     document.getElementById('phase').textContent = label('phase', status.phase);
     document.getElementById('phase').title = status.phase || '';
     document.getElementById('checkpoint').textContent = checkpointLabel(status.checkpoint);

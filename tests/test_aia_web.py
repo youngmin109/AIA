@@ -273,6 +273,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-flow"' in workbench.text
     assert 'data-flow-step="1"' in workbench.text
     assert 'data-flow-step="4"' in workbench.text
+    assert "statusClass" in workbench.text
+    assert "protectionClass" in workbench.text
     assert "현재 Workbench" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
