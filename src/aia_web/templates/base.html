@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AIA Local Security Console{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-21">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-22">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg') }}">
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar{% if is_workbench %} topbar-workbench{% endif %}">
     <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>로컬 보안 콘솔</small></div>
     {% set current_path = request.url.path %}
     {% set workbench_path = '/runs/' ~ session_id ~ '/workbench' if session_id else '' %}

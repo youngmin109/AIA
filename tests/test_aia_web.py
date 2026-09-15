@@ -312,6 +312,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     workbench = client.get("/runs/run-1/workbench")
     assert workbench.status_code == 200
     assert "page-shell-workbench" in workbench.text
+    assert "topbar-workbench" in workbench.text
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
     assert 'id="protection-state-note"' in workbench.text
