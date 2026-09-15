@@ -234,6 +234,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
     dashboard = client.get("/")
     assert dashboard.status_code == 200
+    assert 'rel="icon" type="image/svg+xml"' in dashboard.text
+    favicon = client.get("/static/favicon.svg")
+    assert favicon.status_code == 200
+    assert favicon.text.startswith("<svg")
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
 
     new_run = client.get("/new")
