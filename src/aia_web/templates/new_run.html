@@ -97,15 +97,18 @@
         <select name="mode"><option value="ENFORCE">ENFORCE · 위반 차단</option><option value="AUDIT">AUDIT · 관찰만</option></select>
       </label>
       <fieldset class="field field-wide run-mode-field">
-        <legend>작업 시작 방식</legend>
+        <legend>작업 방식</legend>
         <label class="choice"><input type="radio" name="run_mode" value="interactive" checked> 대화형 보호 세션</label>
         <span class="hint">AIA가 먼저 보호된 Codex 세션을 열고, 세션 안에서 원하는 작업을 입력합니다.</span>
+        <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
+        <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
+      </fieldset>
+      <fieldset class="field field-wide run-mode-field">
+        <legend>Codex 화면</legend>
         <label class="choice"><input type="radio" name="terminal_surface" value="workbench" checked> AIA Workbench에서 Codex 작업창 열기</label>
         <span class="hint">대시보드·Codex 작업창·세 센서 상태를 한 화면에 표시합니다.</span>
         <label class="choice"><input type="radio" id="new-terminal" name="terminal_surface" value="new_terminal"> 별도 Windows 터미널에서 Codex 열기</label>
         <span class="hint">기존 호환 모드입니다. Codex 작업 화면을 별도 창에서 엽니다.</span>
-        <label class="choice"><input type="radio" name="run_mode" value="one-shot"> 한 번의 작업 실행</label>
-        <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
       </fieldset>
       <label class="field field-wide" id="task-field" hidden>작업 요청
         <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
@@ -148,8 +151,10 @@
   <div id="preview-result" class="preview-result" hidden></div>
 </section>
 
-<section class="panel policy-editor-panel">
-  <div class="panel-heading"><div><h2>정책 만들기</h2><p class="hint">현재 Strict Schema로 검증된 사용자 정책을 저장합니다. 저장된 정책만 보호 실행에 선택할 수 있습니다.</p></div><span class="badge">CUSTOM POLICY</span></div>
+<details class="panel policy-editor-panel">
+  <summary class="panel-summary"><div><h2>정책 만들기</h2><p class="hint">직접 정책을 만들 때 여세요. 저장된 정책만 보호 실행에 선택할 수 있습니다.</p></div><span class="badge">고급 설정</span></summary>
+  <div class="details-content">
+  <p class="hint policy-editor-intro">현재 Strict Schema로 검증된 사용자 정책을 저장합니다. 파일 Rule과 명령 Rule은 별도로 추가합니다.</p>
   <div class="form-grid">
     <label class="field">정책 ID<input id="editor-policy-id" value="my-protected-policy" autocomplete="off"></label>
     <label class="field">정책 버전<input id="editor-policy-version" value="1.0" autocomplete="off"></label>
@@ -171,17 +176,20 @@
   </div>
   <div id="editor-rules" class="editor-rule-list"><div class="empty">아직 추가된 Rule이 없습니다.</div></div>
   <div class="form-actions"><button id="validate-policy" class="button" type="button">Strict Validation</button><button id="save-policy" class="button primary" type="button" disabled>정책 저장</button><span id="editor-save-status" class="hint">먼저 Strict Validation을 통과하세요.</span></div>
-</section>
+  </div>
+</details>
 
-<section class="panel capability-panel">
-  <div class="panel-heading"><div><h2>현재 보호 범위</h2><p class="hint">지원 범위 밖의 실행은 AIA가 보호 성공으로 표시하지 않습니다.</p></div><span class="badge">{{ capabilities.product }} {{ capabilities.version }}</span></div>
+<details class="panel capability-panel">
+  <summary class="panel-summary"><div><h2>현재 보호 범위</h2><p class="hint">지원 범위 밖의 실행은 AIA가 보호 성공으로 표시하지 않습니다.</p></div><span class="badge">{{ capabilities.product }} {{ capabilities.version }}</span></summary>
+  <div class="details-content">
   <div class="capability-grid">
     <div><strong>지원 환경</strong><p class="hint">{{ capabilities.support.operating_system|join(', ') }} · Python {{ capabilities.support.python|join(', ') }} · {{ capabilities.support.agent|join(', ') }}</p></div>
     <div><strong>PreToolUse</strong><p class="hint mono">matcher={{ capabilities.support.pretool_matcher }}<br>semantic={{ capabilities.support.pretool_matchers|join(', ') }}{% for canonical, aliases in capabilities.support.pretool_aliases.items() %}<br>aliases={{ aliases|join(', ') }} → {{ canonical }}{% endfor %}</p><p class="hint">알 수 없는 도구는 <code>UNSUPPORTED_TOOL_PATH</code>로 거부됩니다.</p></div>
     <div><strong>필수 사용자 단계</strong><ul class="limitations">{% for item in capabilities.requires_user_action %}<li>{{ item }}</li>{% endfor %}</ul></div>
     <div><strong>지원하지 않거나 주장하지 않는 범위</strong><ul class="limitations">{% for item in capabilities.unsupported_or_unclaimed %}<li>{{ item }}</li>{% endfor %}</ul></div>
   </div>
-</section>
+</div>
+</details>
 </div>
 <script>
 const form = document.getElementById('new-run-form');
@@ -216,6 +224,7 @@ const previewResult = document.getElementById('preview-result');
 const editorRules = [];
 let editorValidated = false;
 const editorRuleList = document.getElementById('editor-rules');
+const policyEditorPanel = document.querySelector('.policy-editor-panel');
 function renderEditorRules() {
   if (!editorRules.length) { editorRuleList.innerHTML = '<div class="empty">아직 추가된 Rule이 없습니다.</div>'; return; }
   editorRuleList.innerHTML = editorRules.map((rule, index) => `<div class="editor-rule-row"><div><strong>${escapeHtml(rule['규칙ID'])}</strong><span class="muted">${escapeHtml(rule['자산유형'])} · ${rule['경로패턴'] ? '파일' : '명령'} · Priority ${rule['우선순위']}</span></div><span>${escapeHtml(Object.entries(rule['행위효과']).map(([operation, effect]) => `${operation}=${effect}`).join(', '))}</span><button class="button" type="button" data-remove-rule="${index}">삭제</button></div>`).join('');
@@ -264,6 +273,7 @@ function updateCustomPolicyField() {
   const custom = profile.value === 'CUSTOM';
   customField.hidden = !custom;
   form.elements.custom_policy_path.required = custom;
+  if (custom && policyEditorPanel) policyEditorPanel.open = true;
 }
 profile.addEventListener('change', () => { updateCustomPolicyField(); updateProfileDescription(); });
 updateCustomPolicyField();

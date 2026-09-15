@@ -22,7 +22,7 @@
 {% set execution_policy_names = {'MATCHED': '요청과 일치', 'DEGRADED': '보호 수준 저하', 'NOT_OBSERVED': '적용 상태 미확인'} %}
 {% set termination_names = {'SUCCEEDED': '종료 확인됨', 'TERMINATED': '종료 확인됨', 'FAILED': '종료 실패', 'PARTIAL': '일부 종료', 'NOT_ATTEMPTED': '종료 시도 없음'} %}
 {% set event_summary_names = {'READ 행위 관찰': '읽기 행위 관찰', 'CREATE 행위 관찰': '파일 생성 행위 관찰', 'MODIFY 행위 관찰': '파일 수정 행위 관찰', 'DELETE 행위 관찰': '삭제 행위 관찰', 'MOVE 행위 관찰': '이동 행위 관찰', 'RENAME 행위 관찰': '이름 변경 행위 관찰', 'EXECUTE 행위 관찰': '명령 실행 행위 관찰'} %}
-<section class="hero compact"><div><p class="eyebrow">RESULT BUNDLE · 실행 결과</p><h1>보호 실행 결과</h1><p class="muted mono">{{ session_id }}</p></div><div class="status-badge" title="{{ result.bundle_status }}">{{ bundle_label }}</div></section>
+<section class="hero compact"><div><p class="eyebrow">RESULT BUNDLE · 실행 결과</p><h1>보호 실행 결과</h1><p class="muted mono">{{ session_id }}</p></div><div class="status-badge {% if result.bundle_status == 'VALID' %}status-success{% elif result.bundle_status in ['INVALID', 'NOT_FOUND'] %}status-danger{% else %}status-warning{% endif %}" title="{{ result.bundle_status }}">{{ bundle_label }}</div></section>
 {% set incident_count = result.incidents|default([])|length %}
 {% set completed_and_valid = result.session_status == 'COMPLETED' and result.bundle_status == 'VALID' %}
 <section class="panel result-overview {% if completed_and_valid %}result-overview-success{% elif result.session_status == 'FAILED' %}result-overview-warning{% endif %}">
