@@ -524,6 +524,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "응답 지연 확인 필요" in workbench.text
     assert "Codex 응답이 지연되고 있습니다." in workbench.text
     assert "더 기다리거나 “현재 요청 중지”를 선택할 수 있습니다." in workbench.text
+    assert 'id="sensor-hook-update"' in workbench.text
+    assert 'id="sensor-file-update"' in workbench.text
+    assert 'id="sensor-process-update"' in workbench.text
+    assert "showSensorUpdate" in workbench.text
+    assert "updateSensorCount" in workbench.text
+    assert "sensor-updated" in workbench.text
+    assert "+${delta} 새 증거" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text

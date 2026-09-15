@@ -145,9 +145,9 @@
         <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다.</p></div><span id="protection-state" class="badge" aria-live="polite">{{ status.protection.state }}</span></div>
         <p id="protection-state-note" class="workbench-protection-note" role="status" aria-live="polite">보호 상태를 확인하는 중입니다.</p>
         <div class="workbench-sensors">
-          <div id="sensor-card-hook" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="AGENT_HOOK" aria-controls="sensor-evidence-panel" title="Hook Evidence 타임라인 보기"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">확인 중</small></div><b id="sensor-hook-count">0건</b></div>
-          <div id="sensor-card-file" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="FILESYSTEM_WATCHER" aria-controls="sensor-evidence-panel" title="File Evidence 타임라인 보기"><span class="sensor-icon file">F</span><div><strong>File Sensor</strong><small id="sensor-file">확인 중</small></div><b id="sensor-file-count">0건</b></div>
-          <div id="sensor-card-process" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="PROCESS_RUNTIME" aria-controls="sensor-evidence-panel" title="Process Evidence 타임라인 보기"><span class="sensor-icon process">P</span><div><strong>Process Sensor</strong><small id="sensor-process">확인 중</small></div><b id="sensor-process-count">0건</b></div>
+          <div id="sensor-card-hook" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="AGENT_HOOK" aria-controls="sensor-evidence-panel" title="Hook Evidence 타임라인 보기"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">확인 중</small></div><div class="sensor-count"><b id="sensor-hook-count" aria-live="polite">0건</b><small id="sensor-hook-update" class="sensor-update-label" aria-live="polite" hidden></small></div></div>
+          <div id="sensor-card-file" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="FILESYSTEM_WATCHER" aria-controls="sensor-evidence-panel" title="File Evidence 타임라인 보기"><span class="sensor-icon file">F</span><div><strong>File Sensor</strong><small id="sensor-file">확인 중</small></div><div class="sensor-count"><b id="sensor-file-count" aria-live="polite">0건</b><small id="sensor-file-update" class="sensor-update-label" aria-live="polite" hidden></small></div></div>
+          <div id="sensor-card-process" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="PROCESS_RUNTIME" aria-controls="sensor-evidence-panel" title="Process Evidence 타임라인 보기"><span class="sensor-icon process">P</span><div><strong>Process Sensor</strong><small id="sensor-process">확인 중</small></div><div class="sensor-count"><b id="sensor-process-count" aria-live="polite">0건</b><small id="sensor-process-update" class="sensor-update-label" aria-live="polite" hidden></small></div></div>
         </div>
       </section>
       <section class="workbench-card">
@@ -297,6 +297,8 @@ let terminalReconnectPending = false;
 let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
 let statusPollTimer = null;
+const previousSensorCounts = {hook: null, file: null, process: null};
+const sensorUpdateTimers = {};
 let stopRequested = false;
 let responseStartedAt = 0;
 let selectedChainId = null;
@@ -767,6 +769,31 @@ function updateWorkbenchGuidance(status = latestStatus) {
   workbenchGuidanceTitle.textContent = title;
   workbenchGuidanceDetail.textContent = detail;
   workbenchGuidanceOwner.textContent = owner;
+}
+function showSensorUpdate(sensorKey, count) {
+  const card = document.getElementById(`sensor-card-${sensorKey}`);
+  const update = document.getElementById(`sensor-${sensorKey}-update`);
+  if (!card || !update) return;
+  const previous = previousSensorCounts[sensorKey];
+  if (previous === null || count <= previous) return;
+  const delta = count - previous;
+  card.classList.remove('sensor-updated');
+  void card.offsetWidth;
+  card.classList.add('sensor-updated');
+  update.textContent = `+${delta} 새 증거`;
+  update.hidden = false;
+  if (sensorUpdateTimers[sensorKey]) window.clearTimeout(sensorUpdateTimers[sensorKey]);
+  sensorUpdateTimers[sensorKey] = window.setTimeout(() => {
+    update.hidden = true;
+    card.classList.remove('sensor-updated');
+    sensorUpdateTimers[sensorKey] = null;
+  }, 4200);
+}
+function updateSensorCount(sensorKey, elementId, value) {
+  const count = Number(value || 0);
+  showSensorUpdate(sensorKey, count);
+  previousSensorCounts[sensorKey] = count;
+  document.getElementById(elementId).textContent = `${count}건`;
 }
 function dismissWorkbenchAlert() {
   if (workbenchAlertTimer) { window.clearTimeout(workbenchAlertTimer); workbenchAlertTimer = null; }
@@ -1279,9 +1306,9 @@ function renderSecurity(status) {
     protectionStateNote.textContent = '이번 작업에는 도구 요청이 없어 Hook Evidence가 없습니다. 파일이나 명령 작업을 수행하면 AIA가 실행 전 요청과 결과를 표시합니다.';
   }
   document.getElementById('sensor-hook').textContent = waitingForFirstAction ? '도구 요청 대기 중' : sensorLabel(hook, ended);
-  document.getElementById('sensor-hook-count').textContent = `${observedHookCount}건`;
-  document.getElementById('sensor-file-count').textContent = `${summary.filesystem_events || 0}건`;
-  document.getElementById('sensor-process-count').textContent = `${summary.process_observed || 0}건`;
+  updateSensorCount('hook', 'sensor-hook-count', observedHookCount);
+  updateSensorCount('file', 'sensor-file-count', summary.filesystem_events || 0);
+  updateSensorCount('process', 'sensor-process-count', summary.process_observed || 0);
   const sensorValues = [hook, file, process];
   const sensorState = sensorValues.some((value) => value === 'FAILED')
     ? '확인 필요'
