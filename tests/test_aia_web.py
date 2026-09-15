@@ -575,7 +575,10 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-run-count"' in dashboard.text
     assert 'id="dashboard-sync-status"' in dashboard.text
+    assert 'id="dashboard-recent-runs"' in dashboard.text
+    assert 'id="dashboard-recent-empty"' in dashboard.text
     assert "refreshDashboard" in dashboard.text
+    assert "renderDashboardRecentRuns" in dashboard.text
     assert "window.setInterval(refreshDashboard, 5000)" in dashboard.text
     assert "Bash" in dashboard.text
     assert "Edit·Write → apply_patch" in dashboard.text
