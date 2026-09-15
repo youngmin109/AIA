@@ -2,10 +2,32 @@ from __future__ import annotations
 
 import os
 import sys
+from threading import Lock
 
 import pytest
 
 from aia_app.terminal import TerminalSessionError, WinPtyTerminalSession
+
+
+def test_workbench_submit_input_writes_dedicated_control_key() -> None:
+    class FakePty:
+        def __init__(self) -> None:
+            self.writes = []
+
+        def isalive(self) -> bool:
+            return True
+
+        def write(self, value: str) -> None:
+            self.writes.append(value)
+
+    pty = FakePty()
+    session = object.__new__(WinPtyTerminalSession)
+    session._pty = pty
+    session._lock = Lock()
+
+    session.submit_input()
+
+    assert pty.writes == ["\x18"]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Workbench terminal requires Windows ConPTY")

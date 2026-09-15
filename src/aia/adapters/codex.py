@@ -66,6 +66,7 @@ class CodexAdapter:
             "profile",
             "sandbox",
             "skip_git_repo_check",
+            "workbench_terminal",
         }
     )
     _FORBIDDEN_OPTIONS = frozenset(
@@ -252,6 +253,11 @@ class CodexAdapter:
         interactive = options.pop("interactive", False)
         if not isinstance(interactive, bool):
             raise AdapterError("interactive must be a boolean")
+        workbench_terminal = options.pop("workbench_terminal", False)
+        if not isinstance(workbench_terminal, bool):
+            raise AdapterError("workbench_terminal must be a boolean")
+        if workbench_terminal and not interactive:
+            raise AdapterError("workbench_terminal requires interactive mode")
         if interactive and any(
             key in options for key in ("ignore_rules", "json", "skip_git_repo_check")
         ):
@@ -281,6 +287,12 @@ class CodexAdapter:
         if request.model is not None:
             argv.extend(("--model", request.model))
         self._append_options(argv, options)
+        if interactive and workbench_terminal:
+            # The browser PTY delivers text as a paste-like stream.  Codex's
+            # default Enter binding is not reliably recognized for that input
+            # path, so the protected Workbench uses a dedicated, inline-only
+            # submit binding.  This does not modify the user's Codex config.
+            argv.extend(("-c", 'tui.keymap.composer.submit="ctrl-x"'))
         if self.enable_hooks and self.hook_command is None:
             # Product launches use the installed user-level Hook definition.
             # Enable the Codex Hook feature explicitly without changing the

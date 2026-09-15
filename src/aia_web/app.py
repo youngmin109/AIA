@@ -268,6 +268,9 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                             message.get("data", ""),
                         )
                         await websocket.send_json({"type": "accepted", **result})
+                    elif message.get("type") == "submit":
+                        result = app.state.service.submit_terminal_input(session_id)
+                        await websocket.send_json({"type": "accepted", **result})
                     elif message.get("type") == "resize":
                         result = app.state.service.resize_terminal(
                             session_id,

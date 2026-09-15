@@ -247,6 +247,8 @@ uv run aia reconcile <SESSION_ID>
 Codex 작업창 열기`로 시작하면, 같은 화면에서 Codex 작업창과 AIA 보안 패널을 함께
 사용할 수 있다. Workbench는 Windows ConPTY를 통해 Codex 입출력을 전달하고,
 Hook·File·Process Sensor 상태를 기존 API polling으로 갱신한다.
+작업창 아래 입력란에 질문을 입력한 뒤 Enter 또는 `전송`을 누르면 Codex에 요청이
+제출된다. 응답을 기다리는 동안 작업창의 처리 중 표시로 진행 상태를 확인할 수 있다.
 
 기존 방식이 필요하면 `별도 Windows 터미널에서 Codex 열기`를 선택한다. 이 경우
 Codex는 별도 창에서 실행되고 AIA 웹 화면에서 보호 상태를 확인한다.

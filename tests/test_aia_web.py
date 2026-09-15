@@ -123,6 +123,11 @@ class FakeService:
             raise KeyError(session_id)
         return {"accepted": True, "session_id": session_id}
 
+    def submit_terminal_input(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return {"accepted": True, "session_id": session_id}
+
     def resize_terminal(self, session_id, rows, cols):
         if session_id != "run-1":
             raise KeyError(session_id)
@@ -290,7 +295,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "submitAfterComposition" in workbench.text
-    assert "data: `${value}\\r`" in workbench.text
+    assert "data: value" in workbench.text
+    assert "type:'submit'" in workbench.text
     assert "terminalScreen" in workbench.text
     assert "requestAnimationFrame" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
@@ -336,6 +342,9 @@ def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
         assert first["type"] == "status"
         assert first["status"] == "RUNNING"
         websocket.send_json({"type": "input", "data": "hello"})
+        accepted = websocket.receive_json()
+        assert accepted["type"] == "accepted"
+        websocket.send_json({"type": "submit"})
         accepted = websocket.receive_json()
         assert accepted["type"] == "accepted"
         websocket.send_json({"type": "resize", "rows": 40, "cols": 140})

@@ -80,6 +80,8 @@ Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
 뒤 기본적으로 AIA Workbench 화면에서 Codex를 보호된 작업창으로 실행한다. Workbench는
 Codex 작업창, Hook·File·Process Sensor 상태, 안전한 이벤트 요약, 차단 사건을 한 화면에
 표시한다. 기존 `별도 Windows 터미널에서 Codex 열기`는 호환 모드로 계속 제공한다.
+작업창 아래 입력란에 질문을 입력한 뒤 Enter 또는 `전송`을 누르면 Codex에 요청이
+제출된다. 응답을 기다리는 동안 작업창에 처리 중 상태가 표시된다.
 위험 행위가 차단되면 Codex 세션은 종료하지 않고 사건 카드에 `VIOLATION → CONTAIN →
 BLOCKED / SUCCEEDED`를 실제 확인된 경우에만 표시한다. Workbench 터미널 출력은
 Result Bundle이나 Evidence에 저장하지 않고 연결된 브라우저 화면에만 전달한다.

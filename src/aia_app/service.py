@@ -1192,6 +1192,20 @@ class RunApplicationService:
         terminal.send_input(value)
         return {"accepted": True, "session_id": session_id}
 
+    def submit_terminal_input(self, session_id: str) -> dict[str, Any]:
+        """Submit the current Workbench composer draft to Codex."""
+
+        record = self.registry.get(session_id)
+        if record is None:
+            raise KeyError(session_id)
+        if record.launch_mode != "web_terminal":
+            raise TerminalSessionError("this run is not using the Workbench terminal")
+        terminal = record.runtime.get("terminal_session")
+        if terminal is None:
+            raise TerminalSessionError("Workbench terminal is not attached")
+        terminal.submit_input()
+        return {"accepted": True, "session_id": session_id}
+
     def resize_terminal(self, session_id: str, rows: int, cols: int) -> dict[str, Any]:
         record = self.registry.get(session_id)
         if record is None:
@@ -1615,6 +1629,8 @@ class RunApplicationService:
                     }
                 )
                 adapter_options["interactive"] = True
+                if record.launch_mode == "web_terminal":
+                    adapter_options["workbench_terminal"] = True
             else:
                 # Codex CLI's current exec contract applies the supported
                 # workspace-write/on-request policy through --approve-for-me.

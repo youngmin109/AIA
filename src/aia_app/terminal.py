@@ -33,6 +33,8 @@ class TerminalSession(Protocol):
 
     def send_input(self, value: str) -> None: ...
 
+    def submit_input(self) -> None: ...
+
     def resize(self, rows: int, cols: int) -> None: ...
 
     def drain_output(self) -> list[dict[str, Any]]: ...
@@ -85,6 +87,11 @@ class WinPtyTerminalSession:
     MAX_INPUT_CHARS = 32_000
     MAX_OUTPUT_CHUNKS = 2_000
     MAX_OUTPUT_CHARS = 512_000
+    # Codex's Workbench launch binds composer.submit to Ctrl+X.  Sending the
+    # control byte as a separate PTY write avoids treating the browser's whole
+    # message as a paste, which leaves the draft in Codex's composer instead of
+    # submitting it.
+    SUBMIT_SEQUENCE = "\x18"
 
     def __init__(
         self,
@@ -217,6 +224,18 @@ class WinPtyTerminalSession:
             pty.write(value)
         except Exception as error:
             raise TerminalSessionError("terminal input failed") from error
+
+    def submit_input(self) -> None:
+        """Submit the current Codex composer draft through its bound key."""
+
+        with self._lock:
+            pty = self._pty
+        if pty is None or not pty.isalive():
+            raise TerminalSessionError("terminal process is not running")
+        try:
+            pty.write(self.SUBMIT_SEQUENCE)
+        except Exception as error:
+            raise TerminalSessionError("terminal submit failed") from error
 
     def resize(self, rows: int, cols: int) -> None:
         rows = self._validate_dimension(rows, "rows")

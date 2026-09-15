@@ -76,7 +76,7 @@
         <button id="terminal-send" class="button primary terminal-send" type="submit"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}>전송</button>
       </form>
       <div class="terminal-input-hint">
-        <span>입력창에서 작성한 뒤 Enter로 Codex에 전송합니다. Ctrl+C·방향키도 지원합니다.</span>
+        <span>입력창에서 작성한 뒤 Enter 또는 전송 버튼으로 Codex에 전송합니다. Ctrl+C·방향키도 지원합니다.</span>
         <span class="mono">Workbench · 로컬 연결</span>
       </div>
       <div id="terminal-error" class="error" hidden></div>
@@ -493,8 +493,17 @@ let composing = false;
 let submitAfterComposition = false;
 function submitTerminalLine() {
   const value = terminalInput.value;
-  const accepted = send({type:'input', data: `${value}\r`});
-  if (accepted) { terminalInput.value = ''; setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.'); }
+  if (!value.length) return;
+  const accepted = send({type:'input', data: value});
+  if (!accepted) return;
+  terminalInput.value = '';
+  // Codex's Workbench launch binds composer.submit to Ctrl+X.  Send it as a
+  // separate WebSocket message so the text stays ordinary input and the
+  // submit key is not swallowed as part of a paste burst.
+  window.setTimeout(() => {
+    if (send({type:'submit'})) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+    else showTerminalError('Codex에 전송하지 못했습니다. 터미널 연결을 확인하세요.');
+  }, 50);
 }
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
 terminalInput.addEventListener('compositionend', () => {
@@ -506,7 +515,7 @@ terminalInput.addEventListener('compositionend', () => {
 });
 terminalInputForm.addEventListener('submit', (event) => { event.preventDefault(); submitTerminalLine(); });
 terminalInput.addEventListener('keydown', (event) => {
-  const controls = {'Enter':'\r','Backspace':'\x7f','Tab':'\t','ArrowUp':'\x1b[A','ArrowDown':'\x1b[B','ArrowRight':'\x1b[C','ArrowLeft':'\x1b[D','Escape':'\x1b'};
+  const controls = {'Backspace':'\x7f','Tab':'\t','ArrowUp':'\x1b[A','ArrowDown':'\x1b[B','ArrowRight':'\x1b[C','ArrowLeft':'\x1b[D','Escape':'\x1b'};
   if (event.key === 'Enter' && event.isComposing) { submitAfterComposition = true; return; }
   if (event.isComposing || composing) return;
   if (event.ctrlKey && event.key.length === 1) { event.preventDefault(); send({type:'input', data: String.fromCharCode(event.key.toUpperCase().charCodeAt(0) - 64)}); return; }

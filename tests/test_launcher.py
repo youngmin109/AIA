@@ -422,6 +422,40 @@ def test_codex_adapter_builds_interactive_terminal_launch_without_prompt(
     assert spec.stdin_bytes == b""
 
 
+def test_codex_adapter_uses_inline_submit_binding_for_workbench_terminal(
+    tmp_path: Path,
+) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        adapter_options={
+            "interactive": True,
+            "sandbox": "workspace-write",
+            "workbench_terminal": True,
+        },
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert 'tui.keymap.composer.submit="ctrl-x"' in spec.argv
+
+
+def test_codex_adapter_rejects_workbench_terminal_for_exec_mode(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="safe",
+        adapter_options={"workbench_terminal": True},
+    )
+
+    with pytest.raises(AdapterError, match="interactive mode"):
+        adapter.build_launch(request, Path(sys.executable))
+
+
 def test_codex_adapter_rejects_permission_bypass_option(tmp_path: Path) -> None:
     adapter = CodexAdapter()
     request = ProtectedLaunchRequest(
