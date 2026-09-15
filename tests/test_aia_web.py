@@ -492,6 +492,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "이번 보호 실행에서 확인된 내용" in result.text
     assert "다음 작업" in result.text
     assert "새 보호 실행 시작" in result.text
+    assert 'class="is-active" aria-current="page" href="/runs"' in result.text
     assert "정책 위반" in result.text
     assert "실행하지 않음" in result.text
     assert 'href="/new">새 보호 실행</a>' in result.text

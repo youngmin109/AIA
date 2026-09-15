@@ -10,11 +10,16 @@
   <header class="topbar">
     <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>로컬 보안 콘솔</small></div>
     {% set current_path = request.url.path %}
+    {% set workbench_path = '/runs/' ~ session_id ~ '/workbench' if session_id else '' %}
+    {% set current_run_path = '/runs/' ~ session_id if session_id else '' %}
+    {% set workbench_active = current_path == workbench_path %}
+    {% set current_run_active = current_path == current_run_path %}
+    {% set history_active = current_path == '/runs' or (current_path.startswith('/runs/') and not workbench_active and not current_run_active) %}
     <nav aria-label="AIA 주요 메뉴">
       <a class="{{ 'is-active' if current_path in ['/', '/dashboard'] else '' }}"{% if current_path in ['/', '/dashboard'] %} aria-current="page"{% endif %} href="/">대시보드</a>
       <a class="{{ 'is-active' if current_path == '/new' else '' }}"{% if current_path == '/new' %} aria-current="page"{% endif %} href="/new">새 보호 실행</a>
-      <a class="{{ 'is-active' if current_path == '/runs' else '' }}"{% if current_path == '/runs' %} aria-current="page"{% endif %} href="/runs">실행 기록</a>
-      {% if session_id %}<a class="{{ 'is-active' if is_workbench else '' }}"{% if is_workbench %} aria-current="page"{% endif %} href="{% if is_workbench %}/runs/{{ session_id }}/workbench{% else %}/runs/{{ session_id }}{% endif %}">{% if is_workbench %}현재 Workbench{% else %}현재 실행{% endif %}</a>{% endif %}
+      <a class="{{ 'is-active' if history_active else '' }}"{% if history_active %} aria-current="page"{% endif %} href="/runs">실행 기록</a>
+      {% if session_id %}<a class="{{ 'is-active' if workbench_active or current_run_active else '' }}"{% if workbench_active or current_run_active %} aria-current="page"{% endif %} href="{% if is_workbench %}/runs/{{ session_id }}/workbench{% else %}/runs/{{ session_id }}{% endif %}">{% if is_workbench %}현재 Workbench{% else %}현재 실행{% endif %}</a>{% endif %}
     </nav>
   </header>
   <main class="page-shell{% if is_workbench %} page-shell-workbench{% endif %}">
