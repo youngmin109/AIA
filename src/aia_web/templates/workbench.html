@@ -86,7 +86,10 @@
             <button id="terminal-action" class="button terminal-action" type="button" hidden>신뢰하고 계속</button>
           </div>
         </div>
-        <span id="terminal-pid" class="badge">PID —</span>
+        <div class="terminal-heading-actions">
+          <a class="terminal-focus-link" href="#terminal-input-proxy" data-terminal-focus>입력창으로 이동</a>
+          <span id="terminal-pid" class="badge">PID —</span>
+        </div>
       </div>
       <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
         {% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
@@ -215,6 +218,7 @@ const terminalActivityLabel = document.getElementById('terminal-activity-label')
 const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
 const terminalError = document.getElementById('terminal-error');
 const terminalExamples = document.getElementById('terminal-examples');
+const terminalFocusLink = document.querySelector('[data-terminal-focus]');
 const workbenchGuidance = document.getElementById('workbench-guidance');
 const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
@@ -1195,6 +1199,11 @@ document.querySelectorAll('[data-sensor-focus]').forEach((card) => {
 });
 
 terminalOutput.addEventListener('click', () => terminalInput.focus());
+terminalFocusLink?.addEventListener('click', (event) => {
+  event.preventDefault();
+  terminalInput.scrollIntoView({behavior: 'smooth', block: 'center'});
+  if (!terminalInput.disabled) window.setTimeout(() => terminalInput.focus({preventScroll: true}), 180);
+});
 document.querySelectorAll('[data-terminal-example]').forEach((button) => button.addEventListener('click', () => {
   if (terminalInput.disabled || awaitingResponse) return;
   terminalInput.value = button.dataset.terminalExample || '';

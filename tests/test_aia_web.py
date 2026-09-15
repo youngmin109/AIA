@@ -368,6 +368,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="terminal-input-proxy"' in workbench.text
     assert 'id="terminal-input-form"' in workbench.text
     assert 'id="terminal-send"' in workbench.text
+    assert 'data-terminal-focus' in workbench.text
+    assert '입력창으로 이동' in workbench.text
+    assert "terminalInput.scrollIntoView({behavior: 'smooth', block: 'center'})" in workbench.text
     assert 'id="terminal-activity"' in workbench.text
     assert 'id="terminal-connection"' in workbench.text
     assert 'id="terminal-last-output"' in workbench.text
