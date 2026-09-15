@@ -728,6 +728,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-primary-action"' in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
+    assert 'id="dashboard-current-meta"' in dashboard.text
     assert 'id="dashboard-run-count"' in dashboard.text
     assert '전체 Session ID:' in dashboard.text
     assert "sessionId.slice(0, 8)" in dashboard.text
