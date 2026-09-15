@@ -629,7 +629,13 @@ if ('IntersectionObserver' in window && workbenchJumpTargets.length) {
 function renderEvidenceChains(chains) {
   const container = document.getElementById('evidence-chains');
   const source = Array.isArray(chains) ? chains : [];
-  const items = source.slice().reverse().slice(0, 6);
+  const recentItems = source.slice().reverse().slice(0, 6);
+  const selectedItem = selectedChainId
+    ? source.find((chain) => String(chain.chain_id || '') === selectedChainId)
+    : null;
+  const items = selectedItem && !recentItems.some((chain) => String(chain.chain_id || '') === selectedChainId)
+    ? [selectedItem, ...recentItems]
+    : recentItems;
   document.getElementById('evidence-chain-count').textContent = `${source.length}건`;
   const chainKey = `${selectedChainId || ''}|${source.map((chain) => [
     chain.chain_id || '',
@@ -667,7 +673,8 @@ function renderEvidenceChains(chains) {
               : chainStatusLabel(status);
       return `<li class="evidence-chain-stage ${chainStageClass(status)}"><span class="evidence-chain-node" aria-hidden="true"></span><div><strong>${esc(stage.label || stage.stage)}</strong><small>${esc(detail)}</small></div><span class="badge" title="${esc(status)}">${esc(chainStatusLabel(status))}</span></li>`;
     }).join('');
-    return `<article class="evidence-chain-card ${chain.chain_id === selectedChainId ? 'is-selected' : ''}" data-chain-card="${esc(chain.chain_id)}"><div class="evidence-chain-heading"><div><strong>${esc(operationLabel(chain.operation))} · ${esc(chain.target_label || '행위')}</strong><small>${esc(formatTime(chain.observed_at))} · Evidence ${esc(String(chain.linked_evidence_count || 0))}/${esc(String(chain.evidence_count || 0))} 연결</small></div><span class="badge ${chain.evidence_link_status === 'LINKED' ? 'badge-succeeded' : 'badge-warning'}">${esc(chainStatusLabel(chain.evidence_link_status))}</span></div><div class="chain-sensor-links" aria-label="행위에 연결된 센서">${sensorHtml}</div><ol class="evidence-chain-stages">${stageHtml}</ol></article>`;
+    const selected = String(chain.chain_id || '') === selectedChainId;
+    return `<article class="evidence-chain-card ${selected ? 'is-selected' : ''}" data-chain-card="${esc(chain.chain_id)}"${selected ? ' aria-current="true"' : ''}><div class="evidence-chain-heading"><div><strong>${esc(operationLabel(chain.operation))} · ${esc(chain.target_label || '행위')}</strong><small>${esc(formatTime(chain.observed_at))} · Evidence ${esc(String(chain.linked_evidence_count || 0))}/${esc(String(chain.evidence_count || 0))} 연결${selected ? ' · 선택됨' : ''}</small></div><span class="badge ${chain.evidence_link_status === 'LINKED' ? 'badge-succeeded' : 'badge-warning'}">${esc(chainStatusLabel(chain.evidence_link_status))}</span></div><div class="chain-sensor-links" aria-label="행위에 연결된 센서">${sensorHtml}</div><ol class="evidence-chain-stages">${stageHtml}</ol></article>`;
   }).join('');
 }
 
