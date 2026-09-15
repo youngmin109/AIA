@@ -295,6 +295,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "정책 위반" in result.text
     assert "실행하지 않음" in result.text
     assert 'href="/new">새 보호 실행</a>' in result.text
+    assert 'aria-label="결과 바로가기"' in result.text
+    assert 'id="sensor-results"' in result.text
+    assert 'id="event-timeline"' in result.text
+    assert 'id="decision-summary"' in result.text
+    assert 'id="recovery-results"' in result.text
+    assert 'id="action-results"' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
