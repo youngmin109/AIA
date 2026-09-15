@@ -263,6 +263,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="jump-to-run"' in new_run.text
     assert 'id="run-settings"' in new_run.text
     assert 'id="preflight-next-steps"' in new_run.text
+    assert 'id="preflight-refresh-status"' in new_run.text
+    assert "setButtonBusy" in new_run.text
+    assert "cache: 'no-store'" in new_run.text
     assert new_run.text.index('id="run-settings"') < new_run.text.index("정책 미리보기")
     assert new_run.text.index("정책 미리보기") < new_run.text.index("정책 만들기")
     assert "Strict Validation" in new_run.text
@@ -360,6 +363,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="refresh-status"' in workbench.text
     assert "상태 새로고침" in workbench.text
     assert "terminalSocketConnected" in workbench.text
+    assert "button.classList.add('is-busy')" in workbench.text
+    assert "button.setAttribute('aria-busy', 'true')" in workbench.text
     assert "Workbench 터미널 연결이 끊겨 다시 연결하는 중입니다." in workbench.text
     assert "중지 요청 중…" in workbench.text
     assert "STOPPING" in workbench.text

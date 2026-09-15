@@ -18,7 +18,7 @@
 <section class="panel preflight-panel">
   <div class="panel-heading">
     <h2>실행 전 준비 상태</h2>
-    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button></div>
+    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">자동 확인 완료</span></div>
   </div>
   <div id="preflight-checks" class="preflight-list">
     {% for check in preflight.checks %}
@@ -217,6 +217,8 @@ const hookActivation = document.getElementById('hook-activation');
 const codexHookTrust = document.getElementById('codex-hook-trust');
 const jumpToRun = document.getElementById('jump-to-run');
 const preflightNextSteps = document.getElementById('preflight-next-steps');
+const refreshPreflightButton = document.getElementById('refresh-preflight');
+const preflightRefreshStatus = document.getElementById('preflight-refresh-status');
 const profileDescriptions = {{ profiles|tojson }};
 const taskField = document.getElementById('task-field');
 const taskInput = document.getElementById('task-input');
@@ -240,6 +242,20 @@ function renderEditorRules() {
   editorRuleList.querySelectorAll('[data-remove-rule]').forEach((button) => button.addEventListener('click', () => { editorRules.splice(Number(button.dataset.removeRule), 1); editorValidated = false; document.getElementById('save-policy').disabled = true; renderEditorRules(); }));
 }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function setButtonBusy(button, busy, busyLabel) {
+  if (busy) {
+    button.disabled = true;
+    button.classList.add('is-busy');
+    button.setAttribute('aria-busy', 'true');
+    button.dataset.idleLabel = button.textContent;
+    button.textContent = busyLabel;
+  } else {
+    button.disabled = false;
+    button.classList.remove('is-busy');
+    button.removeAttribute('aria-busy');
+    button.textContent = button.dataset.idleLabel || button.textContent;
+  }
+}
 function editorDocument() {
   return { '정책명': document.getElementById('editor-policy-id').value.trim(), '정책ID': document.getElementById('editor-policy-id').value.trim(), '정책버전': document.getElementById('editor-policy-version').value.trim(), '스키마버전': '1', '기본효과': document.getElementById('editor-default-effect').value, '규칙': editorRules };
 }
@@ -320,12 +336,25 @@ function renderPreflight(payload) {
   codexHookTrust.textContent = `Codex 실제 Hook Trust: ${trustSummary || '확인할 수 없음'}`;
   submitRun.disabled = !payload.ready;
 }
-document.getElementById('refresh-preflight').addEventListener('click', async () => {
-  const response = await fetch('/api/preflight');
-  if (response.ok) renderPreflight(await response.json());
+refreshPreflightButton.addEventListener('click', async () => {
+  setButtonBusy(refreshPreflightButton, true, '확인 중…');
+  preflightRefreshStatus.className = 'hint';
+  preflightRefreshStatus.textContent = 'AIA 실행 준비 상태를 확인하는 중…';
+  try {
+    const response = await fetch('/api/preflight', {cache: 'no-store'});
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || '사전 점검 결과를 불러오지 못했습니다.');
+    renderPreflight(payload);
+    preflightRefreshStatus.textContent = '확인 완료';
+  } catch (error) {
+    preflightRefreshStatus.className = 'hint error-text';
+    preflightRefreshStatus.textContent = `확인 실패: ${error.message}`;
+  } finally {
+    setButtonBusy(refreshPreflightButton, false);
+  }
 });
 verifyHookButton.addEventListener('click', async () => {
-  verifyHookButton.disabled = true;
+  setButtonBusy(verifyHookButton, true, '검증 중…');
   verifyHookStatus.className = 'hint';
   verifyHookStatus.textContent = '임시 Workspace에서 실제 Hook 연결을 검증하는 중…';
   try {
@@ -344,7 +373,7 @@ verifyHookButton.addEventListener('click', async () => {
     verifyHookStatus.className = 'hint error-text';
     verifyHookStatus.textContent = `검증 요청 실패: ${error.message}`;
   } finally {
-    verifyHookButton.disabled = false;
+    setButtonBusy(verifyHookButton, false);
   }
 });
 workspaceInput.addEventListener('blur', async () => {
@@ -372,7 +401,7 @@ previewPresets.forEach((preset) => preset.addEventListener('click', () => {
   previewButton.click();
 }));
 previewButton.addEventListener('click', async () => {
-  previewButton.disabled = true;
+  setButtonBusy(previewButton, true, '판정 중…');
   previewResult.hidden = true;
   previewStatus.textContent = '정책을 판정하는 중…';
   const operation = previewOperation.value;
@@ -413,7 +442,7 @@ previewButton.addEventListener('click', async () => {
   } catch (error) {
     previewStatus.textContent = error.message;
   } finally {
-    previewButton.disabled = false;
+    setButtonBusy(previewButton, false);
   }
 });
 form.addEventListener('submit', async (event) => {

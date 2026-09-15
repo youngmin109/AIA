@@ -1194,6 +1194,8 @@ async function pollStatus() {
 document.getElementById('refresh-status').addEventListener('click', async (event) => {
   const button = event.currentTarget;
   button.disabled = true;
+  button.classList.add('is-busy');
+  button.setAttribute('aria-busy', 'true');
   button.textContent = '확인 중…';
   lastRefreshTime.textContent = '갱신 중…';
   lastRefreshTime.classList.remove('error-text');
@@ -1202,6 +1204,8 @@ document.getElementById('refresh-status').addEventListener('click', async (event
     openSocket();
   } finally {
     button.disabled = false;
+    button.classList.remove('is-busy');
+    button.removeAttribute('aria-busy');
     button.textContent = '상태 새로고침';
   }
 });
