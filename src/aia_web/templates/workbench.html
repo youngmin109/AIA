@@ -109,6 +109,25 @@
           <span id="terminal-pid" class="badge">PID —</span>
         </div>
       </div>
+      <section id="terminal-closed-card" class="terminal-closed-card" hidden aria-live="polite">
+        <div class="terminal-closed-heading">
+          <span id="terminal-closed-mark" class="terminal-closed-mark" aria-hidden="true">✓</span>
+          <div>
+            <strong id="terminal-closed-title">보호 실행이 종료되었습니다.</strong>
+            <p id="terminal-closed-detail">작업창 출력은 저장하지 않습니다. 실행 결과에서 확인 가능한 증거를 확인하세요.</p>
+          </div>
+        </div>
+        <div class="terminal-closed-metrics" aria-label="종료된 실행 요약">
+          <span><small>Hook</small><b id="terminal-closed-hook">—</b></span>
+          <span><small>파일</small><b id="terminal-closed-file">—</b></span>
+          <span><small>프로세스</small><b id="terminal-closed-process">—</b></span>
+          <span><small>Bundle</small><b id="terminal-closed-bundle">—</b></span>
+        </div>
+        <div class="terminal-closed-actions">
+          <a id="terminal-closed-result" class="button primary" href="/runs/{{ session_id }}/result" hidden>실행 결과 열기</a>
+          <a class="text-link" href="/runs">전체 실행 기록 보기 →</a>
+        </div>
+      </section>
       <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
         {% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
         이 보호 실행은 종료되었습니다. 작업창 출력은 저장하지 않습니다. 결과 보기에서 실행 기록을 확인하세요.
@@ -229,6 +248,16 @@ const initialStatus = {
 const runStatus = document.getElementById('run-status');
 const protectionState = document.getElementById('protection-state');
 const terminalOutput = document.getElementById('terminal-output');
+const terminalPanel = document.getElementById('terminal-panel');
+const terminalClosedCard = document.getElementById('terminal-closed-card');
+const terminalClosedMark = document.getElementById('terminal-closed-mark');
+const terminalClosedTitle = document.getElementById('terminal-closed-title');
+const terminalClosedDetail = document.getElementById('terminal-closed-detail');
+const terminalClosedHook = document.getElementById('terminal-closed-hook');
+const terminalClosedFile = document.getElementById('terminal-closed-file');
+const terminalClosedProcess = document.getElementById('terminal-closed-process');
+const terminalClosedBundle = document.getElementById('terminal-closed-bundle');
+const terminalClosedResult = document.getElementById('terminal-closed-result');
 const terminalInputForm = document.getElementById('terminal-input-form');
 const terminalInput = document.getElementById('terminal-input-proxy');
 const terminalSend = document.getElementById('terminal-send');
@@ -1139,6 +1168,31 @@ function updateFlow(phase) {
     else step.removeAttribute('aria-current');
   });
 }
+function updateTerminalClosedCard(status, ended) {
+  if (!terminalClosedCard) return;
+  terminalPanel?.classList.toggle('terminal-ended', ended);
+  terminalClosedCard.hidden = !ended;
+  if (!ended) return;
+  const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
+  const summary = status.evidence_summary || {};
+  const labels = {
+    COMPLETED: ['보호 실행이 완료되었습니다.', 'Codex 작업창 출력은 보안을 위해 저장하지 않습니다. 실행 결과에서 센서·정책·무결성 증거를 확인하세요.'],
+    ABORTED: ['보호 실행이 중지되었습니다.', '수집된 보호 증거와 실행 결과를 확인해 중지가 검증되었는지 확인하세요.'],
+    FAILED: ['보호 실행이 실패했습니다.', '실행 결과에서 실패 원인과 수집된 보호 증거를 확인하세요.'],
+  };
+  const [title, detail] = labels[sessionStatus] || labels.FAILED;
+  terminalClosedMark.className = `terminal-closed-mark ${sessionStatus === 'COMPLETED' ? 'closed-success' : sessionStatus === 'ABORTED' ? 'closed-warning' : 'closed-failed'}`;
+  terminalClosedMark.textContent = sessionStatus === 'COMPLETED' ? '✓' : sessionStatus === 'ABORTED' ? '!' : '×';
+  terminalClosedTitle.textContent = title;
+  terminalClosedDetail.textContent = detail;
+  terminalClosedHook.textContent = `${(summary.pretool_events || 0) + (summary.posttool_events || 0)}건`;
+  terminalClosedFile.textContent = `${summary.filesystem_events || 0}건`;
+  terminalClosedProcess.textContent = `${summary.process_observed || 0}건`;
+  terminalClosedBundle.textContent = status.result_available ? bundleLabel(status.bundle_status || 'VALID') : '검증 전';
+  terminalClosedBundle.className = status.result_available && status.bundle_status === 'VALID' ? 'closed-metric-valid' : '';
+  terminalClosedResult.hidden = !status.result_available;
+  if (status.result_available) terminalClosedResult.href = `/runs/${encodeURIComponent(sessionId)}/result`;
+}
 function appendTerminal(data) {
   // Terminal output is memory-only. Interpret the small ANSI subset used by
   // Codex so full-screen redraws replace the current view instead of being
@@ -1303,6 +1357,7 @@ function renderSecurity(status) {
   const file = status.sensor_health?.FILESYSTEM_WATCHER || '확인 중';
   const process = status.sensor_health?.PROCESS_RUNTIME || '확인 중';
   const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session?.status);
+  updateTerminalClosedCard(status, ended);
   if (ended) stopStatusPolling();
   const stopPending = Boolean(status.stop?.requested) || status.protection?.state === 'STOP_REQUESTED';
   const reconciliation = status.runtime_reconciliation || {};

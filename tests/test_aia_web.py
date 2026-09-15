@@ -473,6 +473,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex 작업창 시작이 지연되고 있습니다. 연결 상태를 확인하세요." in workbench.text
     assert "terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value)" in workbench.text
     assert "setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.')" in workbench.text
+    assert 'id="terminal-closed-card"' in workbench.text
+    assert 'id="terminal-closed-result"' in workbench.text
+    assert workbench.text.index('id="terminal-closed-card"') < workbench.text.index('id="terminal-output"')
+    assert "updateTerminalClosedCard" in workbench.text
+    assert "Codex 작업창 출력은 보안을 위해 저장하지 않습니다." in workbench.text
+    assert "terminal-ended" in workbench.text
     assert "chain-sensor-link" in workbench.text
     assert "RUN_OBSERVED" in workbench.text
     assert "실행 관찰" in workbench.text
