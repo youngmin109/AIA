@@ -332,6 +332,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Hook Broker" in live.text
     assert "실시간 센서 상태" in live.text
     assert 'id="event-timeline"' in live.text
+    assert 'id="run-refresh-status"' in live.text
+    assert 'id="refresh-run"' in live.text
+    assert "pollInFlight" in live.text
+    assert "if (pollInFlight) return;" in live.text
+    assert "stopPolling" in live.text
+    assert "renderIncident(status.events || [], terminal)" in live.text
+    assert "최근 확인 필요 사건" in live.text
     assert "HEALTHY" in live.text
     workbench = client.get("/runs/run-1/workbench")
     assert workbench.status_code == 200
