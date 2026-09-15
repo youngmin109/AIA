@@ -10,6 +10,7 @@
       <p class="muted mono workbench-session-id" title="{{ session_id }}">{{ session_id }}</p>
     </div>
     <div class="workbench-header-actions">
+      <button id="refresh-status" class="button secondary workbench-refresh" type="button" title="센서와 실행 상태를 다시 확인합니다.">상태 새로고침</button>
       <span id="run-status" class="status-badge" aria-live="polite">상태 확인 중</span>
       <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} hidden{% endif %}>보호 실행 중지</button>
       <a id="result-link" class="button" href="/runs/{{ session_id }}/result"{% if not status.result_available %} hidden{% endif %}>결과 보기</a>
@@ -205,6 +206,7 @@ let activityTimer = null;
 let lastTerminalOutputAt = 0;
 let terminalClosed = false;
 let terminalRuntimeStatus = 'UNKNOWN';
+let terminalSocketConnected = false;
 let awaitingResponse = false;
 let terminalAction = null;
 let terminalDetectionBuffer = '';
@@ -684,7 +686,7 @@ function setTerminalStatus(status) {
 }
 function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
-  const terminalReady = terminalRuntimeStatus === 'RUNNING' && !trustRequired;
+  const terminalReady = terminalRuntimeStatus === 'RUNNING' && terminalSocketConnected && !trustRequired;
   terminalInput.disabled = !terminalReady;
   terminalSend.disabled = !terminalReady || awaitingResponse;
   terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
@@ -693,7 +695,7 @@ function updateTerminalInputState() {
     ? '먼저 “신뢰하고 계속”을 눌러주세요.'
     : '여기에 입력하세요 · 한글 입력 지원 · Enter로 전송';
   const actionButton = document.getElementById('terminal-action');
-  actionButton.disabled = terminalRuntimeStatus !== 'RUNNING' || terminalAction !== 'TRUST_DIRECTORY';
+  actionButton.disabled = terminalRuntimeStatus !== 'RUNNING' || !terminalSocketConnected || terminalAction !== 'TRUST_DIRECTORY';
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
 function setTerminalAction(action) {
@@ -749,23 +751,34 @@ function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { s
 function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
   terminalClosed = false;
+  terminalSocketConnected = false;
+  updateTerminalInputState();
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${scheme}://${location.host}/api/runs/${encodeURIComponent(sessionId)}/terminal`);
-  socket.onopen = () => setTerminalConnection('연결 확인 중', 'connection-pending');
+  socket.onopen = () => {
+    terminalSocketConnected = true;
+    setTerminalConnection('연결 확인 중', 'connection-pending');
+    updateTerminalInputState();
+  };
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
     if (message.type === 'output') appendTerminal(message.data);
     else if (message.type === 'status') setTerminalStatus(message);
     else if (message.type === 'error') showTerminalError(message.message || '터미널 요청이 거부되었습니다.');
-    else if (message.type === 'closed') { terminalClosed = true; setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
+    else if (message.type === 'closed') { terminalClosed = true; terminalSocketConnected = false; setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
   };
   socket.onclose = () => {
+    terminalSocketConnected = false;
+    updateTerminalInputState();
     if (!['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status) && !terminalClosed) {
       setTerminalConnection('재연결 중', 'connection-pending');
+      setTerminalActivity('STARTING', 'Workbench 터미널 연결이 끊겨 다시 연결하는 중입니다.');
       socketRetry = setTimeout(openSocket, 1000);
     }
   };
   socket.onerror = () => {
+    terminalSocketConnected = false;
+    updateTerminalInputState();
     setTerminalConnection('연결 오류', 'connection-failed');
     showTerminalError('Workbench 터미널 연결을 확인할 수 없습니다.');
   };
@@ -1017,6 +1030,20 @@ async function pollStatus() {
     lastRefreshTime.classList.add('error-text');
   }
 }
+document.getElementById('refresh-status').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = '확인 중…';
+  lastRefreshTime.textContent = '갱신 중…';
+  lastRefreshTime.classList.remove('error-text');
+  try {
+    await pollStatus();
+    openSocket();
+  } finally {
+    button.disabled = false;
+    button.textContent = '상태 새로고침';
+  }
+});
 renderSecurity(initialStatus);
 openSocket();
 pollStatus();
