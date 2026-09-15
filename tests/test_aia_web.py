@@ -507,6 +507,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "유효 · 검증됨" in result.text
     assert result.text.index("Hook Sensor") < result.text.index("File Sensor") < result.text.index("Process Sensor")
     assert "이번 보호 실행에서 확인된 내용" in result.text
+    assert "보호 상태" in result.text
     assert "다음 작업" in result.text
     assert "새 보호 실행 시작" in result.text
     assert 'class="is-active" aria-current="page" href="/runs"' in result.text
@@ -538,6 +539,20 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
     assert "SUPER_SECRET" not in result.text
+
+
+def test_result_page_explains_degraded_protection_separately_from_valid_bundle() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["protection_state"] = "COMPLETED_DEGRADED"
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert "Evidence Bundle은 유효 · 검증됨이지만 보호 상태가 완전히 검증되지 않았습니다." in result.text
+    assert "완료 · 일부 확인" in result.text
 
 
 def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
@@ -661,6 +676,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "Workbench 열기" in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/runs/run-1/workbench">Workbench 열기</a>' in dashboard.text
     assert "결과 검증" in dashboard.text
+    assert "행위 관찰 전" in dashboard.text
     assert "사건" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "전체 실행" in history.text
@@ -680,6 +696,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "중지 처리 중" in history.text
     assert "보호 실패" in history.text
     assert "READY_UNVERIFIED" in history.text
+    assert "실행 중 · 행위 관찰 전" in history.text
     assert 'id="history-pagination"' in history.text
     assert 'id="history-prev"' in history.text
     assert 'id="history-next"' in history.text

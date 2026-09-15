@@ -11,7 +11,7 @@
 {% set platforms = support.get('operating_system') or ['Windows 11'] %}
 {% set trust_labels = {'TRUSTED': '신뢰됨', 'MANAGED': '관리됨', 'MANUAL_REVIEW_REQUIRED': '검토 필요', 'MODIFIED': '변경됨', 'UNTRUSTED': '신뢰되지 않음'} %}
 {% set status_labels = {'CREATED': '생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': '실행 중', 'COMPLETED': '정상 완료', 'ABORTED': '사용자 중지', 'FAILED': '실패'} %}
-{% set protection_labels = {'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '보호 확인 중', 'ACTIVE_DEGRADED': '보호 상태 저하', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'ORPHANED_DEGRADED': '보호 경계 저하'} %}
+{% set protection_labels = {'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '행위 관찰 전', 'ACTIVE_DEGRADED': '보호 상태 저하', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'ORPHANED_DEGRADED': '보호 경계 저하'} %}
 {% set bundle_labels = {'VALID': '유효', 'INVALID': '무효', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '없음'} %}
 {% set active_run = namespace(item=None) %}
 {% set stale_run = namespace(item=None) %}
@@ -187,7 +187,7 @@ const dashboardRecentEmpty = document.getElementById('dashboard-recent-empty');
 const dashboardStatusLabels = {CREATED: '생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: '실행 중'};
 const dashboardActiveTitle = ['보호', '실행이 진행 중입니다.'].join(' ');
 const dashboardActiveStatuses = ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'];
-const dashboardProtectionLabels = {ACTIVE_VERIFIED: '보호 검증됨', ACTIVE_UNVERIFIED: '보호 확인 중', ACTIVE_DEGRADED: '보호 상태 저하', COMPLETED_VERIFIED: '완료 · 검증됨', COMPLETED_DEGRADED: '완료 · 일부 확인', ABORTED_VERIFIED: '중지 · 검증됨', ABORTED_DEGRADED: '중지 · 일부 확인', ORPHANED_DEGRADED: '보호 경계 저하'};
+const dashboardProtectionLabels = {ACTIVE_VERIFIED: '보호 검증됨', ACTIVE_UNVERIFIED: '행위 관찰 전', ACTIVE_DEGRADED: '보호 상태 저하', COMPLETED_VERIFIED: '완료 · 검증됨', COMPLETED_DEGRADED: '완료 · 일부 확인', ABORTED_VERIFIED: '중지 · 검증됨', ABORTED_DEGRADED: '중지 · 일부 확인', ORPHANED_DEGRADED: '보호 경계 저하'};
 const dashboardBundleLabels = {VALID: '유효', INVALID: '무효', UNVERIFIED: '검증 전', PENDING: '검증 중', NOT_FOUND: '없음'};
 let dashboardRefreshInFlight = false;
 

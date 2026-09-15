@@ -1475,6 +1475,7 @@ class RunApplicationService:
                 evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
             )
             view["launch_mode"] = record.launch_mode
+            view["protection_state"] = record.protection_state
             view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
             view["evidence_summary"] = self._evidence_summary(session_id)
             return view
@@ -1490,6 +1491,19 @@ class RunApplicationService:
         runtime_state = self._read_runtime_state(session_id)
         if isinstance(runtime_state, Mapping):
             view["launch_mode"] = runtime_state.get("launch_mode", "inherit")
+        completed_metadata = next(
+            (item for item in self.reader.list_completed() if item.get("session_id") == session_id),
+            None,
+        )
+        view["protection_state"] = (
+            completed_metadata.get("protection_state")
+            if completed_metadata
+            else {
+                "FAILED": "FAILED_DEGRADED",
+                "ABORTED": "ABORTED_DEGRADED",
+                "COMPLETED": "COMPLETED_DEGRADED",
+            }.get(result.get("session_status"), "UNKNOWN")
+        )
         view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
         view["evidence_summary"] = self._evidence_summary(session_id)
         return view
