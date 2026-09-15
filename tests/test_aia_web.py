@@ -292,6 +292,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalInputForm" in workbench.text
     assert "activityMode" in workbench.text
     assert "submitTerminalLine" in workbench.text
+    assert "SUBMIT_SETTLE_MS = 250" in workbench.text
+    assert "Codex에 질문을 제출하는 중입니다." in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "submitAfterComposition" in workbench.text

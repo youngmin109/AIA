@@ -162,6 +162,10 @@ let lastRenderedEventKey = '';
 let activityMode = 'IDLE';
 let activityStartedAt = 0;
 let activityTimer = null;
+// Codex treats the browser text burst as paste input.  Give the PTY a short
+// settle window before sending the dedicated composer submit key; without it
+// the key can arrive before the paste has been committed to the composer.
+const SUBMIT_SETTLE_MS = 250;
 
 const terminalScreen = (() => {
   let rows = Number(initialStatus.terminal?.rows) || 32;
@@ -497,13 +501,14 @@ function submitTerminalLine() {
   const accepted = send({type:'input', data: value});
   if (!accepted) return;
   terminalInput.value = '';
+  setTerminalActivity('SUBMITTING', 'Codex에 질문을 제출하는 중입니다.');
   // Codex's Workbench launch binds composer.submit to Ctrl+X.  Send it as a
   // separate WebSocket message so the text stays ordinary input and the
   // submit key is not swallowed as part of a paste burst.
   window.setTimeout(() => {
     if (send({type:'submit'})) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
     else showTerminalError('Codex에 전송하지 못했습니다. 터미널 연결을 확인하세요.');
-  }, 50);
+  }, SUBMIT_SETTLE_MS);
 }
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
 terminalInput.addEventListener('compositionend', () => {
