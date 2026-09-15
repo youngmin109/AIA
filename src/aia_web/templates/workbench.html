@@ -169,6 +169,7 @@ let activityMode = 'IDLE';
 let activityStartedAt = 0;
 let activityTimer = null;
 let lastTerminalOutputAt = 0;
+let terminalClosed = false;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -376,6 +377,11 @@ function setTerminalActivity(mode, label) {
   }
 }
 
+function setTerminalConnection(label, className) {
+  terminalConnection.className = `terminal-connection ${className}`;
+  terminalConnection.innerHTML = `<i aria-hidden="true"></i>${label}`;
+}
+
 function setTerminalStatus(status) {
   const value = status?.status || 'UNKNOWN';
   const terminalEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
@@ -398,8 +404,7 @@ function setTerminalStatus(status) {
         : value === 'NOT_ATTACHED'
           ? ['연결 대기', 'connection-pending']
           : ['확인 중', 'connection-pending'];
-  terminalConnection.className = `terminal-connection ${connection[1]}`;
-  terminalConnection.innerHTML = `<i aria-hidden="true"></i>${connection[0]}`;
+  setTerminalConnection(connection[0], connection[1]);
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
   terminalInput.disabled = value !== 'RUNNING';
   terminalSend.disabled = value !== 'RUNNING';
@@ -445,17 +450,27 @@ function appendTerminal(data) {
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
 function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
+  terminalClosed = false;
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${scheme}://${location.host}/api/runs/${encodeURIComponent(sessionId)}/terminal`);
+  socket.onopen = () => setTerminalConnection('연결 확인 중', 'connection-pending');
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
     if (message.type === 'output') appendTerminal(message.data);
     else if (message.type === 'status') setTerminalStatus(message);
     else if (message.type === 'error') showTerminalError(message.message || '터미널 요청이 거부되었습니다.');
-    else if (message.type === 'closed') { setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
+    else if (message.type === 'closed') { terminalClosed = true; setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
   };
-  socket.onclose = () => { if (!['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status)) socketRetry = setTimeout(openSocket, 1000); };
-  socket.onerror = () => showTerminalError('Workbench 터미널 연결을 확인할 수 없습니다.');
+  socket.onclose = () => {
+    if (!['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status) && !terminalClosed) {
+      setTerminalConnection('재연결 중', 'connection-pending');
+      socketRetry = setTimeout(openSocket, 1000);
+    }
+  };
+  socket.onerror = () => {
+    setTerminalConnection('연결 오류', 'connection-failed');
+    showTerminalError('Workbench 터미널 연결을 확인할 수 없습니다.');
+  };
 }
 function renderSecurity(status) {
   const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
