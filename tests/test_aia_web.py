@@ -615,6 +615,9 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "시작 시각" in history.text
     assert "history-time" in history.text
     assert "Result Bundle VALID" in history.text
+    assert "중지 처리 중" in history.text
+    assert "보호 실패" in history.text
+    assert "READY_UNVERIFIED" in history.text
     assert "/runs/run-1/result" not in history.text
 
 
