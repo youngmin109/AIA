@@ -323,6 +323,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실행 여부 미확인" in workbench.text
     assert "센서가 관찰하면 여기에 표시됩니다" in workbench.text
     assert "eventSummaryLabel(incident.summary)" in workbench.text
+    assert "statusPollFailures" in workbench.text
+    assert "연결 확인 필요" in workbench.text
+    assert "중지 요청 중…" in workbench.text
+    assert "STOPPING" in workbench.text
     assert "Working\\s*\\(\\s*\\d+s" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
