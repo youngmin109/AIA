@@ -1728,7 +1728,7 @@ function continueTerminalAction() {
   setTerminalActivity('WORKING', 'Codex가 Workspace 확인을 처리하는 중입니다.');
 }
 function interruptTerminalRequest() {
-  if (interruptPending || !['SUBMITTING', 'WORKING'].includes(activityMode)) return;
+  if (interruptPending || !['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode)) return;
   if (pendingSubmission?.timer) window.clearTimeout(pendingSubmission.timer);
   pendingSubmission = null;
   if (!send({type: 'input', data: '\u0003'})) {
