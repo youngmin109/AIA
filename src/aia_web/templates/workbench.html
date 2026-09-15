@@ -149,11 +149,11 @@
       </div>
       <form id="terminal-input-form" class="terminal-input-row">
         <span class="terminal-input-prefix" aria-hidden="true">›</span>
-        <textarea id="terminal-input-proxy" rows="1" aria-label="Codex 입력" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="여기에 입력하세요 · 한글 입력 지원 · Enter로 전송"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}></textarea>
+        <textarea id="terminal-input-proxy" rows="1" aria-label="Codex 입력" aria-describedby="terminal-input-help" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="여기에 입력하세요 · Enter 전송 · Shift+Enter 줄바꿈"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}></textarea>
         <button id="terminal-send" class="button primary terminal-send" type="submit"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}>전송</button>
       </form>
       <div class="terminal-input-hint">
-        <span>입력창에서 작성한 뒤 Enter 또는 전송 버튼으로 Codex에 전송합니다. Ctrl+C·방향키도 지원합니다.</span>
+        <span id="terminal-input-help">Enter로 전송 · Shift+Enter로 줄바꿈 · Ctrl+C·방향키 지원</span>
         <span class="mono">Workbench · 로컬 연결</span>
       </div>
       <div id="terminal-error" class="error" hidden></div>
@@ -1284,6 +1284,7 @@ function restorePendingSubmission(message) {
   const value = pendingSubmission.value;
   pendingSubmission = null;
   if (!terminalInput.value) terminalInput.value = value;
+  resizeTerminalInput();
   setTerminalActivity('WAITING', message);
   terminalInput.focus();
   return true;
@@ -1629,6 +1630,7 @@ terminalFocusLink?.addEventListener('click', (event) => {
 document.querySelectorAll('[data-terminal-example]').forEach((button) => button.addEventListener('click', () => {
   if (terminalInput.disabled || awaitingResponse) return;
   terminalInput.value = button.dataset.terminalExample || '';
+  resizeTerminalInput();
   terminalInput.focus();
   terminalInput.setSelectionRange(terminalInput.value.length, terminalInput.value.length);
 }));
@@ -1649,6 +1651,7 @@ function submitTerminalLine() {
     return;
   }
   terminalInput.value = '';
+  resizeTerminalInput();
   terminalError.hidden = true;
   pendingSubmission = {value, timer: null};
   setTerminalActivity('SUBMITTING', 'Codex에 질문을 제출하는 중입니다.');
@@ -1689,16 +1692,26 @@ function interruptTerminalRequest() {
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
 terminalInput.addEventListener('compositionend', () => {
   composing = false;
+  resizeTerminalInput();
   if (submitAfterComposition) {
     submitAfterComposition = false;
     window.setTimeout(submitTerminalLine, 0);
   }
 });
 terminalInputForm.addEventListener('submit', (event) => { event.preventDefault(); submitTerminalLine(); });
+function resizeTerminalInput() {
+  terminalInput.style.height = 'auto';
+  const naturalHeight = terminalInput.scrollHeight;
+  const maxHeight = 110;
+  terminalInput.style.height = `${Math.min(Math.max(naturalHeight, 38), maxHeight)}px`;
+  terminalInput.style.overflowY = naturalHeight > maxHeight ? 'auto' : 'hidden';
+}
+terminalInput.addEventListener('input', resizeTerminalInput);
 terminalInput.addEventListener('keydown', (event) => {
   const controls = {'Backspace':'\x7f','Tab':'\t','ArrowUp':'\x1b[A','ArrowDown':'\x1b[B','ArrowRight':'\x1b[C','ArrowLeft':'\x1b[D','Escape':'\x1b'};
-  if (event.key === 'Enter' && event.isComposing) { submitAfterComposition = true; return; }
+  if (event.key === 'Enter' && event.isComposing && !event.shiftKey) { submitAfterComposition = true; return; }
   if (event.isComposing || composing) return;
+  if (event.key === 'Enter' && event.shiftKey) return;
   if (event.ctrlKey && event.key.length === 1) { event.preventDefault(); send({type:'input', data: String.fromCharCode(event.key.toUpperCase().charCodeAt(0) - 64)}); return; }
   if (event.key === 'Enter') { event.preventDefault(); submitTerminalLine(); return; }
   if (controls[event.key] && !terminalInput.value) { event.preventDefault(); send({type:'input', data: controls[event.key]}); return; }

@@ -427,6 +427,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실행이 중지됐고 수집된 보호 증거와 결과를 검증했습니다." in workbench.text
     assert "현재 Workbench" in workbench.text
     assert 'id="terminal-input-proxy"' in workbench.text
+    assert 'aria-describedby="terminal-input-help"' in workbench.text
+    assert "Enter 전송 · Shift+Enter 줄바꿈" in workbench.text
     assert 'id="terminal-input-form"' in workbench.text
     assert 'id="terminal-send"' in workbench.text
     assert 'data-terminal-focus' in workbench.text
@@ -447,6 +449,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "응답 대기 중" in workbench.text
     assert "updateTerminalInputState" in workbench.text
     assert "submitTerminalLine" in workbench.text
+    assert "function resizeTerminalInput()" in workbench.text
+    assert "event.key === 'Enter' && event.shiftKey" in workbench.text
+    assert "event.isComposing && !event.shiftKey" in workbench.text
     assert "SUBMIT_SETTLE_MS = 250" in workbench.text
     assert "Codex에 질문을 제출하는 중입니다." in workbench.text
     assert 'id="terminal-action"' in workbench.text
