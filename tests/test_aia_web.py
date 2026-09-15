@@ -281,6 +281,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert '<details class="panel capability-panel">' in new_run.text
     assert "정책 만들기" in new_run.text
     assert "실행 설정" in new_run.text
+    assert 'id="run-launch-summary"' in new_run.text
+    assert "보호 실행 요약" in new_run.text
+    assert "runSummaryWorkspace" in new_run.text
+    assert "실행 가능" in new_run.text
     assert "terminalSurfaceInputs" in new_run.text
     assert "runSubmissionInProgress" in new_run.text
     assert 'id="workspace-status"' in new_run.text
