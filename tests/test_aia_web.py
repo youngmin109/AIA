@@ -359,6 +359,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventFilterButtons" in workbench.text
     assert "eventFilter === 'SENSOR'" in workbench.text
     assert "eventFilter === 'ACTION'" in workbench.text
+    assert "bindChainSelectors" in workbench.text
+    assert "sensor-evidence-row ${linked ? 'is-linked'" in workbench.text
+    assert "data-chain-select" in workbench.text
     assert "responseStartedAt" in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
     assert "terminalOutput.setAttribute('aria-busy'" in workbench.text

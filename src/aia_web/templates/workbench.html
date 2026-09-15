@@ -484,6 +484,19 @@ function selectEvidenceChain(actionId) {
   if (card) card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
+function bindChainSelectors() {
+  document.querySelectorAll('[data-chain-select]:not([data-chain-bound])').forEach((item) => {
+    item.dataset.chainBound = 'true';
+    item.addEventListener('click', () => selectEvidenceChain(item.dataset.chainSelect));
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectEvidenceChain(item.dataset.chainSelect);
+      }
+    });
+  });
+}
+
 const evidenceRecordLabel = (value) => ({PRETOOL_REQUEST: 'PreToolUse 요청', POSTTOOL_OBSERVED: '도구 실행 결과 관찰', FILESYSTEM_EVENT: '파일 시스템 변화', PROCESS_OBSERVED: '프로세스 관찰', PROCESS_EXIT_OBSERVED: '프로세스 종료 관찰', SENSOR_HEALTH: '센서 상태 기록'})[value] || 'Evidence 관찰';
 function renderEvidenceTimeline(records) {
   const container = document.getElementById('sensor-evidence-timeline');
@@ -508,8 +521,10 @@ function renderEvidenceTimeline(records) {
   container.innerHTML = items.map((item) => {
     const linked = item.link_status === 'LINKED';
     const action = linked ? ` · Action ${esc(String(item.linked_action_id || '연결됨'))}` : ' · Action 연결 없음';
-    return `<div class="sensor-evidence-row ${linked ? 'is-linked' : 'is-unlinked'}"><span class="evidence-chain-node" aria-hidden="true"></span><div><strong>${esc(evidenceRecordLabel(item.record_type || item.summary))}</strong><small>${esc(formatTime(item.captured_at))} · ${esc(sensorNameLabel(item.source || 'UNKNOWN'))}${esc(action)}</small></div><span class="badge ${linked ? 'badge-succeeded' : 'badge-warning'}">${linked ? '행위 연결됨' : '독립 관찰'}</span></div>`;
+    const chainAttribute = linked && item.linked_action_id ? ` data-chain-select="${esc(String(item.linked_action_id))}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : '';
+    return `<div class="sensor-evidence-row ${linked ? 'is-linked' : 'is-unlinked'}"${chainAttribute}><span class="evidence-chain-node" aria-hidden="true"></span><div><strong>${esc(evidenceRecordLabel(item.record_type || item.summary))}</strong><small>${esc(formatTime(item.captured_at))} · ${esc(sensorNameLabel(item.source || 'UNKNOWN'))}${esc(action)}</small></div><span class="badge ${linked ? 'badge-succeeded' : 'badge-warning'}">${linked ? '행위 연결됨' : '독립 관찰'}</span></div>`;
   }).join('');
+  bindChainSelectors();
 }
 
 function updateActivityClock() {
@@ -742,15 +757,7 @@ function renderSecurity(status) {
         ? '이 실행에는 보안 이벤트가 없습니다.'
         : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.';
     document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
-    document.querySelectorAll('[data-chain-select]').forEach((item) => {
-      item.addEventListener('click', () => selectEvidenceChain(item.dataset.chainSelect));
-      item.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          selectEvidenceChain(item.dataset.chainSelect);
-        }
-      });
-    });
+    bindChainSelectors();
   }
   document.getElementById('event-count').textContent = `${events.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;

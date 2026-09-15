@@ -168,6 +168,8 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .chain-sensor-link.is-unobserved { opacity: .72; }
 .workbench-event[role="button"] { cursor: pointer; }
 .workbench-event[role="button"]:hover, .workbench-event[role="button"]:focus-visible { background: rgba(101,217,232,.06); outline: none; }
+.sensor-evidence-row[role="button"] { cursor: pointer; }
+.sensor-evidence-row[role="button"]:hover, .sensor-evidence-row[role="button"]:focus-visible { background: rgba(101,217,232,.06); outline: none; }
 .evidence-chain-heading, .result-chain-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 9px; }
 .evidence-chain-heading strong, .evidence-chain-heading small, .result-chain-heading strong, .result-chain-heading small { display: block; overflow-wrap: anywhere; }
 .evidence-chain-heading small, .result-chain-heading small { color: var(--muted); margin-top: 3px; font-size: 10px; }
