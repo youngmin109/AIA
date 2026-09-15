@@ -406,6 +406,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex가 요청을 처리하고 있습니다." in workbench.text
     assert "Codex 응답을 수신하는 중입니다." in workbench.text
     assert "OUTPUTTING" in workbench.text
+    assert "응답 수신 중" in workbench.text
     assert "Codex가 다음 작업을 기다리고 있습니다." in workbench.text
     assert "Codex 작업창을 준비하고 있습니다." in workbench.text
     assert "입력창이 활성화될 때까지 잠시 기다려 주세요." in workbench.text

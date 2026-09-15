@@ -1169,7 +1169,9 @@ function updateTerminalInputState() {
   const terminalReady = terminalRuntimeStatus === 'RUNNING' && terminalSocketConnected && terminalComposerReady && !trustRequired;
   terminalInput.disabled = !terminalReady;
   terminalSend.disabled = !terminalReady || awaitingResponse;
-  terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
+  terminalSend.textContent = awaitingResponse
+    ? activityMode === 'OUTPUTTING' ? '응답 수신 중' : '응답 대기 중'
+    : '전송';
   terminalSend.setAttribute('aria-busy', String(awaitingResponse));
   const interruptVisible = ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode) && !terminalClosed;
   terminalInterrupt.hidden = !interruptVisible;
