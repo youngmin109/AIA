@@ -488,6 +488,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventFilterButtons" in workbench.text
     assert "eventFilter === 'SENSOR'" in workbench.text
     assert "eventFilter === 'ACTION'" in workbench.text
+    assert "eventFilter === 'ALL' ? `${events.length}건` : `${events.length}건 / 전체 ${allEvents.length}건`" in workbench.text
+    assert "현재 필터 결과" in workbench.text
     assert "bindChainSelectors" in workbench.text
     assert "sensor-evidence-row ${linked ? 'is-linked'" in workbench.text
     assert "data-chain-select" in workbench.text

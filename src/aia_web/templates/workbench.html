@@ -1389,7 +1389,9 @@ function renderSecurity(status) {
     document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; const isNew = eventHighlightKeys.has(securityEventKey(event)); return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
     bindChainSelectors();
   }
-  document.getElementById('event-count').textContent = `${events.length}건`;
+  const eventCount = document.getElementById('event-count');
+  eventCount.textContent = eventFilter === 'ALL' ? `${events.length}건` : `${events.length}건 / 전체 ${allEvents.length}건`;
+  eventCount.title = eventFilter === 'ALL' ? '전체 보안 이벤트' : `현재 필터 결과 ${events.length}건 · 전체 보안 이벤트 ${allEvents.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
   const incident = allEvents.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity) || ['CONTAIN', 'REFUSE'].includes(event.decision));
   const incidentCard = document.getElementById('incident-card');
