@@ -371,6 +371,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'data-event-filter="SENSOR"' in workbench.text
     assert "현재 필터에 해당하는 이벤트가 없습니다." in workbench.text
     assert 'id="evidence-chain-panel"' in workbench.text
+    assert '<details id="evidence-chain-panel"' in workbench.text
+    assert '<details id="sensor-evidence-panel"' in workbench.text
+    assert "workbench-details-summary" in workbench.text
+    assert "if (target?.tagName === 'DETAILS') target.open = true" in workbench.text
     assert 'id="evidence-chains"' in workbench.text
     assert "renderEvidenceChains" in workbench.text
     assert "원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성" in workbench.text

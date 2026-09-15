@@ -152,13 +152,13 @@
         <p id="incident-note" class="incident-note" aria-live="polite"></p>
         <a id="incident-detail-link" class="text-link" href="#" hidden>사건 상세 보기 →</a>
       </section>
-      <section id="evidence-chain-panel" class="workbench-card evidence-chain-panel">
-        <div class="panel-heading"><div><h2>실행 증거 흐름</h2><p class="hint">연결됨은 Action과 직접 증명된 Evidence, 실행 관찰은 같은 Run에서 별도로 확인된 Evidence입니다.</p></div><span id="evidence-chain-count" class="badge">0건</span></div>
+      <details id="evidence-chain-panel" class="workbench-card evidence-chain-panel workbench-details">
+        <summary class="workbench-details-summary"><div><h2>실행 증거 흐름</h2><p class="hint">연결됨은 Action과 직접 증명된 Evidence, 실행 관찰은 같은 Run에서 별도로 확인된 Evidence입니다.</p></div><span id="evidence-chain-count" class="badge">0건</span></summary>
         <p class="workbench-card-subtitle">원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성</p>
         <div id="evidence-chains" class="evidence-chains" aria-live="polite"><div class="empty">아직 연결된 행위 증거가 없습니다.</div></div>
-      </section>
-      <section id="sensor-evidence-panel" class="workbench-card">
-        <div class="panel-heading"><div><h2>센서 Evidence 타임라인</h2><p class="hint">센서가 기록한 사실과 검증된 Action 연결을 구분해 표시합니다.</p></div><span id="sensor-evidence-count" class="badge">0건</span></div>
+      </details>
+      <details id="sensor-evidence-panel" class="workbench-card workbench-details">
+        <summary class="workbench-details-summary"><div><h2>센서 Evidence 타임라인</h2><p class="hint">센서가 기록한 사실과 검증된 Action 연결을 구분해 표시합니다.</p></div><span id="sensor-evidence-count" class="badge">0건</span></summary>
         <div class="sensor-evidence-filters" role="group" aria-label="센서 Evidence 필터">
           <button type="button" class="event-filter sensor-evidence-filter is-active" data-evidence-filter="ALL" aria-pressed="true">전체</button>
           <button type="button" class="event-filter sensor-evidence-filter" data-evidence-filter="AGENT_HOOK" aria-pressed="false">Hook</button>
@@ -167,7 +167,7 @@
         </div>
         <div class="evidence-legend" aria-label="증거 상태 범례"><span class="chain-sensor-link is-linked"><i aria-hidden="true"></i>직접 연결</span><span class="chain-sensor-link is-run-observed"><i aria-hidden="true"></i>실행 관찰</span><span class="chain-sensor-link is-unobserved"><i aria-hidden="true"></i>미관찰</span></div>
         <div id="sensor-evidence-timeline" class="sensor-evidence-timeline" aria-live="polite"><div class="empty">아직 센서 Evidence가 없습니다.</div></div>
-      </section>
+      </details>
     </aside>
   </div>
 
@@ -602,6 +602,10 @@ const workbenchJumpLinks = [...document.querySelectorAll('[data-workbench-jump]'
 const workbenchJumpTargets = workbenchJumpLinks
   .map((link) => document.getElementById(link.dataset.workbenchJump))
   .filter(Boolean);
+workbenchJumpLinks.forEach((link) => link.addEventListener('click', () => {
+  const target = document.getElementById(link.dataset.workbenchJump);
+  if (target?.tagName === 'DETAILS') target.open = true;
+}));
 function setWorkbenchJumpActive(targetId) {
   workbenchJumpLinks.forEach((link) => {
     const active = link.dataset.workbenchJump === targetId;
