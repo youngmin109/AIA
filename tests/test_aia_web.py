@@ -585,6 +585,23 @@ def test_result_page_explains_degraded_protection_separately_from_valid_bundle()
     assert "완료 · 일부 확인" in result.text
 
 
+def test_result_page_distinguishes_verified_user_abort_from_normal_completion() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["session_status"] = "ABORTED"
+    result_data["protection_state"] = "ABORTED_VERIFIED"
+    result_data["incidents"] = []
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert "실행 중지됨" in result.text
+    assert "종료·보호 증거 검증이 완료되었습니다" in result.text
+    assert "정상 작업이 끝났고 보호 증거와 Result Bundle 검증이 완료되었습니다." not in result.text
+
+
 def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
     client = TestClient(create_app(FakeService()))
     with client.websocket_connect("/api/runs/run-1/terminal") as websocket:
