@@ -118,6 +118,12 @@ class FakeService:
             raise KeyError(session_id)
         return []
 
+    def read_terminal_output(self, session_id, *, after_sequence=0):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        assert after_sequence >= 0
+        return []
+
     def send_terminal_input(self, session_id, value):
         if session_id != "run-1":
             raise KeyError(session_id)

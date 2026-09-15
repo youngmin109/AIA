@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 import sys
+from collections import deque
+from datetime import datetime, timezone
 from threading import Lock
 
 import pytest
 
-from aia_app.terminal import TerminalSessionError, WinPtyTerminalSession
+from aia_app.terminal import _OutputChunk, TerminalSessionError, WinPtyTerminalSession
 
 
 def test_workbench_submit_input_writes_dedicated_control_key() -> None:
@@ -28,6 +30,24 @@ def test_workbench_submit_input_writes_dedicated_control_key() -> None:
     session.submit_input()
 
     assert pty.writes == ["\x18"]
+
+
+def test_terminal_output_can_be_replayed_without_consuming_the_bounded_buffer() -> None:
+    session = object.__new__(WinPtyTerminalSession)
+    session._lock = Lock()
+    session._chunks = deque(
+        [
+            _OutputChunk(1, "first", datetime.now(timezone.utc)),
+            _OutputChunk(2, "second", datetime.now(timezone.utc)),
+        ]
+    )
+    session._buffered_chars = len("firstsecond")
+
+    assert [item["sequence"] for item in session.read_output()] == [1, 2]
+    assert [item["sequence"] for item in session.read_output(after_sequence=1)] == [2]
+    assert [item["sequence"] for item in session.read_output()] == [1, 2]
+    assert [item["sequence"] for item in session.drain_output()] == [1, 2]
+    assert session.read_output() == []
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Workbench terminal requires Windows ConPTY")

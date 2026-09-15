@@ -1180,6 +1180,23 @@ class RunApplicationService:
             return []
         return terminal.drain_output()
 
+    def read_terminal_output(
+        self,
+        session_id: str,
+        *,
+        after_sequence: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Read bounded Workbench output from a per-connection sequence."""
+
+        record = self.registry.get(session_id)
+        if record is None:
+            self.get_run_status(session_id)
+            return []
+        terminal = record.runtime.get("terminal_session")
+        if terminal is None:
+            return []
+        return terminal.read_output(after_sequence)
+
     def send_terminal_input(self, session_id: str, value: str) -> dict[str, Any]:
         record = self.registry.get(session_id)
         if record is None:

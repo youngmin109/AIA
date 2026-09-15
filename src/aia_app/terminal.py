@@ -37,6 +37,8 @@ class TerminalSession(Protocol):
 
     def resize(self, rows: int, cols: int) -> None: ...
 
+    def read_output(self, after_sequence: int = 0) -> list[dict[str, Any]]: ...
+
     def drain_output(self) -> list[dict[str, Any]]: ...
 
     def snapshot(self) -> dict[str, Any]: ...
@@ -256,6 +258,10 @@ class WinPtyTerminalSession:
             chunks = list(self._chunks)
             self._chunks.clear()
             self._buffered_chars = 0
+        return self._output_items(chunks)
+
+    @staticmethod
+    def _output_items(chunks: Sequence[_OutputChunk]) -> list[dict[str, Any]]:
         return [
             {
                 "type": "output",
@@ -265,6 +271,20 @@ class WinPtyTerminalSession:
             }
             for item in chunks
         ]
+
+    def read_output(self, after_sequence: int = 0) -> list[dict[str, Any]]:
+        """Read buffered output without consuming it.
+
+        Each Workbench WebSocket keeps its own sequence cursor.  Keeping the
+        bounded buffer intact allows a browser refresh or reconnect to replay
+        the current terminal view without persisting terminal content.
+        """
+
+        if isinstance(after_sequence, bool) or not isinstance(after_sequence, int) or after_sequence < 0:
+            raise TerminalSessionError("after_sequence must be a non-negative integer")
+        with self._lock:
+            chunks = [item for item in self._chunks if item.sequence > after_sequence]
+        return self._output_items(chunks)
 
     def poll(self) -> int | None:
         with self._lock:

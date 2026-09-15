@@ -251,6 +251,17 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     async def terminal_socket(websocket: WebSocket, session_id: str) -> None:
         await websocket.accept()
         last_status: str | None = None
+        last_sequence = 0
+
+        async def send_pending_output() -> None:
+            nonlocal last_sequence
+            for item in app.state.service.read_terminal_output(
+                session_id,
+                after_sequence=last_sequence,
+            ):
+                await websocket.send_json(item)
+                last_sequence = max(last_sequence, int(item.get("sequence", last_sequence)))
+
         try:
             while True:
                 try:
@@ -287,18 +298,16 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 except (KeyError, ValueError, TypeError, TerminalSessionError) as error:
                     await websocket.send_json({"type": "error", "message": str(error)})
 
-                for item in app.state.service.drain_terminal_output(session_id):
-                    await websocket.send_json(item)
+                await send_pending_output()
                 status = app.state.service.get_terminal_status(session_id)
                 status_name = str(status.get("status", "UNKNOWN"))
                 if status_name != last_status:
                     await websocket.send_json({"type": "status", **status})
                     last_status = status_name
                 if status_name in {"FAILED", "EXITED"}:
-                    # Drain once more before closing so the last prompt/output
+                    # Send once more before closing so the last prompt/output
                     # is visible in the Workbench.
-                    for item in app.state.service.drain_terminal_output(session_id):
-                        await websocket.send_json(item)
+                    await send_pending_output()
                     await websocket.send_json({"type": "closed", "status": status_name})
                     return
         except WebSocketDisconnect:
