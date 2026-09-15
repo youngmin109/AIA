@@ -440,16 +440,25 @@ function renderSecurity(status) {
 
 terminalOutput.addEventListener('click', () => terminalInput.focus());
 let composing = false;
+let submitAfterComposition = false;
+function submitTerminalLine() {
+  const value = terminalInput.value;
+  const accepted = send({type:'input', data: `${value}\r`});
+  if (accepted) terminalInput.value = '';
+}
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
-terminalInput.addEventListener('compositionend', () => { composing = false; });
+terminalInput.addEventListener('compositionend', () => {
+  composing = false;
+  if (submitAfterComposition) { submitAfterComposition = false; submitTerminalLine(); }
+});
 terminalInput.addEventListener('keydown', (event) => {
   const controls = {'Enter':'\r','Backspace':'\x7f','Tab':'\t','ArrowUp':'\x1b[A','ArrowDown':'\x1b[B','ArrowRight':'\x1b[C','ArrowLeft':'\x1b[D','Escape':'\x1b'};
+  if (event.key === 'Enter' && event.isComposing) { submitAfterComposition = true; return; }
   if (event.isComposing || composing) return;
   if (event.ctrlKey && event.key.length === 1) { event.preventDefault(); send({type:'input', data: String.fromCharCode(event.key.toUpperCase().charCodeAt(0) - 64)}); return; }
-  if (event.key === 'Enter') { event.preventDefault(); const value = terminalInput.value; if (value) send({type:'input', data: value}); send({type:'input', data:'\r'}); terminalInput.value = ''; return; }
+  if (event.key === 'Enter') { event.preventDefault(); submitTerminalLine(); return; }
   if (controls[event.key] && !terminalInput.value) { event.preventDefault(); send({type:'input', data: controls[event.key]}); return; }
 });
-terminalInput.addEventListener('paste', (event) => { event.preventDefault(); const value = event.clipboardData.getData('text'); if (value) send({type:'input', data: value}); });
 window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
 stopButton.addEventListener('click', async () => { stopButton.disabled = true; await fetch(`/api/runs/${encodeURIComponent(sessionId)}/stop`, {method:'POST'}); });
 async function pollStatus() { try { const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`); if (response.ok) renderSecurity(await response.json()); } catch (_) {} }

@@ -283,6 +283,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="terminal-input-proxy"' in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
+    assert "submitAfterComposition" in workbench.text
+    assert "data: `${value}\\r`" in workbench.text
     assert "terminalScreen" in workbench.text
     assert "requestAnimationFrame" in workbench.text
     assert "SUPER_SECRET" not in workbench.text
