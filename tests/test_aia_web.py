@@ -632,7 +632,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "새 보호 실행 시작" in result.text
     assert 'class="is-active" aria-current="page" href="/runs"' in result.text
     assert "정책 위반" in result.text
-    assert "실행하지 않음" in result.text
+    assert "실행 결과 증거 없음" in result.text
+    assert "도구가 실행되지 않았다는 뜻이 아닙니다" in result.text
+    assert "집행 조치 없음" in result.text
     assert 'href="/new">새 보호 실행</a>' in result.text
     assert 'aria-label="결과 바로가기"' in result.text
     assert 'id="sensor-results"' in result.text
