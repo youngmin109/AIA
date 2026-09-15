@@ -429,6 +429,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalAction !== 'TRUST_DIRECTORY'" in workbench.text
     assert "먼저 “신뢰하고 계속”을 눌러주세요." in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
+    assert "이번 작업에는 파일·명령 도구 요청이 없어 Hook 이벤트가 없습니다." in workbench.text
+    assert "이번 작업에는 도구 요청이 없어 Hook Evidence가 없습니다." in workbench.text
     assert "terminalOutput.setAttribute('aria-busy'" in workbench.text
     assert "workingVisible" in workbench.text
     assert "composerVisible" in workbench.text

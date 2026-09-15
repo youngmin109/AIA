@@ -539,6 +539,8 @@ function updateWorkbenchGuidance(status = latestStatus) {
   const phase = status?.session?.status || status?.phase || 'UNKNOWN';
   const terminal = status?.terminal?.status || terminalRuntimeStatus || 'UNKNOWN';
   const protection = status?.protection?.state || '';
+  const evidenceSummary = status?.evidence_summary || {};
+  const hookEvidenceCount = Number(evidenceSummary.pretool_events || 0) + Number(evidenceSummary.posttool_events || 0);
   const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(phase);
   let title = 'AIA 실행 상태를 확인하는 중입니다.';
   let detail = '잠시 기다려 주세요.';
@@ -577,6 +579,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = '작업 중에는 같은 요청을 다시 전송하지 마세요. 아래 작업창에서 출력이 갱신됩니다.';
     owner = 'Codex';
     kind = 'active';
+  } else if (activityMode === 'WAITING' && protection === 'ACTIVE_UNVERIFIED' && hookEvidenceCount === 0) {
+    title = 'Codex가 다음 작업을 기다리고 있습니다.';
+    detail = '이번 작업에는 파일·명령 도구 요청이 없어 Hook 이벤트가 없습니다. 파일이나 명령 작업을 보내면 AIA가 실행 증거를 표시합니다.';
+    owner = '사용자';
+    kind = 'success';
   } else if (activityMode === 'WAITING') {
     title = 'Codex가 다음 작업을 기다리고 있습니다.';
     detail = '가운데 입력창에 작업을 입력하고 전송하세요.';
@@ -995,6 +1002,9 @@ function renderSecurity(status) {
   const hookCount = (summary.pretool_events || 0) + (summary.posttool_events || 0);
   const evidenceCount = hookCount + (summary.filesystem_events || 0) + (summary.process_observed || 0) + (summary.process_exit_observed || 0) + (summary.sensor_health_events || 0);
   const observedHookCount = hookCount || status.protection?.hook_events || 0;
+  if (!ended && activityMode === 'WAITING' && status.protection?.state === 'ACTIVE_UNVERIFIED' && observedHookCount === 0) {
+    protectionStateNote.textContent = '이번 작업에는 도구 요청이 없어 Hook Evidence가 없습니다. 파일이나 명령 작업을 수행하면 AIA가 실행 전 요청과 결과를 표시합니다.';
+  }
   document.getElementById('sensor-hook-count').textContent = `${observedHookCount}건`;
   document.getElementById('sensor-file-count').textContent = `${summary.filesystem_events || 0}건`;
   document.getElementById('sensor-process-count').textContent = `${summary.process_observed || 0}건`;
