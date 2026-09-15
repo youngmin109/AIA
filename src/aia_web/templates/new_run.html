@@ -157,6 +157,20 @@
     <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
     <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · Hook matcher는 모든 로컬 Hook 대상(*)을 받으며, AIA가 의미를 해석하는 도구는 아래 목록으로 제한됩니다. 목록 밖 도구는 보호 실행에서 거부됩니다.</div>
     <div id="form-error" class="error" hidden></div>
+    <div id="run-recovery-help" class="notice warning run-recovery-help" hidden>
+      <div>
+        <strong>이 Workspace에 이전 보호 실행이 남아 있습니다.</strong>
+        <span id="run-recovery-detail">이전 실행을 정리할 수 있는지 확인한 뒤 다시 시작하세요.</span>
+      </div>
+      <div class="run-recovery-meta">
+        <span>이전 실행 <code id="run-recovery-id">—</code></span>
+        <span>상태 <strong id="run-recovery-status">확인 필요</strong></span>
+      </div>
+      <div class="form-actions run-recovery-actions">
+        <button id="reconcile-stale-run" class="button secondary" type="button">이전 실행 정리 확인</button>
+        <span id="run-recovery-result" class="hint" role="status" aria-live="polite"></span>
+      </div>
+    </div>
     <div id="run-launch-actions" class="form-actions run-launch-actions"><button id="submit-run" class="button primary" type="submit" disabled>보호 실행 시작</button><span id="run-submit-hint" class="hint">실행 전 준비 상태와 Workspace 확인이 필요합니다.</span></div>
   </form>
 </section>
@@ -242,6 +256,12 @@ const form = document.getElementById('new-run-form');
 const profile = document.getElementById('policy-profile');
 const customField = document.getElementById('custom-policy-field');
 const errorBox = document.getElementById('form-error');
+const runRecoveryHelp = document.getElementById('run-recovery-help');
+const runRecoveryDetail = document.getElementById('run-recovery-detail');
+const runRecoveryId = document.getElementById('run-recovery-id');
+const runRecoveryStatus = document.getElementById('run-recovery-status');
+const reconcileStaleRun = document.getElementById('reconcile-stale-run');
+const runRecoveryResult = document.getElementById('run-recovery-result');
 const workspaceInput = form.elements.workspace;
 const workspaceStatus = document.getElementById('workspace-status');
 const recentWorkspaces = document.getElementById('recent-workspaces');
@@ -292,6 +312,7 @@ let workspaceIsValid = false;
 let workspaceValidationInProgress = false;
 const RECENT_WORKSPACES_KEY = 'aia.recentWorkspaces';
 const MAX_RECENT_WORKSPACES = 5;
+let staleRunId = '';
 const runProgressSteps = [...document.querySelectorAll('[data-run-step]')];
 const editorRuleList = document.getElementById('editor-rules');
 const policyEditorPanel = document.querySelector('.policy-editor-panel');
@@ -358,6 +379,67 @@ function setButtonBusy(button, busy, busyLabel) {
     button.textContent = button.dataset.idleLabel || button.textContent;
   }
 }
+function hideRunRecoveryHelp() {
+  staleRunId = '';
+  runRecoveryHelp.hidden = true;
+  runRecoveryHelp.classList.remove('success');
+  runRecoveryHelp.classList.add('warning');
+  runRecoveryResult.textContent = '';
+  reconcileStaleRun.hidden = false;
+  reconcileStaleRun.disabled = false;
+  reconcileStaleRun.classList.remove('is-busy');
+  reconcileStaleRun.removeAttribute('aria-busy');
+  reconcileStaleRun.textContent = '이전 실행 정리 확인';
+}
+function showRunStartError(message) {
+  const detail = String(message || '보호 실행을 시작할 수 없습니다.');
+  hideRunRecoveryHelp();
+  const match = detail.match(/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/i);
+  const stale = Boolean(match && /(정리되지 않은 이전 Protected Run|unresolved|STALE_)/i.test(detail));
+  errorBox.textContent = stale
+    ? '이 Workspace는 이전 보호 실행이 정리되지 않아 시작할 수 없습니다. 아래에서 상태를 확인하세요.'
+    : detail;
+  errorBox.hidden = false;
+  if (!stale) return;
+  staleRunId = match[1];
+  runRecoveryId.textContent = staleRunId;
+  const statusMatch = detail.match(/,\s*([A-Z][A-Z0-9_]+)\)/);
+  runRecoveryStatus.textContent = statusMatch?.[1] || '확인 필요';
+  runRecoveryDetail.textContent = '이전 Codex가 실행 중이면 먼저 종료된 것을 확인합니다. AIA는 실행 중인 프로세스를 이 버튼으로 강제 종료하지 않습니다.';
+  runRecoveryHelp.hidden = false;
+  window.setTimeout(() => {
+    runRecoveryHelp.scrollIntoView({behavior: 'smooth', block: 'center'});
+    reconcileStaleRun.focus({preventScroll: true});
+  }, 0);
+}
+reconcileStaleRun.addEventListener('click', async () => {
+  if (!staleRunId) return;
+  reconcileStaleRun.disabled = true;
+  reconcileStaleRun.classList.add('is-busy');
+  reconcileStaleRun.setAttribute('aria-busy', 'true');
+  reconcileStaleRun.textContent = '정리 확인 중…';
+  runRecoveryResult.className = 'hint';
+  runRecoveryResult.textContent = '이전 실행과 Agent Root 상태를 확인하는 중입니다.';
+  try {
+    const response = await fetch(`/api/runs/${encodeURIComponent(staleRunId)}/reconcile`, {method: 'POST'});
+    const payload = await response.json();
+    if (!response.ok || !payload.reconciled) throw new Error(payload.reason || payload.error || '이전 실행이 아직 정리되지 않았습니다.');
+    runRecoveryResult.className = 'hint success-text';
+    runRecoveryResult.textContent = '정리 확인 완료. 이제 보호 실행을 다시 시작할 수 있습니다.';
+    errorBox.hidden = true;
+    runRecoveryHelp.classList.remove('warning');
+    runRecoveryHelp.classList.add('success');
+    reconcileStaleRun.hidden = true;
+    await validateWorkspacePath();
+  } catch (error) {
+    runRecoveryResult.className = 'hint error-text';
+    runRecoveryResult.textContent = error.message || '이전 실행 정리를 확인하지 못했습니다.';
+    reconcileStaleRun.disabled = false;
+    reconcileStaleRun.classList.remove('is-busy');
+    reconcileStaleRun.removeAttribute('aria-busy');
+    reconcileStaleRun.textContent = '다시 정리 확인';
+  }
+});
 function editorDocument() {
   return { '정책명': document.getElementById('editor-policy-id').value.trim(), '정책ID': document.getElementById('editor-policy-id').value.trim(), '정책버전': document.getElementById('editor-policy-version').value.trim(), '스키마버전': '1', '기본효과': document.getElementById('editor-default-effect').value, '규칙': editorRules };
 }
@@ -646,6 +728,8 @@ function workspaceValidationMessage(error) {
   return 'Workspace를 확인할 수 없습니다. 존재하는 프로젝트 폴더 경로인지 확인하세요.';
 }
 workspaceInput.addEventListener('input', () => {
+  hideRunRecoveryHelp();
+  errorBox.hidden = true;
   workspaceValidationRequest += 1;
   workspaceIsValid = false;
   validatedWorkspacePath = '';
@@ -730,15 +814,13 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (runSubmissionInProgress) return;
   if (!preflightReady) {
-    errorBox.textContent = '실행 전 준비 상태를 먼저 해결하세요.';
-    errorBox.hidden = false;
+    showRunStartError('실행 전 준비 상태를 먼저 해결하세요.');
     return;
   }
   if (!workspaceIsValid || validatedWorkspacePath !== workspaceInput.value.trim()) {
     const valid = await validateWorkspacePath();
     if (!valid) {
-      errorBox.textContent = '존재하는 Workspace 경로를 먼저 입력하세요.';
-      errorBox.hidden = false;
+      showRunStartError('존재하는 Workspace 경로를 먼저 입력하세요.');
       return;
     }
   }
@@ -767,8 +849,7 @@ form.addEventListener('submit', async (event) => {
     rememberWorkspace(workspaceInput.value);
     window.location.href = payload.redirect_url;
   } catch (error) {
-    errorBox.textContent = error.message;
-    errorBox.hidden = false;
+    showRunStartError(error.message);
     runSubmissionInProgress = false;
     updateRunSubmitState();
     submitRun.classList.remove('is-busy');
