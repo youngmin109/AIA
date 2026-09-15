@@ -129,7 +129,7 @@
           <a class="text-link" href="/runs">전체 실행 기록 보기 →</a>
         </div>
       </section>
-      <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
+      <div id="terminal-output" class="terminal-output{% if status.session.status not in ['COMPLETED', 'ABORTED', 'FAILED'] %} is-loading{% endif %}" tabindex="0" aria-label="Codex 작업창">
         {% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
         이 보호 실행은 종료되었습니다. 작업창 출력은 저장하지 않습니다. 결과 보기에서 실행 기록을 확인하세요.
         {% else %}
@@ -1214,6 +1214,7 @@ function appendTerminal(data) {
   const text = String(data || '');
   terminalDetectionBuffer = (terminalDetectionBuffer + text).slice(-16000);
   if (text.length) {
+    terminalOutput.classList.remove('is-loading');
     lastTerminalOutputAt = Date.now();
     terminalLastOutput.title = formatTime(new Date(lastTerminalOutputAt).toISOString());
     updateTerminalOutputAge();
@@ -1298,6 +1299,7 @@ function openSocket() {
     terminalSocketEverConnected = true;
     terminalReconnectPending = false;
     terminalSocketConnected = true;
+    terminalOutput.classList.add('is-loading');
     terminalOutput.classList.remove('terminal-closed');
     setTerminalConnection('연결 확인 중', 'connection-pending');
     updateTerminalInputState();
@@ -1320,7 +1322,7 @@ function openSocket() {
         showTerminalError(message.message || '터미널 요청이 거부되었습니다.');
       }
     }
-    else if (message.type === 'closed') { terminalClosed = true; terminalSocketConnected = false; setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
+    else if (message.type === 'closed') { terminalClosed = true; terminalSocketConnected = false; setTerminalStatus(message); terminalOutput.classList.remove('is-loading'); terminalOutput.classList.add('terminal-closed'); }
   };
   socket.onclose = () => {
     terminalReconnectPending = false;

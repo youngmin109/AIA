@@ -225,6 +225,8 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .terminal-connection.connection-pending i { background: var(--amber); animation: terminal-connection-pulse 1.2s ease-in-out infinite; }
 .terminal-heading h2 { margin-bottom: 4px; }
 .terminal-output { min-height: 470px; overflow: auto; padding: 18px; color: #d9e6ee; background: #080d13; font: 13px/1.5 "Cascadia Mono", Consolas, monospace; white-space: pre; word-break: normal; outline: none; cursor: text; }
+.terminal-output.is-loading { position: relative; }
+.terminal-output.is-loading::before { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: var(--muted); content: 'AIA가 Codex 작업창에 연결하는 중입니다…'; font: 12px/1.5 "Segoe UI", sans-serif; white-space: normal; pointer-events: none; }
 .terminal-output:focus { box-shadow: inset 0 0 0 1px rgba(101,217,232,.65); }
 .terminal-output.terminal-closed { opacity: .75; }
 .terminal-closed-card { display: grid; gap: 13px; margin: 0 15px 10px; padding: 14px; border: 1px solid rgba(101,217,232,.36); border-radius: 10px; background: linear-gradient(135deg, rgba(16,40,50,.9), rgba(17,27,38,.92)); }

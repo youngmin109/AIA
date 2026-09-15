@@ -427,6 +427,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert '입력창으로 이동' in workbench.text
     assert "terminalInput.scrollIntoView({behavior: 'smooth', block: 'center'})" in workbench.text
     assert 'id="terminal-activity"' in workbench.text
+    assert 'class="terminal-output' in workbench.text
+    assert "is-loading" in workbench.text
     assert 'id="terminal-connection"' in workbench.text
     assert 'id="terminal-last-output"' in workbench.text
     assert "재연결 중" in workbench.text
@@ -463,6 +465,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "transientProgressLine" in workbench.text
     assert "terminalScreen.refresh()" in workbench.text
     assert "terminalOutput.classList.remove('terminal-closed')" in workbench.text
+    assert "terminalOutput.classList.remove('is-loading')" in workbench.text
     assert "stopButton.hidden = terminalEnded || orphaned;" in workbench.text
     assert "button.classList.add('is-busy')" in workbench.text
     assert "button.setAttribute('aria-busy', 'true')" in workbench.text
