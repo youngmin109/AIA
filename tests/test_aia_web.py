@@ -430,10 +430,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "TRUST_DIRECTORY" in workbench.text
     assert "Workspace 신뢰 확인을 기다리고 있습니다." in workbench.text
     assert "차단 응답 전송" in workbench.text
-    assert "실행 확인 중" in workbench.text
+    assert "실행 결과 대기" in workbench.text
     assert "도구 실행 여부 확인 중" in workbench.text
     assert "실행 확인 전" in workbench.text
-    assert "실행 여부 미확인" in workbench.text
+    assert "실행 결과 증거 없음" in workbench.text
+    assert "정책상 허용" in workbench.text
+    assert "실행 Evidence가 없으면 성공으로 표시하지 않습니다" in workbench.text
     assert "센서가 관찰하면 여기에 표시됩니다" in workbench.text
     assert "eventSummaryLabel(incident.summary)" in workbench.text
     assert "statusPollFailures" in workbench.text
@@ -459,7 +461,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="incident-status-badge"' in workbench.text
     assert "최근 확인 필요 사건" in workbench.text
     assert "Codex의 설명만으로는 실제 실행 여부를 확정하지 않습니다." in workbench.text
-    assert "실행 확인 중" in workbench.text
+    assert "실행 결과 대기" in workbench.text
     assert 'data-event-filter="ALL"' in workbench.text
     assert 'data-event-filter="ACTION"' in workbench.text
     assert 'data-event-filter="SENSOR"' in workbench.text

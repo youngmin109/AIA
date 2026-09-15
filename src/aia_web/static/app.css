@@ -271,6 +271,8 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .workbench-observation-meta { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 3px; color: var(--muted); font-size: 11px; }
 .workbench-observation-meta strong { color: var(--text); font-weight: 600; margin-left: 3px; }
 .workbench-event-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 7px 0 2px; }
+.workbench-event-meaning { margin: 0 0 8px; padding: 8px 10px; border-left: 2px solid rgba(101,217,232,.62); border-radius: 0 7px 7px 0; color: var(--muted); background: rgba(101,217,232,.06); font-size: 10px; line-height: 1.5; }
+.workbench-event-meaning strong { color: var(--text); font-weight: 700; }
 .event-filter { border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; color: var(--muted); background: rgba(12,21,30,.7); font: inherit; font-size: 11px; cursor: pointer; }
 .event-filter:hover, .event-filter:focus-visible { color: var(--text); border-color: rgba(101,217,232,.55); outline: none; }
 .event-filter.is-active { color: var(--cyan); border-color: rgba(101,217,232,.65); background: rgba(101,217,232,.1); }
