@@ -62,6 +62,14 @@ nav { display: flex; gap: 22px; font-size: 14px; } .topbar nav a { padding: 7px 
 .sensor-card { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: rgba(12,21,30,.7); }
 .sensor-card strong { font-size: 16px; }
 .sensor-card small { color: var(--muted); }
+.sensor-card-heading { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.sensor-card-heading strong { flex: 1; min-width: 0; }
+.sensor-card-heading .status-badge { flex: 0 0 auto; padding: 3px 8px; font-size: 10px; }
+.preflight-sensor-summary { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+.preflight-sensor-summary h3 { margin: 0 0 4px; font-size: 15px; }
+.preflight-sensor-summary p { margin: 0; }
+.preflight-sensor-cards { margin-top: 14px; }
+.preflight-sensor-card { min-height: 128px; }
 .dashboard-sensor-card { min-height: 152px; }
 .dashboard-sensor-heading { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .dashboard-sensor-heading strong { flex: 1; min-width: 0; }

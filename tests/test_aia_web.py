@@ -285,6 +285,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Hook 연결 다시 검증" in new_run.text
     assert "activationVerified" in new_run.text
     assert "verifyHookButton.dataset.idleLabel" in new_run.text
+    assert 'id="preflight-sensor-summary"' in new_run.text
+    assert 'id="preflight-sensor-hook-status"' in new_run.text
+    assert "실행 시 시작" in new_run.text
     assert "별도 Windows 터미널에서 Codex 열기" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/capabilities").json()["schema_version"] == "aia-capabilities-v1"
