@@ -2,6 +2,14 @@
 
 AIA는 Codex와 같은 Agent의 보호 실행을 위한 독립적인 제품형 MVP Repository다. MVP는 실행 증거를 수집하고, 정규화·귀속·정책 평가·집행·복구·무결성 검증·감사를 연결한다.
 
+## 한눈에 보기
+
+- **보호 실행 준비**: Workspace와 정책을 검증하고, 실행 중 변경되지 않는 정책·Lease·Checkpoint를 준비한다.
+- **독립적 관찰**: Agent의 도구 요청, 실제 프로세스, Workspace 파일 변화를 각각 수집해 하나의 행위로 연결한다.
+- **판단·대응·감사**: 정책 결과에 따라 실행을 허용하거나 차단하고, 실제 대응 결과와 증거를 확인 가능한 감사 기록으로 남긴다.
+
+> AIA는 Agent의 내부 사고나 의도를 판정하지 않는다. AIA가 검증하는 대상은 실행 요청, 실제 프로세스, 파일 시스템 변화 및 이들 사이의 불일치다.
+
 현재 구현 상태와 지원 범위는 [제품 상태](docs/PRODUCT-STATUS.md)와 [제한사항](docs/LIMITATIONS.md)에 기록되어 있다. 실제 Codex 검증에서는 Bash와 `apply_patch`의 사전 차단을 확인했다. MCP는 현재 제품 범위에서 제외하며, 파괴적 PROCESS 시나리오는 별도 제한사항으로 남아 있다.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
