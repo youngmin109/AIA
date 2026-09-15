@@ -223,6 +223,7 @@ const previewStatus = document.getElementById('preview-status');
 const previewResult = document.getElementById('preview-result');
 const editorRules = [];
 let editorValidated = false;
+let runSubmissionInProgress = false;
 const editorRuleList = document.getElementById('editor-rules');
 const policyEditorPanel = document.querySelector('.policy-editor-panel');
 function renderEditorRules() {
@@ -402,7 +403,13 @@ previewButton.addEventListener('click', async () => {
 });
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (runSubmissionInProgress) return;
+  runSubmissionInProgress = true;
   errorBox.hidden = true;
+  submitRun.disabled = true;
+  submitRun.classList.add('is-busy');
+  submitRun.setAttribute('aria-busy', 'true');
+  submitRun.textContent = '보호 실행 준비 중…';
   const data = Object.fromEntries(new FormData(form).entries());
   data.agent = data.agent.toLowerCase();
   data.interactive = data.run_mode === 'interactive';
@@ -423,6 +430,11 @@ form.addEventListener('submit', async (event) => {
   } catch (error) {
     errorBox.textContent = error.message;
     errorBox.hidden = false;
+    runSubmissionInProgress = false;
+    submitRun.disabled = false;
+    submitRun.classList.remove('is-busy');
+    submitRun.removeAttribute('aria-busy');
+    submitRun.textContent = '보호 실행 시작';
   }
 });
 </script>
