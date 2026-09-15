@@ -587,6 +587,8 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'href="/runs/run-1/workbench"' in history.text
     assert "보호 실행이 진행 중입니다" in dashboard.text
     assert "Workbench 열기" in dashboard.text
+    assert "결과 검증" in dashboard.text
+    assert "사건" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "전체 실행" in history.text
     assert 'id="history-result-count"' in history.text
