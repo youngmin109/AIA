@@ -66,6 +66,9 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .text-button:hover, .text-button:focus-visible { color: var(--text); text-decoration: underline; outline: none; }
 .run-mode-field { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; } .run-mode-field legend { padding: 0 6px; color: var(--muted); font-size: 13px; font-weight: 650; } .choice { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 700; } .choice input { width: auto; accent-color: var(--cyan); } .choice-disabled { opacity: .42; }
 .notice { border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; margin-top: 24px; color: var(--muted); } .warning { border-color: rgba(245,199,106,.45); background: rgba(245,199,106,.07); color: #f5db9a; } .success { border-color: rgba(89,221,166,.45); background: rgba(89,221,166,.07); color: #a9f2d3; } .error { border: 1px solid rgba(255,125,133,.5); background: rgba(255,125,133,.08); color: #ffb3b8; border-radius: 9px; padding: 12px 14px; margin-top: 16px; } .success-text { color: var(--green); } .error-text { color: var(--red); }
+.readiness-summary { display: grid; gap: 4px; }
+.readiness-config { color: var(--text); font-size: 12px; font-weight: 700; }
+.readiness-config-ready { color: var(--green); }
 .next-steps { margin-top: 18px; padding: 15px 18px; border-left: 3px solid var(--cyan); background: rgba(101,217,232,.06); color: var(--muted); }
 .next-steps strong { color: var(--text); }
 .next-steps ol { margin: 8px 0 0 20px; padding: 0; }

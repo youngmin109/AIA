@@ -264,6 +264,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다" in new_run.text
     assert "preToolUse=MODIFIED" in new_run.text
     assert 'id="readiness-code">READY' in new_run.text
+    assert 'id="readiness-config"' in new_run.text
+    assert "현재 실행 설정: Workspace 입력 필요" in new_run.text
     assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." in new_run.text
     assert "빠른 정책 확인 예시" in new_run.text
     assert 'data-preview-target=".env"' in new_run.text
@@ -281,6 +283,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalSurfaceInputs" in new_run.text
     assert "runSubmissionInProgress" in new_run.text
     assert 'id="workspace-status"' in new_run.text
+    assert 'id="workspace-input"' in new_run.text and "autofocus" in new_run.text
     assert 'list="recent-workspaces"' in new_run.text
     assert 'id="recent-workspaces"' in new_run.text
     assert 'id="recent-workspace-hint"' in new_run.text
