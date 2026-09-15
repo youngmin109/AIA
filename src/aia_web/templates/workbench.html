@@ -105,6 +105,13 @@
         AIA Workbench가 보호된 Codex 작업창을 준비하고 있습니다…
         {% endif %}
       </div>
+      <div id="terminal-examples" class="terminal-examples" hidden>
+        <span class="terminal-examples-label">작업 예시</span>
+        <button class="terminal-example" type="button" data-terminal-example="README.md를 읽고 현재 프로젝트를 한 문장으로 요약해줘.">README 요약</button>
+        <button class="terminal-example" type="button" data-terminal-example="현재 프로젝트의 파일 구조를 확인하고 설명해줘.">파일 구조 확인</button>
+        <button class="terminal-example" type="button" data-terminal-example="테스트를 실행하고 결과를 요약해줘.">테스트 실행</button>
+        <span class="terminal-examples-hint">예시를 눌러도 자동 실행되지 않습니다.</span>
+      </div>
       <form id="terminal-input-form" class="terminal-input-row">
         <span class="terminal-input-prefix" aria-hidden="true">›</span>
         <textarea id="terminal-input-proxy" rows="1" aria-label="Codex 입력" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="여기에 입력하세요 · 한글 입력 지원 · Enter로 전송"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}></textarea>
@@ -207,6 +214,7 @@ const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
 const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
 const terminalError = document.getElementById('terminal-error');
+const terminalExamples = document.getElementById('terminal-examples');
 const workbenchGuidance = document.getElementById('workbench-guidance');
 const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
@@ -855,6 +863,7 @@ function updateTerminalInputState() {
   terminalInput.placeholder = trustRequired
     ? '먼저 “신뢰하고 계속”을 눌러주세요.'
     : '여기에 입력하세요 · 한글 입력 지원 · Enter로 전송';
+  terminalExamples.hidden = !terminalReady || awaitingResponse;
   const actionButton = document.getElementById('terminal-action');
   actionButton.disabled = terminalRuntimeStatus !== 'RUNNING' || !terminalSocketConnected || terminalAction !== 'TRUST_DIRECTORY';
 }
@@ -1143,6 +1152,12 @@ document.querySelectorAll('[data-sensor-focus]').forEach((card) => {
 });
 
 terminalOutput.addEventListener('click', () => terminalInput.focus());
+document.querySelectorAll('[data-terminal-example]').forEach((button) => button.addEventListener('click', () => {
+  if (terminalInput.disabled || awaitingResponse) return;
+  terminalInput.value = button.dataset.terminalExample || '';
+  terminalInput.focus();
+  terminalInput.setSelectionRange(terminalInput.value.length, terminalInput.value.length);
+}));
 let composing = false;
 let submitAfterComposition = false;
 function submitTerminalLine() {
