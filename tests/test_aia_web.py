@@ -435,6 +435,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Enter 전송 · Shift+Enter 줄바꿈" in workbench.text
     assert 'id="terminal-input-form"' in workbench.text
     assert 'id="terminal-send"' in workbench.text
+    assert 'id="stop-confirmation"' in workbench.text
+    assert "stopConfirmationPending" in workbench.text
+    assert "function armStopConfirmation()" in workbench.text
+    assert "중지 확인" in workbench.text
     assert 'data-terminal-focus' in workbench.text
     assert '입력창으로 이동' in workbench.text
     assert "terminalInput.scrollIntoView({behavior: 'smooth', block: 'center'})" in workbench.text

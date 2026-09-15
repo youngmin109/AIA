@@ -17,6 +17,7 @@
       <button id="refresh-status" class="button secondary workbench-refresh" type="button" title="센서와 실행 상태를 다시 확인합니다.">상태 새로고침</button>
       <span id="run-status" class="status-badge" aria-live="polite">상태 확인 중</span>
       <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] or (status.runtime_reconciliation or {}).get('orphaned') %} hidden{% endif %}>보호 실행 중지</button>
+      <span id="stop-confirmation" class="workbench-stop-confirmation" role="status" aria-live="polite" hidden>한 번 더 누르면 보호 실행을 중지합니다.</span>
       <button id="reconcile-run" class="button" type="button"{% if not (status.runtime_reconciliation or {}).get('orphaned') %} hidden{% endif %}>고아 실행 정리 확인</button>
       <a id="result-link" class="button" href="/runs/{{ session_id }}/result"{% if not status.result_available %} hidden{% endif %}>결과 보기</a>
     </div>
@@ -300,6 +301,7 @@ const securityPanel = document.getElementById('security-panel');
 const securityPanelToggle = document.getElementById('security-panel-toggle');
 const securityPanelToggleLabel = document.getElementById('security-panel-toggle-label');
 const stopButton = document.getElementById('stop-run');
+const stopConfirmation = document.getElementById('stop-confirmation');
 const reconcileButton = document.getElementById('reconcile-run');
 const resultLink = document.getElementById('result-link');
 const incidentDetailLink = document.getElementById('incident-detail-link');
@@ -340,6 +342,8 @@ let statusPollBusyTimer = null;
 const previousSensorCounts = {hook: null, file: null, process: null};
 const sensorUpdateTimers = {};
 let stopRequested = false;
+let stopConfirmationPending = false;
+let stopConfirmationTimer = null;
 let responseStartedAt = 0;
 let selectedChainId = null;
 let terminalFollowingOutput = true;
@@ -1405,11 +1409,12 @@ function renderSecurity(status) {
   stopButton.hidden = ended || orphaned;
   reconcileButton.hidden = !orphaned || reconciliation.action === 'RECONCILED';
   reconcileButton.disabled = reconciliation.action === 'RECONCILED';
+  if (ended || orphaned || stopPending) resetStopConfirmation();
   if (stopPending) {
     stopButton.disabled = true;
     stopButton.classList.add('is-busy');
     stopButton.textContent = '중지 처리 중…';
-  } else if (!stopRequested) {
+  } else if (!stopRequested && !stopConfirmationPending) {
     stopButton.disabled = false;
     stopButton.classList.remove('is-busy');
     stopButton.textContent = '보호 실행 중지';
@@ -1720,8 +1725,36 @@ document.getElementById('terminal-action').addEventListener('click', continueTer
 terminalInterrupt.addEventListener('click', interruptTerminalRequest);
 terminalReconnect.addEventListener('click', reconnectTerminal);
 window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
+function resetStopConfirmation() {
+  if (stopConfirmationTimer) window.clearTimeout(stopConfirmationTimer);
+  stopConfirmationTimer = null;
+  stopConfirmationPending = false;
+  stopConfirmation.hidden = true;
+  stopConfirmation.textContent = '한 번 더 누르면 보호 실행을 중지합니다.';
+  stopButton.classList.remove('is-confirming');
+  stopButton.removeAttribute('aria-describedby');
+  if (!stopRequested && !stopButton.disabled) {
+    stopButton.textContent = '보호 실행 중지';
+    stopButton.title = '보호 실행을 중지하려면 한 번 더 확인합니다.';
+  }
+}
+function armStopConfirmation() {
+  stopConfirmationPending = true;
+  stopConfirmation.hidden = false;
+  stopButton.classList.add('is-confirming');
+  stopButton.setAttribute('aria-describedby', 'stop-confirmation');
+  stopButton.title = '한 번 더 누르면 보호 실행을 중지합니다.';
+  stopButton.textContent = '중지 확인';
+  if (stopConfirmationTimer) window.clearTimeout(stopConfirmationTimer);
+  stopConfirmationTimer = window.setTimeout(resetStopConfirmation, 5000);
+}
 stopButton.addEventListener('click', async () => {
   if (stopRequested) return;
+  if (!stopConfirmationPending) {
+    armStopConfirmation();
+    return;
+  }
+  resetStopConfirmation();
   stopRequested = true;
   stopButton.disabled = true;
   stopButton.classList.add('is-busy');
@@ -1735,6 +1768,7 @@ stopButton.addEventListener('click', async () => {
     stopButton.disabled = false;
     stopButton.classList.remove('is-busy');
     stopButton.textContent = '보호 실행 중지';
+    stopButton.title = '보호 실행을 중지하려면 한 번 더 확인합니다.';
     showTerminalError(error.message || '보호 실행 중지 요청에 실패했습니다.');
     setTerminalActivity('STARTING', '보호 실행 상태를 다시 확인하는 중입니다.');
   }
