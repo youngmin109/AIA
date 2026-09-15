@@ -572,6 +572,11 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
+    assert 'id="dashboard-current-run"' in dashboard.text
+    assert 'id="dashboard-run-count"' in dashboard.text
+    assert 'id="dashboard-sync-status"' in dashboard.text
+    assert "refreshDashboard" in dashboard.text
+    assert "window.setInterval(refreshDashboard, 5000)" in dashboard.text
     assert "Bash" in dashboard.text
     assert "Edit·Write → apply_patch" in dashboard.text
     assert "아직 보호 실행 기록이 없습니다" in dashboard.text
@@ -651,6 +656,7 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
     assert "보호 실행이 진행 중입니다" not in dashboard.text
     assert "이전 보호 실행이 현재 연결되어 있지 않습니다" in dashboard.text
+    assert 'id="dashboard-stale-run"' in dashboard.text
     assert 'href="/runs/stale-run"' in dashboard.text
 
 
