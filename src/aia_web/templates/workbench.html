@@ -32,6 +32,13 @@
     </div>
     <span id="workbench-guidance-owner" class="badge">AIA</span>
   </section>
+  <section id="workbench-system-alert" class="workbench-system-alert" role="alert" aria-live="assertive" hidden>
+    <span class="workbench-system-alert-mark" aria-hidden="true">!</span>
+    <div class="workbench-system-alert-copy">
+      <strong id="workbench-system-alert-title">AIA 실행 기록을 확인하세요.</strong>
+      <small id="workbench-system-alert-detail">—</small>
+    </div>
+  </section>
   <section id="workbench-alert" class="workbench-alert" role="status" aria-live="polite" hidden>
     <span id="workbench-alert-mark" class="workbench-alert-mark" aria-hidden="true">!</span>
     <div class="workbench-alert-copy">
@@ -286,6 +293,9 @@ const workbenchGuidance = document.getElementById('workbench-guidance');
 const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
 const workbenchGuidanceOwner = document.getElementById('workbench-guidance-owner');
+const workbenchSystemAlert = document.getElementById('workbench-system-alert');
+const workbenchSystemAlertTitle = document.getElementById('workbench-system-alert-title');
+const workbenchSystemAlertDetail = document.getElementById('workbench-system-alert-detail');
 const workbenchAlert = document.getElementById('workbench-alert');
 const workbenchAlertMark = document.getElementById('workbench-alert-mark');
 const workbenchAlertKicker = document.getElementById('workbench-alert-kicker');
@@ -1380,8 +1390,31 @@ function reconnectTerminal() {
     openSocket();
   }
 }
+function renderRuntimeAlert(status) {
+  if (!workbenchSystemAlert || !workbenchSystemAlertTitle || !workbenchSystemAlertDetail) return;
+  const error = String(status?.error || '').trim();
+  if (!error) {
+    workbenchSystemAlert.hidden = true;
+    return;
+  }
+  const messages = {
+    RUNTIME_STATE_PERSIST_FAILED: [
+      'AIA 실행 기록 저장에 문제가 있습니다.',
+      '현재 화면의 관찰 정보는 볼 수 있지만, 종료 후 결과 기록이 불완전할 수 있습니다. 실행을 중지한 뒤 결과를 확인하세요.',
+    ],
+  };
+  const [title, detail] = messages[error] || [
+    'AIA 실행에 확인이 필요한 문제가 있습니다.',
+    '보호 실행을 계속하기 전에 실행 기록과 상태 새로고침을 확인하세요.',
+  ];
+  workbenchSystemAlertTitle.textContent = title;
+  workbenchSystemAlertDetail.textContent = `${detail} 상태 코드: ${error}`;
+  workbenchSystemAlert.hidden = false;
+}
+
 function renderSecurity(status) {
   latestStatus = status;
+  renderRuntimeAlert(status);
   const sessionStatus = status.session?.status || status.phase || 'UNKNOWN';
   runStatus.dataset.status = sessionStatus;
   runStatus.className = `status-badge ${statusClass(sessionStatus)}`;

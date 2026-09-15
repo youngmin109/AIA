@@ -379,6 +379,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-guidance-title"' in workbench.text
     assert 'id="workbench-guidance-detail"' in workbench.text
     assert 'id="workbench-guidance-owner"' in workbench.text
+    assert 'id="workbench-system-alert"' in workbench.text
+    assert "renderRuntimeAlert(status)" in workbench.text
+    assert "RUNTIME_STATE_PERSIST_FAILED" in workbench.text
     assert 'id="workbench-alert"' in workbench.text
     assert 'id="workbench-alert-title"' in workbench.text
     assert 'id="workbench-alert-dismiss"' in workbench.text

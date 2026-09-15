@@ -181,6 +181,12 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .workbench-guidance.guidance-warning .workbench-guidance-mark { color: #201708; background: var(--yellow); }
 .workbench-guidance.guidance-danger { border-color: rgba(255,125,133,.55); background: rgba(255,125,133,.06); }
 .workbench-guidance.guidance-danger .workbench-guidance-mark { color: #24090c; background: var(--red); }
+.workbench-system-alert { display: flex; align-items: flex-start; gap: 10px; margin: -2px 0 14px; padding: 11px 13px; border: 1px solid rgba(245,199,106,.5); border-radius: 11px; background: rgba(67,51,20,.38); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.workbench-system-alert-mark { display: grid; flex: 0 0 22px; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #201708; background: var(--yellow); font-weight: 900; }
+.workbench-system-alert-copy { display: grid; min-width: 0; gap: 2px; }
+.workbench-system-alert-copy strong, .workbench-system-alert-copy small { overflow-wrap: anywhere; }
+.workbench-system-alert-copy strong { font-size: 13px; color: var(--yellow); }
+.workbench-system-alert-copy small { color: var(--muted); line-height: 1.45; }
 .workbench-alert { display: flex; align-items: center; gap: 10px; margin: -2px 0 14px; padding: 11px 13px; border: 1px solid rgba(101,217,232,.5); border-radius: 11px; background: rgba(16,40,50,.9); box-shadow: 0 8px 24px rgba(0,0,0,.16); animation: workbench-alert-in .22s ease-out; }
 .workbench-alert.alert-incident { border-color: rgba(255,125,133,.66); background: rgba(61,25,31,.92); }
 .workbench-alert-mark { display: grid; flex: 0 0 22px; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #071117; background: var(--cyan); font-weight: 900; }
