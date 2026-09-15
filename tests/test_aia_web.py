@@ -446,6 +446,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text
     assert "submitAfterComposition" in workbench.text
+    assert "pendingSubmission" in workbench.text
+    assert "restorePendingSubmission" in workbench.text
+    assert "입력 내용을 확인한 뒤 다시 시도하세요." in workbench.text
+    assert "Codex 터미널이 연결되지 않아 전송하지 못했습니다." in workbench.text
     assert "data: value" in workbench.text
     assert "type:'submit'" in workbench.text
     assert "terminalScreen" in workbench.text

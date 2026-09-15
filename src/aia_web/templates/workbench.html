@@ -251,6 +251,7 @@ let statusPollFailures = 0;
 let stopRequested = false;
 let responseStartedAt = 0;
 let selectedChainId = null;
+let pendingSubmission = null;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -918,6 +919,16 @@ function appendTerminal(data) {
   }
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
+function restorePendingSubmission(message) {
+  if (!pendingSubmission) return false;
+  if (pendingSubmission.timer) window.clearTimeout(pendingSubmission.timer);
+  const value = pendingSubmission.value;
+  pendingSubmission = null;
+  if (!terminalInput.value) terminalInput.value = value;
+  setTerminalActivity('WAITING', message);
+  terminalInput.focus();
+  return true;
+}
 function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
   terminalClosed = false;
@@ -949,6 +960,9 @@ function openSocket() {
   socket.onclose = () => {
     terminalSocketConnected = false;
     updateTerminalInputState();
+    if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
+      showTerminalError('Codex에 요청을 전송하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');
+    }
     if (!['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status) && !terminalClosed) {
       setTerminalConnection('재연결 중', 'connection-pending');
       setTerminalActivity('STARTING', 'Workbench 터미널 연결이 끊겨 다시 연결하는 중입니다.');
@@ -1169,15 +1183,25 @@ function submitTerminalLine() {
   const value = terminalInput.value;
   if (!value.length) return;
   const accepted = send({type:'input', data: value});
-  if (!accepted) return;
+  if (!accepted) {
+    showTerminalError('Codex 터미널이 연결되지 않아 전송하지 못했습니다. 연결 상태를 확인하세요.');
+    setTerminalActivity('WAITING', '터미널 연결을 확인한 뒤 다시 전송하세요.');
+    return;
+  }
   terminalInput.value = '';
+  terminalError.hidden = true;
+  pendingSubmission = {value, timer: null};
   setTerminalActivity('SUBMITTING', 'Codex에 질문을 제출하는 중입니다.');
   // Codex's Workbench launch binds composer.submit to Ctrl+X.  Send it as a
   // separate WebSocket message so the text stays ordinary input and the
   // submit key is not swallowed as part of a paste burst.
-  window.setTimeout(() => {
-    if (send({type:'submit'})) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
-    else showTerminalError('Codex에 전송하지 못했습니다. 터미널 연결을 확인하세요.');
+  pendingSubmission.timer = window.setTimeout(() => {
+    if (send({type:'submit'})) {
+      pendingSubmission = null;
+      setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+    } else if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
+      showTerminalError('Codex에 요청을 전송하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');
+    }
   }, SUBMIT_SETTLE_MS);
 }
 function continueTerminalAction() {
