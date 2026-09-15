@@ -459,6 +459,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'aria-label="결과 바로가기"' in result.text
     assert 'id="sensor-results"' in result.text
     assert 'id="event-timeline"' in result.text
+    assert 'href="#evidence-chain">증거</a>' in result.text
+    assert '<details id="evidence-chain" class="panel result-details">' in result.text
+    assert '<details id="sensor-evidence-timeline" class="panel result-details">' in result.text
+    assert '<details id="action-results" class="panel result-details">' in result.text
+    assert "openResultDetailFromHash" in result.text
     assert 'id="evidence-chain"' in result.text
     assert "result-evidence-chains" in result.text
     assert "행위에 직접 연결된 센서와 같은 Run에서 독립적으로 관찰된 센서" in result.text
