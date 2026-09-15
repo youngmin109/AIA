@@ -508,6 +508,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실행 관찰" in result.text
     assert 'id="sensor-evidence-timeline"' in result.text
     assert 'id="decision-summary"' in result.text
+    assert 'class="result-section-nav"' in result.text
+    assert 'setResultSectionActive' in result.text
+    assert 'resultSectionObserver' in result.text
     assert 'id="recovery-results"' in result.text
     assert 'id="action-results"' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
