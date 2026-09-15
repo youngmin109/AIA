@@ -659,7 +659,10 @@ function setTerminalStatus(status) {
     setTerminalAction(null);
     setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
   }
-  stopButton.hidden = terminalEnded || !['RUNNING', 'NOT_STARTED'].includes(value);
+  // The run can still be safely stopped while the terminal is launching or
+  // reconnecting.  Hiding the control for NOT_ATTACHED/UNKNOWN left users
+  // without a way to cancel a session during that window.
+  stopButton.hidden = terminalEnded;
 }
 function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
@@ -769,6 +772,17 @@ function renderSecurity(status) {
   const file = status.sensor_health?.FILESYSTEM_WATCHER || '확인 중';
   const process = status.sensor_health?.PROCESS_RUNTIME || '확인 중';
   const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session?.status);
+  const stopPending = Boolean(status.stop?.requested) || status.protection?.state === 'STOP_REQUESTED';
+  stopButton.hidden = ended;
+  if (stopPending) {
+    stopButton.disabled = true;
+    stopButton.classList.add('is-busy');
+    stopButton.textContent = '중지 처리 중…';
+  } else if (!stopRequested) {
+    stopButton.disabled = false;
+    stopButton.classList.remove('is-busy');
+    stopButton.textContent = '보호 실행 중지';
+  }
   document.getElementById('sensor-card-hook').className = `workbench-sensor ${sensorClass(hook)}`;
   document.getElementById('sensor-card-file').className = `workbench-sensor ${sensorClass(file)}`;
   document.getElementById('sensor-card-process').className = `workbench-sensor ${sensorClass(process)}`;
