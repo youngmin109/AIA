@@ -16,7 +16,14 @@ from aia.evidence import (
     RawEvidenceStore,
 )
 from aia_app.dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
-from aia_app.presenters import action_view, action_summary, incident_view, result_view, safe_event_views
+from aia_app.presenters import (
+    action_view,
+    action_summary,
+    evidence_chain_views,
+    incident_view,
+    result_view,
+    safe_event_views,
+)
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
@@ -129,6 +136,80 @@ def test_safe_event_view_never_copies_command_or_secret() -> None:
     assert events[0]["target_label"] == "명령 실행"
     assert "SUPER_SECRET" not in repr(events)
     assert "type SUPER_SECRET" not in repr(events)
+
+
+def test_evidence_chain_links_sensor_metadata_without_copying_payload() -> None:
+    chains = evidence_chain_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "VIOLATION",
+                "matched_rule_ids": ["deny-dangerous-command"],
+                "matched_asset_types": ["CRITICAL_CODE"],
+                "attribution_grade": "EXACT",
+                "enforcement_decision": "CONTAIN",
+                "enforcement_action": "BLOCKED",
+                "execution_result": "SUCCEEDED",
+                "evidence_ids": ["hook-1", "file-1", "process-1"],
+                "target": {
+                    "target_kind": "COMMAND",
+                    "raw_command": "type SUPER_SECRET",
+                },
+            }
+        ],
+        evidence_metadata=[
+            {
+                "evidence_id": "hook-1",
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "captured_at": "2026-09-15T05:00:00+00:00",
+            },
+            {
+                "evidence_id": "file-1",
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+                "captured_at": "2026-09-15T05:00:01+00:00",
+            },
+            {
+                "evidence_id": "process-1",
+                "source": "PROCESS_RUNTIME",
+                "record_type": "PROCESS_OBSERVED",
+                "captured_at": "2026-09-15T05:00:02+00:00",
+            },
+        ],
+        recovery={"recovery_status": "RESTORED"},
+        integrity={"integrity_status": "VERIFIED"},
+    )
+
+    assert len(chains) == 1
+    chain = chains[0]
+    assert chain["evidence_link_status"] == "LINKED"
+    assert chain["linked_evidence_count"] == 3
+    assert [stage["stage"] for stage in chain["stages"]] == [
+        "RAW_EVIDENCE",
+        "CANONICAL_ACTION",
+        "POLICY",
+        "ATTRIBUTION",
+        "ENFORCEMENT",
+        "RECOVERY",
+        "INTEGRITY",
+    ]
+    assert chain["stages"][2]["asset_types"] == ["CRITICAL_CODE"]
+    assert chain["stages"][5]["status"] == "RESTORED"
+    assert chain["stages"][6]["status"] == "VERIFIED"
+    assert "SUPER_SECRET" not in repr(chains)
+
+
+def test_evidence_chain_marks_missing_sensor_link_as_partial() -> None:
+    chains = evidence_chain_views(
+        [{"action_id": "a1", "operation": "MODIFY", "evidence_ids": ["known", "missing"]}],
+        evidence_metadata=[{"evidence_id": "known", "source": "AGENT_HOOK"}],
+    )
+
+    assert chains[0]["evidence_link_status"] == "PARTIAL"
+    assert chains[0]["linked_evidence_count"] == 1
+    assert chains[0]["stages"][0]["evidence_count"] == 2
 
 
 def test_safe_event_view_preserves_containment_decision_before_block_confirmation() -> None:

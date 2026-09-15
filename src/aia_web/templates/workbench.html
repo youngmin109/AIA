@@ -122,6 +122,11 @@
         <p id="incident-note" class="incident-note" aria-live="polite"></p>
         <a id="incident-detail-link" class="text-link" href="#" hidden>사건 상세 보기 →</a>
       </section>
+      <section id="evidence-chain-panel" class="workbench-card evidence-chain-panel">
+        <div class="panel-heading"><div><h2>실행 증거 흐름</h2><p class="hint">AIA가 실제로 연결한 단계만 표시합니다.</p></div><span id="evidence-chain-count" class="badge">0건</span></div>
+        <p class="workbench-card-subtitle">원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성</p>
+        <div id="evidence-chains" class="evidence-chains" aria-live="polite"><div class="empty">아직 연결된 행위 증거가 없습니다.</div></div>
+      </section>
     </aside>
   </div>
 
@@ -141,6 +146,7 @@ const initialStatus = {
   lease: {{ status.lease|tojson }},
   incident_count: {{ status.incident_count|tojson }},
   events: {{ (status.events or [])|tojson }},
+  evidence_chains: {{ (status.evidence_chains or [])|tojson }},
   protection: {{ (status.protection or {})|tojson }},
   sensor_health: {{ (status.sensor_health or {})|tojson }},
   evidence_summary: {{ (status.evidence_summary or {})|tojson }},
@@ -406,6 +412,34 @@ const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '�
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
 const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
 const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
+const chainStatusLabel = (value) => ({LINKED: '연결됨', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
+const chainStageClass = (stage) => ['LINKED', 'COMPLIANT', 'SUCCEEDED', 'RESTORED', 'VERIFIED', 'CONTINUE', 'BLOCKED', 'TERMINATED'].includes(stage) ? 'chain-success' : ['PARTIAL', 'NOT_REPORTED', 'NOT_ATTEMPTED', 'RUN_LEVEL', 'INDETERMINATE', 'CONTAIN', 'REFUSE'].includes(stage) ? 'chain-warning' : ['VIOLATION', 'FAILED'].includes(stage) ? 'chain-danger' : '';
+function renderEvidenceChains(chains) {
+  const container = document.getElementById('evidence-chains');
+  const items = Array.isArray(chains) ? chains.slice().reverse().slice(0, 6) : [];
+  document.getElementById('evidence-chain-count').textContent = `${items.length}건`;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty">아직 연결된 행위 증거가 없습니다.</div>';
+    return;
+  }
+  container.innerHTML = items.map((chain) => {
+    const stages = Array.isArray(chain.stages) ? chain.stages : [];
+    const stageHtml = stages.map((stage) => {
+      const status = String(stage.status || 'NOT_REPORTED');
+      const detail = stage.stage === 'RAW_EVIDENCE'
+        ? `${stage.evidence_count || 0}개 증거 · ${(stage.sources || []).map(sensorNameLabel).join(', ') || '출처 미확인'}`
+        : stage.stage === 'CANONICAL_ACTION'
+          ? operationLabel(stage.operation)
+          : stage.stage === 'POLICY'
+            ? `${chainStatusLabel(stage.status)}${(stage.asset_types || []).length ? ` · ${(stage.asset_types || []).join(', ')}` : ''}`
+            : stage.stage === 'ENFORCEMENT'
+              ? `${chainStatusLabel(stage.status)} · ${executionLabel(stage.execution_result)}`
+              : chainStatusLabel(status);
+      return `<li class="evidence-chain-stage ${chainStageClass(status)}"><span class="evidence-chain-node" aria-hidden="true"></span><div><strong>${esc(stage.label || stage.stage)}</strong><small>${esc(detail)}</small></div><span class="badge" title="${esc(status)}">${esc(chainStatusLabel(status))}</span></li>`;
+    }).join('');
+    return `<article class="evidence-chain-card"><div class="evidence-chain-heading"><div><strong>${esc(operationLabel(chain.operation))} · ${esc(chain.target_label || '행위')}</strong><small>${esc(formatTime(chain.observed_at))} · Evidence ${esc(String(chain.linked_evidence_count || 0))}/${esc(String(chain.evidence_count || 0))} 연결</small></div><span class="badge ${chain.evidence_link_status === 'LINKED' ? 'badge-succeeded' : 'badge-warning'}">${esc(chainStatusLabel(chain.evidence_link_status))}</span></div><ol class="evidence-chain-stages">${stageHtml}</ol></article>`;
+  }).join('');
+}
 
 function updateActivityClock() {
   if (!activityStartedAt) return;
@@ -620,6 +654,7 @@ function renderSecurity(status) {
   lastEventTime.textContent = formatTime(latestEvent?.observed_at);
   lastRefreshTime.textContent = formatTime(new Date().toISOString());
   lastRefreshTime.classList.remove('error-text');
+  renderEvidenceChains(status.evidence_chains || []);
   const eventKey = `${eventFilter}|${events.map((item) => [
     item.event_id || item.summary,
     item.decision || '',

@@ -57,6 +57,7 @@ from aia.codex_hook_trust import inspect_codex_hook_trust
 from .dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
 from .presenters import (
     action_view,
+    evidence_chain_views,
     evidence_summary,
     incident_view,
     incident_views_for_result,
@@ -391,6 +392,7 @@ def _annotate_execution_observations(
     *,
     control_root: Path,
     session_id: str,
+    evidence_metadata: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Add display-only PostToolUse status to a result view."""
 
@@ -416,6 +418,12 @@ def _annotate_execution_observations(
         actions.append(item)
     view["actions"] = actions
     view["events"] = safe_event_views(actions)
+    view["evidence_chains"] = evidence_chain_views(
+        actions,
+        evidence_metadata=evidence_metadata or (),
+        recovery=view.get("recovery"),
+        integrity=view.get("integrity"),
+    )
     return view
 
 
@@ -1014,12 +1022,21 @@ class RunApplicationService:
             else _hook_broker_runtime_healthy(record)
         )
         incidents = list(record.incidents)
+        display_view = {"actions": [dict(item) for item in record.actions]}
+        evidence_metadata = self._evidence_metadata(session_id, require_valid=False)
+        _annotate_execution_observations(
+            display_view,
+            control_root=self.control_root,
+            session_id=session_id,
+            evidence_metadata=evidence_metadata,
+        )
         return {
             "checkpoint": record.checkpoint,
             "error": record.error,
             "incident_count": len(incidents),
-            "latest_actions": record.actions[-20:],
-            "events": safe_event_views(record.actions, sensor_health=record.sensor_health),
+            "latest_actions": display_view["actions"][-20:],
+            "events": safe_event_views(display_view["actions"], sensor_health=record.sensor_health),
+            "evidence_chains": display_view["evidence_chains"],
             "lease": record.lease,
             "mode": record.mode,
             "interactive": record.interactive,
@@ -1447,6 +1464,7 @@ class RunApplicationService:
                 view,
                 control_root=self.control_root,
                 session_id=session_id,
+                evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
             )
             view["launch_mode"] = record.launch_mode
             view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
@@ -1459,6 +1477,7 @@ class RunApplicationService:
             view,
             control_root=self.control_root,
             session_id=session_id,
+            evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
         )
         runtime_state = self._read_runtime_state(session_id)
         if isinstance(runtime_state, Mapping):
@@ -1480,15 +1499,30 @@ class RunApplicationService:
         show observation progress without exposing raw payload values.
         """
 
+        return evidence_summary(
+            self._evidence_metadata(session_id, require_valid=require_valid)
+        )
+
+    def _evidence_metadata(
+        self,
+        session_id: str,
+        *,
+        require_valid: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Return metadata-only evidence for display joins.
+
+        A transient or older run may not have an evidence file yet.  The UI
+        should show an unlinked/unknown chain in that case, rather than turn a
+        status refresh into an application error.
+        """
+
         try:
-            return evidence_summary(
-                self.reader.read_evidence_metadata(
-                    session_id,
-                    require_valid=require_valid,
-                )
+            return self.reader.read_evidence_metadata(
+                session_id,
+                require_valid=require_valid,
             )
         except (OSError, ValueError, KeyError):
-            return evidence_summary(())
+            return []
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)
@@ -2653,6 +2687,10 @@ class RunApplicationService:
             display_view,
             control_root=self.control_root,
             session_id=str(state.get("session_id")),
+            evidence_metadata=self._evidence_metadata(
+                str(state.get("session_id")),
+                require_valid=False,
+            ),
         )
         return {
             "checkpoint": state.get("checkpoint", "UNKNOWN"),
@@ -2663,6 +2701,7 @@ class RunApplicationService:
                 display_view["actions"],
                 sensor_health=state.get("sensor_health", {}),
             ),
+            "evidence_chains": display_view["evidence_chains"],
             "lease": state.get("lease", "UNKNOWN"),
             "mode": state.get("mode"),
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
@@ -2688,6 +2727,7 @@ class RunApplicationService:
             view,
             control_root=self.control_root,
             session_id=session_id,
+            evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
         )
         hook_events = self.reader.hook_event_count(session_id)
         sensor_failed = any(
@@ -2729,6 +2769,7 @@ class RunApplicationService:
             "incident_count": len(view["incidents"]),
             "latest_actions": view["actions"][-20:],
             "events": view.get("events", []),
+            "evidence_chains": view.get("evidence_chains", []),
             "lease": "RELEASED",
             "mode": view["mode"],
             "phase": view["session_status"],

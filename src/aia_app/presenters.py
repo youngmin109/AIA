@@ -298,6 +298,168 @@ def evidence_summary(evidence: Any) -> dict[str, int | bool]:
     return summary
 
 
+def evidence_chain_views(
+    actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    *,
+    evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    recovery: Mapping[str, Any] | None = None,
+    integrity: Mapping[str, Any] | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Build a safe, display-only evidence chain for each observed action.
+
+    This is deliberately a presenter contract.  It joins identifiers that
+    already exist in the Core action/result records and the metadata-only
+    Evidence reader.  It never evaluates policy, infers intent, or copies
+    command text, paths, file contents, or Evidence payload values.
+    """
+
+    metadata_by_id = {
+        str(item.get("evidence_id")): item
+        for item in evidence_metadata
+        if isinstance(item, Mapping) and item.get("evidence_id")
+    }
+
+    def _run_status(value: Any, *, key: str) -> str:
+        if isinstance(value, Mapping):
+            value = value.get(key) or value.get("status")
+        return str(value or "NOT_ATTEMPTED")
+
+    recovery_status = _run_status(recovery, key="recovery_status")
+    integrity_status = _run_status(integrity, key="integrity_status")
+
+    chains: list[dict[str, Any]] = []
+    bounded_actions = list(actions)[-limit:] if limit > 0 else []
+    for raw_action in bounded_actions:
+        if not isinstance(raw_action, Mapping):
+            continue
+        action = action_view(raw_action)
+        evidence_ids = [
+            str(item)
+            for item in action.get("evidence_ids", [])
+            if isinstance(item, str) and item
+        ]
+        linked_records = [metadata_by_id[item] for item in evidence_ids if item in metadata_by_id]
+        missing_count = len(evidence_ids) - len(linked_records)
+        if not evidence_ids:
+            evidence_link_status = "NOT_REPORTED"
+        elif missing_count:
+            evidence_link_status = "PARTIAL"
+        else:
+            evidence_link_status = "LINKED"
+
+        sources = list(dict.fromkeys(
+            str(item.get("source"))
+            for item in linked_records
+            if item.get("source")
+        ))
+        record_types = list(dict.fromkeys(
+            str(item.get("record_type"))
+            for item in linked_records
+            if item.get("record_type")
+        ))
+        observed_at = action.get("observed_at") or max(
+            (
+                str(item.get("captured_at"))
+                for item in linked_records
+                if item.get("captured_at")
+            ),
+            default=None,
+        )
+        operation = str(action.get("operation") or "ACTION")
+        target = action.get("target") if isinstance(action.get("target"), Mapping) else {}
+        target_label = (
+            "명령 실행"
+            if operation == "EXECUTE" or target.get("target_kind") == "COMMAND"
+            else "파일·프로세스 행위"
+        )
+
+        policy_decision = action.get("policy_decision") or action.get("policy")
+        attribution = action.get("attribution_class") or action.get("attribution")
+        enforcement_action = action.get("enforcement_action") or action.get("enforcement")
+        enforcement_decision = action.get("enforcement_decision")
+        execution_result = action.get("execution_result") or "NOT_REPORTED"
+        enforcement_status = enforcement_action
+        if enforcement_status in {None, "NONE"}:
+            enforcement_status = enforcement_decision or "NOT_REPORTED"
+
+        stages = [
+            {
+                "stage": "RAW_EVIDENCE",
+                "label": "원시 증거",
+                "status": evidence_link_status,
+                "link_status": evidence_link_status,
+                "evidence_ids": evidence_ids,
+                "evidence_count": len(evidence_ids),
+                "linked_evidence_count": len(linked_records),
+                "sources": sources,
+                "record_types": record_types,
+                "observed_at": observed_at,
+            },
+            {
+                "stage": "CANONICAL_ACTION",
+                "label": "표준 행위",
+                "status": "LINKED" if action.get("action_id") and operation else "NOT_REPORTED",
+                "operation": operation,
+                "target_label": target_label,
+                "action_id": action.get("action_id"),
+            },
+            {
+                "stage": "POLICY",
+                "label": "정책 판정",
+                "status": str(policy_decision or "NOT_REPORTED"),
+                "decision": policy_decision or "NOT_REPORTED",
+                "matched_rule_ids": list(action.get("matched_rule_ids") or []),
+                "asset_types": list(action.get("matched_asset_types") or []),
+            },
+            {
+                "stage": "ATTRIBUTION",
+                "label": "행위 귀속",
+                "status": str(attribution or "NOT_REPORTED"),
+                "grade": attribution or "NOT_REPORTED",
+            },
+            {
+                "stage": "ENFORCEMENT",
+                "label": "집행",
+                "status": str(enforcement_status),
+                "decision": enforcement_decision or "NOT_REPORTED",
+                "action": enforcement_action or "NONE",
+                "execution_result": execution_result,
+                "route": action.get("enforcement_route") or action.get("route"),
+                "execution_observed": bool(action.get("execution_observed")),
+            },
+            {
+                "stage": "RECOVERY",
+                "label": "복구",
+                "status": recovery_status,
+                "scope": "RUN",
+                "link_status": "RUN_LEVEL",
+                "related_id": action.get("related_recovery_id"),
+            },
+            {
+                "stage": "INTEGRITY",
+                "label": "무결성",
+                "status": integrity_status,
+                "scope": "RUN",
+                "link_status": "RUN_LEVEL",
+            },
+        ]
+        chains.append(
+            {
+                "chain_id": str(action.get("action_id") or f"chain-{len(chains) + 1}"),
+                "action_id": action.get("action_id"),
+                "operation": operation,
+                "target_label": target_label,
+                "observed_at": observed_at,
+                "evidence_link_status": evidence_link_status,
+                "evidence_count": len(evidence_ids),
+                "linked_evidence_count": len(linked_records),
+                "stages": stages,
+            }
+        )
+    return chains
+
+
 def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
     incidents = incident_views_for_result(result)
     incident_action_ids = {
@@ -432,4 +594,9 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "workspace": result.get("workspace"),
         "actions": actions,
         "events": safe_event_views(actions),
+        "evidence_chains": evidence_chain_views(
+            actions,
+            recovery=result.get("recovery_result"),
+            integrity=result.get("integrity_result"),
+        ),
     }
