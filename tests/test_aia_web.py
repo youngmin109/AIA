@@ -290,6 +290,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-guidance-owner"' in workbench.text
     assert "현재 상태" in workbench.text
     assert 'aria-label="실행 요약"' in workbench.text
+    assert 'aria-label="Workbench 바로가기"' in workbench.text
+    assert 'data-workbench-jump="terminal-panel"' in workbench.text
+    assert 'data-workbench-jump="security-panel"' in workbench.text
+    assert 'data-workbench-jump="evidence-chain-panel"' in workbench.text
+    assert 'data-workbench-jump="sensor-evidence-panel"' in workbench.text
+    assert "IntersectionObserver" in workbench.text
     assert 'id="summary-protection"' in workbench.text
     assert 'id="summary-sensors"' in workbench.text
     assert 'id="summary-incidents"' in workbench.text

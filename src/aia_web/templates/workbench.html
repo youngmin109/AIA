@@ -37,6 +37,14 @@
     <div class="workbench-bottom-card"><span>결과 Bundle</span><strong id="bundle-status">검증 전</strong><small>종료 후 검증</small></div>
   </section>
 
+  <nav class="workbench-jumpbar" aria-label="Workbench 바로가기">
+    <span class="workbench-jumpbar-label">바로가기</span>
+    <a class="workbench-jump-link is-active" data-workbench-jump="terminal-panel" href="#terminal-panel">Codex 작업창</a>
+    <a class="workbench-jump-link" data-workbench-jump="security-panel" href="#security-panel">보안 관찰</a>
+    <a class="workbench-jump-link" data-workbench-jump="evidence-chain-panel" href="#evidence-chain-panel">실행 증거</a>
+    <a class="workbench-jump-link" data-workbench-jump="sensor-evidence-panel" href="#sensor-evidence-panel">센서 Timeline</a>
+  </nav>
+
   <div class="workbench-grid">
     <aside class="workbench-sidebar">
       <section class="workbench-card">
@@ -71,7 +79,7 @@
       </section>
     </aside>
 
-    <main class="workbench-terminal-panel">
+    <main id="terminal-panel" class="workbench-terminal-panel">
       <div class="terminal-heading">
         <div class="terminal-heading-copy">
           <h2>Codex 작업창</h2>
@@ -108,7 +116,7 @@
       <div id="terminal-error" class="error" hidden></div>
     </main>
 
-    <aside class="workbench-security-panel">
+    <aside id="security-panel" class="workbench-security-panel">
       <section class="workbench-card">
         <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다.</p></div><span id="protection-state" class="badge" aria-live="polite">{{ status.protection.state }}</span></div>
         <p id="protection-state-note" class="workbench-protection-note" role="status" aria-live="polite">보호 상태를 확인하는 중입니다.</p>
@@ -589,6 +597,25 @@ function updateWorkbenchGuidance(status = latestStatus) {
   workbenchGuidanceTitle.textContent = title;
   workbenchGuidanceDetail.textContent = detail;
   workbenchGuidanceOwner.textContent = owner;
+}
+const workbenchJumpLinks = [...document.querySelectorAll('[data-workbench-jump]')];
+const workbenchJumpTargets = workbenchJumpLinks
+  .map((link) => document.getElementById(link.dataset.workbenchJump))
+  .filter(Boolean);
+function setWorkbenchJumpActive(targetId) {
+  workbenchJumpLinks.forEach((link) => {
+    const active = link.dataset.workbenchJump === targetId;
+    link.classList.toggle('is-active', active);
+    if (active) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  });
+}
+if ('IntersectionObserver' in window && workbenchJumpTargets.length) {
+  const jumpObserver = new IntersectionObserver((entries) => {
+    const visible = entries.filter((entry) => entry.isIntersecting).sort((left, right) => right.intersectionRatio - left.intersectionRatio);
+    if (visible[0]) setWorkbenchJumpActive(visible[0].target.id);
+  }, {rootMargin: '-125px 0px -55% 0px', threshold: [0, .25, .5]});
+  workbenchJumpTargets.forEach((target) => jumpObserver.observe(target));
 }
 function renderEvidenceChains(chains) {
   const container = document.getElementById('evidence-chains');
