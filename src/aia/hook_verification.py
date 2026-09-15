@@ -8,12 +8,13 @@ import json
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+import tomllib
 from typing import Any
 
 from .codex_installation import CodexHookInstaller
 
 
-_SCHEMA_VERSION = "aia-hook-verification-4"
+_SCHEMA_VERSION = "aia-hook-verification-5"
 _RUNTIME_PATH = (Path(__file__).resolve().parent / "codex_hook_runtime.py").resolve()
 
 
@@ -34,6 +35,42 @@ class HookVerificationStore:
             return digest.hexdigest()
         except OSError:
             return None
+
+    @classmethod
+    def _codex_config_fingerprint(cls, path: Path) -> str | None:
+        """Hash security-relevant Codex configuration, excluding trust bookkeeping.
+
+        Codex records a user's decision to trust a Workspace in ``[projects]``.
+        That bookkeeping changes whenever a new project is opened, but it does
+        not change the installed AIA Hook or its execution contract. Hashing
+        the whole file made a valid Hook proof expire after every new Workspace.
+        Keep all other configuration in the fingerprint so changes to execution
+        behavior still require a fresh live proof.
+        """
+
+        try:
+            document = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            return None
+
+        projects = document.get("projects")
+        if isinstance(projects, dict):
+            for project_path, settings in list(projects.items()):
+                if not isinstance(settings, dict):
+                    continue
+                settings.pop("trust_level", None)
+                if not settings:
+                    projects.pop(project_path, None)
+            if not projects:
+                document.pop("projects", None)
+
+        canonical = json.dumps(
+            document,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
 
     @classmethod
     def _codex_config_path(cls) -> Path:
@@ -69,7 +106,7 @@ class HookVerificationStore:
             "hook_path": str(hook_path),
             "hook_sha256": hook_sha256,
             "codex_config": str(config_path),
-            "codex_config_sha256": cls._sha256(config_path),
+            "codex_config_sha256": cls._codex_config_fingerprint(config_path),
             "aia_hook_runtime": str(_RUNTIME_PATH),
             "aia_hook_runtime_sha256": runtime_sha256,
             "codex_executable": str(executable_path),
