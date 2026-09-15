@@ -33,20 +33,21 @@
   {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
   <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust">{{ preflight.hook_trust.detail }}</div>
   <div id="codex-hook-trust" class="notice {{ 'success' if preflight_trust_ok else 'warning' }}">
-    <strong>Codex 실제 Hook Trust:</strong>
+    <strong>Codex 설정 Trust 상태:</strong>
     {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
     {% if trust_hooks %}
       {% for hook in trust_hooks %}{{ hook.event }}={{ hook.trust_status }}{% if not loop.last %} · {% endif %}{% endfor %}
     {% else %}
       확인할 수 없음
     {% endif %}
+    <small class="hint">Codex 설정의 신뢰 상태입니다. 현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다.</small>
   </div>
   <div class="notice preflight-claim">
     <strong>보호 성공 판정 규칙:</strong>
     {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
   </div>
   <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}success{% else %}warning{% endif %}">
-    <strong>실제 Hook 관찰:</strong> {{ (preflight.get('hook_activation') or {}).get('detail', '아직 실제 보호 실행 Hook Event가 관찰되지 않았습니다.') }}
+    <strong>현재 연결 증명:</strong> {{ (preflight.get('hook_activation') or {}).get('detail', '아직 현재 환경의 실제 Hook Event가 관찰되지 않았습니다.') }}
   </div>
   {% set preflight_hook_verified = (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}
   <div class="preflight-sensor-summary" id="preflight-sensor-summary">
@@ -86,7 +87,7 @@
   </div>
   <div class="form-actions">
     <button id="verify-hook" class="button" type="button">{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
-    <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '먼저 Codex에서 /hooks를 검토·Trust한 뒤 실행하세요.' }}</span>
+    <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.' }}</span>
   </div>
 </section>
 
@@ -355,7 +356,10 @@ function renderPreflight(payload) {
   preflightNextSteps.hidden = payload.ready;
   const activation = payload.hook_activation || {};
   hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
-  hookActivation.textContent = `실제 Hook 관찰: ${activation.detail || '상태를 확인할 수 없습니다.'}`;
+  hookActivation.replaceChildren();
+  const activationLabel = document.createElement('strong');
+  activationLabel.textContent = '현재 연결 증명: ';
+  hookActivation.append(activationLabel, document.createTextNode(activation.detail || '상태를 확인할 수 없습니다.'));
   const activationVerified = activation.status === 'CURRENTLY_VERIFIED';
   const hookSensorStatus = document.getElementById('preflight-sensor-hook-status');
   hookSensorStatus.className = `status-badge ${activationVerified ? 'status-success' : 'status-warning'}`;
@@ -364,13 +368,20 @@ function renderPreflight(payload) {
   verifyHookButton.textContent = activationVerified ? 'Hook 연결 다시 검증' : '실제 Hook 연결 검증';
   verifyHookButton.dataset.idleLabel = verifyHookButton.textContent;
   verifyHookStatus.className = activationVerified ? 'hint success-text' : 'hint';
-  verifyHookStatus.textContent = activationVerified ? '현재 Session-bound Hook Event가 확인되었습니다.' : '먼저 Codex에서 /hooks를 검토·Trust한 뒤 실행하세요.';
+  verifyHookStatus.textContent = activationVerified ? '현재 Session-bound Hook Event가 확인되었습니다.' : 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.';
   const trust = payload.codex_hook_trust || {};
   const trustHooks = Array.isArray(trust.hooks) ? trust.hooks : [];
   const trustSummary = trustHooks.map((hook) => `${hook.event}=${hook.trust_status}`).join(' · ');
   const preToolTrust = trustHooks.find((hook) => hook.event === 'preToolUse')?.trust_status;
   codexHookTrust.className = `notice ${['TRUSTED', 'MANAGED'].includes(preToolTrust) ? 'success' : 'warning'}`;
-  codexHookTrust.textContent = `Codex 실제 Hook Trust: ${trustSummary || '확인할 수 없음'}`;
+  codexHookTrust.replaceChildren();
+  const trustLabel = document.createElement('strong');
+  trustLabel.textContent = 'Codex 설정 Trust 상태: ';
+  const trustValue = document.createTextNode(trustSummary || '확인할 수 없음');
+  const trustHint = document.createElement('small');
+  trustHint.className = 'hint';
+  trustHint.textContent = 'Codex 설정의 신뢰 상태입니다. 현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다.';
+  codexHookTrust.append(trustLabel, trustValue, trustHint);
   preflightReady = Boolean(payload.ready);
   updateRunSubmitState();
 }

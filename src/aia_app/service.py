@@ -714,7 +714,7 @@ class RunApplicationService:
             checks.append(
                 {
                     "name": "hook_verification",
-                    "label": "실시간 Hook 검증",
+                    "label": "실제 Hook 연결 증명",
                     "ok": hook_verified,
                     "detail": (
                         "최근 실제 Codex Probe에서 Session-bound Hook Event 확인"
