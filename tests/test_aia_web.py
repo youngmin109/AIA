@@ -497,6 +497,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "workingAtTail" in workbench.text
     assert "composerAtTail" in workbench.text
     assert "composerVisible" in workbench.text
+    assert 'id="terminal-scroll-latest"' in workbench.text
+    assert "terminalFollowingOutput" in workbench.text
+    assert "최신 출력으로 이동" in workbench.text
+    assert "terminalIsAtBottom" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text
