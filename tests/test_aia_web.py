@@ -514,12 +514,16 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventFilterButtons" in workbench.text
     assert "eventFilter === 'SENSOR'" in workbench.text
     assert "eventFilter === 'ACTION'" in workbench.text
-    assert "eventFilter === 'ALL' ? `${events.length}건` : `${events.length}건 / 전체 ${allEvents.length}건`" in workbench.text
+    assert "const orderedEvents = (items) => items" in workbench.text
+    assert "eventFilter === 'ALL'" in workbench.text
+    assert "전체 ${allEvents.length}건 · 행위 ${actionEventCount} · 센서 ${sensorEventCount}" in workbench.text
     assert "현재 필터 결과" in workbench.text
     assert "bindChainSelectors" in workbench.text
     assert "sensor-evidence-row ${linked ? 'is-linked'" in workbench.text
     assert "data-chain-select" in workbench.text
     assert "responseStartedAt" in workbench.text
+    assert "const hadPendingResponse = awaitingResponse" in workbench.text
+    assert "!responseStartedAt" in workbench.text
     assert "terminalAction !== 'TRUST_DIRECTORY'" in workbench.text
     assert "먼저 “신뢰하고 계속”을 눌러주세요." in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text

@@ -1043,13 +1043,17 @@ function updateActivityClock() {
 }
 function setTerminalActivity(mode, label) {
   const previousMode = activityMode;
+  const hadPendingResponse = awaitingResponse;
   const resetClock = previousMode !== mode || !activityStartedAt || (mode === 'WAITING' && awaitingResponse);
   if (resetClock) activityStartedAt = Date.now();
   activityMode = mode;
   if (!['SUBMITTING', 'WORKING'].includes(mode)) interruptPending = false;
   if (['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)) awaitingResponse = true;
   if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
-  if (mode === 'WORKING' && previousMode !== 'WORKING') responseStartedAt = Date.now();
+  // A replayed terminal screen can contain an old "Working" line. Only a
+  // real browser submission may start the response clock; this lets a reload
+  // distinguish historical output from a request currently in progress.
+  if (mode === 'WORKING' && previousMode !== 'WORKING' && hadPendingResponse) responseStartedAt = Date.now();
   if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) responseStartedAt = 0;
   terminalActivity.className = `terminal-activity activity-${String(mode).toLowerCase()}`;
   terminalActivityLabel.textContent = label;
@@ -1235,7 +1239,19 @@ function appendTerminal(data) {
     if (awaitingResponse && activityMode === 'WORKING' && composerAtTail && !workingAtTail && responseStartedAt && Date.now() - responseStartedAt >= 750) {
       setTerminalAction(null);
       setTerminalActivity('WAITING', '응답 완료 · 다음 작업을 입력할 수 있습니다.');
-    } else if (activityMode === 'STARTING') {
+    } else if (activityMode === 'WORKING' && composerAtTail && !workingAtTail && !responseStartedAt) {
+      // On reload, the replay may have promoted an old Working line to the
+      // local activity state before the final idle composer arrived. There
+      // was no browser submission in this page, so restore the truthful idle
+      // state instead of showing a false delayed response.
+      setTerminalAction(null);
+      setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.');
+    } else if (!awaitingResponse && composerAtTail && !workingAtTail && ['STARTING', 'SUBMITTING', 'WORKING'].includes(activityMode)) {
+      // A reconnect replays the terminal screen from the beginning. That
+      // replay can contain an old "Working" line and briefly put the browser
+      // back into WORKING even though Codex is already idle. A composer at
+      // the tail without a pending browser submission is the authoritative
+      // idle signal for the current screen.
       setTerminalAction(null);
       setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.');
     }
@@ -1425,6 +1441,21 @@ function renderSecurity(status) {
     : eventFilter === 'ACTION'
       ? allEvents.filter((event) => event.category !== 'SENSOR')
       : allEvents;
+  // Sensor health rows are useful context, but they have no event timestamp.
+  // Keep timestamped actions at the top so the newest user-visible activity
+  // is immediately apparent instead of being buried below health rows.
+  const orderedEvents = (items) => items
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.item.observed_at || '') || 0;
+      const rightTime = Date.parse(right.item.observed_at || '') || 0;
+      if (leftTime !== rightTime) return rightTime - leftTime;
+      const leftIsSensor = left.item.category === 'SENSOR' ? 1 : 0;
+      const rightIsSensor = right.item.category === 'SENSOR' ? 1 : 0;
+      if (leftIsSensor !== rightIsSensor) return leftIsSensor - rightIsSensor;
+      return left.index - right.index;
+    })
+    .map(({ item }) => item);
   const latestEvent = allEvents.slice().reverse().find((event) => event.observed_at);
   lastEventTime.textContent = formatTime(latestEvent?.observed_at);
   lastRefreshTime.textContent = formatTime(new Date().toISOString());
@@ -1445,12 +1476,18 @@ function renderSecurity(status) {
       : ended
         ? '이 실행에는 보안 이벤트가 없습니다.'
         : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.';
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; const isNew = eventHighlightKeys.has(securityEventKey(event)); return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
+    document.getElementById('security-events').innerHTML = events.length ? orderedEvents(events).slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; const isNew = eventHighlightKeys.has(securityEventKey(event)); return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
     bindChainSelectors();
   }
   const eventCount = document.getElementById('event-count');
-  eventCount.textContent = eventFilter === 'ALL' ? `${events.length}건` : `${events.length}건 / 전체 ${allEvents.length}건`;
-  eventCount.title = eventFilter === 'ALL' ? '전체 보안 이벤트' : `현재 필터 결과 ${events.length}건 · 전체 보안 이벤트 ${allEvents.length}건`;
+  const actionEventCount = allEvents.filter((event) => event.category !== 'SENSOR').length;
+  const sensorEventCount = allEvents.filter((event) => event.category === 'SENSOR').length;
+  eventCount.textContent = eventFilter === 'ALL'
+    ? `전체 ${allEvents.length}건 · 행위 ${actionEventCount} · 센서 ${sensorEventCount}`
+    : `${events.length}건 / 전체 ${allEvents.length}건`;
+  eventCount.title = eventFilter === 'ALL'
+    ? `행위 ${actionEventCount}건 · 센서 상태 ${sensorEventCount}건`
+    : `현재 필터 결과 ${events.length}건 · 전체 보안 이벤트 ${allEvents.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
   const incident = allEvents.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity) || ['CONTAIN', 'REFUSE'].includes(event.decision));
   const incidentCard = document.getElementById('incident-card');
