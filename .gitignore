@@ -43,3 +43,9 @@ evaluation/product-e2e/
 # sensitive agent output. Keep generated runs local unless they are reviewed
 # and promoted as a sanitized validation fixture.
 evaluation/product-before-after/actual-codex-*/
+
+# 교수 제출용 산출물은 상위 RedLine/산출물 폴더에서 관리한다.
+# 코드 저장소에는 검토된 Markdown·웹 자산만 포함한다.
+docs/AIA_요구사항_정의서_v0.2.docx
+docs/AIA_제품_요구사항_정의서_v0.2.docx
+docs/기능흐름도_v0.2.png
