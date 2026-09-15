@@ -331,7 +331,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "item.execution_observed ? 'observed'" in workbench.text
     assert "execution_observed" in workbench.text
     assert "실행 관찰됨" in workbench.text
-    assert "Working\\s*\\(\\s*\\d+s" in workbench.text
+    assert "responseStartedAt" in workbench.text
+    assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
+    assert "terminalOutput.setAttribute('aria-busy'" in workbench.text
+    assert "workingVisible" in workbench.text
+    assert "composerVisible" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text

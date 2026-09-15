@@ -177,6 +177,7 @@ let terminalAction = null;
 let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
 let stopRequested = false;
+let responseStartedAt = 0;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -284,10 +285,11 @@ const terminalScreen = (() => {
     renderPending = true;
     requestAnimationFrame(() => {
       renderPending = false;
-      terminalOutput.textContent = cells.map((line) => line.join('').replace(/\s+$/, '')).join('\n');
+      terminalOutput.textContent = visibleText();
       terminalOutput.scrollTop = terminalOutput.scrollHeight;
     });
   };
+  const visibleText = () => cells.map((line) => line.join('').replace(/\s+$/, '')).join('\n');
   const consume = (data) => {
     buffer += String(data || '');
     let index = 0;
@@ -330,7 +332,7 @@ const terminalScreen = (() => {
     rows = nextRows; cols = nextCols; cells = next; clamp(); scheduleRender();
   };
   reset();
-  return {consume, resize, hasOutput: () => hasOutput};
+  return {consume, resize, text: visibleText, hasOutput: () => hasOutput};
 })();
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -398,6 +400,10 @@ const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'AB
 
 function updateActivityClock() {
   if (!activityStartedAt) return;
+  if (activityMode === 'WAITING') {
+    terminalActivityElapsed.textContent = '';
+    return;
+  }
   const elapsed = Math.max(0, Math.floor((Date.now() - activityStartedAt) / 1000));
   terminalActivityElapsed.textContent = `${elapsed}초`;
   if (activityMode === 'WORKING' && elapsed >= 15) {
@@ -409,19 +415,24 @@ function updateActivityClock() {
   }
 }
 function setTerminalActivity(mode, label) {
-  if (activityMode !== mode || !activityStartedAt) activityStartedAt = Date.now();
+  const previousMode = activityMode;
+  const resetClock = previousMode !== mode || !activityStartedAt || (mode === 'WAITING' && awaitingResponse);
+  if (resetClock) activityStartedAt = Date.now();
   activityMode = mode;
   if (['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)) awaitingResponse = true;
   if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
+  if (mode === 'WORKING' && previousMode !== 'WORKING') responseStartedAt = Date.now();
+  if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) responseStartedAt = 0;
   terminalActivity.className = `terminal-activity activity-${String(mode).toLowerCase()}`;
   terminalActivityLabel.textContent = label;
   terminalActivity.hidden = mode === 'IDLE' || mode === 'STOPPED';
   terminalActivityElapsed.textContent = '';
   if (activityTimer) { clearInterval(activityTimer); activityTimer = null; }
-  if (!terminalActivity.hidden) {
+  if (!terminalActivity.hidden && mode !== 'WAITING') {
     updateActivityClock();
     activityTimer = setInterval(updateActivityClock, 1000);
   }
+  terminalOutput.setAttribute('aria-busy', String(['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)));
   updateTerminalInputState();
 }
 
@@ -511,13 +522,23 @@ function appendTerminal(data) {
     terminalLastOutput.title = formatTime(new Date(lastTerminalOutputAt).toISOString());
     updateTerminalOutputAge();
   }
-  if (/Do you trust the contents of this directory\?/i.test(terminalDetectionBuffer) || /Press enter to continue/i.test(terminalDetectionBuffer)) {
+  const trustPromptVisible = /Do you trust the contents of this directory\?/i.test(terminalDetectionBuffer) || /Press enter to continue/i.test(terminalDetectionBuffer);
+  terminalScreen.consume(text);
+  const visibleLines = terminalScreen.text().split('\n').filter((line) => line.trim()).slice(-10);
+  const workingVisible = visibleLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
+  const composerVisible = visibleLines.some((line) => /Ask Codex to do anything|무엇을 도와드릴까요/.test(line));
+  if (trustPromptVisible) {
     setTerminalAction('TRUST_DIRECTORY');
     setTerminalActivity('ACTION', 'Codex가 Workspace 신뢰 확인을 기다리고 있습니다. “신뢰하고 계속”을 눌러주세요.');
-  } else if (/Working\s*\(\s*\d+s/i.test(text)) setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
-  else if (/Ask Codex to do anything|무엇을 도와드릴까요/.test(text)) { setTerminalAction(null); setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.'); }
-  else if (activityMode === 'STARTING') setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리는 중입니다.');
-  terminalScreen.consume(text);
+  } else if (workingVisible && ['SUBMITTING', 'WORKING', 'WAITING'].includes(activityMode)) {
+    setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+  } else if (composerVisible && awaitingResponse && activityMode === 'WORKING' && responseStartedAt && Date.now() - responseStartedAt >= 750) {
+    setTerminalAction(null);
+    setTerminalActivity('WAITING', '응답 완료 · 다음 작업을 입력할 수 있습니다.');
+  } else if (composerVisible && activityMode === 'STARTING') {
+    setTerminalAction(null);
+    setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.');
+  }
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
 function openSocket() {
