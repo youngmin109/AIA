@@ -810,6 +810,9 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'aria-current="page"' in dashboard.text
     assert 'id="dashboard-primary-action"' in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
+    assert 'id="dashboard-readiness-label">실행 준비</span>' in dashboard.text
+    assert 'id="dashboard-readiness-title">보호 실행을 시작할 수 있습니다.</h2>' in dashboard.text
+    assert 'id="dashboard-readiness-ready-notice"' in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-current-meta"' in dashboard.text
     assert 'id="dashboard-run-count"' in dashboard.text
@@ -856,6 +859,11 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "보호 실행이 진행 중입니다" in dashboard.text
     assert "Workbench 열기" in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/runs/run-1/workbench">Workbench 열기</a>' in dashboard.text
+    assert 'id="dashboard-readiness-label">시스템 준비</span>' in dashboard.text
+    assert 'id="dashboard-readiness-title">현재 보호 세션이 실행 중입니다.</h2>' in dashboard.text
+    assert 'id="dashboard-readiness-status" class="status-badge status-active" title="ACTIVE">현재 실행 중</span>' in dashboard.text
+    assert 'id="dashboard-readiness-active-link" class="text-link" href="/runs/run-1/workbench">Workbench 열기 →</a>' in dashboard.text
+    assert '현재 작업은 Workbench에서 계속하세요.' in dashboard.text
     assert "결과 검증" in dashboard.text
     assert "행위 관찰 전" in dashboard.text
     assert "사건" in dashboard.text
