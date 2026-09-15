@@ -300,6 +300,8 @@ let terminalReconnectPending = false;
 let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
 let statusPollTimer = null;
+let statusPollPromise = null;
+let statusPollBusyTimer = null;
 const previousSensorCounts = {hook: null, file: null, process: null};
 const sensorUpdateTimers = {};
 let stopRequested = false;
@@ -1609,17 +1611,37 @@ reconcileButton.addEventListener('click', async () => {
   }
 });
 async function pollStatus() {
-  try {
-    const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`, {cache: 'no-store'});
-    if (!response.ok) throw new Error('status request failed');
-    statusPollFailures = 0;
-    renderSecurity(await response.json());
-  } catch (_) {
-    statusPollFailures += 1;
-    lastRefreshTime.textContent = statusPollFailures >= 2 ? '연결 확인 필요' : '갱신 실패';
-    lastRefreshTime.classList.add('error-text');
-    updateWorkbenchGuidance();
-  }
+  if (statusPollPromise) return statusPollPromise;
+  statusPollBusyTimer = window.setTimeout(() => {
+    lastRefreshTime.textContent = '갱신 중…';
+    lastRefreshTime.classList.add('is-refreshing');
+  }, 350);
+  const request = (async () => {
+    try {
+      const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`, {cache: 'no-store'});
+      if (!response.ok) throw new Error('status request failed');
+      statusPollFailures = 0;
+      renderSecurity(await response.json());
+    } catch (_) {
+      statusPollFailures += 1;
+      lastRefreshTime.textContent = statusPollFailures >= 2 ? '연결 확인 필요' : '갱신 실패';
+      lastRefreshTime.classList.add('error-text');
+      updateWorkbenchGuidance();
+    }
+  })();
+  statusPollPromise = request;
+  request.then(() => {
+    if (statusPollBusyTimer !== null) window.clearTimeout(statusPollBusyTimer);
+    statusPollBusyTimer = null;
+    lastRefreshTime.classList.remove('is-refreshing');
+    if (statusPollPromise === request) statusPollPromise = null;
+  }, () => {
+    if (statusPollBusyTimer !== null) window.clearTimeout(statusPollBusyTimer);
+    statusPollBusyTimer = null;
+    lastRefreshTime.classList.remove('is-refreshing');
+    if (statusPollPromise === request) statusPollPromise = null;
+  });
+  return request;
 }
 function stopStatusPolling() {
   if (statusPollTimer === null) return;

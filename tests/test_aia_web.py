@@ -519,6 +519,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "reconnectTerminal" in workbench.text
     assert "다시 연결하는 중" in workbench.text
     assert "terminalReconnectPending" in workbench.text
+    assert "statusPollPromise" in workbench.text
+    assert "statusPollBusyTimer" in workbench.text
+    assert "lastRefreshTime.classList.add('is-refreshing')" in workbench.text
+    assert "갱신 중…" in workbench.text
     assert 'id="workbench-sticky-status"' in workbench.text
     assert "updateStickyStatus" in workbench.text
     assert "Codex 응답 처리 중" in workbench.text
