@@ -496,7 +496,11 @@ const terminalScreen = (() => {
     const width = cellWidth(character);
     if (!width) return;
     if (cursorCol >= cols || (width === 2 && cursorCol === cols - 1)) { cursorCol = 0; lineFeed(); }
-    if (cells[cursorRow][cursorCol] === '' && cursorCol > 0) cells[cursorRow][cursorCol - 1] = ' ';
+    // A wide CJK glyph owns the next cell as an empty continuation cell.
+    // The cursor normally advances past that cell, so converting it to a
+    // literal space here makes adjacent Korean characters appear separated.
+    // Keep the continuation cell empty; CSI overwrite paths already clear
+    // the affected range before writing into it.
     cells[cursorRow][cursorCol] = character;
     if (width === 2 && cursorCol + 1 < cols) cells[cursorRow][cursorCol + 1] = '';
     cursorCol += width;
