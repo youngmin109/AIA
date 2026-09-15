@@ -304,6 +304,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Workspace를 확인하는 중입니다." in new_run.text
     assert "updateRunSubmitState" in new_run.text
     assert 'id="run-submit-hint"' in new_run.text
+    assert 'id="run-launch-actions"' in new_run.text
     assert "존재하는 Workspace 경로를 확인하면 실행할 수 있습니다" in new_run.text
     assert "보호 실행 준비 중" in new_run.text
     assert "is-busy" in new_run.text
