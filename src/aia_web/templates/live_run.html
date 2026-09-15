@@ -59,11 +59,24 @@ const reconcileButton = document.getElementById('reconcile-run');
 const eventTimeline = document.getElementById('event-timeline');
 const incidentPanel = document.getElementById('latest-incident');
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
+const badge = (value, label = null) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}" title="${esc(value || 'UNKNOWN')}">${esc(label || value || '확인 필요')}</span>`;
+const labels = {
+  session: {CREATED: '생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: '실행 중', COMPLETED: '정상 완료', ABORTED: '사용자 중지', FAILED: '실행 실패'},
+  phase: {CREATED: '세션 생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: 'Agent 실행 중', COMPLETED: '실행 완료', ABORTED: '사용자 중지', FAILED: '실행 실패'},
+  protection: {ACTIVE_VERIFIED: '보호 검증됨', ACTIVE_UNVERIFIED: '보호 확인 중', ACTIVE_DEGRADED: '보호 상태 저하', COMPLETED_VERIFIED: '완료 · 검증됨', COMPLETED_DEGRADED: '완료 · 일부 확인', ABORTED_DEGRADED: '중지 · 일부 확인', FAILED_DEGRADED: '실패 · 확인 필요', ORPHANED_DEGRADED: '보호 조정 필요', ABORTED_BEFORE_LAUNCH: '시작 전 사용자 중지', STOP_REQUESTED: '중지 처리 중'},
+  decision: {VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', OBSERVED: '관찰됨', AUDIT: '기록', ALLOW: '허용', DENY: '금지', NONE: '조치 없음', NOT_APPLICABLE: '해당 없음', CONTINUE: '계속 진행', CONTAIN: '격리 승인', REFUSE: '자동 조치 보류', HEALTHY: '정상', FAILED: '실패', STOPPED: '종료됨'},
+  execution: {SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행하지 않음', NOT_REPORTED: '결과 미확인', NOT_APPLICABLE: '해당 없음', NONE: '결과 없음'},
+  sensor: {AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor'},
+  operation: {READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'},
+};
+const label = (group, value, fallback = '확인 필요') => labels[group]?.[value] || value || fallback;
+const checkpointLabel = (value) => ({NOT_READY: '준비되지 않음', READY: '생성됨 · 사용 가능', FAILED: '생성 실패', UNKNOWN: '정보 없음'})[value] || value || '정보 없음';
+const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: '해제됨', FAILED: 'Lease 오류', NOT_STARTED: '준비 전'})[value] || value || '확인 중';
+const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${label('operation', operation)} 행위 관찰`);
 const actionTarget = (item) => { const target = item.target || {}; return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || '—'; };
 function renderActions(items) {
   if (!items.length) { actionsEl.innerHTML = '<tr><td colspan="6" class="empty">표준 행위가 아직 관찰되지 않았습니다.</td></tr>'; return; }
-  actionsEl.innerHTML = items.map((item) => `<tr><td class="mono">${esc(item.action_id || '—')}</td><td>${esc(item.operation || '—')}</td><td class="mono target-cell">${esc(actionTarget(item))}</td><td>${badge(item.policy_effect)}</td><td>${badge(item.attribution_class)}</td><td>${badge(item.enforcement_action)} ${badge(item.execution_result)}</td></tr>`).join('');
+  actionsEl.innerHTML = items.map((item) => `<tr><td class="mono">${esc(item.action_id || '—')}</td><td>${esc(label('operation', item.operation))}</td><td class="mono target-cell">${esc(actionTarget(item))}</td><td>${badge(item.policy_effect, label('decision', item.policy_effect))}</td><td>${badge(item.attribution_class, ({EXACT:'정확히 귀속', PROCESS:'프로세스 수준', TEMPORAL:'시간적 연관', UNKNOWN:'귀속 불가'})[item.attribution_class] || item.attribution_class || '기록 없음')}</td><td>${badge(item.enforcement_action, label('decision', item.enforcement_action))} ${badge(item.execution_result, label('execution', item.execution_result))}</td></tr>`).join('');
 }
 function renderSafeEvents(events) {
   if (!events.length) {
@@ -72,8 +85,8 @@ function renderSafeEvents(events) {
   }
   eventTimeline.innerHTML = events.slice().reverse().map((event) => `
     <div class="event-row severity-${esc(event.severity || 'INFO').toLowerCase()}">
-      <span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><span class="muted">${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</span></div>
-      <span>${badge(event.decision || 'OBSERVED')} ${badge(event.execution_result || 'NOT_REPORTED')}</span>
+      <span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><span class="muted">${esc(event.target_label || '')} · ${esc(label('sensor', event.sensor, 'AIA'))}</span></div>
+      <span>${badge(event.decision || 'OBSERVED', label('decision', event.decision || 'OBSERVED'))} ${badge(event.execution_result || 'NOT_REPORTED', label('execution', event.execution_result || 'NOT_REPORTED'))}</span>
     </div>`).join('');
 }
 function renderIncident(events) {
@@ -81,9 +94,9 @@ function renderIncident(events) {
   if (!incident) { incidentPanel.hidden = true; return; }
   incidentPanel.hidden = false;
   document.getElementById('incident-summary').textContent = `${incident.summary || '보호 대상 행위'} · ${incident.target_label || '대상'}`;
-  document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? 'VIOLATION' : (incident.decision || '확인 필요');
-  document.getElementById('incident-decision').textContent = incident.decision || '확인 필요';
-  document.getElementById('incident-execution').textContent = `${incident.decision === 'CONTAIN' ? 'BLOCKED' : '실행 결과 확인 중'} / ${incident.execution_result || 'NOT_REPORTED'}`;
+  document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? '정책 위반' : label('decision', incident.decision);
+  document.getElementById('incident-decision').textContent = label('decision', incident.decision);
+  document.getElementById('incident-execution').textContent = `${incident.decision === 'CONTAIN' ? '실행 전 차단' : '실행 결과 확인 중'} / ${label('execution', incident.execution_result || 'NOT_REPORTED')}`;
 }
 async function poll() {
   try {
@@ -91,19 +104,26 @@ async function poll() {
     if (!statusResponse.ok) throw new Error('Run status unavailable');
     const status = await statusResponse.json();
     const actions = actionsResponse.ok ? await actionsResponse.json() : {actions: []};
-    document.getElementById('status-badge').textContent = status.session.status;
-    document.getElementById('phase').textContent = status.phase;
-    document.getElementById('checkpoint').textContent = status.checkpoint || 'PENDING';
-    document.getElementById('lease').textContent = status.lease || 'PENDING';
+    document.getElementById('status-badge').textContent = label('session', status.session.status);
+    document.getElementById('status-badge').title = status.session.status || '';
+    document.getElementById('phase').textContent = label('phase', status.phase);
+    document.getElementById('phase').title = status.phase || '';
+    document.getElementById('checkpoint').textContent = checkpointLabel(status.checkpoint);
+    document.getElementById('checkpoint').title = status.checkpoint || '';
+    document.getElementById('lease').textContent = leaseLabel(status.lease);
+    document.getElementById('lease').title = status.lease || '';
     document.getElementById('incident-count').textContent = status.incident_count;
     document.getElementById('filesystem-event-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
     document.getElementById('process-observed-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건`;
     document.getElementById('process-exit-count').textContent = `${((status.evidence_summary || {}).process_exit_observed || 0)}건`;
-    document.getElementById('launch-mode').textContent = status.launch_mode || 'inherit';
+    document.getElementById('launch-mode').textContent = ({web_terminal: 'Workbench', new_terminal: '별도 터미널', inherit: '기본 실행'})[status.launch_mode] || status.launch_mode || '기본 실행';
+    document.getElementById('launch-mode').title = status.launch_mode || 'inherit';
     const protection = status.protection || {};
     document.getElementById('interactive-instructions').hidden = !status.interactive;
-    document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
-    document.getElementById('hook-broker-health').textContent = protection.hook_broker || 'NOT_STARTED';
+    document.getElementById('protection-state').textContent = label('protection', protection.state, '확인 필요');
+    document.getElementById('protection-state').title = protection.state || '';
+    document.getElementById('hook-broker-health').textContent = label('decision', protection.hook_broker || 'NOT_STARTED');
+    document.getElementById('hook-broker-health').title = protection.hook_broker || '';
     const protectionNote = document.getElementById('protection-note');
     const notes = {
       'LAUNCHING': 'Codex 실행을 등록하고 보호 센서를 연결하는 중입니다. 잠시 기다려 주세요.',
@@ -122,11 +142,11 @@ async function poll() {
       : (notes[protection.state] || '');
     protectionNote.hidden = !notes[protection.state];
     protectionNote.hidden = !notes[protection.state] && !reconciliation.orphaned;
-    document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${key}: ${value}`).join(' · ');
+    document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${label('sensor', key)}: ${label('decision', value)}`).join(' · ');
     const sensorHealth = status.sensor_health || {};
-    document.getElementById('sensor-hook').textContent = sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED';
-    document.getElementById('sensor-file').textContent = sensorHealth.FILESYSTEM_WATCHER || 'NOT_STARTED';
-    document.getElementById('sensor-process').textContent = sensorHealth.PROCESS_RUNTIME || 'NOT_STARTED';
+    document.getElementById('sensor-hook').textContent = label('decision', sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED');
+    document.getElementById('sensor-file').textContent = label('decision', sensorHealth.FILESYSTEM_WATCHER || 'NOT_STARTED');
+    document.getElementById('sensor-process').textContent = label('decision', sensorHealth.PROCESS_RUNTIME || 'NOT_STARTED');
     renderSafeEvents(status.events || []);
     renderIncident(status.events || []);
     const errorBox = document.getElementById('error-box');

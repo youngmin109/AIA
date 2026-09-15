@@ -289,6 +289,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Workbench로 돌아가기" in result.text
     assert "유효 · 검증됨" in result.text
     assert result.text.index("Hook Sensor") < result.text.index("File Sensor") < result.text.index("Process Sensor")
+    assert "이번 보호 실행에서 확인된 내용" in result.text
+    assert "정책 위반" in result.text
+    assert "실행하지 않음" in result.text
     assert 'href="/new">새 보호 실행</a>' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
