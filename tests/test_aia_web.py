@@ -256,6 +256,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "작업 폴더 선택" in new_run.text
     assert 'data-run-step="1"' in new_run.text
     assert 'data-run-step="4"' in new_run.text
+    assert 'id="run-progress-status"' in new_run.text
     assert "updateRunProgress" in new_run.text
     assert "AIA는 실제 도구 요청을 관찰·통제합니다" in new_run.text
     assert "Codex 설정 Trust 상태" in new_run.text

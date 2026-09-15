@@ -18,10 +18,13 @@
 </section>
 
 <section class="run-steps" aria-label="보호 실행 순서">
-  <div class="run-step is-active" data-run-step="1" aria-current="step"><span>1</span><strong>작업 폴더 선택</strong><small>사용자가 만든 Workspace를 지정합니다.</small></div>
-  <div class="run-step" data-run-step="2"><span>2</span><strong>정책·기준점 준비</strong><small>정책을 고정하고 Checkpoint를 만듭니다.</small></div>
-  <div class="run-step" data-run-step="3"><span>3</span><strong>Codex 보호 실행</strong><small>지원되는 도구 요청을 실행 전에 평가합니다.</small></div>
-  <div class="run-step" data-run-step="4"><span>4</span><strong>결과 확인</strong><small>차단·허용·증거·무결성을 결과로 남깁니다.</small></div>
+  <div class="run-step-grid">
+    <div class="run-step is-active" data-run-step="1" aria-current="step"><span>1</span><strong>작업 폴더 선택</strong><small>사용자가 만든 Workspace를 지정합니다.</small></div>
+    <div class="run-step" data-run-step="2"><span>2</span><strong>정책·기준점 준비</strong><small>정책을 고정하고 Checkpoint를 만듭니다.</small></div>
+    <div class="run-step" data-run-step="3"><span>3</span><strong>Codex 보호 실행</strong><small>지원되는 도구 요청을 실행 전에 평가합니다.</small></div>
+    <div class="run-step" data-run-step="4"><span>4</span><strong>결과 확인</strong><small>차단·허용·증거·무결성을 결과로 남깁니다.</small></div>
+  </div>
+  <p id="run-progress-status" class="run-progress-status" role="status" aria-live="polite">현재 단계 1/4 · 작업 폴더 선택</p>
 </section>
 
 <section id="preflight-panel" class="panel preflight-panel">
@@ -314,6 +317,7 @@ const RECENT_WORKSPACES_KEY = 'aia.recentWorkspaces';
 const MAX_RECENT_WORKSPACES = 5;
 let staleRunId = '';
 const runProgressSteps = [...document.querySelectorAll('[data-run-step]')];
+const runProgressStatus = document.getElementById('run-progress-status');
 const editorRuleList = document.getElementById('editor-rules');
 const policyEditorPanel = document.querySelector('.policy-editor-panel');
 function renderEditorRules() {
@@ -656,6 +660,12 @@ function updateNextAction() {
 function updateRunProgress() {
   const workspaceReady = workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
   const currentStep = !workspaceReady ? 1 : !preflightReady ? 2 : 3;
+  const stepLabels = {
+    1: '작업 폴더 선택',
+    2: '정책·기준점 준비',
+    3: 'Codex 보호 실행',
+    4: '결과 확인',
+  };
   runProgressSteps.forEach((step) => {
     const number = Number(step.dataset.runStep);
     const active = number === currentStep;
@@ -665,6 +675,14 @@ function updateRunProgress() {
     if (active) step.setAttribute('aria-current', 'step');
     else step.removeAttribute('aria-current');
   });
+  if (runProgressStatus) {
+    const nextAction = currentStep === 1
+      ? 'Workspace 경로를 입력하세요.'
+      : currentStep === 2
+        ? '실행 전 준비 상태를 확인하세요.'
+        : '실행 설정을 확인하고 시작 버튼을 누르세요.';
+    runProgressStatus.textContent = `현재 단계 ${currentStep}/4 · ${stepLabels[currentStep]} · ${nextAction}`;
+  }
   updateNextAction();
 }
 async function validateWorkspacePath() {
