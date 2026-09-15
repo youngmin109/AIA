@@ -298,6 +298,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "protectionClass" in workbench.text
     assert "protectionNote" in workbench.text
     assert "보호 검증 전 상태입니다." in workbench.text
+    assert "ABORTED_VERIFIED: '중지 · 검증됨'" in workbench.text
+    assert "실행이 중지됐고 수집된 보호 증거와 결과를 검증했습니다." in workbench.text
     assert "현재 Workbench" in workbench.text
     assert 'id="terminal-input-proxy"' in workbench.text
     assert 'id="terminal-input-form"' in workbench.text

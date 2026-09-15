@@ -465,6 +465,7 @@ const protectionLabel = (value) => ({
   ACTIVE_UNVERIFIED: '보호 확인 중',
   ACTIVE_DEGRADED: '보호 상태 저하',
   COMPLETED_VERIFIED: '완료 · 검증됨',
+  ABORTED_VERIFIED: '중지 · 검증됨',
   COMPLETED_DEGRADED: '완료 · 일부 확인',
   ABORTED_DEGRADED: '중지 · 일부 확인',
   FAILED_DEGRADED: '실패 · 확인 필요',
@@ -476,13 +477,14 @@ const protectionNote = (value) => ({
   ACTIVE_UNVERIFIED: 'Codex는 실행 중이지만 아직 실제 Hook 이벤트가 확인되지 않았습니다. 보호 검증 전 상태입니다.',
   ACTIVE_DEGRADED: '보호 센서 또는 연결에 문제가 있어 완전한 보호로 간주하지 않습니다.',
   COMPLETED_VERIFIED: '실행이 끝났고 보호 상태와 결과 Bundle을 검증했습니다.',
+  ABORTED_VERIFIED: '실행이 중지됐고 수집된 보호 증거와 결과를 검증했습니다.',
   COMPLETED_DEGRADED: '실행은 끝났지만 일부 보호 증거가 부족해 제한적으로 해석해야 합니다.',
   ABORTED_DEGRADED: '실행은 중지됐지만 보호 상태를 완전히 검증하지 못했습니다.',
   FAILED_DEGRADED: '보호 경계에 문제가 생겨 보호 성공으로 간주하지 않습니다.',
   ORPHANED_DEGRADED: 'AIA 연결이 끊겨 현재 보호 상태를 확인할 수 없습니다.',
   STOP_REQUESTED: '보호 실행 중지 요청을 처리하고 있습니다.',
 })[value] || 'AIA 보호 상태를 확인하는 중입니다.';
-const protectionNoteClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED'].includes(value)
+const protectionNoteClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value)
   ? 'note-success'
   : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'STOP_REQUESTED'].includes(value)
     ? 'note-warning'
