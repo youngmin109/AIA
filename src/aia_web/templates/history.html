@@ -2,8 +2,15 @@
 {% block title %}실행 기록 · AIA{% endblock %}
 {% block content %}
 {% set status_labels = {'CREATED': '생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': '실행 중', 'COMPLETED': '완료', 'ABORTED': '사용자 중지', 'FAILED': '실패'} %}
-{% set protection_labels = {'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '보호 확인 중', 'ACTIVE_DEGRADED': '보호 상태 저하', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'ORPHANED_DEGRADED': '보호 경계 저하'} %}
+{% set protection_labels = {'STARTING': 'AIA 시작 중', 'PREPARING': '보호 준비 중', 'READY_UNVERIFIED': '실행 준비 확인 중', 'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '보호 확인 중', 'ACTIVE_DEGRADED': '보호 상태 저하', 'STOP_REQUESTED': '중지 처리 중', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_BEFORE_LAUNCH': '시작 전 중지', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'DEGRADED': '보호 상태 저하', 'FAILED': '보호 실패', 'ORPHANED_DEGRADED': '보호 경계 저하'} %}
 {% set bundle_labels = {'VALID': '유효', 'INVALID': '무효', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '없음'} %}
+{% set active_statuses = ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'] %}
+{% set history_summary = namespace(active=0, incidents=0, valid=0) %}
+{% for item in runs %}
+  {% if item.status in active_statuses and not (item.runtime_reconciliation or {}).get('orphaned') and item.run_classification != 'UNVERIFIED_RUNTIME_STATE' %}{% set history_summary.active = history_summary.active + 1 %}{% endif %}
+  {% if item.incident_count %}{% set history_summary.incidents = history_summary.incidents + 1 %}{% endif %}
+  {% if item.bundle_status == 'VALID' %}{% set history_summary.valid = history_summary.valid + 1 %}{% endif %}
+{% endfor %}
 <section class="hero compact">
   <div>
     <p class="eyebrow">RUN HISTORY · 실행 기록</p>
@@ -12,8 +19,19 @@
   </div>
   <a class="button primary" href="/new">새 보호 실행</a>
 </section>
+<section class="metric-grid history-summary" aria-label="실행 기록 요약">
+  <div class="metric"><span>전체 실행</span><strong>{{ runs|length }}건</strong><small>로컬에 보존된 보호 실행</small></div>
+  <div class="metric metric-status {{ 'metric-ok' if history_summary.active == 0 else 'metric-warning' }}"><span>현재 진행 중</span><strong>{{ history_summary.active }}건</strong><small>연결된 실행만 집계</small></div>
+  <div class="metric {{ 'metric-warning' if history_summary.incidents else '' }}"><span>사건 발생 실행</span><strong>{{ history_summary.incidents }}건</strong><small>차단·정책 사건이 있는 실행</small></div>
+  <div class="metric metric-ok"><span>검증 완료</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle VALID</small></div>
+</section>
 <section class="panel">
   <div class="panel-heading history-heading"><div><h2>전체 실행</h2><p class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div>
+  <div class="history-legend" aria-label="상태 설명">
+    <span><b class="legend-dot legend-running"></b>실행 중: 현재 세션에 연결됨</span>
+    <span><b class="legend-dot legend-warning"></b>일부 확인: 센서·실행 결과를 모두 검증하지 못함</span>
+    <span><b class="legend-dot legend-valid"></b>검증됨: Result Bundle 무결성 확인</span>
+  </div>
   <div class="history-filters">
     <label class="field">Workspace<input id="filter-workspace" placeholder="경로 검색"></label>
     <label class="field">실행 상태<select id="filter-status"><option value="">전체 상태</option><option value="CREATED">생성됨</option><option value="PREPARING">보호 준비 중</option><option value="READY">실행 준비 완료</option><option value="LAUNCHING">Codex 시작 중</option><option value="RUNNING">실행 중</option><option value="COMPLETED">정상 완료</option><option value="ABORTED">사용자 중지</option><option value="FAILED">실패</option></select></label>
@@ -22,11 +40,12 @@
     <label class="field">날짜<input id="filter-date" type="date"></label>
   </div>
   <div class="history-filter-actions"><button id="reset-history-filters" class="button" type="button">필터 초기화</button></div>
-  <div class="table-wrap"><table><thead><tr><th>세션</th><th>상태</th><th>Workspace</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
+  <div class="table-wrap"><table><thead><tr><th>시작 시각</th><th>실행</th><th>상태</th><th>Workspace</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
   <tbody>
   {% for run in runs %}
     <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-date="{{ (run.created_at or '')[:10] }}">
-      <td class="mono">{% if run.launch_mode == 'web_terminal' %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="Workbench 열기">{{ run.session_id }}</a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="실행 상태 열기">{{ run.session_id }}</a>{% endif %}</td>
+      <td><time class="history-time" datetime="{{ run.created_at|default('') }}">{{ (run.created_at or '시각 확인 필요') }}</time></td>
+      <td class="mono">{% if run.launch_mode == 'web_terminal' %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="Workbench 열기"><strong>#{{ run.session_id[:8] }}</strong></a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="실행 상태 열기"><strong>#{{ run.session_id[:8] }}</strong></a>{% endif %}<br><span class="muted" title="전체 Session ID: {{ run.session_id }}">{{ 'Workbench' if run.launch_mode == 'web_terminal' else 'CLI 실행' }}</span></td>
       <td><span class="badge badge-{{ (run.status or 'unknown')|lower }}" title="{{ run.status }}">{{ status_labels.get(run.status, run.status or '확인 필요') }}</span>{% if run.protection_state %}<br><span class="muted" title="{{ run.protection_state }}">{{ protection_labels.get(run.protection_state, run.protection_state) }}</span>{% endif %}{% if (run.runtime_reconciliation or {}).get('orphaned') %}<br><span class="error-text">AIA 조정 프로세스 확인 필요</span>{% endif %}</td>
       <td class="mono target-cell">{{ run.workspace }}</td>
       <td>{{ (run.policy or {}).get('id') or (run.policy or {}).get('policy_id', '—') }}<br><span class="muted">{{ (run.policy or {}).get('version') or (run.policy or {}).get('policy_version', '—') }}</span></td>
@@ -51,6 +70,14 @@ function filterRuns() {
   document.getElementById('history-result-count').textContent = `${visible}건 표시 / ${rows.length}건 전체`;
   document.getElementById('history-empty').hidden = visible !== 0;
 }
+document.querySelectorAll('.history-time').forEach((time) => {
+  const value = time.getAttribute('datetime');
+  if (!value) return;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return;
+  time.textContent = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+  time.title = date.toLocaleString('ko-KR');
+});
 filterIds.forEach((id) => {
   document.getElementById(id).addEventListener('input', filterRuns);
   document.getElementById(id).addEventListener('change', filterRuns);

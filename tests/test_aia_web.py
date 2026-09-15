@@ -605,6 +605,11 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "필터 초기화" in history.text
     assert "filterIds" in history.text
     assert "1건 표시 / 1건 전체" in history.text
+    assert "실행 기록 요약" in history.text
+    assert "현재 진행 중" in history.text
+    assert "시작 시각" in history.text
+    assert "history-time" in history.text
+    assert "Result Bundle VALID" in history.text
     assert "/runs/run-1/result" not in history.text
 
 
