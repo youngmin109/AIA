@@ -363,6 +363,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "sensor-evidence-row ${linked ? 'is-linked'" in workbench.text
     assert "data-chain-select" in workbench.text
     assert "responseStartedAt" in workbench.text
+    assert "terminalAction !== 'TRUST_DIRECTORY'" in workbench.text
+    assert "먼저 “신뢰하고 계속”을 눌러주세요." in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
     assert "terminalOutput.setAttribute('aria-busy'" in workbench.text
     assert "workingVisible" in workbench.text
@@ -374,6 +376,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "data: value" in workbench.text
     assert "type:'submit'" in workbench.text
     assert "terminalScreen" in workbench.text
+    assert "scrollTop" in workbench.text
+    assert "scrollBottom" in workbench.text
+    assert "reverseIndex" in workbench.text
+    assert "insertLines" in workbench.text
+    assert "deleteLines" in workbench.text
     assert "cellWidth" in workbench.text
     assert "codePointAt" in workbench.text
     assert "requestAnimationFrame" in workbench.text
