@@ -607,6 +607,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "유효 · 검증됨" in result.text
     assert result.text.index("Hook Sensor") < result.text.index("File Sensor") < result.text.index("Process Sensor")
     assert "이번 보호 실행에서 확인된 내용" in result.text
+    assert 'aria-label="결과 읽는 순서"' in result.text
+    assert "실행 Evidence" in result.text
+    assert "보호 검증" in result.text
     assert "보호 상태" in result.text
     assert "다음 작업" in result.text
     assert "새 보호 실행 시작" in result.text
