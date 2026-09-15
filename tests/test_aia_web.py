@@ -249,6 +249,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="run-next-action-link"' in new_run.text
     assert 'id="preflight-panel"' in new_run.text
     assert 'id="workspace-input"' in new_run.text
+    assert 'aria-describedby="workspace-help workspace-status"' in new_run.text
+    assert 'aria-invalid="false"' in new_run.text
+    assert 'id="workspace-help"' in new_run.text
     assert "updateNextAction" in new_run.text
     assert "작업 폴더 선택" in new_run.text
     assert 'data-run-step="1"' in new_run.text
@@ -291,6 +294,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "recent-workspace-button" in new_run.text
     assert "기록 지우기" in new_run.text
     assert "validateWorkspacePath" in new_run.text
+    assert "workspaceValidationInProgress" in new_run.text
+    assert "Workspace를 확인하는 중입니다." in new_run.text
     assert "updateRunSubmitState" in new_run.text
     assert 'id="run-submit-hint"' in new_run.text
     assert "존재하는 Workspace 경로를 확인하면 실행할 수 있습니다" in new_run.text

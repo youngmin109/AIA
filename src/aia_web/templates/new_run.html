@@ -105,9 +105,9 @@
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
-        <input id="workspace-input" name="workspace" list="recent-workspaces" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <input id="workspace-input" name="workspace" list="recent-workspaces" required placeholder="C:\\workspace\\my-repo" autocomplete="off" aria-describedby="workspace-help workspace-status" aria-invalid="false">
         <datalist id="recent-workspaces"></datalist>
-        <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
+        <span id="workspace-help" class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
         <span id="workspace-status" class="hint" role="status" aria-live="polite">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
         <span id="recent-workspace-hint" class="hint recent-workspace-hint" hidden>최근 사용 경로는 이 브라우저에만 저장됩니다.</span>
         <div id="recent-workspace-actions" class="recent-workspace-actions" hidden aria-label="최근 사용 Workspace">
@@ -287,6 +287,7 @@ let workspaceValidationRequest = 0;
 let workspaceValidationTimer = null;
 let validatedWorkspacePath = '';
 let workspaceIsValid = false;
+let workspaceValidationInProgress = false;
 const RECENT_WORKSPACES_KEY = 'aia.recentWorkspaces';
 const MAX_RECENT_WORKSPACES = 5;
 const runProgressSteps = [...document.querySelectorAll('[data-run-step]')];
@@ -501,6 +502,8 @@ function updateRunSubmitState() {
   submitRun.disabled = !ready || runSubmissionInProgress;
   document.getElementById('run-submit-hint').textContent = !preflightReady
     ? '실행 전 준비 상태를 먼저 해결하세요.'
+      : workspaceValidationInProgress
+      ? 'Workspace 확인이 끝나면 실행 버튼이 활성화됩니다.'
       : !workspaceIsValid
       ? '존재하는 Workspace 경로를 확인하면 실행할 수 있습니다.'
       : '실행 설정이 준비되었습니다.';
@@ -528,6 +531,13 @@ function updateNextAction() {
     detail = 'Hook Trust와 현재 연결 증명을 확인한 뒤 보호 실행을 시작할 수 있습니다.';
     link = '#preflight-panel';
     linkLabel = '준비 상태 확인';
+  } else if (workspaceValidationInProgress) {
+    state = 'workspace-validating';
+    mark = '…';
+    title = 'Workspace를 확인하는 중입니다.';
+    detail = '입력한 폴더가 실제로 존재하는지 확인하고 있습니다. 확인이 끝나면 실행 버튼이 활성화됩니다.';
+    link = '#run-settings';
+    linkLabel = '입력 상태 보기';
   } else if (!workspaceIsValid || validatedWorkspacePath !== workspaceInput.value.trim()) {
     state = workspaceInput.value.trim() ? 'workspace-invalid' : 'workspace';
     mark = '1';
@@ -571,14 +581,20 @@ async function validateWorkspacePath() {
   if (!path) {
     workspaceIsValid = false;
     validatedWorkspacePath = '';
+    workspaceValidationInProgress = false;
     workspaceStatus.className = 'hint';
     workspaceStatus.textContent = 'Workspace 경로를 입력하세요.';
+    workspaceInput.setAttribute('aria-invalid', 'false');
+    workspaceInput.removeAttribute('aria-busy');
     updateRunSubmitState();
     return false;
   }
+  workspaceValidationInProgress = true;
   workspaceStatus.className = 'hint';
   workspaceStatus.textContent = 'Workspace를 확인하는 중…';
   workspaceStatus.setAttribute('aria-busy', 'true');
+  workspaceInput.setAttribute('aria-busy', 'true');
+  workspaceInput.setAttribute('aria-invalid', 'false');
   workspaceIsValid = false;
   validatedWorkspacePath = '';
   updateRunSubmitState();
@@ -588,6 +604,7 @@ async function validateWorkspacePath() {
     if (requestId !== workspaceValidationRequest) return false;
     workspaceIsValid = response.ok && payload.valid === true;
     validatedWorkspacePath = workspaceIsValid ? path : '';
+    workspaceInput.setAttribute('aria-invalid', workspaceIsValid ? 'false' : 'true');
     workspaceStatus.className = workspaceIsValid ? 'hint success-text' : 'hint error-text';
     workspaceStatus.textContent = workspaceIsValid ? `확인됨: ${payload.canonical_path}` : (payload.error || 'Workspace를 확인할 수 없습니다.');
     return workspaceIsValid;
@@ -595,12 +612,15 @@ async function validateWorkspacePath() {
     if (requestId !== workspaceValidationRequest) return false;
     workspaceIsValid = false;
     validatedWorkspacePath = '';
+    workspaceInput.setAttribute('aria-invalid', 'true');
     workspaceStatus.className = 'hint error-text';
     workspaceStatus.textContent = 'Workspace 확인에 실패했습니다. AIA 서버 연결을 확인하세요.';
     return false;
   } finally {
     if (requestId === workspaceValidationRequest) {
+      workspaceValidationInProgress = false;
       workspaceStatus.removeAttribute('aria-busy');
+      workspaceInput.removeAttribute('aria-busy');
       updateRunSubmitState();
     }
   }
@@ -609,7 +629,10 @@ workspaceInput.addEventListener('input', () => {
   workspaceValidationRequest += 1;
   workspaceIsValid = false;
   validatedWorkspacePath = '';
+  workspaceValidationInProgress = Boolean(workspaceInput.value.trim());
   workspaceStatus.removeAttribute('aria-busy');
+  workspaceInput.removeAttribute('aria-busy');
+  workspaceInput.setAttribute('aria-invalid', 'false');
   clearTimeout(workspaceValidationTimer);
   if (!workspaceInput.value.trim()) {
     workspaceStatus.className = 'hint';
