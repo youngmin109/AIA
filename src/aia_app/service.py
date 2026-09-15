@@ -422,12 +422,14 @@ def _annotate_execution_observations(
     view["evidence_chains"] = evidence_chain_views(
         actions,
         evidence_metadata=evidence_metadata or (),
+        attribution_results=view.get("attribution_results", ()),
         recovery=view.get("recovery"),
         integrity=view.get("integrity"),
     )
     view["evidence_timeline"] = evidence_timeline_views(
         evidence_metadata or (),
         actions=actions,
+        attribution_results=view.get("attribution_results", ()),
     )
     return view
 

@@ -160,6 +160,8 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .chain-sensor-link i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .chain-sensor-link.is-linked { color: var(--text); border-color: rgba(103,229,154,.38); }
 .chain-sensor-link.is-linked i { background: var(--green); }
+.chain-sensor-link.is-run-observed { color: var(--yellow); border-color: rgba(245,199,106,.38); }
+.chain-sensor-link.is-run-observed i { background: var(--yellow); }
 .chain-sensor-link.is-unobserved { opacity: .72; }
 .workbench-event[role="button"] { cursor: pointer; }
 .workbench-event[role="button"]:hover, .workbench-event[role="button"]:focus-visible { background: rgba(101,217,232,.06); outline: none; }

@@ -343,6 +343,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "renderEvidenceChains" in workbench.text
     assert "원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성" in workbench.text
     assert "chain-sensor-link" in workbench.text
+    assert "RUN_OBSERVED" in workbench.text
+    assert "실행 관찰" in workbench.text
     assert "selectEvidenceChain" in workbench.text
     assert 'id="sensor-evidence-panel"' in workbench.text
     assert 'id="sensor-evidence-timeline"' in workbench.text
@@ -394,6 +396,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="event-timeline"' in result.text
     assert 'id="evidence-chain"' in result.text
     assert "result-evidence-chains" in result.text
+    assert "행위에 직접 연결된 센서와 같은 Run에서 독립적으로 관찰된 센서" in result.text
     assert 'id="sensor-evidence-timeline"' in result.text
     assert 'id="decision-summary"' in result.text
     assert 'id="recovery-results"' in result.text

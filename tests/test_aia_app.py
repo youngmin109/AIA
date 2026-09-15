@@ -222,6 +222,42 @@ def test_evidence_chain_marks_missing_sensor_link_as_partial() -> None:
     assert chains[0]["stages"][0]["evidence_count"] == 2
 
 
+def test_evidence_chain_distinguishes_run_observed_sensor_from_action_link() -> None:
+    chains = evidence_chain_views(
+        [{"action_id": "a1", "operation": "EXECUTE", "evidence_ids": ["h1"]}],
+        evidence_metadata=[
+            {"evidence_id": "h1", "source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+            {"evidence_id": "f1", "source": "FILESYSTEM_WATCHER", "record_type": "FILESYSTEM_EVENT"},
+            {"evidence_id": "p1", "source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+            {"evidence_id": "health", "source": "PROCESS_RUNTIME", "record_type": "SENSOR_HEALTH"},
+        ],
+    )
+
+    links = {item["sensor"]: item for item in chains[0]["sensor_links"]}
+    assert links["AGENT_HOOK"]["status"] == "LINKED"
+    assert links["FILESYSTEM_WATCHER"]["status"] == "RUN_OBSERVED"
+    assert links["FILESYSTEM_WATCHER"]["run_evidence_count"] == 1
+    assert links["PROCESS_RUNTIME"]["status"] == "RUN_OBSERVED"
+    assert links["PROCESS_RUNTIME"]["run_evidence_count"] == 1
+
+
+def test_attribution_supporting_evidence_can_link_process_sensor() -> None:
+    chains = evidence_chain_views(
+        [{"action_id": "a1", "operation": "MODIFY", "evidence_ids": ["h1"]}],
+        evidence_metadata=[
+            {"evidence_id": "h1", "source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+            {"evidence_id": "p1", "source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+        ],
+        attribution_results=[
+            {"action_id": "a1", "supporting_evidence_ids": ["h1", "p1"]},
+        ],
+    )
+
+    links = {item["sensor"]: item for item in chains[0]["sensor_links"]}
+    assert links["PROCESS_RUNTIME"]["status"] == "LINKED"
+    assert chains[0]["linked_evidence_count"] == 2
+
+
 def test_evidence_timeline_links_sensor_records_to_action_without_payload() -> None:
     timeline = evidence_timeline_views(
         [

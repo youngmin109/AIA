@@ -123,12 +123,12 @@
         <a id="incident-detail-link" class="text-link" href="#" hidden>사건 상세 보기 →</a>
       </section>
       <section id="evidence-chain-panel" class="workbench-card evidence-chain-panel">
-        <div class="panel-heading"><div><h2>실행 증거 흐름</h2><p class="hint">AIA가 실제로 연결한 단계만 표시합니다.</p></div><span id="evidence-chain-count" class="badge">0건</span></div>
+        <div class="panel-heading"><div><h2>실행 증거 흐름</h2><p class="hint">연결됨은 Action과 직접 증명된 Evidence, 실행 관찰은 같은 Run에서 별도로 확인된 Evidence입니다.</p></div><span id="evidence-chain-count" class="badge">0건</span></div>
         <p class="workbench-card-subtitle">원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성</p>
         <div id="evidence-chains" class="evidence-chains" aria-live="polite"><div class="empty">아직 연결된 행위 증거가 없습니다.</div></div>
       </section>
       <section id="sensor-evidence-panel" class="workbench-card">
-        <div class="panel-heading"><div><h2>센서 Evidence 타임라인</h2><p class="hint">센서가 기록한 사실과 Action 연결만 표시합니다.</p></div><span id="sensor-evidence-count" class="badge">0건</span></div>
+        <div class="panel-heading"><div><h2>센서 Evidence 타임라인</h2><p class="hint">센서가 기록한 사실과 검증된 Action 연결을 구분해 표시합니다.</p></div><span id="sensor-evidence-count" class="badge">0건</span></div>
         <div id="sensor-evidence-timeline" class="sensor-evidence-timeline" aria-live="polite"><div class="empty">아직 센서 Evidence가 없습니다.</div></div>
       </section>
     </aside>
@@ -418,7 +418,7 @@ const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '�
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
 const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
 const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
-const chainStatusLabel = (value) => ({LINKED: '연결됨', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
+const chainStatusLabel = (value) => ({LINKED: '연결됨', RUN_OBSERVED: '실행 중 관찰', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
 const chainStageClass = (stage) => ['LINKED', 'COMPLIANT', 'SUCCEEDED', 'RESTORED', 'VERIFIED', 'CONTINUE', 'BLOCKED', 'TERMINATED'].includes(stage) ? 'chain-success' : ['PARTIAL', 'NOT_REPORTED', 'NOT_ATTEMPTED', 'RUN_LEVEL', 'INDETERMINATE', 'CONTAIN', 'REFUSE'].includes(stage) ? 'chain-warning' : ['VIOLATION', 'FAILED'].includes(stage) ? 'chain-danger' : '';
 function renderEvidenceChains(chains) {
   const container = document.getElementById('evidence-chains');
@@ -433,7 +433,9 @@ function renderEvidenceChains(chains) {
     const sensorLinks = Array.isArray(chain.sensor_links) ? chain.sensor_links : [];
     const sensorHtml = sensorLinks.map((link) => {
       const linked = link.status === 'LINKED';
-      return `<span class="chain-sensor-link ${linked ? 'is-linked' : 'is-unobserved'}"><i aria-hidden="true"></i>${esc(sensorNameLabel(link.sensor))} ${linked ? `${esc(String(link.evidence_count || 0))}건` : '미관찰'}</span>`;
+      const runObserved = link.status === 'RUN_OBSERVED';
+      const detail = linked ? `${String(link.evidence_count || 0)}건 연결` : runObserved ? `${String(link.run_evidence_count || 0)}건 · 실행 관찰` : '미관찰';
+      return `<span class="chain-sensor-link ${linked ? 'is-linked' : runObserved ? 'is-run-observed' : 'is-unobserved'}"><i aria-hidden="true"></i>${esc(sensorNameLabel(link.sensor))} ${esc(detail)}</span>`;
     }).join('');
     const stageHtml = stages.map((stage) => {
       const status = String(stage.status || 'NOT_REPORTED');

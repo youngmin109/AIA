@@ -304,6 +304,7 @@ def evidence_chain_views(
     actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     *,
     evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    attribution_results: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     recovery: Mapping[str, Any] | None = None,
     integrity: Mapping[str, Any] | None = None,
     limit: int = 20,
@@ -321,6 +322,25 @@ def evidence_chain_views(
         for item in evidence_metadata
         if isinstance(item, Mapping) and item.get("evidence_id")
     }
+    attribution_support_by_action: dict[str, tuple[str, ...]] = {}
+    for item in attribution_results:
+        if not isinstance(item, Mapping) or not item.get("action_id"):
+            continue
+        attribution_support_by_action[str(item["action_id"])] = tuple(
+            str(value)
+            for value in item.get("supporting_evidence_ids") or ()
+            if isinstance(value, str) and value
+        )
+    run_records_by_sensor: dict[str, list[Mapping[str, Any]]] = {
+        sensor: []
+        for sensor in ("AGENT_HOOK", "FILESYSTEM_WATCHER", "PROCESS_RUNTIME")
+    }
+    for item in evidence_metadata:
+        if not isinstance(item, Mapping):
+            continue
+        source = item.get("source")
+        if source in run_records_by_sensor and item.get("record_type") != "SENSOR_HEALTH":
+            run_records_by_sensor[source].append(item)
 
     def _run_status(value: Any, *, key: str) -> str:
         if isinstance(value, Mapping):
@@ -336,11 +356,15 @@ def evidence_chain_views(
         if not isinstance(raw_action, Mapping):
             continue
         action = action_view(raw_action)
-        evidence_ids = [
+        direct_evidence_ids = [
             str(item)
             for item in action.get("evidence_ids", [])
             if isinstance(item, str) and item
         ]
+        supporting_evidence_ids = attribution_support_by_action.get(
+            str(action.get("action_id")), ()
+        )
+        evidence_ids = list(dict.fromkeys((*direct_evidence_ids, *supporting_evidence_ids)))
         linked_records = [metadata_by_id[item] for item in evidence_ids if item in metadata_by_id]
         missing_count = len(evidence_ids) - len(linked_records)
         if not evidence_ids:
@@ -365,14 +389,28 @@ def evidence_chain_views(
             sensor_records = [
                 item for item in linked_records if item.get("source") == sensor
             ]
+            run_records = run_records_by_sensor[sensor]
+            sensor_status = (
+                "LINKED"
+                if sensor_records
+                else "RUN_OBSERVED"
+                if run_records
+                else "NOT_OBSERVED"
+            )
             sensor_links.append(
                 {
                     "sensor": sensor,
-                    "status": "LINKED" if sensor_records else "NOT_OBSERVED",
+                    "status": sensor_status,
                     "evidence_count": len(sensor_records),
                     "record_types": list(dict.fromkeys(
                         str(item.get("record_type"))
                         for item in sensor_records
+                        if item.get("record_type")
+                    )),
+                    "run_evidence_count": len(run_records),
+                    "run_record_types": list(dict.fromkeys(
+                        str(item.get("record_type"))
+                        for item in run_records
                         if item.get("record_type")
                     )),
                 }
@@ -485,6 +523,7 @@ def evidence_timeline_views(
     evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     *,
     actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    attribution_results: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     limit: int = 80,
 ) -> list[dict[str, Any]]:
     """Build a chronological, metadata-only sensor timeline.
@@ -496,10 +535,30 @@ def evidence_timeline_views(
     """
 
     action_by_evidence: dict[str, Mapping[str, Any]] = {}
+    attribution_support_by_action: dict[str, tuple[str, ...]] = {}
+    for item in attribution_results:
+        if not isinstance(item, Mapping) or not item.get("action_id"):
+            continue
+        attribution_support_by_action[str(item["action_id"])] = tuple(
+            str(value)
+            for value in item.get("supporting_evidence_ids") or ()
+            if isinstance(value, str) and value
+        )
     for action in actions:
         if not isinstance(action, Mapping):
             continue
-        for evidence_id in action.get("evidence_ids") or ():
+        action_id = str(action.get("action_id")) if action.get("action_id") else ""
+        evidence_ids = tuple(
+            dict.fromkeys(
+                tuple(
+                    value
+                    for value in action.get("evidence_ids") or ()
+                    if isinstance(value, str) and value
+                )
+                + attribution_support_by_action.get(action_id, ())
+            )
+        )
+        for evidence_id in evidence_ids:
             if isinstance(evidence_id, str) and evidence_id:
                 action_by_evidence[evidence_id] = action
 
@@ -689,6 +748,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "events": safe_event_views(actions),
         "evidence_chains": evidence_chain_views(
             actions,
+            attribution_results=result.get("attribution_results") or (),
             recovery=result.get("recovery_result"),
             integrity=result.get("integrity_result"),
         ),
