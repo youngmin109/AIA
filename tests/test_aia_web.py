@@ -234,6 +234,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "현재 보호 범위" in new_run.text
     assert "MCP" in new_run.text
     assert "aliases=Edit, Write" in new_run.text
+    assert "작업 방식" in new_run.text
+    assert "Codex 화면" in new_run.text
+    assert '<details class="panel policy-editor-panel">' in new_run.text
+    assert '<details class="panel capability-panel">' in new_run.text
     assert "정책 만들기" in new_run.text
     assert "실행 설정" in new_run.text
     assert "terminalSurfaceInputs" in new_run.text
@@ -349,12 +353,14 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
 
     assert dashboard.status_code == 200
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
+    assert "status-success" in dashboard.text
     assert "실행 준비" in dashboard.text
     assert "Codex Hook Trust" in dashboard.text
     assert "대화형 보호 세션" not in dashboard.text
     assert "준비 상태 확인" in dashboard.text
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
+    assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
     assert "Bash" in dashboard.text
     assert "Edit·Write → apply_patch" in dashboard.text
     assert "아직 보호 실행 기록이 없습니다" in dashboard.text
@@ -381,6 +387,8 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
 
     assert 'href="/runs/run-1/workbench"' in dashboard.text
     assert 'href="/runs/run-1/workbench"' in history.text
+    assert "보호 실행이 진행 중입니다" in dashboard.text
+    assert "Workbench 열기" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "/runs/run-1/result" not in history.text
 
