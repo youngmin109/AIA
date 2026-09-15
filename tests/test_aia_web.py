@@ -750,6 +750,9 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert '전체 Session ID:' in dashboard.text
     assert "sessionId.slice(0, 8)" in dashboard.text
     assert 'id="dashboard-sync-status"' in dashboard.text
+    assert 'id="dashboard-sync-label"' in dashboard.text
+    assert 'dashboardSyncStatus.classList.add(\'is-refreshing\')' in dashboard.text
+    assert '상태 확인 중…' in dashboard.text
     assert 'id="dashboard-recent-runs"' in dashboard.text
     assert 'id="dashboard-recent-empty"' in dashboard.text
     assert "refreshDashboard" in dashboard.text

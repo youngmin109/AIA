@@ -51,7 +51,7 @@
   <div class="metric">
     <span>보호 실행 기록</span>
     <strong id="dashboard-run-count">{{ runs|length }}건</strong>
-    <small><a href="/runs">전체 기록 보기</a> · <span id="dashboard-sync-status" class="dashboard-sync-status" role="status" aria-live="polite">자동 갱신 준비</span></small>
+    <small><a href="/runs">전체 기록 보기</a> · <span id="dashboard-sync-status" class="dashboard-sync-status" role="status" aria-live="polite"><i class="dashboard-sync-dot" aria-hidden="true"></i><span id="dashboard-sync-label">자동 갱신 준비</span></span></small>
   </div>
 </section>
 
@@ -183,6 +183,7 @@ const dashboardCurrentMeta = document.getElementById('dashboard-current-meta');
 const dashboardCurrentAction = document.getElementById('dashboard-current-action');
 const dashboardPrimaryAction = document.getElementById('dashboard-primary-action');
 const dashboardSyncStatus = document.getElementById('dashboard-sync-status');
+const dashboardSyncLabel = document.getElementById('dashboard-sync-label');
 const dashboardStaleRun = document.getElementById('dashboard-stale-run');
 const dashboardRecentTable = document.getElementById('dashboard-recent-table');
 const dashboardRecentRuns = document.getElementById('dashboard-recent-runs');
@@ -280,6 +281,9 @@ function renderDashboardRecentRuns(runs) {
 async function refreshDashboard() {
   if (dashboardRefreshInFlight || document.hidden) return;
   dashboardRefreshInFlight = true;
+  dashboardSyncStatus.classList.add('is-refreshing');
+  dashboardSyncStatus.setAttribute('aria-busy', 'true');
+  dashboardSyncLabel.textContent = '상태 확인 중…';
   try {
     const response = await fetch('/api/runs', {cache: 'no-store'});
     if (!response.ok) throw new Error('dashboard refresh failed');
@@ -288,12 +292,14 @@ async function refreshDashboard() {
     dashboardRunCount.textContent = `${runs.length}건`;
     renderDashboardCurrentRun(dashboardActiveRun(runs));
     renderDashboardRecentRuns(runs);
-    dashboardSyncStatus.textContent = '자동 갱신됨';
+    dashboardSyncLabel.textContent = '자동 갱신됨';
     dashboardSyncStatus.classList.remove('error-text');
   } catch (_) {
-    dashboardSyncStatus.textContent = '갱신 확인 필요';
+    dashboardSyncLabel.textContent = '갱신 확인 필요';
     dashboardSyncStatus.classList.add('error-text');
   } finally {
+    dashboardSyncStatus.classList.remove('is-refreshing');
+    dashboardSyncStatus.removeAttribute('aria-busy');
     dashboardRefreshInFlight = false;
   }
 }
