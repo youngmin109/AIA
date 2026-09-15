@@ -171,6 +171,7 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .security-panel-toggle > span:last-child { color: var(--cyan); font-size: 11px; white-space: nowrap; }
 .workbench-card { border: 1px solid var(--line); border-radius: 13px; padding: 16px; background: rgba(17,27,38,.78); min-width: 0; }
 .workbench-card .panel-heading { margin-bottom: 12px; }
+.workbench-card .panel-heading > .badge { flex: 0 0 auto; max-width: 100%; white-space: nowrap; }
 .workbench-card h2, .workbench-terminal-panel h2 { font-size: 15px; margin: 0; }
 .workbench-protection-note { margin: -3px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .workbench-protection-note.note-success { border-color: rgba(103,229,154,.38); background: rgba(103,229,154,.05); color: #a9f2d3; }
