@@ -93,6 +93,7 @@
             <span class="terminal-activity-bar" aria-hidden="true"></span>
             <span id="terminal-activity-label">Codex 작업 상태를 확인하는 중입니다.</span>
             <span id="terminal-activity-elapsed" class="mono"></span>
+            <button id="terminal-interrupt" class="button secondary terminal-interrupt" type="button" hidden>현재 요청 중지</button>
             <button id="terminal-action" class="button terminal-action" type="button" hidden>신뢰하고 계속</button>
           </div>
         </div>
@@ -234,6 +235,7 @@ const terminalLastOutput = document.getElementById('terminal-last-output');
 const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
 const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
+const terminalInterrupt = document.getElementById('terminal-interrupt');
 const terminalError = document.getElementById('terminal-error');
 const terminalExamples = document.getElementById('terminal-examples');
 const terminalFocusLink = document.querySelector('[data-terminal-focus]');
@@ -279,6 +281,7 @@ let terminalSocketEverConnected = false;
 let terminalComposerReady = false;
 let awaitingResponse = false;
 let terminalAction = null;
+let interruptPending = false;
 let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
 let statusPollTimer = null;
@@ -666,6 +669,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = 'Codex 작업창의 “신뢰하고 계속”을 눌러 작업을 시작하세요.';
     owner = '사용자';
     kind = 'warning';
+  } else if (interruptPending) {
+    title = '현재 Codex 요청을 중지하는 중입니다.';
+    detail = '요청이 끝나면 같은 보호 세션에서 다음 작업을 계속할 수 있습니다.';
+    owner = '사용자';
+    kind = 'warning';
   } else if (protection === 'ORPHANED_DEGRADED') {
     title = 'AIA 보호 연결이 끊겼습니다.';
     detail = '이 실행은 보호된 상태로 간주하지 않습니다. 고아 실행 정리를 확인하거나 실행 기록을 검토하세요.';
@@ -904,6 +912,7 @@ function setTerminalActivity(mode, label) {
   const resetClock = previousMode !== mode || !activityStartedAt || (mode === 'WAITING' && awaitingResponse);
   if (resetClock) activityStartedAt = Date.now();
   activityMode = mode;
+  if (!['SUBMITTING', 'WORKING'].includes(mode)) interruptPending = false;
   if (['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)) awaitingResponse = true;
   if (['WAITING', 'ACTION', 'IDLE', 'STOPPED'].includes(mode)) awaitingResponse = false;
   if (mode === 'WORKING' && previousMode !== 'WORKING') responseStartedAt = Date.now();
@@ -981,6 +990,12 @@ function updateTerminalInputState() {
   terminalSend.disabled = !terminalReady || awaitingResponse;
   terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
   terminalSend.setAttribute('aria-busy', String(awaitingResponse));
+  const interruptVisible = ['SUBMITTING', 'WORKING'].includes(activityMode) && !terminalClosed;
+  terminalInterrupt.hidden = !interruptVisible;
+  terminalInterrupt.disabled = !terminalReady || interruptPending;
+  terminalInterrupt.classList.toggle('is-busy', interruptPending);
+  terminalInterrupt.setAttribute('aria-busy', String(interruptPending));
+  terminalInterrupt.textContent = interruptPending ? '중지 요청 전송됨' : '현재 요청 중지';
   terminalInput.placeholder = trustRequired
     ? '먼저 “신뢰하고 계속”을 눌러주세요.'
     : terminalRuntimeStatus === 'RUNNING' && !terminalComposerReady
@@ -1379,6 +1394,18 @@ function continueTerminalAction() {
   setTerminalAction(null);
   setTerminalActivity('WORKING', 'Codex가 Workspace 확인을 처리하는 중입니다.');
 }
+function interruptTerminalRequest() {
+  if (interruptPending || !['SUBMITTING', 'WORKING'].includes(activityMode)) return;
+  if (pendingSubmission?.timer) window.clearTimeout(pendingSubmission.timer);
+  pendingSubmission = null;
+  if (!send({type: 'input', data: '\u0003'})) {
+    showTerminalError('Codex 터미널이 연결되지 않아 현재 요청을 중지하지 못했습니다. 연결 상태를 확인하세요.');
+    return;
+  }
+  interruptPending = true;
+  setTerminalActivity('WORKING', '현재 Codex 요청을 중지하는 중입니다.');
+  terminalInput.focus();
+}
 terminalInput.addEventListener('compositionstart', () => { composing = true; });
 terminalInput.addEventListener('compositionend', () => {
   composing = false;
@@ -1397,6 +1424,7 @@ terminalInput.addEventListener('keydown', (event) => {
   if (controls[event.key] && !terminalInput.value) { event.preventDefault(); send({type:'input', data: controls[event.key]}); return; }
 });
 document.getElementById('terminal-action').addEventListener('click', continueTerminalAction);
+terminalInterrupt.addEventListener('click', interruptTerminalRequest);
 window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
 stopButton.addEventListener('click', async () => {
   if (stopRequested) return;

@@ -501,6 +501,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalFollowingOutput" in workbench.text
     assert "최신 출력으로 이동" in workbench.text
     assert "terminalIsAtBottom" in workbench.text
+    assert 'id="terminal-interrupt"' in workbench.text
+    assert "interruptTerminalRequest" in workbench.text
+    assert "현재 Codex 요청을 중지하는 중입니다." in workbench.text
+    assert "data: '\\u0003'" in workbench.text
+    assert "window.clearTimeout(pendingSubmission.timer)" in workbench.text
     assert "compositionstart" in workbench.text
     assert "compositionend" in workbench.text
     assert "cells[row]?.[col] ?? ' '" in workbench.text
