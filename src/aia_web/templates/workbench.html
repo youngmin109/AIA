@@ -97,11 +97,12 @@
             <button id="terminal-action" class="button terminal-action" type="button" hidden>신뢰하고 계속</button>
           </div>
         </div>
-      <div class="terminal-heading-actions">
+        <div class="terminal-heading-actions">
           <a class="terminal-focus-link" href="#terminal-input-proxy" data-terminal-focus>입력창으로 이동</a>
+          <button id="terminal-reconnect" class="button secondary terminal-reconnect" type="button" hidden>터미널 다시 연결</button>
           <button id="terminal-scroll-latest" class="button secondary terminal-scroll-latest" type="button" hidden>최신 출력으로 이동</button>
           <span id="terminal-pid" class="badge">PID —</span>
-      </div>
+        </div>
       </div>
       <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
         {% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
@@ -236,6 +237,7 @@ const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
 const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
 const terminalInterrupt = document.getElementById('terminal-interrupt');
+const terminalReconnect = document.getElementById('terminal-reconnect');
 const terminalError = document.getElementById('terminal-error');
 const terminalExamples = document.getElementById('terminal-examples');
 const terminalFocusLink = document.querySelector('[data-terminal-focus]');
@@ -282,6 +284,7 @@ let terminalComposerReady = false;
 let awaitingResponse = false;
 let terminalAction = null;
 let interruptPending = false;
+let terminalReconnectPending = false;
 let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
 let statusPollTimer = null;
@@ -996,6 +999,13 @@ function updateTerminalInputState() {
   terminalInterrupt.classList.toggle('is-busy', interruptPending);
   terminalInterrupt.setAttribute('aria-busy', String(interruptPending));
   terminalInterrupt.textContent = interruptPending ? '중지 요청 전송됨' : '현재 요청 중지';
+  const runEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
+  const reconnectVisible = terminalSocketEverConnected && !terminalSocketConnected && !terminalClosed && !runEnded;
+  terminalReconnect.hidden = !reconnectVisible;
+  terminalReconnect.disabled = terminalReconnectPending;
+  terminalReconnect.classList.toggle('is-busy', terminalReconnectPending);
+  terminalReconnect.setAttribute('aria-busy', String(terminalReconnectPending));
+  terminalReconnect.textContent = terminalReconnectPending ? '연결 중…' : '터미널 다시 연결';
   terminalInput.placeholder = trustRequired
     ? '먼저 “신뢰하고 계속”을 눌러주세요.'
     : terminalRuntimeStatus === 'RUNNING' && !terminalComposerReady
@@ -1103,6 +1113,7 @@ function openSocket() {
       updateTerminalScrollControl();
     }
     terminalSocketEverConnected = true;
+    terminalReconnectPending = false;
     terminalSocketConnected = true;
     terminalOutput.classList.remove('terminal-closed');
     setTerminalConnection('연결 확인 중', 'connection-pending');
@@ -1129,6 +1140,7 @@ function openSocket() {
     else if (message.type === 'closed') { terminalClosed = true; terminalSocketConnected = false; setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
   };
   socket.onclose = () => {
+    terminalReconnectPending = false;
     terminalSocketConnected = false;
     updateTerminalInputState();
     if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
@@ -1141,11 +1153,27 @@ function openSocket() {
     }
   };
   socket.onerror = () => {
+    terminalReconnectPending = false;
     terminalSocketConnected = false;
     updateTerminalInputState();
     setTerminalConnection('연결 오류', 'connection-failed');
     showTerminalError('Workbench 터미널 연결을 확인할 수 없습니다.');
   };
+}
+
+function reconnectTerminal() {
+  const runEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
+  if (terminalReconnectPending || terminalClosed || runEnded || terminalSocketConnected) return;
+  if (socketRetry) { window.clearTimeout(socketRetry); socketRetry = null; }
+  terminalReconnectPending = true;
+  setTerminalConnection('다시 연결하는 중', 'connection-pending');
+  setTerminalActivity('STARTING', 'Workbench 터미널에 다시 연결하는 중입니다.');
+  updateTerminalInputState();
+  if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) {
+    socket.close();
+  } else {
+    openSocket();
+  }
 }
 function renderSecurity(status) {
   latestStatus = status;
@@ -1425,6 +1453,7 @@ terminalInput.addEventListener('keydown', (event) => {
 });
 document.getElementById('terminal-action').addEventListener('click', continueTerminalAction);
 terminalInterrupt.addEventListener('click', interruptTerminalRequest);
+terminalReconnect.addEventListener('click', reconnectTerminal);
 window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
 stopButton.addEventListener('click', async () => {
   if (stopRequested) return;
