@@ -129,6 +129,13 @@
       </section>
       <section id="sensor-evidence-panel" class="workbench-card">
         <div class="panel-heading"><div><h2>센서 Evidence 타임라인</h2><p class="hint">센서가 기록한 사실과 검증된 Action 연결을 구분해 표시합니다.</p></div><span id="sensor-evidence-count" class="badge">0건</span></div>
+        <div class="sensor-evidence-filters" role="group" aria-label="센서 Evidence 필터">
+          <button type="button" class="event-filter sensor-evidence-filter is-active" data-evidence-filter="ALL" aria-pressed="true">전체</button>
+          <button type="button" class="event-filter sensor-evidence-filter" data-evidence-filter="AGENT_HOOK" aria-pressed="false">Hook</button>
+          <button type="button" class="event-filter sensor-evidence-filter" data-evidence-filter="FILESYSTEM_WATCHER" aria-pressed="false">File</button>
+          <button type="button" class="event-filter sensor-evidence-filter" data-evidence-filter="PROCESS_RUNTIME" aria-pressed="false">Process</button>
+        </div>
+        <div class="evidence-legend" aria-label="증거 상태 범례"><span class="chain-sensor-link is-linked"><i aria-hidden="true"></i>직접 연결</span><span class="chain-sensor-link is-run-observed"><i aria-hidden="true"></i>실행 관찰</span><span class="chain-sensor-link is-unobserved"><i aria-hidden="true"></i>미관찰</span></div>
         <div id="sensor-evidence-timeline" class="sensor-evidence-timeline" aria-live="polite"><div class="empty">아직 센서 Evidence가 없습니다.</div></div>
       </section>
     </aside>
@@ -181,10 +188,14 @@ const lastEventTime = document.getElementById('last-event-time');
 const lastRefreshTime = document.getElementById('last-refresh-time');
 const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
 const eventFilterButtons = [...document.querySelectorAll('[data-event-filter]')];
+const evidenceFilterButtons = [...document.querySelectorAll('[data-evidence-filter]')];
 let socket = null;
 let socketRetry = null;
 let lastRenderedEventKey = '';
+let lastRenderedChainKey = '';
+let lastRenderedEvidenceKey = '';
 let eventFilter = 'ALL';
+let evidenceFilter = 'ALL';
 let latestStatus = initialStatus;
 let activityMode = 'IDLE';
 let activityStartedAt = 0;
@@ -422,8 +433,19 @@ const chainStatusLabel = (value) => ({LINKED: '연결됨', RUN_OBSERVED: '실행
 const chainStageClass = (stage) => ['LINKED', 'COMPLIANT', 'SUCCEEDED', 'RESTORED', 'VERIFIED', 'CONTINUE', 'BLOCKED', 'TERMINATED'].includes(stage) ? 'chain-success' : ['PARTIAL', 'NOT_REPORTED', 'NOT_ATTEMPTED', 'RUN_LEVEL', 'INDETERMINATE', 'CONTAIN', 'REFUSE'].includes(stage) ? 'chain-warning' : ['VIOLATION', 'FAILED'].includes(stage) ? 'chain-danger' : '';
 function renderEvidenceChains(chains) {
   const container = document.getElementById('evidence-chains');
-  const items = Array.isArray(chains) ? chains.slice().reverse().slice(0, 6) : [];
-  document.getElementById('evidence-chain-count').textContent = `${items.length}건`;
+  const source = Array.isArray(chains) ? chains : [];
+  const items = source.slice().reverse().slice(0, 6);
+  document.getElementById('evidence-chain-count').textContent = `${source.length}건`;
+  const chainKey = `${selectedChainId || ''}|${source.map((chain) => [
+    chain.chain_id || '',
+    chain.evidence_link_status || '',
+    chain.linked_evidence_count || 0,
+    chain.evidence_count || 0,
+    ...(Array.isArray(chain.sensor_links) ? chain.sensor_links.map((link) => `${link.sensor || ''}:${link.status || ''}:${link.evidence_count || 0}:${link.run_evidence_count || 0}`) : []),
+    ...(Array.isArray(chain.stages) ? chain.stages.map((stage) => `${stage.stage || ''}:${stage.status || ''}:${stage.execution_result || ''}`) : []),
+  ].join('~')).join('|')}`;
+  if (chainKey === lastRenderedChainKey) return;
+  lastRenderedChainKey = chainKey;
   if (!items.length) {
     container.innerHTML = '<div class="empty">아직 연결된 행위 증거가 없습니다.</div>';
     return;
@@ -465,8 +487,20 @@ function selectEvidenceChain(actionId) {
 const evidenceRecordLabel = (value) => ({PRETOOL_REQUEST: 'PreToolUse 요청', POSTTOOL_OBSERVED: '도구 실행 결과 관찰', FILESYSTEM_EVENT: '파일 시스템 변화', PROCESS_OBSERVED: '프로세스 관찰', PROCESS_EXIT_OBSERVED: '프로세스 종료 관찰', SENSOR_HEALTH: '센서 상태 기록'})[value] || 'Evidence 관찰';
 function renderEvidenceTimeline(records) {
   const container = document.getElementById('sensor-evidence-timeline');
-  const items = Array.isArray(records) ? records.slice().reverse().slice(0, 24) : [];
-  document.getElementById('sensor-evidence-count').textContent = `${items.length}건`;
+  const source = Array.isArray(records) ? records : [];
+  const filtered = evidenceFilter === 'ALL' ? source : source.filter((item) => item.source === evidenceFilter);
+  const items = filtered.slice().reverse().slice(0, 24);
+  document.getElementById('sensor-evidence-count').textContent = evidenceFilter === 'ALL' ? `${source.length}건` : `${filtered.length}/${source.length}건`;
+  const evidenceKey = `${evidenceFilter}|${source.map((item) => [
+    item.evidence_id || '',
+    item.source || '',
+    item.record_type || '',
+    item.link_status || '',
+    item.linked_action_id || '',
+    item.captured_at || '',
+  ].join('~')).join('|')}`;
+  if (evidenceKey === lastRenderedEvidenceKey) return;
+  lastRenderedEvidenceKey = evidenceKey;
   if (!items.length) {
     container.innerHTML = '<div class="empty">아직 센서 Evidence가 없습니다.</div>';
     return;
@@ -768,6 +802,17 @@ eventFilterButtons.forEach((button) => button.addEventListener('click', () => {
   });
   lastRenderedEventKey = '';
   renderSecurity(latestStatus);
+}));
+
+evidenceFilterButtons.forEach((button) => button.addEventListener('click', () => {
+  evidenceFilter = button.dataset.evidenceFilter || 'ALL';
+  evidenceFilterButtons.forEach((item) => {
+    const active = item === button;
+    item.classList.toggle('is-active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+  lastRenderedEvidenceKey = '';
+  renderEvidenceTimeline(latestStatus.evidence_timeline || []);
 }));
 
 terminalOutput.addEventListener('click', () => terminalInput.focus());

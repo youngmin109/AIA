@@ -349,6 +349,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="sensor-evidence-panel"' in workbench.text
     assert 'id="sensor-evidence-timeline"' in workbench.text
     assert "renderEvidenceTimeline" in workbench.text
+    assert 'data-evidence-filter="ALL"' in workbench.text
+    assert 'data-evidence-filter="AGENT_HOOK"' in workbench.text
+    assert 'data-evidence-filter="FILESYSTEM_WATCHER"' in workbench.text
+    assert 'data-evidence-filter="PROCESS_RUNTIME"' in workbench.text
+    assert "lastRenderedChainKey" in workbench.text
+    assert "lastRenderedEvidenceKey" in workbench.text
+    assert "evidenceFilterButtons" in workbench.text
     assert "eventFilterButtons" in workbench.text
     assert "eventFilter === 'SENSOR'" in workbench.text
     assert "eventFilter === 'ACTION'" in workbench.text
@@ -397,6 +404,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="evidence-chain"' in result.text
     assert "result-evidence-chains" in result.text
     assert "행위에 직접 연결된 센서와 같은 Run에서 독립적으로 관찰된 센서" in result.text
+    assert "증거 상태 범례" in result.text
+    assert "직접 연결" in result.text
+    assert "실행 관찰" in result.text
     assert 'id="sensor-evidence-timeline"' in result.text
     assert 'id="decision-summary"' in result.text
     assert 'id="recovery-results"' in result.text

@@ -147,6 +147,9 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .event-filter { border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; color: var(--muted); background: rgba(12,21,30,.7); font: inherit; font-size: 11px; cursor: pointer; }
 .event-filter:hover, .event-filter:focus-visible { color: var(--text); border-color: rgba(101,217,232,.55); outline: none; }
 .event-filter.is-active { color: var(--cyan); border-color: rgba(101,217,232,.65); background: rgba(101,217,232,.1); }
+.sensor-evidence-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 7px 0 2px; }
+.evidence-legend { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 10px; }
+.evidence-legend .chain-sensor-link { font-size: 10px; }
 .incident-card { border-color: rgba(245,199,106,.45); }
 .incident-card > strong { display: block; margin-bottom: 13px; overflow-wrap: anywhere; }
 .incident-note { margin: 13px 0 0; padding-top: 11px; border-top: 1px solid rgba(245,199,106,.2); color: var(--muted); font-size: 11px; line-height: 1.55; }
