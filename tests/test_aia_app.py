@@ -135,6 +135,7 @@ def test_safe_event_view_never_copies_command_or_secret() -> None:
         ]
     )
     assert events[0]["target_label"] == "명령 실행"
+    assert events[0]["chain_action_id"] == "a1"
     assert "SUPER_SECRET" not in repr(events)
     assert "type SUPER_SECRET" not in repr(events)
 

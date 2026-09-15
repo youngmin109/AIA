@@ -49,6 +49,7 @@ def safe_event_views(
                 "sensor": "AGENT_HOOK" if action.get("observation_stage") else "RUNTIME",
                 "severity": severity,
                 "observed_at": action.get("observed_at"),
+                "chain_action_id": action.get("action_id"),
                 "incident_action_id": action.get("action_id") if severity != "INFO" else None,
             }
         )
@@ -64,6 +65,7 @@ def safe_event_views(
                 "sensor": sensor,
                 "severity": "INFO" if status in {"HEALTHY", "STOPPED"} else "CRITICAL",
                 "observed_at": None,
+                "chain_action_id": None,
                 "incident_action_id": None,
             }
         )
