@@ -297,6 +297,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "recent-workspace-button" in new_run.text
     assert "기록 지우기" in new_run.text
     assert "validateWorkspacePath" in new_run.text
+    assert "workspaceValidationMessage" in new_run.text
+    assert "이 경로에 존재하는 폴더가 없습니다" in new_run.text
+    assert "workspace validation failed" not in new_run.text
     assert "workspaceValidationInProgress" in new_run.text
     assert "Workspace를 확인하는 중입니다." in new_run.text
     assert "updateRunSubmitState" in new_run.text
