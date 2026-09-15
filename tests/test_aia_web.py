@@ -598,6 +598,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     incident = client.get("/runs/run-1/incidents/a1")
     assert incident.status_code == 200
     assert "PROCESS" in incident.text
+    assert "프로세스 수준" in incident.text
+    assert "자동 조치 보류" in incident.text
+    assert "실행 결과 증거 없음" in incident.text
     assert "정책 위반은 확인됐지만" in incident.text
     result = client.get("/runs/run-1/result")
     assert result.status_code == 200
@@ -692,6 +695,20 @@ def test_result_page_distinguishes_verified_user_abort_from_normal_completion() 
     assert "실행 중지됨" in result.text
     assert "종료·보호 증거 검증이 완료되었습니다" in result.text
     assert "정상 작업이 끝났고 보호 증거와 Result Bundle 검증이 완료되었습니다." not in result.text
+
+
+def test_incident_page_prioritizes_policy_uncertainty_over_empty_enforcement_action() -> None:
+    service = FakeService()
+    incident_data = service.get_incident("run-1", "a1")
+    incident_data.update({"policy_decision": "INDETERMINATE", "enforcement_action": "NONE"})
+    service.get_incident = lambda session_id, action_id: incident_data
+    client = TestClient(create_app(service))
+
+    incident = client.get("/runs/run-1/incidents/a1")
+
+    assert incident.status_code == 200
+    assert 'title="INDETERMINATE">판정 불가</div>' in incident.text
+    assert "독립 Evidence가 부족해 정책 판정을 확정하지 못했습니다." in incident.text
 
 
 def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
