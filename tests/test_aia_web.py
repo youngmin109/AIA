@@ -346,6 +346,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "topbar-workbench" in workbench.text
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
+    assert "센서 카드를 누르면 해당 Evidence로 이동합니다." in workbench.text
+    assert workbench.text.count("Evidence 보기 →") == 3
     assert 'id="security-panel-toggle"' in workbench.text
     assert 'id="security-panel-content"' in workbench.text
     assert "setSecurityPanelCollapsed" in workbench.text

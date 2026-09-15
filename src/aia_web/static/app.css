@@ -250,6 +250,7 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .workbench-sensor[role="button"]:hover, .workbench-sensor[role="button"]:focus-visible { border-color: rgba(101,217,232,.72); background: rgba(101,217,232,.08); outline: none; }
 .workbench-sensor strong, .workbench-sensor small { display: block; }
 .workbench-sensor small { color: var(--muted); margin-top: 3px; font-size: 11px; }
+.workbench-sensor .workbench-sensor-action { color: var(--cyan); font-size: 10px; opacity: .82; }
 .workbench-sensor b { color: var(--cyan); font-size: 13px; }
 .sensor-count { display: grid; justify-items: end; gap: 2px; min-width: 48px; }
 .sensor-update-label { color: var(--cyan); font-size: 9px; font-weight: 750; white-space: nowrap; }
