@@ -582,6 +582,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = '연결이 완료되면 가운데 입력창이 활성화됩니다.';
     owner = 'AIA';
     kind = 'active';
+  } else if (terminal === 'RUNNING' && !terminalSocketConnected) {
+    title = 'Codex는 실행 중이며 Workbench 연결을 기다리고 있습니다.';
+    detail = '브라우저 연결이 완료되면 입력창이 활성화됩니다. 잠시 후에도 연결되지 않으면 새로고침을 눌러 주세요.';
+    owner = 'AIA';
+    kind = 'active';
   } else if (terminal === 'RUNNING' || phase === 'RUNNING') {
     title = 'Codex 작업창이 준비됐습니다.';
     detail = '가운데 입력창에 작업을 입력하세요. AIA는 오른쪽에서 센서 결과를 표시합니다.';
@@ -725,7 +730,13 @@ function updateActivityClock() {
   }
   const elapsed = Math.max(0, Math.floor((Date.now() - activityStartedAt) / 1000));
   terminalActivityElapsed.textContent = `${elapsed}초`;
-  if (activityMode === 'WORKING' && elapsed >= 15) {
+  if (activityMode === 'STARTING' && elapsed >= 20) {
+    terminalActivityLabel.textContent = 'Codex 작업창 시작이 지연되고 있습니다. 연결 상태를 확인하세요.';
+    terminalActivity.classList.add('activity-delayed');
+  } else if (activityMode === 'STARTING' && elapsed >= 8) {
+    terminalActivityLabel.textContent = 'Codex 작업창에 연결하는 중입니다. 잠시 기다려 주세요.';
+    terminalActivity.classList.add('activity-delayed');
+  } else if (activityMode === 'WORKING' && elapsed >= 15) {
     terminalActivityLabel.textContent = '응답이 지연되고 있습니다. Codex 상태를 확인하세요.';
     terminalActivity.classList.add('activity-delayed');
   } else if (activityMode === 'WORKING' && elapsed >= 5) {
