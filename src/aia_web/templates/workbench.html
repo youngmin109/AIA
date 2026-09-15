@@ -10,7 +10,7 @@
       <p class="muted mono workbench-session-id" title="{{ session_id }}">{{ session_id }}</p>
     </div>
     <div class="workbench-header-actions">
-      <span id="run-status" class="status-badge">상태 확인 중</span>
+      <span id="run-status" class="status-badge" aria-live="polite">상태 확인 중</span>
       <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} hidden{% endif %}>보호 실행 중지</button>
       <a id="result-link" class="button" href="/runs/{{ session_id }}/result"{% if not status.result_available %} hidden{% endif %}>결과 보기</a>
     </div>
@@ -52,7 +52,7 @@
 
     <main class="workbench-terminal-panel">
       <div class="terminal-heading">
-        <div><h2>Codex 작업창</h2><span id="terminal-status" class="hint">터미널 연결을 기다리는 중입니다.</span></div>
+        <div><h2>Codex 작업창</h2><span id="terminal-status" class="hint" aria-live="polite">터미널 연결을 기다리는 중입니다.</span></div>
         <span id="terminal-pid" class="badge">PID —</span>
       </div>
       <div id="terminal-output" class="terminal-output" tabindex="0" aria-label="Codex 작업창">
@@ -71,7 +71,7 @@
 
     <aside class="workbench-security-panel">
       <section class="workbench-card">
-        <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다.</p></div><span id="protection-state" class="badge">{{ status.protection.state }}</span></div>
+        <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다.</p></div><span id="protection-state" class="badge" aria-live="polite">{{ status.protection.state }}</span></div>
         <div class="workbench-sensors">
           <div class="workbench-sensor"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">확인 중</small></div><b id="sensor-hook-count">0건</b></div>
           <div class="workbench-sensor"><span class="sensor-icon file">F</span><div><strong>File Sensor</strong><small id="sensor-file">확인 중</small></div><b id="sensor-file-count">0건</b></div>
@@ -79,13 +79,13 @@
         </div>
       </section>
       <section class="workbench-card">
-        <div class="panel-heading"><h2>최근 이벤트</h2><span id="event-count" class="badge">0건</span></div>
+        <div class="panel-heading"><h2>최근 이벤트</h2><span id="event-count" class="badge" aria-live="polite">0건</span></div>
         <p id="incident-summary" class="workbench-card-subtitle">차단 사건 0건</p>
         <div class="workbench-observation-meta">
           <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
           <span>화면 갱신 <strong id="last-refresh-time">확인 중</strong></span>
         </div>
-        <div id="security-events" class="workbench-events"><div class="empty">아직 관찰된 이벤트가 없습니다.</div></div>
+        <div id="security-events" class="workbench-events" role="log" aria-live="polite" aria-label="보안 이벤트"><div class="empty">아직 관찰된 이벤트가 없습니다.</div></div>
       </section>
       <section id="incident-card" class="workbench-card incident-card" hidden>
         <div class="panel-heading"><h2>최근 차단 사건</h2><span class="badge badge-warning">상세 확인</span></div>

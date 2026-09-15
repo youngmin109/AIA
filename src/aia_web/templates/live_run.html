@@ -14,9 +14,9 @@
   <div class="metric"><span>단계</span><strong id="phase">{{ status.phase }}</strong></div>
   <div class="metric"><span>Checkpoint</span><strong id="checkpoint">{{ status.checkpoint or 'PENDING' }}</strong></div>
   <div class="metric"><span>Workspace Lease</span><strong id="lease">{{ status.lease or 'PENDING' }}</strong></div>
-  <div class="metric"><span>보호 상태</span><strong id="protection-state">{{ status.protection.state if status.protection else 'UNKNOWN' }}</strong></div>
+  <div class="metric"><span>보호 상태</span><strong id="protection-state" aria-live="polite">{{ status.protection.state if status.protection else 'UNKNOWN' }}</strong></div>
   <div class="metric"><span>Hook Broker</span><strong id="hook-broker-health">{{ status.protection.hook_broker if status.protection else 'NOT_STARTED' }}</strong></div>
-  <div class="metric"><span>사건 수</span><strong id="incident-count">{{ status.incident_count }}</strong></div>
+  <div class="metric"><span>사건 수</span><strong id="incident-count" aria-live="polite">{{ status.incident_count }}</strong></div>
   <div class="metric"><span>파일 관찰</span><strong id="filesystem-event-count">{{ (status.evidence_summary or {}).get('filesystem_events', 0) }}건</strong></div>
   <div class="metric"><span>프로세스 관찰</span><strong id="process-observed-count">{{ (status.evidence_summary or {}).get('process_observed', 0) }}건</strong></div>
   <div class="metric"><span>프로세스 종료 관찰</span><strong id="process-exit-count">{{ (status.evidence_summary or {}).get('process_exit_observed', 0) }}건</strong></div>
@@ -42,7 +42,7 @@
 </section>
 
 <section class="panel">
-  <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted"></span></div>
+  <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted" aria-live="polite"></span></div>
   <div id="protection-note" class="notice warning" hidden></div>
   <div id="error-box" class="error" {% if not status.error %}hidden{% endif %}>{{ status.error or '' }}</div>
   <div id="event-timeline" class="event-timeline"><div class="empty">안전한 이벤트 요약을 기다리는 중입니다…</div></div>
