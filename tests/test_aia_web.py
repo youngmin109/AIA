@@ -277,6 +277,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert new_run.text.index('id="run-settings"') < new_run.text.index("정책 미리보기")
     assert new_run.text.index("정책 미리보기") < new_run.text.index("정책 만들기")
     assert "Strict Validation" in new_run.text
+    assert "실제 Hook 연결 검증" in new_run.text
+    assert "Hook 연결 다시 검증" in new_run.text
+    assert "activationVerified" in new_run.text
     assert "별도 Windows 터미널에서 Codex 열기" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/capabilities").json()["schema_version"] == "aia-capabilities-v1"
