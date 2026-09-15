@@ -674,6 +674,8 @@ function renderEvidenceChains(chains) {
 function selectEvidenceChain(actionId) {
   if (!actionId) return;
   selectedChainId = String(actionId);
+  const panel = document.getElementById('evidence-chain-panel');
+  if (panel) panel.open = true;
   renderEvidenceChains(latestStatus.evidence_chains || []);
   const card = [...document.querySelectorAll('[data-chain-card]')].find((item) => item.dataset.chainCard === selectedChainId);
   if (card) card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
@@ -1081,7 +1083,11 @@ function focusSensorEvidence(source) {
   });
   lastRenderedEvidenceKey = '';
   renderEvidenceTimeline(latestStatus.evidence_timeline || []);
-  document.getElementById('sensor-evidence-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
+  const panel = document.getElementById('sensor-evidence-panel');
+  if (panel) {
+    panel.open = true;
+    panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
 }
 
 document.querySelectorAll('[data-sensor-focus]').forEach((card) => {

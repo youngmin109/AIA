@@ -386,12 +386,14 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "RUN_OBSERVED" in workbench.text
     assert "실행 관찰" in workbench.text
     assert "selectEvidenceChain" in workbench.text
+    assert "if (panel) panel.open = true" in workbench.text
     assert 'id="sensor-evidence-panel"' in workbench.text
     assert 'id="sensor-evidence-timeline"' in workbench.text
     assert 'data-sensor-focus="AGENT_HOOK"' in workbench.text
     assert 'data-sensor-focus="FILESYSTEM_WATCHER"' in workbench.text
     assert 'data-sensor-focus="PROCESS_RUNTIME"' in workbench.text
     assert "focusSensorEvidence" in workbench.text
+    assert "panel.scrollIntoView({behavior: 'smooth', block: 'start'})" in workbench.text
     assert "renderEvidenceTimeline" in workbench.text
     assert 'data-evidence-filter="ALL"' in workbench.text
     assert 'data-evidence-filter="AGENT_HOOK"' in workbench.text
