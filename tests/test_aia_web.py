@@ -546,12 +546,15 @@ def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
         websocket.send_json({"type": "input", "data": "hello"})
         accepted = websocket.receive_json()
         assert accepted["type"] == "accepted"
+        assert accepted["action"] == "input"
         websocket.send_json({"type": "submit"})
         accepted = websocket.receive_json()
         assert accepted["type"] == "accepted"
+        assert accepted["action"] == "submit"
         websocket.send_json({"type": "resize", "rows": 40, "cols": 140})
         accepted = websocket.receive_json()
         assert accepted["type"] == "accepted"
+        assert accepted["action"] == "resize"
         assert accepted["cols"] == 140
 
 

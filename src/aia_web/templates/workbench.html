@@ -244,6 +244,7 @@ let terminalClosed = false;
 let terminalRuntimeStatus = 'UNKNOWN';
 let terminalSocketConnected = false;
 let terminalSocketEverConnected = false;
+let terminalComposerReady = false;
 let awaitingResponse = false;
 let terminalAction = null;
 let terminalDetectionBuffer = '';
@@ -856,13 +857,15 @@ function setTerminalStatus(status) {
 }
 function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
-  const terminalReady = terminalRuntimeStatus === 'RUNNING' && terminalSocketConnected && !trustRequired;
+  const terminalReady = terminalRuntimeStatus === 'RUNNING' && terminalSocketConnected && terminalComposerReady && !trustRequired;
   terminalInput.disabled = !terminalReady;
   terminalSend.disabled = !terminalReady || awaitingResponse;
   terminalSend.textContent = awaitingResponse ? '응답 대기 중' : '전송';
   terminalSend.setAttribute('aria-busy', String(awaitingResponse));
   terminalInput.placeholder = trustRequired
     ? '먼저 “신뢰하고 계속”을 눌러주세요.'
+    : terminalRuntimeStatus === 'RUNNING' && !terminalComposerReady
+      ? 'Codex 작업창이 준비되는 중입니다…'
     : '여기에 입력하세요 · 한글 입력 지원 · Enter로 전송';
   terminalExamples.hidden = !terminalReady || awaitingResponse;
   const actionButton = document.getElementById('terminal-action');
@@ -906,16 +909,25 @@ function appendTerminal(data) {
   const workingVisible = visibleLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
   const composerVisible = visibleLines.some((line) => /Ask Codex to do anything|무엇을 도와드릴까요/.test(line));
   if (trustPromptVisible) {
+    terminalComposerReady = false;
     setTerminalAction('TRUST_DIRECTORY');
     setTerminalActivity('ACTION', 'Codex가 Workspace 신뢰 확인을 기다리고 있습니다. “신뢰하고 계속”을 눌러주세요.');
   } else if (workingVisible && ['SUBMITTING', 'WORKING', 'WAITING'].includes(activityMode)) {
     setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
-  } else if (composerVisible && awaitingResponse && activityMode === 'WORKING' && responseStartedAt && Date.now() - responseStartedAt >= 750) {
-    setTerminalAction(null);
-    setTerminalActivity('WAITING', '응답 완료 · 다음 작업을 입력할 수 있습니다.');
-  } else if (composerVisible && activityMode === 'STARTING') {
-    setTerminalAction(null);
-    setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.');
+  } else if (composerVisible) {
+    // Do not enable the browser composer merely because the child process is
+    // alive.  Codex can spend a short period rendering its first prompt; an
+    // early submission is otherwise accepted by the browser and lost by the
+    // TUI before its composer is ready.
+    terminalComposerReady = true;
+    updateTerminalInputState();
+    if (awaitingResponse && activityMode === 'WORKING' && responseStartedAt && Date.now() - responseStartedAt >= 750) {
+      setTerminalAction(null);
+      setTerminalActivity('WAITING', '응답 완료 · 다음 작업을 입력할 수 있습니다.');
+    } else if (activityMode === 'STARTING') {
+      setTerminalAction(null);
+      setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.');
+    }
   }
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
@@ -933,6 +945,7 @@ function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
   terminalClosed = false;
   terminalSocketConnected = false;
+  terminalComposerReady = false;
   updateTerminalInputState();
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${scheme}://${location.host}/api/runs/${encodeURIComponent(sessionId)}/terminal`);
@@ -954,7 +967,20 @@ function openSocket() {
     const message = JSON.parse(event.data);
     if (message.type === 'output') appendTerminal(message.data);
     else if (message.type === 'status') setTerminalStatus(message);
-    else if (message.type === 'error') showTerminalError(message.message || '터미널 요청이 거부되었습니다.');
+    else if (message.type === 'accepted') {
+      if (message.action === 'submit' && pendingSubmission) {
+        if (pendingSubmission.timer) window.clearTimeout(pendingSubmission.timer);
+        pendingSubmission = null;
+        setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+      }
+      setTerminalConnection('연결됨', 'connection-live');
+    } else if (message.type === 'error') {
+      if (restorePendingSubmission(message.message || '터미널 요청이 거부되었습니다.')) {
+        showTerminalError(message.message || 'Codex에 요청을 전달하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');
+      } else {
+        showTerminalError(message.message || '터미널 요청이 거부되었습니다.');
+      }
+    }
     else if (message.type === 'closed') { terminalClosed = true; terminalSocketConnected = false; setTerminalStatus(message); terminalOutput.classList.add('terminal-closed'); }
   };
   socket.onclose = () => {
@@ -1197,7 +1223,7 @@ function submitTerminalLine() {
   // submit key is not swallowed as part of a paste burst.
   pendingSubmission.timer = window.setTimeout(() => {
     if (send({type:'submit'})) {
-      pendingSubmission = null;
+      if (pendingSubmission) pendingSubmission.stage = 'submit';
       setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
     } else if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
       showTerminalError('Codex에 요청을 전송하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');

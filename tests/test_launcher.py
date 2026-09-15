@@ -439,6 +439,7 @@ def test_codex_adapter_uses_inline_submit_binding_for_workbench_terminal(
 
     spec = adapter.build_launch(request, Path(sys.executable))
 
+    assert spec.argv.count("--no-alt-screen") == 1
     assert 'tui.keymap.composer.submit="ctrl-x"' in spec.argv
 
 

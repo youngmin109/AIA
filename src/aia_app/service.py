@@ -1797,6 +1797,12 @@ class RunApplicationService:
                 adapter_options["interactive"] = True
                 if record.launch_mode == "web_terminal":
                     adapter_options["workbench_terminal"] = True
+                    # A browser terminal is line-oriented.  Codex's
+                    # alternate-screen redraw stream is intended for a real
+                    # terminal host and can leave a browser renderer showing
+                    # a stale draft while the response is arriving.  Keep
+                    # the interactive CLI, but disable only this redraw mode
+                    # for the Workbench surface.
             else:
                 # Codex CLI's current exec contract applies the supported
                 # workspace-write/on-request policy through --approve-for-me.

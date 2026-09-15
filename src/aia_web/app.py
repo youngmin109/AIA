@@ -278,17 +278,23 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                             session_id,
                             message.get("data", ""),
                         )
-                        await websocket.send_json({"type": "accepted", **result})
+                        await websocket.send_json(
+                            {"type": "accepted", "action": "input", **result}
+                        )
                     elif message.get("type") == "submit":
                         result = app.state.service.submit_terminal_input(session_id)
-                        await websocket.send_json({"type": "accepted", **result})
+                        await websocket.send_json(
+                            {"type": "accepted", "action": "submit", **result}
+                        )
                     elif message.get("type") == "resize":
                         result = app.state.service.resize_terminal(
                             session_id,
                             int(message.get("rows", 32)),
                             int(message.get("cols", 120)),
                         )
-                        await websocket.send_json({"type": "accepted", **result})
+                        await websocket.send_json(
+                            {"type": "accepted", "action": "resize", **result}
+                        )
                     else:
                         await websocket.send_json(
                             {"type": "error", "message": "unsupported terminal message"}

@@ -292,7 +292,13 @@ class CodexAdapter:
             # default Enter binding is not reliably recognized for that input
             # path, so the protected Workbench uses a dedicated, inline-only
             # submit binding.  This does not modify the user's Codex config.
-            argv.extend(("-c", 'tui.keymap.composer.submit="ctrl-x"'))
+            argv.extend(
+                (
+                    "--no-alt-screen",
+                    "-c",
+                    'tui.keymap.composer.submit="ctrl-x"',
+                )
+            )
         if self.enable_hooks and self.hook_command is None:
             # Product launches use the installed user-level Hook definition.
             # Enable the Codex Hook feature explicitly without changing the
