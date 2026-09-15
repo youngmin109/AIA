@@ -271,6 +271,18 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalSurfaceInputs" in new_run.text
     assert "runSubmissionInProgress" in new_run.text
     assert 'id="workspace-status"' in new_run.text
+    assert 'list="recent-workspaces"' in new_run.text
+    assert 'id="recent-workspaces"' in new_run.text
+    assert 'id="recent-workspace-hint"' in new_run.text
+    assert 'id="recent-workspace-actions"' in new_run.text
+    assert 'id="recent-workspace-buttons"' in new_run.text
+    assert 'id="clear-recent-workspaces"' in new_run.text
+    assert "RECENT_WORKSPACES_KEY" in new_run.text
+    assert "loadRecentWorkspaces" in new_run.text
+    assert "renderRecentWorkspaces" in new_run.text
+    assert "rememberWorkspace" in new_run.text
+    assert "recent-workspace-button" in new_run.text
+    assert "기록 지우기" in new_run.text
     assert "validateWorkspacePath" in new_run.text
     assert "updateRunSubmitState" in new_run.text
     assert 'id="run-submit-hint"' in new_run.text

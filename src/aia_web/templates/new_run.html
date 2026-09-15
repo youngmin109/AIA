@@ -96,9 +96,16 @@
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
-        <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <input name="workspace" list="recent-workspaces" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
+        <datalist id="recent-workspaces"></datalist>
         <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
         <span id="workspace-status" class="hint" role="status" aria-live="polite">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
+        <span id="recent-workspace-hint" class="hint recent-workspace-hint" hidden>최근 사용 경로는 이 브라우저에만 저장됩니다.</span>
+        <div id="recent-workspace-actions" class="recent-workspace-actions" hidden aria-label="최근 사용 Workspace">
+          <span class="recent-workspace-label">최근 사용</span>
+          <div id="recent-workspace-buttons" class="recent-workspace-buttons"></div>
+          <button id="clear-recent-workspaces" class="text-button" type="button">기록 지우기</button>
+        </div>
       </label>
       <label class="field">코딩 에이전트
         <input name="agent" value="Codex" readonly>
@@ -227,6 +234,11 @@ const customField = document.getElementById('custom-policy-field');
 const errorBox = document.getElementById('form-error');
 const workspaceInput = form.elements.workspace;
 const workspaceStatus = document.getElementById('workspace-status');
+const recentWorkspaces = document.getElementById('recent-workspaces');
+const recentWorkspaceHint = document.getElementById('recent-workspace-hint');
+const recentWorkspaceActions = document.getElementById('recent-workspace-actions');
+const recentWorkspaceButtons = document.getElementById('recent-workspace-buttons');
+const clearRecentWorkspaces = document.getElementById('clear-recent-workspaces');
 const preflightChecks = document.getElementById('preflight-checks');
 const preflightError = document.getElementById('preflight-error');
 const readinessSummary = document.getElementById('readiness-summary');
@@ -261,6 +273,8 @@ let workspaceValidationRequest = 0;
 let workspaceValidationTimer = null;
 let validatedWorkspacePath = '';
 let workspaceIsValid = false;
+const RECENT_WORKSPACES_KEY = 'aia.recentWorkspaces';
+const MAX_RECENT_WORKSPACES = 5;
 const runProgressSteps = [...document.querySelectorAll('[data-run-step]')];
 const editorRuleList = document.getElementById('editor-rules');
 const policyEditorPanel = document.querySelector('.policy-editor-panel');
@@ -270,6 +284,49 @@ function renderEditorRules() {
   editorRuleList.querySelectorAll('[data-remove-rule]').forEach((button) => button.addEventListener('click', () => { editorRules.splice(Number(button.dataset.removeRule), 1); editorValidated = false; document.getElementById('save-policy').disabled = true; renderEditorRules(); }));
 }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function loadRecentWorkspaces() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(RECENT_WORKSPACES_KEY) || '[]');
+    return Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item.trim()).slice(0, MAX_RECENT_WORKSPACES) : [];
+  } catch (_) { return []; }
+}
+function renderRecentWorkspaces() {
+  if (!recentWorkspaces) return;
+  const paths = loadRecentWorkspaces();
+  recentWorkspaces.replaceChildren(...paths.map((path) => {
+    const option = document.createElement('option');
+    option.value = path;
+    return option;
+  }));
+  if (recentWorkspaceHint) recentWorkspaceHint.hidden = !paths.length;
+  if (recentWorkspaceActions && recentWorkspaceButtons) {
+    recentWorkspaceActions.hidden = !paths.length;
+    recentWorkspaceButtons.replaceChildren(...paths.map((path) => {
+      const button = document.createElement('button');
+      button.className = 'recent-workspace-button';
+      button.type = 'button';
+      button.textContent = path;
+      button.title = `Workspace 선택: ${path}`;
+      button.addEventListener('click', () => {
+        workspaceInput.value = path;
+        validateWorkspacePath();
+      });
+      return button;
+    }));
+  }
+}
+function rememberWorkspace(path) {
+  const value = String(path || '').trim();
+  if (!value) return;
+  const next = [value, ...loadRecentWorkspaces().filter((item) => item.toLowerCase() !== value.toLowerCase())].slice(0, MAX_RECENT_WORKSPACES);
+  try { window.localStorage.setItem(RECENT_WORKSPACES_KEY, JSON.stringify(next)); } catch (_) { return; }
+  renderRecentWorkspaces();
+}
+renderRecentWorkspaces();
+clearRecentWorkspaces?.addEventListener('click', () => {
+  try { window.localStorage.removeItem(RECENT_WORKSPACES_KEY); } catch (_) { return; }
+  renderRecentWorkspaces();
+});
 function setButtonBusy(button, busy, busyLabel) {
   if (busy) {
     button.disabled = true;
@@ -604,6 +661,7 @@ form.addEventListener('submit', async (event) => {
     const response = await fetch('/api/runs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || '보호 실행을 시작할 수 없습니다.');
+    rememberWorkspace(workspaceInput.value);
     window.location.href = payload.redirect_url;
   } catch (error) {
     errorBox.textContent = error.message;
