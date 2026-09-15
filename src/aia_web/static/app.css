@@ -81,6 +81,10 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .workbench-card { border: 1px solid var(--line); border-radius: 13px; padding: 16px; background: rgba(17,27,38,.78); min-width: 0; }
 .workbench-card .panel-heading { margin-bottom: 12px; }
 .workbench-card h2, .workbench-terminal-panel h2 { font-size: 15px; margin: 0; }
+.workbench-protection-note { margin: -3px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.workbench-protection-note.note-success { border-color: rgba(103,229,154,.38); background: rgba(103,229,154,.05); color: #a9f2d3; }
+.workbench-protection-note.note-warning { border-color: rgba(245,199,106,.42); background: rgba(245,199,106,.06); color: #f5db9a; }
+.workbench-protection-note.note-danger { border-color: rgba(255,125,133,.48); background: rgba(255,125,133,.06); color: #ffb3b8; }
 .workbench-facts, .incident-facts { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 9px 10px; margin: 0; font-size: 12px; }
 .workbench-facts dt, .incident-facts dt { color: var(--muted); }
 .workbench-facts dd, .incident-facts dd { margin: 0; overflow-wrap: anywhere; }

@@ -282,6 +282,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "page-shell-workbench" in workbench.text
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
+    assert 'id="protection-state-note"' in workbench.text
     assert "최근 이벤트" in workbench.text
     assert "마지막 이벤트" in workbench.text
     assert "마지막 출력 수신" in workbench.text
@@ -295,6 +296,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'data-flow-step="4"' in workbench.text
     assert "statusClass" in workbench.text
     assert "protectionClass" in workbench.text
+    assert "protectionNote" in workbench.text
+    assert "보호 검증 전 상태입니다." in workbench.text
     assert "현재 Workbench" in workbench.text
     assert 'id="terminal-input-proxy"' in workbench.text
     assert 'id="terminal-input-form"' in workbench.text

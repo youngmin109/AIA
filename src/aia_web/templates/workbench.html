@@ -90,6 +90,7 @@
     <aside class="workbench-security-panel">
       <section class="workbench-card">
         <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다.</p></div><span id="protection-state" class="badge" aria-live="polite">{{ status.protection.state }}</span></div>
+        <p id="protection-state-note" class="workbench-protection-note" role="status" aria-live="polite">보호 상태를 확인하는 중입니다.</p>
         <div class="workbench-sensors">
           <div id="sensor-card-hook" class="workbench-sensor"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">확인 중</small></div><b id="sensor-hook-count">0건</b></div>
           <div id="sensor-card-file" class="workbench-sensor"><span class="sensor-icon file">F</span><div><strong>File Sensor</strong><small id="sensor-file">확인 중</small></div><b id="sensor-file-count">0건</b></div>
@@ -176,6 +177,7 @@ const terminalSend = document.getElementById('terminal-send');
 const terminalStatus = document.getElementById('terminal-status');
 const terminalPid = document.getElementById('terminal-pid');
 const terminalConnection = document.getElementById('terminal-connection');
+const protectionStateNote = document.getElementById('protection-state-note');
 const terminalLastOutput = document.getElementById('terminal-last-output');
 const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
@@ -467,6 +469,22 @@ const protectionLabel = (value) => ({
   ORPHANED_DEGRADED: '보호 조정 필요',
   STOP_REQUESTED: '중지 처리 중',
 })[value] || value || '확인 중';
+const protectionNote = (value) => ({
+  ACTIVE_VERIFIED: '실제 Hook 이벤트가 확인되어 AIA 보호 상태가 검증되었습니다.',
+  ACTIVE_UNVERIFIED: 'Codex는 실행 중이지만 아직 실제 Hook 이벤트가 확인되지 않았습니다. 보호 검증 전 상태입니다.',
+  ACTIVE_DEGRADED: '보호 센서 또는 연결에 문제가 있어 완전한 보호로 간주하지 않습니다.',
+  COMPLETED_VERIFIED: '실행이 끝났고 보호 상태와 결과 Bundle을 검증했습니다.',
+  COMPLETED_DEGRADED: '실행은 끝났지만 일부 보호 증거가 부족해 제한적으로 해석해야 합니다.',
+  ABORTED_DEGRADED: '실행은 중지됐지만 보호 상태를 완전히 검증하지 못했습니다.',
+  FAILED_DEGRADED: '보호 경계에 문제가 생겨 보호 성공으로 간주하지 않습니다.',
+  ORPHANED_DEGRADED: 'AIA 연결이 끊겨 현재 보호 상태를 확인할 수 없습니다.',
+  STOP_REQUESTED: '보호 실행 중지 요청을 처리하고 있습니다.',
+})[value] || 'AIA 보호 상태를 확인하는 중입니다.';
+const protectionNoteClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED'].includes(value)
+  ? 'note-success'
+  : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'STOP_REQUESTED'].includes(value)
+    ? 'note-warning'
+    : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'note-danger' : 'note-neutral';
 const sensorLabel = (value, ended = false) => value === 'HEALTHY' && ended ? '검증됨 · 정상 종료' : value === 'HEALTHY' ? '정상 관찰 중' : value === 'STOPPED' ? '관찰 종료 · 정상' : value === 'FAILED' ? '관찰 실패' : value || '확인 중';
 const sensorClass = (value) => value === 'HEALTHY' ? 'sensor-healthy' : value === 'FAILED' ? 'sensor-failed' : value === 'STOPPED' ? 'sensor-stopped' : 'sensor-pending';
 const checkpointLabel = (value) => ({NOT_READY: '준비되지 않음', READY: '생성됨 · 사용 가능', FAILED: '생성 실패', UNKNOWN: '정보 없음'})[value] || value || '정보 없음';
@@ -762,6 +780,8 @@ function renderSecurity(status) {
   protectionState.textContent = protectionLabel(status.protection?.state);
   protectionState.className = `badge ${protectionClass(status.protection?.state)}`;
   protectionState.title = status.protection?.state || '';
+  protectionStateNote.textContent = protectionNote(status.protection?.state);
+  protectionStateNote.className = `workbench-protection-note ${protectionNoteClass(status.protection?.state)}`;
   document.getElementById('phase').textContent = phaseLabel(status.phase);
   document.getElementById('checkpoint').textContent = checkpointLabel(status.checkpoint);
   document.getElementById('checkpoint').title = status.checkpoint || '';
