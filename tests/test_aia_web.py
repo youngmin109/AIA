@@ -627,6 +627,23 @@ def test_result_page_explains_degraded_protection_separately_from_valid_bundle()
     assert "완료 · 일부 확인" in result.text
 
 
+def test_result_page_does_not_show_success_when_bundle_is_invalid() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["bundle_status"] = "INVALID"
+    result_data["protection_state"] = "COMPLETED_VERIFIED"
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert 'class="panel result-overview result-overview-success"' not in result.text
+    assert "검증 실패" in result.text
+    assert "정상 작업이 끝났고, AIA가 수집한 보호 증거와 결과 Bundle의 검증이 완료되었습니다." not in result.text
+    assert "추가 확인 필요" in result.text
+
+
 def test_result_page_distinguishes_verified_user_abort_from_normal_completion() -> None:
     service = FakeService()
     result_data = service.get_result("run-1")
