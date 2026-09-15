@@ -165,7 +165,7 @@
         <div id="security-events" class="workbench-events" role="log" aria-live="polite" aria-label="보안 이벤트"><div class="empty">아직 관찰된 이벤트가 없습니다.</div></div>
       </section>
       <section id="incident-card" class="workbench-card incident-card" hidden>
-        <div class="panel-heading"><h2>최근 차단 사건</h2><span class="badge badge-warning">상세 확인</span></div>
+        <div class="panel-heading"><h2 id="incident-heading">최근 보안 사건</h2><span id="incident-status-badge" class="badge badge-warning">확인 필요</span></div>
         <strong id="incident-title">—</strong>
         <dl class="incident-facts">
           <dt>정책</dt><dd id="incident-policy">—</dd>
@@ -1405,6 +1405,25 @@ function renderSecurity(status) {
     document.getElementById('incident-decision').textContent = decisionLabel(incident.decision);
     const blockedConfirmed = incident.decision === 'CONTAIN' && incident.execution_result === 'SUCCEEDED';
     const blockPending = incident.decision === 'CONTAIN' && incident.execution_result === 'NOT_ATTEMPTED';
+    const incidentHeading = document.getElementById('incident-heading');
+    const incidentStatusBadge = document.getElementById('incident-status-badge');
+    if (blockedConfirmed) {
+      incidentHeading.textContent = '최근 차단 사건';
+      incidentStatusBadge.textContent = '차단 확인됨';
+      incidentStatusBadge.className = 'badge badge-succeeded';
+    } else if (blockPending) {
+      incidentHeading.textContent = ended ? '최근 차단 판정' : '최근 차단 확인 중';
+      incidentStatusBadge.textContent = ended ? '확인 필요' : '확인 중';
+      incidentStatusBadge.className = 'badge badge-warning';
+    } else if (incident.decision === 'REFUSE' || incident.decision === 'INDETERMINATE') {
+      incidentHeading.textContent = '최근 확인 필요 사건';
+      incidentStatusBadge.textContent = '확인 필요';
+      incidentStatusBadge.className = 'badge badge-warning';
+    } else {
+      incidentHeading.textContent = '최근 보안 사건';
+      incidentStatusBadge.textContent = '상세 확인';
+      incidentStatusBadge.className = 'badge badge-warning';
+    }
     document.getElementById('incident-execution').textContent = blockedConfirmed
       ? '실행 전 차단됨 · 확인됨'
       : blockPending
