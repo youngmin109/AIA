@@ -447,6 +447,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalSocketConnected" in workbench.text
     assert "terminalSocketEverConnected" in workbench.text
     assert "terminalScreen.reset()" in workbench.text
+    assert "transientProgressLine" in workbench.text
+    assert "terminalScreen.refresh()" in workbench.text
     assert "terminalOutput.classList.remove('terminal-closed')" in workbench.text
     assert "stopButton.hidden = terminalEnded || orphaned;" in workbench.text
     assert "button.classList.add('is-busy')" in workbench.text

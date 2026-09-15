@@ -511,7 +511,14 @@ const terminalScreen = (() => {
       updateTerminalScrollControl();
     });
   };
-  const visibleText = () => cells.map((line) => line.join('').replace(/\s+$/, '')).join('\n');
+  const transientProgressLine = /^\s*[◦•]\s+Working\s+\(\d+s\b.*\)\s*$/i;
+  const visibleText = () => cells
+    .map((line) => line.join('').replace(/\s+$/, ''))
+    // Codex redraws this transient status line while a request is active.
+    // Some terminal output paths leave the old line in the replayed screen;
+    // once the composer is back, showing it makes an idle session look stuck.
+    .filter((line) => !(activityMode === 'WAITING' && transientProgressLine.test(line)))
+    .join('\n');
   const consume = (data) => {
     buffer += String(data || '');
     let index = 0;
@@ -559,7 +566,7 @@ const terminalScreen = (() => {
   };
   const clear = () => { reset(); hasOutput = false; scheduleRender(); };
   reset();
-  return {consume, resize, reset: clear, text: visibleText, hasOutput: () => hasOutput};
+  return {consume, resize, reset: clear, refresh: scheduleRender, text: visibleText, hasOutput: () => hasOutput};
 })();
 
 function terminalIsAtBottom() {
@@ -1064,6 +1071,7 @@ function setTerminalActivity(mode, label) {
     updateActivityClock();
     activityTimer = setInterval(updateActivityClock, 1000);
   }
+  if (mode === 'WAITING') terminalScreen.refresh();
   terminalOutput.setAttribute('aria-busy', String(['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)));
   updateTerminalInputState();
   updateStickyStatus();
