@@ -360,6 +360,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "topbar-workbench" in workbench.text
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
+    assert 'class="workbench-context"' in workbench.text
+    assert "보호 중인 Workspace" in workbench.text
+    assert "실행 ID 보기" in workbench.text
     assert "센서 카드를 누르면 해당 Evidence로 이동합니다." in workbench.text
     assert workbench.text.count("Evidence 보기 →") == 3
     assert 'id="security-panel-toggle"' in workbench.text
@@ -395,6 +398,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Workspace 신뢰 확인이 필요합니다." in workbench.text
     assert "Codex가 요청을 처리하고 있습니다." in workbench.text
     assert "Codex가 다음 작업을 기다리고 있습니다." in workbench.text
+    assert "Codex 작업창을 준비하고 있습니다." in workbench.text
+    assert "입력창이 활성화될 때까지 잠시 기다려 주세요." in workbench.text
     assert "실행이 끝났습니다. 결과를 확인하세요." in workbench.text
     assert "updateWorkbenchGuidance" in workbench.text
     assert "statusPollFailures >= 2" in workbench.text
