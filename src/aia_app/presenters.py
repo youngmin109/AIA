@@ -358,6 +358,23 @@ def evidence_chain_views(
             for item in linked_records
             if item.get("record_type")
         ))
+        sensor_links = []
+        for sensor in ("AGENT_HOOK", "FILESYSTEM_WATCHER", "PROCESS_RUNTIME"):
+            sensor_records = [
+                item for item in linked_records if item.get("source") == sensor
+            ]
+            sensor_links.append(
+                {
+                    "sensor": sensor,
+                    "status": "LINKED" if sensor_records else "NOT_OBSERVED",
+                    "evidence_count": len(sensor_records),
+                    "record_types": list(dict.fromkeys(
+                        str(item.get("record_type"))
+                        for item in sensor_records
+                        if item.get("record_type")
+                    )),
+                }
+            )
         observed_at = action.get("observed_at") or max(
             (
                 str(item.get("captured_at"))
@@ -394,6 +411,7 @@ def evidence_chain_views(
                 "linked_evidence_count": len(linked_records),
                 "sources": sources,
                 "record_types": record_types,
+                "sensor_links": sensor_links,
                 "observed_at": observed_at,
             },
             {
@@ -454,6 +472,7 @@ def evidence_chain_views(
                 "evidence_link_status": evidence_link_status,
                 "evidence_count": len(evidence_ids),
                 "linked_evidence_count": len(linked_records),
+                "sensor_links": sensor_links,
                 "stages": stages,
             }
         )

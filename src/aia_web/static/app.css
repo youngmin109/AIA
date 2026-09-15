@@ -153,6 +153,16 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 .evidence-chain-panel { border-color: rgba(101,217,232,.28); }
 .evidence-chains, .result-evidence-chains { display: grid; gap: 10px; }
 .evidence-chain-card, .result-chain-card { border: 1px solid var(--line); border-radius: 10px; padding: 11px; background: rgba(8,15,23,.52); }
+.evidence-chain-card { transition: border-color .18s ease, box-shadow .18s ease; }
+.evidence-chain-card.is-selected { border-color: rgba(101,217,232,.8); box-shadow: 0 0 0 2px rgba(101,217,232,.12); }
+.chain-sensor-links { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.chain-sensor-link { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; color: var(--muted); font-size: 9px; }
+.chain-sensor-link i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.chain-sensor-link.is-linked { color: var(--text); border-color: rgba(103,229,154,.38); }
+.chain-sensor-link.is-linked i { background: var(--green); }
+.chain-sensor-link.is-unobserved { opacity: .72; }
+.workbench-event[role="button"] { cursor: pointer; }
+.workbench-event[role="button"]:hover, .workbench-event[role="button"]:focus-visible { background: rgba(101,217,232,.06); outline: none; }
 .evidence-chain-heading, .result-chain-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 9px; }
 .evidence-chain-heading strong, .evidence-chain-heading small, .result-chain-heading strong, .result-chain-heading small { display: block; overflow-wrap: anywhere; }
 .evidence-chain-heading small, .result-chain-heading small { color: var(--muted); margin-top: 3px; font-size: 10px; }

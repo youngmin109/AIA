@@ -193,6 +193,7 @@ let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
 let stopRequested = false;
 let responseStartedAt = 0;
+let selectedChainId = null;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -424,6 +425,11 @@ function renderEvidenceChains(chains) {
   }
   container.innerHTML = items.map((chain) => {
     const stages = Array.isArray(chain.stages) ? chain.stages : [];
+    const sensorLinks = Array.isArray(chain.sensor_links) ? chain.sensor_links : [];
+    const sensorHtml = sensorLinks.map((link) => {
+      const linked = link.status === 'LINKED';
+      return `<span class="chain-sensor-link ${linked ? 'is-linked' : 'is-unobserved'}"><i aria-hidden="true"></i>${esc(sensorNameLabel(link.sensor))} ${linked ? `${esc(String(link.evidence_count || 0))}건` : '미관찰'}</span>`;
+    }).join('');
     const stageHtml = stages.map((stage) => {
       const status = String(stage.status || 'NOT_REPORTED');
       const detail = stage.stage === 'RAW_EVIDENCE'
@@ -437,8 +443,16 @@ function renderEvidenceChains(chains) {
               : chainStatusLabel(status);
       return `<li class="evidence-chain-stage ${chainStageClass(status)}"><span class="evidence-chain-node" aria-hidden="true"></span><div><strong>${esc(stage.label || stage.stage)}</strong><small>${esc(detail)}</small></div><span class="badge" title="${esc(status)}">${esc(chainStatusLabel(status))}</span></li>`;
     }).join('');
-    return `<article class="evidence-chain-card"><div class="evidence-chain-heading"><div><strong>${esc(operationLabel(chain.operation))} · ${esc(chain.target_label || '행위')}</strong><small>${esc(formatTime(chain.observed_at))} · Evidence ${esc(String(chain.linked_evidence_count || 0))}/${esc(String(chain.evidence_count || 0))} 연결</small></div><span class="badge ${chain.evidence_link_status === 'LINKED' ? 'badge-succeeded' : 'badge-warning'}">${esc(chainStatusLabel(chain.evidence_link_status))}</span></div><ol class="evidence-chain-stages">${stageHtml}</ol></article>`;
+    return `<article class="evidence-chain-card ${chain.chain_id === selectedChainId ? 'is-selected' : ''}" data-chain-card="${esc(chain.chain_id)}"><div class="evidence-chain-heading"><div><strong>${esc(operationLabel(chain.operation))} · ${esc(chain.target_label || '행위')}</strong><small>${esc(formatTime(chain.observed_at))} · Evidence ${esc(String(chain.linked_evidence_count || 0))}/${esc(String(chain.evidence_count || 0))} 연결</small></div><span class="badge ${chain.evidence_link_status === 'LINKED' ? 'badge-succeeded' : 'badge-warning'}">${esc(chainStatusLabel(chain.evidence_link_status))}</span></div><div class="chain-sensor-links" aria-label="행위에 연결된 센서">${sensorHtml}</div><ol class="evidence-chain-stages">${stageHtml}</ol></article>`;
   }).join('');
+}
+
+function selectEvidenceChain(actionId) {
+  if (!actionId) return;
+  selectedChainId = String(actionId);
+  renderEvidenceChains(latestStatus.evidence_chains || []);
+  const card = [...document.querySelectorAll('[data-chain-card]')].find((item) => item.dataset.chainCard === selectedChainId);
+  if (card) card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 function updateActivityClock() {
@@ -669,7 +683,16 @@ function renderSecurity(status) {
       : ended
         ? '이 실행에는 보안 이벤트가 없습니다.'
         : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.';
-    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
+    document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainAttribute = event.incident_action_id ? ` data-chain-select="${esc(event.incident_action_id)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
+    document.querySelectorAll('[data-chain-select]').forEach((item) => {
+      item.addEventListener('click', () => selectEvidenceChain(item.dataset.chainSelect));
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectEvidenceChain(item.dataset.chainSelect);
+        }
+      });
+    });
   }
   document.getElementById('event-count').textContent = `${events.length}건`;
   document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;

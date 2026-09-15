@@ -186,6 +186,14 @@ def test_evidence_chain_links_sensor_metadata_without_copying_payload() -> None:
     chain = chains[0]
     assert chain["evidence_link_status"] == "LINKED"
     assert chain["linked_evidence_count"] == 3
+    assert {
+        item["sensor"]: item["evidence_count"]
+        for item in chain["sensor_links"]
+    } == {
+        "AGENT_HOOK": 1,
+        "FILESYSTEM_WATCHER": 1,
+        "PROCESS_RUNTIME": 1,
+    }
     assert [stage["stage"] for stage in chain["stages"]] == [
         "RAW_EVIDENCE",
         "CANONICAL_ACTION",
