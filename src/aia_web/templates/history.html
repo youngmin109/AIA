@@ -26,7 +26,7 @@
   <button type="button" class="metric metric-ok metric-action" data-history-quick-filter="valid" aria-label="검증 완료 실행만 보기"><span>검증 완료</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle VALID · 클릭하여 보기</small></button>
 </section>
 <section class="panel">
-  <div class="panel-heading history-heading"><div><h2>전체 실행</h2><p class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div>
+  <div class="panel-heading history-heading"><div><h2>전체 실행</h2><p class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><div class="history-heading-actions"><span id="history-sync-status" class="history-sync-status" role="status" aria-live="polite">마지막 확인 <time id="history-sync-time"></time></span><button id="refresh-history" class="button" type="button" title="최신 실행 상태를 다시 확인합니다.">최신 상태 확인</button><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div></div>
   <div class="history-legend" aria-label="상태 설명">
     <span><b class="legend-dot legend-running"></b>실행 중: 현재 세션에 연결됨</span>
     <span><b class="legend-dot legend-warning"></b>일부 확인: 센서·실행 결과를 모두 검증하지 못함</span>
@@ -71,9 +71,35 @@ const rows = [...document.querySelectorAll('.run-row')];
 const filterIds = ['filter-workspace','filter-status','filter-protection','filter-incident','filter-bundle','filter-date'];
 const historyQuickFilters = [...document.querySelectorAll('[data-history-quick-filter]')];
 const historyPageSize = 20;
+const historyStorageKey = 'aia.history.filters';
 let historyPage = 1;
 let activeOnly = false;
 const values = (id) => document.getElementById(id).value.trim().toLowerCase();
+function historyNow() {
+  return new Intl.DateTimeFormat('ko-KR', {hour: '2-digit', minute: '2-digit', second: '2-digit'}).format(new Date());
+}
+function saveHistoryView() {
+  try {
+    sessionStorage.setItem(historyStorageKey, JSON.stringify({
+      filters: Object.fromEntries(filterIds.map((id) => [id, document.getElementById(id).value])),
+      activeOnly,
+      page: historyPage,
+    }));
+  } catch (_) {}
+}
+function restoreHistoryView() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(historyStorageKey) || 'null');
+    if (!saved || typeof saved !== 'object') return;
+    for (const id of filterIds) {
+      const value = saved.filters?.[id];
+      if (typeof value === 'string') document.getElementById(id).value = value;
+    }
+    activeOnly = saved.activeOnly === true;
+    historyPage = Number.isInteger(saved.page) && saved.page > 0 ? saved.page : 1;
+    sessionStorage.removeItem(historyStorageKey);
+  } catch (_) {}
+}
 function filterRuns() {
   const workspace = values('filter-workspace'); const status = values('filter-status'); const protection = values('filter-protection'); const incident = values('filter-incident'); const bundle = values('filter-bundle'); const date = document.getElementById('filter-date').value;
   const matchingRows = rows.filter((row) => (!activeOnly || row.dataset.active === 'yes') && (!workspace || row.dataset.workspace.includes(workspace)) && (!status || row.dataset.status.toLowerCase() === status) && (!protection || row.dataset.protection.toLowerCase().includes(protection)) && (!incident || row.dataset.incidents === incident) && (!bundle || row.dataset.bundle.toLowerCase() === bundle) && (!date || row.dataset.date === date));
@@ -154,6 +180,16 @@ document.getElementById('reset-history-filters').addEventListener('click', () =>
 });
 document.getElementById('history-prev').addEventListener('click', () => { if (historyPage > 1) { historyPage -= 1; filterRuns(); } });
 document.getElementById('history-next').addEventListener('click', () => { historyPage += 1; filterRuns(); });
+document.getElementById('refresh-history').addEventListener('click', () => {
+  saveHistoryView();
+  const button = document.getElementById('refresh-history');
+  button.disabled = true;
+  button.classList.add('is-busy');
+  button.textContent = '최신 상태 확인 중…';
+  window.location.reload();
+});
+restoreHistoryView();
+document.getElementById('history-sync-time').textContent = historyNow();
 filterRuns();
 </script>
 {% endblock %}

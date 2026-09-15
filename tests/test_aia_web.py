@@ -889,6 +889,12 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'href="/runs"' in history.text
     assert 'class="is-active" aria-current="page" href="/runs"' in history.text
     assert 'id="history-result-count"' in history.text
+    assert 'id="refresh-history"' in history.text
+    assert 'id="history-sync-status"' in history.text
+    assert 'id="history-sync-time"' in history.text
+    assert "최신 상태 확인 중…" in history.text
+    assert "historyStorageKey" in history.text
+    assert "restoreHistoryView" in history.text
     assert "정상 완료" in history.text
     assert "완료 · 검증됨" in history.text
     assert "필터 초기화" in history.text
