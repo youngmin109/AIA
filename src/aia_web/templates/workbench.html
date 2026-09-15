@@ -62,8 +62,12 @@
         AIA Workbench가 보호된 Codex 작업창을 준비하고 있습니다…
         {% endif %}
       </div>
+      <div class="terminal-input-row">
+        <span class="terminal-input-prefix" aria-hidden="true">›</span>
+        <textarea id="terminal-input-proxy" rows="1" aria-label="Codex 입력" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="여기에 입력하세요 · 한글 입력 지원 · Enter로 전송"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %} disabled{% endif %}></textarea>
+      </div>
       <div class="terminal-input-hint">
-        <span>작업창을 클릭하고 입력하세요. Enter는 Codex로 즉시 전달됩니다.</span>
+        <span>입력창에서 작성한 뒤 Enter로 Codex에 전송합니다. Ctrl+C·방향키도 지원합니다.</span>
         <span class="mono">Workbench · 로컬 연결</span>
       </div>
       <div id="terminal-error" class="error" hidden></div>
@@ -128,6 +132,7 @@ const initialStatus = {
 const runStatus = document.getElementById('run-status');
 const protectionState = document.getElementById('protection-state');
 const terminalOutput = document.getElementById('terminal-output');
+const terminalInput = document.getElementById('terminal-input-proxy');
 const terminalStatus = document.getElementById('terminal-status');
 const terminalPid = document.getElementById('terminal-pid');
 const terminalError = document.getElementById('terminal-error');
@@ -140,6 +145,120 @@ const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
 let socket = null;
 let socketRetry = null;
 let lastRenderedEventKey = '';
+
+const terminalScreen = (() => {
+  let rows = Number(initialStatus.terminal?.rows) || 32;
+  let cols = Number(initialStatus.terminal?.cols) || 120;
+  let cursorRow = 0;
+  let cursorCol = 0;
+  let savedRow = 0;
+  let savedCol = 0;
+  let buffer = '';
+  let cells = [];
+  let renderPending = false;
+  let hasOutput = false;
+  const blankLine = () => Array(cols).fill(' ');
+  const reset = () => { cells = Array.from({length: rows}, blankLine); cursorRow = 0; cursorCol = 0; savedRow = 0; savedCol = 0; };
+  const scroll = () => { cells.shift(); cells.push(blankLine()); cursorRow = rows - 1; };
+  const clamp = () => { cursorRow = Math.max(0, Math.min(rows - 1, cursorRow)); cursorCol = Math.max(0, Math.min(cols, cursorCol)); };
+  const clearRange = (row, start, end) => { if (row < 0 || row >= rows) return; for (let index = Math.max(0, start); index < Math.min(cols, end); index += 1) cells[row][index] = ' '; };
+  const clearScreen = (mode) => {
+    if (mode === 2 || mode === 3) { reset(); return; }
+    if (mode === 1) { for (let row = 0; row <= cursorRow; row += 1) clearRange(row, 0, row === cursorRow ? cursorCol + 1 : cols); return; }
+    clearRange(cursorRow, cursorCol, cols);
+    for (let row = cursorRow + 1; row < rows; row += 1) clearRange(row, 0, cols);
+  };
+  const clearLine = (mode) => {
+    if (mode === 2) clearRange(cursorRow, 0, cols);
+    else if (mode === 1) clearRange(cursorRow, 0, cursorCol + 1);
+    else clearRange(cursorRow, cursorCol, cols);
+  };
+  const paramNumbers = (raw) => raw.replace(/^\?/, '').split(';').map((item) => Number.parseInt(item || '0', 10) || 0);
+  const first = (values, fallback = 1) => values[0] || fallback;
+  const csi = (raw, final) => {
+    const values = paramNumbers(raw);
+    switch (final) {
+      case 'A': cursorRow -= first(values); break;
+      case 'B': cursorRow += first(values); break;
+      case 'C': cursorCol += first(values); break;
+      case 'D': cursorCol -= first(values); break;
+      case 'E': cursorRow += first(values); cursorCol = 0; break;
+      case 'F': cursorRow -= first(values); cursorCol = 0; break;
+      case 'G': cursorCol = first(values) - 1; break;
+      case 'H': case 'f': cursorRow = (values[0] || 1) - 1; cursorCol = (values[1] || 1) - 1; break;
+      case 'J': clearScreen(values[0]); break;
+      case 'K': clearLine(values[0]); break;
+      case 'P': { const count = first(values); const line = cells[cursorRow]; line.splice(cursorCol, count); line.push(...Array(count).fill(' ')); break; }
+      case '@': { const count = first(values); const line = cells[cursorRow]; line.splice(cursorCol, 0, ...Array(count).fill(' ')); line.length = cols; break; }
+      case 'X': clearRange(cursorRow, cursorCol, cursorCol + first(values)); break;
+      case 's': savedRow = cursorRow; savedCol = cursorCol; break;
+      case 'u': cursorRow = savedRow; cursorCol = savedCol; break;
+      case 'd': cursorRow = first(values) - 1; break;
+      // m (colors), h/l (modes), r (scroll region), and n (status query)
+      // do not change the readable text surface.
+      default: break;
+    }
+    clamp();
+  };
+  const put = (character) => {
+    if (character === '\r') { cursorCol = 0; return; }
+    if (character === '\n') { cursorRow += 1; if (cursorRow >= rows) scroll(); return; }
+    if (character === '\b') { cursorCol = Math.max(0, cursorCol - 1); return; }
+    if (character === '\t') { cursorCol = Math.min(cols, cursorCol + (8 - (cursorCol % 8))); return; }
+    if (character < ' ' || character === '\x7f') return;
+    if (cursorCol >= cols) { cursorCol = 0; cursorRow += 1; if (cursorRow >= rows) scroll(); }
+    cells[cursorRow][cursorCol] = character;
+    cursorCol += 1;
+  };
+  const scheduleRender = () => {
+    if (renderPending) return;
+    renderPending = true;
+    requestAnimationFrame(() => {
+      renderPending = false;
+      terminalOutput.textContent = cells.map((line) => line.join('').replace(/\s+$/, '')).join('\n');
+      terminalOutput.scrollTop = terminalOutput.scrollHeight;
+    });
+  };
+  const consume = (data) => {
+    buffer += String(data || '');
+    let index = 0;
+    while (index < buffer.length) {
+      const character = buffer[index];
+      if (character !== '\x1b') { put(character); index += 1; continue; }
+      if (index + 1 >= buffer.length) break;
+      const kind = buffer[index + 1];
+      if (kind === '[') {
+        const match = buffer.slice(index + 2).match(/^[0-?]*[ -\/]*[@-~]/);
+        if (!match) break;
+        const sequence = match[0];
+        const final = sequence[sequence.length - 1];
+        csi(sequence.slice(0, -1), final);
+        index += 2 + sequence.length;
+        continue;
+      }
+      if (kind === ']') {
+        const rest = buffer.slice(index + 2);
+        const end = rest.search(/[\x07]|\x1b\\/);
+        if (end < 0) break;
+        index += 2 + end + (rest[end] === '\x1b' ? 2 : 1);
+        continue;
+      }
+      if (kind === '7') { savedRow = cursorRow; savedCol = cursorCol; index += 2; continue; }
+      if (kind === '8') { cursorRow = savedRow; cursorCol = savedCol; index += 2; continue; }
+      index += 2;
+    }
+    buffer = buffer.slice(index);
+    hasOutput = true;
+    scheduleRender();
+  };
+  const resize = (nextRows, nextCols) => {
+    if (nextRows === rows && nextCols === cols) return;
+    const next = Array.from({length: nextRows}, (_, row) => Array.from({length: nextCols}, (_, col) => cells[row]?.[col] || ' '));
+    rows = nextRows; cols = nextCols; cells = next; clamp(); scheduleRender();
+  };
+  reset();
+  return {consume, resize, hasOutput: () => hasOutput};
+})();
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value, label = null) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}" title="${esc(value || 'UNKNOWN')}">${esc(label || value || '확인 필요')}</span>`;
@@ -206,6 +325,8 @@ function setTerminalStatus(status) {
     : `터미널 상태: ${value === 'NOT_STARTED' ? '시작 전' : value === 'NOT_ATTACHED' ? '연결 대기' : value === 'EXITED' ? '종료됨' : value}`;
   terminalStatus.className = value === 'RUNNING' ? 'hint success-text' : value === 'FAILED' ? 'hint error-text' : 'hint';
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
+  terminalInput.disabled = value !== 'RUNNING';
+  if (status?.rows && status?.cols) terminalScreen.resize(Number(status.rows), Number(status.cols));
   // A browser can connect during the short launch window before the terminal
   // object is attached. Clear that transient message once the live session is
   // confirmed so a stale warning does not look like a current failure.
@@ -228,14 +349,12 @@ function updateFlow(phase) {
   });
 }
 function appendTerminal(data) {
-  // The terminal is intentionally memory-only. Strip control sequences for a
-  // readable browser view; the underlying Codex process still receives raw keys.
-  const clean = String(data || '').replace(/\x1b\[[0-?]*[ -\/]*[@-~]/g, '').replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
-  terminalOutput.textContent += clean;
-  if (terminalOutput.textContent.length > 120000) terminalOutput.textContent = terminalOutput.textContent.slice(-100000);
-  terminalOutput.scrollTop = terminalOutput.scrollHeight;
+  // Terminal output is memory-only. Interpret the small ANSI subset used by
+  // Codex so full-screen redraws replace the current view instead of being
+  // appended as duplicate text.
+  terminalScreen.consume(data);
 }
-function send(message) { if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message)); }
+function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
 function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -319,13 +438,18 @@ function renderSecurity(status) {
   setTerminalStatus(status.terminal || {});
 }
 
-terminalOutput.addEventListener('keydown', (event) => {
+terminalOutput.addEventListener('click', () => terminalInput.focus());
+let composing = false;
+terminalInput.addEventListener('compositionstart', () => { composing = true; });
+terminalInput.addEventListener('compositionend', () => { composing = false; });
+terminalInput.addEventListener('keydown', (event) => {
   const controls = {'Enter':'\r','Backspace':'\x7f','Tab':'\t','ArrowUp':'\x1b[A','ArrowDown':'\x1b[B','ArrowRight':'\x1b[C','ArrowLeft':'\x1b[D','Escape':'\x1b'};
+  if (event.isComposing || composing) return;
   if (event.ctrlKey && event.key.length === 1) { event.preventDefault(); send({type:'input', data: String.fromCharCode(event.key.toUpperCase().charCodeAt(0) - 64)}); return; }
-  if (controls[event.key]) { event.preventDefault(); send({type:'input', data: controls[event.key]}); return; }
-  if (event.key.length === 1 && !event.metaKey) { event.preventDefault(); send({type:'input', data: event.key}); }
+  if (event.key === 'Enter') { event.preventDefault(); const value = terminalInput.value; if (value) send({type:'input', data: value}); send({type:'input', data:'\r'}); terminalInput.value = ''; return; }
+  if (controls[event.key] && !terminalInput.value) { event.preventDefault(); send({type:'input', data: controls[event.key]}); return; }
 });
-terminalOutput.addEventListener('paste', (event) => { event.preventDefault(); send({type:'input', data: event.clipboardData.getData('text')}); });
+terminalInput.addEventListener('paste', (event) => { event.preventDefault(); const value = event.clipboardData.getData('text'); if (value) send({type:'input', data: value}); });
 window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
 stopButton.addEventListener('click', async () => { stopButton.disabled = true; await fetch(`/api/runs/${encodeURIComponent(sessionId)}/stop`, {method:'POST'}); });
 async function pollStatus() { try { const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`); if (response.ok) renderSecurity(await response.json()); } catch (_) {} }
