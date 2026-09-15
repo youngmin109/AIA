@@ -17,6 +17,16 @@
     </div>
   </header>
 
+  <section id="workbench-guidance" class="workbench-guidance guidance-neutral" role="status" aria-live="polite">
+    <span class="workbench-guidance-mark" aria-hidden="true">•</span>
+    <div class="workbench-guidance-copy">
+      <span class="workbench-guidance-kicker">현재 상태</span>
+      <strong id="workbench-guidance-title">AIA 실행 상태를 확인하는 중입니다.</strong>
+      <small id="workbench-guidance-detail">잠시 기다려 주세요.</small>
+    </div>
+    <span id="workbench-guidance-owner" class="badge">AIA</span>
+  </section>
+
   <div class="workbench-grid">
     <aside class="workbench-sidebar">
       <section class="workbench-card">
@@ -184,6 +194,10 @@ const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
 const terminalActivityElapsed = document.getElementById('terminal-activity-elapsed');
 const terminalError = document.getElementById('terminal-error');
+const workbenchGuidance = document.getElementById('workbench-guidance');
+const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
+const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
+const workbenchGuidanceOwner = document.getElementById('workbench-guidance-owner');
 const stopButton = document.getElementById('stop-run');
 const resultLink = document.getElementById('result-link');
 const incidentDetailLink = document.getElementById('incident-detail-link');
@@ -504,6 +518,75 @@ const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].in
 const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
 const chainStatusLabel = (value) => ({LINKED: '연결됨', RUN_OBSERVED: '실행 중 관찰', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
 const chainStageClass = (stage) => ['LINKED', 'COMPLIANT', 'SUCCEEDED', 'RESTORED', 'VERIFIED', 'CONTINUE', 'BLOCKED', 'TERMINATED'].includes(stage) ? 'chain-success' : ['PARTIAL', 'NOT_REPORTED', 'NOT_ATTEMPTED', 'RUN_LEVEL', 'INDETERMINATE', 'CONTAIN', 'REFUSE'].includes(stage) ? 'chain-warning' : ['VIOLATION', 'FAILED'].includes(stage) ? 'chain-danger' : '';
+const guidanceClass = (kind) => ({success: 'guidance-success', warning: 'guidance-warning', danger: 'guidance-danger', active: 'guidance-active'})[kind] || 'guidance-neutral';
+function updateWorkbenchGuidance(status = latestStatus) {
+  const phase = status?.session?.status || status?.phase || 'UNKNOWN';
+  const terminal = status?.terminal?.status || terminalRuntimeStatus || 'UNKNOWN';
+  const protection = status?.protection?.state || '';
+  const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(phase);
+  let title = 'AIA 실행 상태를 확인하는 중입니다.';
+  let detail = '잠시 기다려 주세요.';
+  let owner = 'AIA';
+  let kind = 'neutral';
+
+  if (ended) {
+    if (status?.result_available) {
+      title = '실행이 끝났습니다. 결과를 확인하세요.';
+      detail = status?.bundle_status ? `Evidence Bundle: ${bundleLabel(status.bundle_status)}` : '결과 화면에서 센서·정책·무결성 기록을 확인할 수 있습니다.';
+      owner = '사용자';
+      kind = phase === 'FAILED' ? 'danger' : 'success';
+    } else {
+      title = phase === 'FAILED' ? '실행이 실패했습니다. 원인을 확인하세요.' : '실행이 종료되었습니다.';
+      detail = '결과 기록이 아직 준비되지 않았거나 확인이 필요합니다.';
+      owner = '사용자';
+      kind = phase === 'FAILED' ? 'danger' : 'warning';
+    }
+  } else if (stopRequested || protection === 'STOP_REQUESTED' || activityMode === 'STOPPING') {
+    title = 'AIA가 보호 실행을 중지하고 결과를 검증하는 중입니다.';
+    detail = '프로세스 종료와 Evidence Bundle 검증이 끝날 때까지 기다려 주세요.';
+    owner = 'AIA';
+    kind = 'warning';
+  } else if (terminalAction === 'TRUST_DIRECTORY') {
+    title = 'Workspace 신뢰 확인이 필요합니다.';
+    detail = 'Codex 작업창의 “신뢰하고 계속”을 눌러 작업을 시작하세요.';
+    owner = '사용자';
+    kind = 'warning';
+  } else if (activityMode === 'SUBMITTING' || activityMode === 'WORKING') {
+    title = 'Codex가 요청을 처리하고 있습니다.';
+    detail = '작업 중에는 같은 요청을 다시 전송하지 마세요. 아래 작업창에서 출력이 갱신됩니다.';
+    owner = 'Codex';
+    kind = 'active';
+  } else if (activityMode === 'WAITING') {
+    title = 'Codex가 다음 작업을 기다리고 있습니다.';
+    detail = '가운데 입력창에 작업을 입력하고 전송하세요.';
+    owner = '사용자';
+    kind = 'success';
+  } else if (phase === 'PREPARING' || phase === 'CREATED' || terminal === 'NOT_STARTED') {
+    title = 'AIA가 보호 실행을 준비하고 있습니다.';
+    detail = '정책·Checkpoint·센서 준비가 끝나면 Codex 작업창을 사용할 수 있습니다.';
+    owner = 'AIA';
+    kind = 'active';
+  } else if (phase === 'READY' || terminal === 'NOT_ATTACHED') {
+    title = 'Codex 작업창 연결을 기다리고 있습니다.';
+    detail = '연결이 완료되면 가운데 입력창이 활성화됩니다.';
+    owner = 'AIA';
+    kind = 'active';
+  } else if (terminal === 'RUNNING' || phase === 'RUNNING') {
+    title = 'Codex 작업창이 준비됐습니다.';
+    detail = '가운데 입력창에 작업을 입력하세요. AIA는 오른쪽에서 센서 결과를 표시합니다.';
+    owner = '사용자';
+    kind = 'success';
+  } else if (statusPollFailures >= 2) {
+    title = 'AIA 상태를 확인할 수 없습니다.';
+    detail = '로컬 서버 연결을 확인한 뒤 “상태 새로고침”을 눌러 주세요.';
+    owner = '사용자';
+    kind = 'danger';
+  }
+  workbenchGuidance.className = `workbench-guidance ${guidanceClass(kind)}`;
+  workbenchGuidanceTitle.textContent = title;
+  workbenchGuidanceDetail.textContent = detail;
+  workbenchGuidanceOwner.textContent = owner;
+}
 function renderEvidenceChains(chains) {
   const container = document.getElementById('evidence-chains');
   const source = Array.isArray(chains) ? chains : [];
@@ -636,6 +719,7 @@ function setTerminalActivity(mode, label) {
   }
   terminalOutput.setAttribute('aria-busy', String(['SUBMITTING', 'WORKING', 'STOPPING'].includes(mode)));
   updateTerminalInputState();
+  updateWorkbenchGuidance();
 }
 
 function setTerminalConnection(label, className) {
@@ -681,6 +765,7 @@ function setTerminalStatus(status) {
     setTerminalAction(null);
     setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
   }
+  updateWorkbenchGuidance();
   // The run can still be safely stopped while the terminal is launching or
   // reconnecting.  Hiding the control for NOT_ATTACHED/UNKNOWN left users
   // without a way to cancel a session during that window.
@@ -902,6 +987,7 @@ function renderSecurity(status) {
   }
   resultLink.hidden = !status.result_available;
   setTerminalStatus(status.terminal || {});
+  updateWorkbenchGuidance(status);
 }
 
 eventFilterButtons.forEach((button) => button.addEventListener('click', () => {
