@@ -27,6 +27,16 @@
     </div>
     <span id="workbench-guidance-owner" class="badge">AIA</span>
   </section>
+  <section id="workbench-alert" class="workbench-alert" role="status" aria-live="polite" hidden>
+    <span id="workbench-alert-mark" class="workbench-alert-mark" aria-hidden="true">!</span>
+    <div class="workbench-alert-copy">
+      <span id="workbench-alert-kicker" class="workbench-alert-kicker">새 행위 관찰</span>
+      <strong id="workbench-alert-title">—</strong>
+      <small id="workbench-alert-detail">—</small>
+    </div>
+    <a id="workbench-alert-link" class="text-link" href="#" hidden>상세 보기 →</a>
+    <button id="workbench-alert-dismiss" class="workbench-alert-dismiss" type="button" aria-label="새 알림 닫기">×</button>
+  </section>
 
   <nav class="workbench-jumpbar" aria-label="Workbench 바로가기">
     <span class="workbench-jumpbar-label">바로가기</span>
@@ -229,6 +239,13 @@ const workbenchGuidance = document.getElementById('workbench-guidance');
 const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
 const workbenchGuidanceOwner = document.getElementById('workbench-guidance-owner');
+const workbenchAlert = document.getElementById('workbench-alert');
+const workbenchAlertMark = document.getElementById('workbench-alert-mark');
+const workbenchAlertKicker = document.getElementById('workbench-alert-kicker');
+const workbenchAlertTitle = document.getElementById('workbench-alert-title');
+const workbenchAlertDetail = document.getElementById('workbench-alert-detail');
+const workbenchAlertLink = document.getElementById('workbench-alert-link');
+const workbenchAlertDismiss = document.getElementById('workbench-alert-dismiss');
 const securityPanel = document.getElementById('security-panel');
 const securityPanelToggle = document.getElementById('security-panel-toggle');
 const securityPanelToggleLabel = document.getElementById('security-panel-toggle-label');
@@ -267,6 +284,9 @@ let stopRequested = false;
 let responseStartedAt = 0;
 let selectedChainId = null;
 let pendingSubmission = null;
+let knownEventKeys = new Set((initialStatus.events || []).map((event) => `${event.event_id || event.summary || ''}|${event.observed_at || ''}`));
+let securityEventsInitialized = false;
+let workbenchAlertTimer = null;
 // Codex treats the browser text burst as paste input.  Give the PTY a short
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
@@ -653,6 +673,42 @@ function updateWorkbenchGuidance(status = latestStatus) {
   workbenchGuidanceDetail.textContent = detail;
   workbenchGuidanceOwner.textContent = owner;
 }
+function dismissWorkbenchAlert() {
+  if (workbenchAlertTimer) { window.clearTimeout(workbenchAlertTimer); workbenchAlertTimer = null; }
+  if (workbenchAlert) workbenchAlert.hidden = true;
+}
+function announceNewSecurityEvents(events, ended = false) {
+  const source = Array.isArray(events) ? events : [];
+  const fresh = source.filter((event) => {
+    const key = `${event.event_id || event.summary || ''}|${event.observed_at || ''}`;
+    if (knownEventKeys.has(key)) return false;
+    knownEventKeys.add(key);
+    return true;
+  });
+  if (!securityEventsInitialized) {
+    securityEventsInitialized = true;
+    return;
+  }
+  const candidate = fresh.slice().reverse().find((event) => event.category !== 'SENSOR');
+  if (!candidate || !workbenchAlert) return;
+  const isIncident = Boolean(candidate.incident_action_id) || ['WARNING', 'CRITICAL'].includes(candidate.severity) || ['CONTAIN', 'REFUSE'].includes(candidate.decision);
+  workbenchAlert.className = `workbench-alert ${isIncident ? 'alert-incident' : 'alert-observation'}`;
+  workbenchAlertMark.textContent = isIncident ? '!' : '•';
+  workbenchAlertKicker.textContent = isIncident ? '새 보안 사건' : '새 행위 관찰';
+  workbenchAlertTitle.textContent = eventSummaryLabel(candidate.summary || '행위 관찰');
+  const detail = [decisionLabel(candidate.decision || 'OBSERVED'), candidate.execution_result ? executionDisplayLabel(candidate.execution_result, ended, Boolean(candidate.execution_observed)) : ''].filter(Boolean).join(' · ');
+  workbenchAlertDetail.textContent = detail || 'AIA가 새 실행 증거를 기록했습니다.';
+  if (candidate.incident_action_id) {
+    workbenchAlertLink.hidden = false;
+    workbenchAlertLink.href = `/runs/${encodeURIComponent(sessionId)}/incidents/${encodeURIComponent(candidate.incident_action_id)}`;
+  } else {
+    workbenchAlertLink.hidden = true;
+  }
+  workbenchAlert.hidden = false;
+  if (workbenchAlertTimer) window.clearTimeout(workbenchAlertTimer);
+  workbenchAlertTimer = window.setTimeout(dismissWorkbenchAlert, isIncident ? 12000 : 7000);
+}
+workbenchAlertDismiss?.addEventListener('click', dismissWorkbenchAlert);
 const workbenchJumpLinks = [...document.querySelectorAll('[data-workbench-jump]')];
 const workbenchJumpTargets = workbenchJumpLinks
   .map((link) => document.getElementById(link.dataset.workbenchJump))
@@ -1098,6 +1154,7 @@ function renderSecurity(status) {
   document.getElementById('bundle-status').textContent = status.result_available ? bundleLabel(status.bundle_status || 'VALID') : '검증 전';
   document.getElementById('bundle-status').title = status.bundle_status || 'PENDING';
   const allEvents = Array.isArray(status.events) ? status.events : [];
+  announceNewSecurityEvents(allEvents, ended);
   const events = eventFilter === 'SENSOR'
     ? allEvents.filter((event) => event.category === 'SENSOR')
     : eventFilter === 'ACTION'

@@ -337,6 +337,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-guidance-title"' in workbench.text
     assert 'id="workbench-guidance-detail"' in workbench.text
     assert 'id="workbench-guidance-owner"' in workbench.text
+    assert 'id="workbench-alert"' in workbench.text
+    assert 'id="workbench-alert-title"' in workbench.text
+    assert 'id="workbench-alert-dismiss"' in workbench.text
+    assert "announceNewSecurityEvents" in workbench.text
+    assert "원문" not in workbench.text
     assert "현재 상태" in workbench.text
     assert 'aria-label="실행 요약"' in workbench.text
     assert workbench.text.index('aria-label="Workbench 바로가기"') < workbench.text.index('aria-label="실행 요약"')
