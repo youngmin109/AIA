@@ -249,6 +249,7 @@ let awaitingResponse = false;
 let terminalAction = null;
 let terminalDetectionBuffer = '';
 let statusPollFailures = 0;
+let statusPollTimer = null;
 let stopRequested = false;
 let responseStartedAt = 0;
 let selectedChainId = null;
@@ -1027,6 +1028,7 @@ function renderSecurity(status) {
   const file = status.sensor_health?.FILESYSTEM_WATCHER || '확인 중';
   const process = status.sensor_health?.PROCESS_RUNTIME || '확인 중';
   const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session?.status);
+  if (ended) stopStatusPolling();
   const stopPending = Boolean(status.stop?.requested) || status.protection?.state === 'STOP_REQUESTED';
   const reconciliation = status.runtime_reconciliation || {};
   const orphaned = Boolean(reconciliation.orphaned);
@@ -1310,6 +1312,23 @@ async function pollStatus() {
     updateWorkbenchGuidance();
   }
 }
+function stopStatusPolling() {
+  if (statusPollTimer === null) return;
+  window.clearInterval(statusPollTimer);
+  statusPollTimer = null;
+}
+function startStatusPolling() {
+  if (statusPollTimer !== null || document.hidden || ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status)) return;
+  statusPollTimer = window.setInterval(pollStatus, 1000);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopStatusPolling();
+    return;
+  }
+  startStatusPolling();
+  pollStatus();
+});
 document.getElementById('refresh-status').addEventListener('click', async (event) => {
   const button = event.currentTarget;
   button.disabled = true;
@@ -1331,7 +1350,7 @@ document.getElementById('refresh-status').addEventListener('click', async (event
 renderSecurity(initialStatus);
 openSocket();
 pollStatus();
-setInterval(pollStatus, 1000);
+startStatusPolling();
 setInterval(updateTerminalOutputAge, 1000);
 </script>
 {% endblock %}
