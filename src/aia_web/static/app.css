@@ -71,6 +71,7 @@ nav { display: flex; gap: 22px; font-size: 14px; }
 @media (max-width: 760px) { .topbar { padding: 0 5vw; } .brand small { display: none; } nav { gap: 10px; } .page-shell { padding-top: 38px; } .hero.compact { display: block; } .metric-grid, .detail-grid, .form-grid, .run-steps, .preview-grid, .dashboard-columns, .sensor-cards, .incident-summary-grid, .history-filters, .result-outcome-grid { grid-template-columns: 1fr; } .field-wide { grid-column: auto; } .panel { padding: 19px; } .scope-list > div { grid-template-columns: 1fr; gap: 4px; } .event-row { align-items: flex-start; flex-wrap: wrap; } .editor-rule-row { grid-template-columns: 1fr; } .preflight-row { grid-template-columns: 58px minmax(0, 1fr); } .preflight-row strong, .preflight-row .hint { min-width: 0; overflow-wrap: anywhere; } .preflight-row .hint { grid-column: 2; } .result-section-nav { top: 70px; } .policy-editor-panel, .capability-panel { padding: 0; } .panel-summary { padding: 19px; } .details-content { padding: 0 19px 19px; } }
 
 .workbench-shell { max-width: 1600px; margin: 0 auto; }
+.page-shell-workbench { width: min(1760px, 94vw); }
 .workbench-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 20px; }
 .workbench-header h1 { margin: 4px 0 6px; font-size: clamp(25px, 3vw, 40px); line-height: 1.12; }
 .workbench-session-id { max-width: min(560px, 60vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

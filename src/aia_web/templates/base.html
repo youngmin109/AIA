@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AIA Local Security Console{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-17">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-18">
 </head>
 <body>
   <header class="topbar">
@@ -16,7 +16,7 @@
       {% if session_id %}<a href="{% if is_workbench %}/runs/{{ session_id }}/workbench{% else %}/runs/{{ session_id }}{% endif %}">{% if is_workbench %}현재 Workbench{% else %}현재 실행{% endif %}</a>{% endif %}
     </nav>
   </header>
-  <main class="page-shell">
+  <main class="page-shell{% if is_workbench %} page-shell-workbench{% endif %}">
     {% block content %}{% endblock %}
   </main>
   <footer class="footer">로컬 전용 콘솔 · 보안 판단 권한은 AIA Core에 있습니다</footer>
