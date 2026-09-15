@@ -62,6 +62,11 @@ nav { display: flex; gap: 22px; font-size: 14px; } .topbar nav a { padding: 7px 
 .sensor-card { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: rgba(12,21,30,.7); }
 .sensor-card strong { font-size: 16px; }
 .sensor-card small { color: var(--muted); }
+.dashboard-sensor-card { min-height: 152px; }
+.dashboard-sensor-heading { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.dashboard-sensor-heading strong { flex: 1; min-width: 0; }
+.dashboard-sensor-heading .status-badge { flex: 0 0 auto; padding: 3px 8px; font-size: 10px; }
+.dashboard-sensor-note { margin: 18px 0 0; }
 .incident-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .incident-summary-grid > div { display: grid; gap: 5px; border-left: 2px solid var(--amber); padding-left: 12px; }
 .incident-summary-grid strong { overflow-wrap: anywhere; }

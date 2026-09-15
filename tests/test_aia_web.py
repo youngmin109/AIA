@@ -52,6 +52,10 @@ class FakeService:
                 "status": "MANUAL_REVIEW_REQUIRED",
                 "detail": "Codex에서 /hooks를 검토하세요.",
             },
+            "hook_activation": {
+                "status": "CURRENTLY_VERIFIED",
+                "detail": "현재 Hook이 검증되었습니다.",
+            },
             "codex_hook_trust": {
                 "available": True,
                 "hooks": [
@@ -280,6 +284,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실제 Hook 연결 검증" in new_run.text
     assert "Hook 연결 다시 검증" in new_run.text
     assert "activationVerified" in new_run.text
+    assert "verifyHookButton.dataset.idleLabel" in new_run.text
     assert "별도 Windows 터미널에서 Codex 열기" in new_run.text
     assert client.get("/api/preflight").json()["ready"] is True
     assert client.get("/api/capabilities").json()["schema_version"] == "aia-capabilities-v1"
@@ -588,6 +593,12 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "status-success" in dashboard.text
     assert "실행 준비" in dashboard.text
     assert "Codex Hook Trust" in dashboard.text
+    assert 'id="dashboard-sensors"' in dashboard.text
+    assert "Hook Sensor" in dashboard.text
+    assert "File Sensor" in dashboard.text
+    assert "Process Sensor" in dashboard.text
+    assert "실행 시 활성화" in dashboard.text
+    assert "실제 Session-bound Hook Event 확인됨" in dashboard.text
     assert "대화형 보호 세션" not in dashboard.text
     assert "준비 상태 확인" in dashboard.text
     assert "Workbench에서 작업" in dashboard.text
