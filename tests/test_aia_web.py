@@ -380,6 +380,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "원시 증거 → 표준 행위 → 정책 → 귀속 → 집행 → 복구 → 무결성" in workbench.text
     assert "Codex는 실행 중이며 Workbench 연결을 기다리고 있습니다." in workbench.text
     assert "Codex 작업창 시작이 지연되고 있습니다. 연결 상태를 확인하세요." in workbench.text
+    assert "terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value)" in workbench.text
+    assert "setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.')" in workbench.text
     assert "chain-sensor-link" in workbench.text
     assert "RUN_OBSERVED" in workbench.text
     assert "실행 관찰" in workbench.text

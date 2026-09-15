@@ -792,6 +792,8 @@ function setTerminalStatus(status) {
       ? ['연결 실패', 'connection-failed']
       : value === 'EXITED'
         ? ['종료됨', 'connection-stopped']
+        : terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value)
+          ? ['종료됨', 'connection-stopped']
         : value === 'NOT_ATTACHED'
           ? ['연결 대기', 'connection-pending']
           : ['확인 중', 'connection-pending'];
@@ -806,7 +808,7 @@ function setTerminalStatus(status) {
   if (value === 'FAILED') showTerminalError(status?.error || '터미널 연결에 실패했습니다.');
   if (value === 'RUNNING' && activityMode === 'IDLE') setTerminalActivity('STARTING', 'Codex 작업창에 연결하는 중입니다.');
   if (value === 'NOT_STARTED' && activityMode === 'IDLE') setTerminalActivity('STARTING', 'Codex 작업창을 시작하는 중입니다.');
-  if (['FAILED', 'EXITED'].includes(value)) {
+  if (['FAILED', 'EXITED'].includes(value) || (terminalEnded && ['UNKNOWN', 'NOT_ATTACHED'].includes(value))) {
     setTerminalAction(null);
     setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.');
   }
