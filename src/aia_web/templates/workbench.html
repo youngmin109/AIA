@@ -584,7 +584,12 @@ function renderSecurity(status) {
   lastEventTime.textContent = formatTime(latestEvent?.observed_at);
   lastRefreshTime.textContent = formatTime(new Date().toISOString());
   lastRefreshTime.classList.remove('error-text');
-  const eventKey = events.map((item) => item.event_id || item.summary).join('|');
+  const eventKey = events.map((item) => [
+    item.event_id || item.summary,
+    item.decision || '',
+    item.execution_result || '',
+    item.observed_at || '',
+  ].join('~')).join('|');
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
     document.getElementById('security-events').innerHTML = events.length ? events.slice().reverse().slice(0, 12).map((event) => `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}"><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${event.execution_result && event.execution_result !== 'NOT_REPORTED' ? badge(event.execution_result, executionDisplayLabel(event.execution_result, ended)) : ''}</span></div>`).join('') : `<div class="empty">${ended ? '이 실행에는 보안 이벤트가 없습니다.' : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.'}</div>`;
