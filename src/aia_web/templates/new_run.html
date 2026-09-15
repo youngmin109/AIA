@@ -76,7 +76,7 @@
       <label class="field field-wide">Workspace 경로
         <input name="workspace" required placeholder="C:\\workspace\\my-repo" autocomplete="off">
         <span class="hint">사용자가 이미 만든 프로젝트 폴더입니다. AIA가 임의로 프로젝트를 만들지 않습니다.</span>
-        <span id="workspace-status" class="hint">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
+        <span id="workspace-status" class="hint" role="status" aria-live="polite">입력한 폴더가 실제로 존재하는지 확인합니다.</span>
       </label>
       <label class="field">코딩 에이전트
         <input name="agent" value="Codex" readonly>
@@ -118,7 +118,7 @@
     <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
     <div class="notice"><strong>현재 지원 범위:</strong> Windows 11 · Codex CLI · AIA Protected Run · Hook matcher는 모든 로컬 Hook 대상(*)을 받으며, AIA가 의미를 해석하는 도구는 아래 목록으로 제한됩니다. 목록 밖 도구는 보호 실행에서 거부됩니다.</div>
     <div id="form-error" class="error" hidden></div>
-    <div class="form-actions"><button id="submit-run" class="button primary" type="submit" {% if not preflight.ready %}disabled{% endif %}>보호 실행 시작</button><span class="hint">준비 상태가 모두 통과되어야 활성화됩니다.</span></div>
+    <div class="form-actions"><button id="submit-run" class="button primary" type="submit" disabled>보호 실행 시작</button><span id="run-submit-hint" class="hint">실행 전 준비 상태와 Workspace 확인이 필요합니다.</span></div>
   </form>
 </section>
 
@@ -234,6 +234,11 @@ const previewPresets = [...document.querySelectorAll('[data-preview-operation]')
 const editorRules = [];
 let editorValidated = false;
 let runSubmissionInProgress = false;
+let preflightReady = {{ preflight.ready|tojson }};
+let workspaceValidationRequest = 0;
+let workspaceValidationTimer = null;
+let validatedWorkspacePath = '';
+let workspaceIsValid = false;
 const editorRuleList = document.getElementById('editor-rules');
 const policyEditorPanel = document.querySelector('.policy-editor-panel');
 function renderEditorRules() {
@@ -334,7 +339,8 @@ function renderPreflight(payload) {
   const preToolTrust = trustHooks.find((hook) => hook.event === 'preToolUse')?.trust_status;
   codexHookTrust.className = `notice ${['TRUSTED', 'MANAGED'].includes(preToolTrust) ? 'success' : 'warning'}`;
   codexHookTrust.textContent = `Codex 실제 Hook Trust: ${trustSummary || '확인할 수 없음'}`;
-  submitRun.disabled = !payload.ready;
+  preflightReady = Boolean(payload.ready);
+  updateRunSubmitState();
 }
 refreshPreflightButton.addEventListener('click', async () => {
   setButtonBusy(refreshPreflightButton, true, '확인 중…');
@@ -376,14 +382,72 @@ verifyHookButton.addEventListener('click', async () => {
     setButtonBusy(verifyHookButton, false);
   }
 });
-workspaceInput.addEventListener('blur', async () => {
-  if (!workspaceInput.value.trim()) return;
+function updateRunSubmitState() {
+  const ready = preflightReady && workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  submitRun.disabled = !ready || runSubmissionInProgress;
+  document.getElementById('run-submit-hint').textContent = !preflightReady
+    ? '실행 전 준비 상태를 먼저 해결하세요.'
+    : !workspaceIsValid
+      ? '존재하는 Workspace 경로를 확인하면 실행할 수 있습니다.'
+      : '실행 설정이 준비되었습니다.';
+}
+async function validateWorkspacePath() {
+  const path = workspaceInput.value.trim();
+  const requestId = ++workspaceValidationRequest;
+  if (!path) {
+    workspaceIsValid = false;
+    validatedWorkspacePath = '';
+    workspaceStatus.className = 'hint';
+    workspaceStatus.textContent = 'Workspace 경로를 입력하세요.';
+    updateRunSubmitState();
+    return false;
+  }
+  workspaceStatus.className = 'hint';
   workspaceStatus.textContent = 'Workspace를 확인하는 중…';
-  const response = await fetch(`/api/workspaces/validate?path=${encodeURIComponent(workspaceInput.value)}`);
-  const payload = await response.json();
-  workspaceStatus.textContent = response.ok ? `확인됨: ${payload.canonical_path}` : (payload.error || 'Workspace를 확인할 수 없습니다.');
-  workspaceStatus.className = response.ok ? 'hint success-text' : 'hint error-text';
+  workspaceStatus.setAttribute('aria-busy', 'true');
+  workspaceIsValid = false;
+  validatedWorkspacePath = '';
+  updateRunSubmitState();
+  try {
+    const response = await fetch(`/api/workspaces/validate?path=${encodeURIComponent(path)}`, {cache: 'no-store'});
+    const payload = await response.json();
+    if (requestId !== workspaceValidationRequest) return false;
+    workspaceIsValid = response.ok && payload.valid === true;
+    validatedWorkspacePath = workspaceIsValid ? path : '';
+    workspaceStatus.className = workspaceIsValid ? 'hint success-text' : 'hint error-text';
+    workspaceStatus.textContent = workspaceIsValid ? `확인됨: ${payload.canonical_path}` : (payload.error || 'Workspace를 확인할 수 없습니다.');
+    return workspaceIsValid;
+  } catch (_) {
+    if (requestId !== workspaceValidationRequest) return false;
+    workspaceIsValid = false;
+    validatedWorkspacePath = '';
+    workspaceStatus.className = 'hint error-text';
+    workspaceStatus.textContent = 'Workspace 확인에 실패했습니다. AIA 서버 연결을 확인하세요.';
+    return false;
+  } finally {
+    if (requestId === workspaceValidationRequest) {
+      workspaceStatus.removeAttribute('aria-busy');
+      updateRunSubmitState();
+    }
+  }
+}
+workspaceInput.addEventListener('input', () => {
+  workspaceValidationRequest += 1;
+  workspaceIsValid = false;
+  validatedWorkspacePath = '';
+  workspaceStatus.removeAttribute('aria-busy');
+  clearTimeout(workspaceValidationTimer);
+  if (!workspaceInput.value.trim()) {
+    workspaceStatus.className = 'hint';
+    workspaceStatus.textContent = 'Workspace 경로를 입력하세요.';
+  } else {
+    workspaceStatus.className = 'hint';
+    workspaceStatus.textContent = '입력한 Workspace를 확인하는 중…';
+    workspaceValidationTimer = window.setTimeout(validateWorkspacePath, 350);
+  }
+  updateRunSubmitState();
 });
+workspaceInput.addEventListener('blur', () => { clearTimeout(workspaceValidationTimer); validateWorkspacePath(); });
 function updatePreviewTarget() {
   const command = previewOperation.value === 'EXECUTE';
   previewTarget.placeholder = command ? '예: type .env' : '예: .env';
@@ -448,9 +512,22 @@ previewButton.addEventListener('click', async () => {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (runSubmissionInProgress) return;
+  if (!preflightReady) {
+    errorBox.textContent = '실행 전 준비 상태를 먼저 해결하세요.';
+    errorBox.hidden = false;
+    return;
+  }
+  if (!workspaceIsValid || validatedWorkspacePath !== workspaceInput.value.trim()) {
+    const valid = await validateWorkspacePath();
+    if (!valid) {
+      errorBox.textContent = '존재하는 Workspace 경로를 먼저 입력하세요.';
+      errorBox.hidden = false;
+      return;
+    }
+  }
   runSubmissionInProgress = true;
   errorBox.hidden = true;
-  submitRun.disabled = true;
+  updateRunSubmitState();
   submitRun.classList.add('is-busy');
   submitRun.setAttribute('aria-busy', 'true');
   submitRun.textContent = '보호 실행 준비 중…';
@@ -475,7 +552,7 @@ form.addEventListener('submit', async (event) => {
     errorBox.textContent = error.message;
     errorBox.hidden = false;
     runSubmissionInProgress = false;
-    submitRun.disabled = false;
+    updateRunSubmitState();
     submitRun.classList.remove('is-busy');
     submitRun.removeAttribute('aria-busy');
     submitRun.textContent = '보호 실행 시작';

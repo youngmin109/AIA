@@ -257,6 +257,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실행 설정" in new_run.text
     assert "terminalSurfaceInputs" in new_run.text
     assert "runSubmissionInProgress" in new_run.text
+    assert 'id="workspace-status"' in new_run.text
+    assert "validateWorkspacePath" in new_run.text
+    assert "updateRunSubmitState" in new_run.text
+    assert 'id="run-submit-hint"' in new_run.text
+    assert "존재하는 Workspace 경로를 확인하면 실행할 수 있습니다" in new_run.text
     assert "보호 실행 준비 중" in new_run.text
     assert "is-busy" in new_run.text
     assert "new-run-page" in new_run.text
