@@ -96,6 +96,7 @@ def action_view(action: Mapping[str, Any]) -> dict[str, Any]:
         "matched_asset_types": list(action.get("matched_asset_types") or []),
         "matched_rule_ids": list(action.get("matched_rule_ids") or []),
         "observation_stage": action.get("observation_stage"),
+        "observed_at": action.get("observed_at"),
         "operation": action.get("operation"),
         "policy": action.get("policy_decision"),
         "policy_decision": action.get("policy_decision"),

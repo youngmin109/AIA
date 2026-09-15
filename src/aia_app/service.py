@@ -287,6 +287,7 @@ def _runtime_action_view(
 ) -> dict[str, Any]:
     """Build the redacted live/result action view from authoritative facts."""
 
+    observed_at = getattr(action, "observed_at", None)
     return {
         "action_id": action.action_id,
         "attribution_grade": attribution_result.grade.value,
@@ -295,6 +296,7 @@ def _runtime_action_view(
         "enforcement_decision": gate_result.decision.value,
         "execution_result": gate_result.execution_result.value,
         "operation": action.operation.value,
+        "observed_at": observed_at.isoformat() if observed_at is not None else None,
         "policy_decision": policy_result.policy_decision.value,
         "operation_effect": (
             getattr(policy_result.operation_effect, "value", policy_result.operation_effect)
@@ -1706,6 +1708,10 @@ class RunApplicationService:
             process_sensor = launcher.process_sensor
             sensors = (filesystem, hook, process_sensor)
             record.runtime["sensors"] = sensors
+            # The Process Sensor is created only after Codex has been
+            # registered. Refresh the public runtime snapshot at that point
+            # so the Workbench shows all three product sensors as active.
+            self._refresh_sensors(record, sensors)
             self._phase(record, "RUNNING", SessionStatus.RUNNING)
             record.protection_state = "ACTIVE_UNVERIFIED"
             process = launcher.process_handle

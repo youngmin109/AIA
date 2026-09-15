@@ -145,6 +145,23 @@ def test_safe_event_view_preserves_containment_decision_before_block_confirmatio
     assert events[0]["execution_result"] == "NOT_ATTEMPTED"
 
 
+def test_safe_event_view_exposes_observation_time_for_live_timeline() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "COMPLIANT",
+                "execution_result": "SUCCEEDED",
+                "observed_at": "2026-09-15T05:00:00+00:00",
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["observed_at"] == "2026-09-15T05:00:00+00:00"
+
+
 def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:
     document = {
         "정책명": "사용자 보호 정책",
@@ -452,6 +469,30 @@ def test_product_sensor_set_requires_hook_file_and_process() -> None:
     assert _product_sensor_set_present(
         (healthy("AGENT_HOOK"), healthy("FILESYSTEM_WATCHER"))
     ) is False
+
+
+def test_refresh_sensors_includes_process_sensor_after_launch_registration(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    sensors = tuple(
+        SimpleNamespace(
+            health=SimpleNamespace(
+                status=SimpleNamespace(value="HEALTHY"),
+                sensor=SimpleNamespace(value=sensor),
+            ),
+        )
+        for sensor in ("AGENT_HOOK", "FILESYSTEM_WATCHER", "PROCESS_RUNTIME")
+    )
+    try:
+        service._refresh_sensors(record, sensors)
+
+        assert record.sensor_health == {
+            "AGENT_HOOK": "HEALTHY",
+            "FILESYSTEM_WATCHER": "HEALTHY",
+            "PROCESS_RUNTIME": "HEALTHY",
+        }
+    finally:
+        service.shutdown()
 
 
 def test_running_state_degrades_when_product_process_sensor_is_missing(tmp_path) -> None:
