@@ -329,7 +329,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert live.status_code == 200
     assert "보호 실행 상태" in live.text
     assert 'id="filesystem-event-count">2건' in live.text
-    assert "Hook Broker" in live.text
+    assert '<span>Hook Sensor</span><strong id="hook-broker-health">' in live.text
     assert "실시간 센서 상태" in live.text
     assert 'id="event-timeline"' in live.text
     assert 'id="run-refresh-status"' in live.text

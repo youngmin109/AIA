@@ -18,7 +18,7 @@
   <div class="metric"><span>Checkpoint</span><strong id="checkpoint">{{ status.checkpoint or 'PENDING' }}</strong></div>
   <div class="metric"><span>Workspace Lease</span><strong id="lease">{{ status.lease or 'PENDING' }}</strong></div>
   <div class="metric"><span>보호 상태</span><strong id="protection-state" aria-live="polite">{{ status.protection.state if status.protection else 'UNKNOWN' }}</strong></div>
-  <div class="metric"><span>Hook Broker</span><strong id="hook-broker-health">{{ status.protection.hook_broker if status.protection else 'NOT_STARTED' }}</strong></div>
+  <div class="metric"><span>Hook Sensor</span><strong id="hook-broker-health">{{ status.protection.hook_broker if status.protection else 'NOT_STARTED' }}</strong></div>
   <div class="metric"><span>사건 수</span><strong id="incident-count" aria-live="polite">{{ status.incident_count }}</strong></div>
   <div class="metric"><span>파일 관찰</span><strong id="filesystem-event-count">{{ (status.evidence_summary or {}).get('filesystem_events', 0) }}건</strong></div>
   <div class="metric"><span>프로세스 관찰</span><strong id="process-observed-count">{{ (status.evidence_summary or {}).get('process_observed', 0) }}건</strong></div>
@@ -188,8 +188,6 @@ async function poll() {
     document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = label('protection', protection.state, '확인 필요');
     document.getElementById('protection-state').title = protection.state || '';
-    document.getElementById('hook-broker-health').textContent = label('decision', protection.hook_broker || 'NOT_STARTED');
-    document.getElementById('hook-broker-health').title = protection.hook_broker || '';
     const protectionNote = document.getElementById('protection-note');
     const notes = {
       'LAUNCHING': 'Codex 실행을 등록하고 보호 센서를 연결하는 중입니다. 잠시 기다려 주세요.',
@@ -210,7 +208,10 @@ async function poll() {
     protectionNote.hidden = !notes[protection.state] && !reconciliation.orphaned;
     document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${label('sensor', key)}: ${label('decision', value)}`).join(' · ');
     const sensorHealth = status.sensor_health || {};
-    document.getElementById('sensor-hook').textContent = label('decision', sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED');
+    const hookSensorHealth = sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED';
+    document.getElementById('hook-broker-health').textContent = label('decision', hookSensorHealth);
+    document.getElementById('hook-broker-health').title = hookSensorHealth;
+    document.getElementById('sensor-hook').textContent = label('decision', hookSensorHealth);
     document.getElementById('sensor-file').textContent = label('decision', sensorHealth.FILESYSTEM_WATCHER || 'NOT_STARTED');
     document.getElementById('sensor-process').textContent = label('decision', sensorHealth.PROCESS_RUNTIME || 'NOT_STARTED');
     const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session.status);
