@@ -1129,6 +1129,8 @@ def test_result_page_labels_policy_events_without_claiming_confirmed_block() -> 
     assert "정책 사건 상세" in result.text
     assert "실제 차단 여부는 각 행의 실행 결과로 확인하세요." in result.text
     assert "차단·주의 사건" not in result.text
+    assert 'href="/runs/run-1/incidents/a1">정책 사건 상세 보기</a>' in result.text
+    assert 'href="/runs/run-1/incidents/a1">첫 정책 사건 상세 보기 →</a>' in result.text
 
 
 def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None:
