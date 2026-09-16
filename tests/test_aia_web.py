@@ -1661,7 +1661,7 @@ def test_ended_valid_runs_open_result_bundle_from_primary_session_link() -> None
         "session_id": "ended-run",
         "status": "COMPLETED",
         "workspace": "C:/workspace",
-        "policy": {"id": "basic", "version": "1.0"},
+        "policy": {"id": "aia-protected-development", "version": "1.0"},
         "incident_count": 0,
         "bundle_status": "VALID",
         "protection_state": "COMPLETED_VERIFIED",
@@ -1677,6 +1677,7 @@ def test_ended_valid_runs_open_result_bundle_from_primary_session_link() -> None
     assert 'href="/runs/ended-run/result" title="전체 Session ID: ended-run"' in dashboard.text
     assert 'href="/runs/ended-run/result" title="결과 보기"' in history.text
     assert 'title="전체 Session ID: ended-run">사용자 작업 · 결과</span>' in history.text
+    assert 'title="aia-protected-development">보호 우선 개발형</span>' in history.text
     assert "Workbench 열기" not in history.text
     assert "결과 보기" in dashboard.text
 
