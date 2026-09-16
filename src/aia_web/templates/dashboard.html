@@ -330,8 +330,23 @@ function renderDashboardEmptyAction() {
   }
 }
 
+function updateDashboardDocumentTitle(run = dashboardCurrentActiveRun) {
+  if (run) {
+    const status = String(run.status || 'RUNNING');
+    const label = dashboardStatusLabels[status] || '실행 중';
+    document.title = `${label} · AIA 대시보드`;
+    return;
+  }
+  if (!dashboardPreflightLoaded) {
+    document.title = '준비 확인 중 · AIA 대시보드';
+    return;
+  }
+  document.title = dashboardReadinessOk ? '준비 완료 · AIA 대시보드' : '확인 필요 · AIA 대시보드';
+}
+
 function renderDashboardReadiness(run) {
   if (!dashboardReadiness) return;
+  updateDashboardDocumentTitle(run);
   const active = Boolean(run);
   if (dashboardReadinessMetric) {
     const metricReady = active || dashboardReadinessOk;
