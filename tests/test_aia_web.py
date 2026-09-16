@@ -336,6 +336,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="preflight-checks"' in new_run.text
     assert "loadPreflight" in new_run.text
     assert "PREFLIGHT_TIMEOUT" in new_run.text
+    assert "PREFLIGHT_REQUEST_TIMEOUT_MS = 30000" in new_run.text
     assert "preflightReadinessLabels" in new_run.text
     assert "preflightCheckDetailLabel" in new_run.text
     assert "preflightTrustStatusLabels" in new_run.text
@@ -403,6 +404,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert new_run.text.index('id="run-settings"') < new_run.text.index('id="preflight-panel"')
     assert new_run.text.index("} else if (workspaceValidationInProgress)") < new_run.text.index("} else if (!preflightLoaded || preflightRequestInFlight)")
     assert 'id="preflight-next-steps"' in new_run.text
+    assert 'id="preflight-next-steps-title"' in new_run.text
+    assert 'data-preflight-step="setup"' in new_run.text
+    assert 'data-preflight-step="explain"' in new_run.text
+    assert 'data-preflight-step="trust"' in new_run.text
+    assert 'data-preflight-step="verify"' in new_run.text
+    assert 'data-preflight-step="refresh"' in new_run.text
+    assert "renderPreflightNextSteps" in new_run.text
     assert 'id="preflight-refresh-status"' in new_run.text
     assert "setButtonBusy" in new_run.text
     assert "cache: 'no-store'" in new_run.text
@@ -1256,6 +1264,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "startDashboardPreflightLoading" in dashboard.text
     assert "updateDashboardPreflightElapsed" in dashboard.text
     assert "PREFLIGHT_TIMEOUT" in dashboard.text
+    assert "DASHBOARD_PREFLIGHT_REQUEST_TIMEOUT_MS = 30000" in dashboard.text
     assert "PREFLIGHT_UNAVAILABLE" in dashboard.text
     assert "dashboardReadinessLabels" in dashboard.text
     assert "HOOK_VERIFICATION_REQUIRED: '확인 필요'" in dashboard.text
