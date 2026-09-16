@@ -412,6 +412,7 @@ def _control_root_write_check(control_root: Path) -> tuple[bool, str]:
 def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
     """Return safe metadata from the most recent committed Protected Run."""
 
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     reader = ResultBundleReader(control_root)
     try:
         runs = reader.list_completed()
@@ -457,7 +458,7 @@ def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
     elif not latest.get("hook_event_count"):
         next_step = (
             "Session에 연결된 Codex Hook Event가 없습니다. Codex에서 Hook을 검토·신뢰한 "
-            "뒤 aia hook verify를 다시 실행하세요."
+            f"뒤 {cli_prefix} hook verify를 다시 실행하세요."
         )
     elif str(latest.get("protection_state", "")).endswith("DEGRADED"):
         next_step = "보호 경계가 완전히 검증되지 않았습니다. Result Bundle의 제한사항을 확인하세요."
@@ -519,6 +520,7 @@ def _doctor(args: argparse.Namespace) -> int:
         )
 
     installer = CodexHookInstaller(args.hook_path)
+    cli_prefix = _cli_prefix(installer)
     hook_installed = installer.is_installed()
     posttool_installed = installer.is_posttool_installed()
     checks.append(
@@ -529,7 +531,7 @@ def _doctor(args: argparse.Namespace) -> int:
             "detail": (
                 "Hook definition installed; review/trust it in Codex"
                 if hook_installed
-                else "Run 'aia hook install', then review/trust the Hook in Codex"
+                else f"Run '{cli_prefix} setup', then review/trust the Hook in Codex"
             ),
         }
     )
@@ -603,14 +605,14 @@ def _doctor(args: argparse.Namespace) -> int:
                 if hook_verified
                 else (
                     (
-                        "Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 'aia hook verify'를 실행하세요"
+                        f"Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 '{cli_prefix} hook verify'를 실행하세요"
                         if any(
                             isinstance(item, dict)
                             and item.get("event") == "preToolUse"
                             and item.get("trust_status") not in {"TRUSTED", "MANAGED"}
                             for item in (codex_hook_trust.get("hooks") or [])
                         )
-                        else "Run 'aia hook verify' after reviewing the Hook in Codex"
+                        else f"Run '{cli_prefix} hook verify' after reviewing the Hook in Codex"
                     )
                     + (
                         f"; recent run: {recent_run['next_step']}"
@@ -636,25 +638,25 @@ def _doctor(args: argparse.Namespace) -> int:
         next_step = "Python 3.13 환경에서 AIA를 다시 실행하세요."
     elif executable is None:
         readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
-        next_step = "Codex CLI 설치와 PATH를 확인한 뒤 'aia doctor'를 다시 실행하세요."
+        next_step = f"Codex CLI 설치와 PATH를 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     elif not hook_installed:
         readiness_code = "CODEX_HOOK_NOT_INSTALLED"
-        next_step = "'aia setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+        next_step = f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
     elif pretool_status not in {"TRUSTED", "MANAGED"}:
         readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
         next_step = (
             "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
-            "'aia hook verify'와 'aia doctor'를 순서대로 실행하세요."
+            f"'{cli_prefix} hook verify'와 '{cli_prefix} doctor'를 순서대로 실행하세요."
         )
     elif not hook_verified:
         readiness_code = "HOOK_VERIFICATION_REQUIRED"
-        next_step = "'aia hook verify'를 실행한 뒤 'aia doctor'를 다시 실행하세요."
+        next_step = f"'{cli_prefix} hook verify'를 실행한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     elif not writable:
         readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
-        next_step = "AIA Control Root 권한을 확인한 뒤 'aia doctor'를 다시 실행하세요."
+        next_step = f"AIA Control Root 권한을 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     else:
         readiness_code = "READY"
-        next_step = "'aia protect <workspace>'로 보호 실행을 시작할 수 있습니다."
+        next_step = f"'{cli_prefix} protect <workspace>'로 보호 실행을 시작할 수 있습니다."
 
     payload = {
         "product": "AIA",
@@ -718,7 +720,7 @@ def _doctor(args: argparse.Namespace) -> int:
             print(f"[다음] {recent_run['next_step']}")
         print(f"[필수 조치] {next_step}")
         if not payload["ready"]:
-            print("[도움말] 검토 순서가 헷갈리면 'uv run aia hook explain'을 실행하세요.")
+            print(f"[도움말] 검토 순서가 헷갈리면 '{cli_prefix} hook explain'을 실행하세요.")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
 
@@ -771,6 +773,7 @@ def _capabilities(args: argparse.Namespace) -> int:
 def _self_test(args: argparse.Namespace) -> int:
     """Exercise the disposable Core contracts without claiming live Codex proof."""
 
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     checks: list[dict[str, object]] = []
     workspace_root = Path(tempfile.mkdtemp(prefix="aia-self-test-workspace-"))
     control_root = Path(tempfile.mkdtemp(prefix="aia-self-test-control-"))
@@ -868,7 +871,10 @@ def _self_test(args: argparse.Namespace) -> int:
             "workspace": str(workspace_root),
             "control_root": str(control_root),
             "checks": checks,
-            "next_step": "실제 Codex 보호는 aia hook verify 후 aia protect로 별도 검증하세요.",
+            "next_step": (
+                f"실제 Codex 보호는 {cli_prefix} hook verify 후 "
+                f"{cli_prefix} protect로 별도 검증하세요."
+            ),
         }
         exit_code = 0
     except Exception as error:
@@ -931,8 +937,9 @@ def _demo(args: argparse.Namespace) -> int:
         print()
         print("[완료] Core 데모가 끝났습니다.")
         print("실제 Codex Hook 차단까지 확인하려면 먼저 Codex에서 Hook을 검토·신뢰한 뒤")
-        print("      aia hook verify")
-        print("      aia demo --live")
+        cli_prefix = _cli_prefix(CodexHookInstaller())
+        print(f"      {cli_prefix} hook verify")
+        print(f"      {cli_prefix} demo --live")
         print("를 실행하세요.")
         return 0
 
@@ -1114,7 +1121,7 @@ def _setup(args: argparse.Namespace) -> int:
         print(_json_text(payload))
     else:
         print(f"AIA Hook 설정 완료: {path}")
-        print("[안내] 검토 순서가 헷갈리면 'uv run aia hook explain'을 실행하세요.")
+        print(f"[안내] 검토 순서가 헷갈리면 '{cli_prefix} hook explain'을 실행하세요.")
         print(f"[확인] Codex PreToolUse Trust: {pretool_trust_status}")
         if pretool_trust_status not in {"TRUSTED", "MANAGED"}:
             print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
@@ -1279,7 +1286,7 @@ def _hook_status(args: argparse.Namespace) -> int:
         if payload["ready"]:
             print(f"[다음] {cli_prefix} protect <workspace>")
         else:
-            print("주의: CURRENT가 아니면 aia protect는 보호 실행을 시작하지 않습니다.")
+            print(f"주의: CURRENT가 아니면 {cli_prefix} protect는 보호 실행을 시작하지 않습니다.")
             if any(
                 isinstance(item, dict)
                 and item.get("event") == "preToolUse"
@@ -1442,7 +1449,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
             print(_json_text(payload))
         else:
             print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
-            print("[다음] uv run aia setup")
+            print(f"[다음] {_cli_prefix(installer)} setup")
         return 2
     try:
         executable = CodexAdapter().discover()
@@ -1684,9 +1691,10 @@ def _protected_run_preflight(
     except Exception:
         failures.append("Codex executable을 찾을 수 없습니다. Codex 설치를 확인하세요.")
     installer = CodexHookInstaller()
+    cli_prefix = _cli_prefix(installer)
     if not installer.is_installed():
         failures.append(
-            "AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 'uv run aia setup'을 실행하세요."
+            f"AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 '{cli_prefix} setup'을 실행하세요."
         )
     elif not hook_verification_probe:
         resolved_control_root = control_root or _control_root(None)
@@ -1719,11 +1727,11 @@ def _protected_run_preflight(
         ):
             if trust_status not in {None, "TRUSTED", "MANAGED"}:
                 failures.append(
-                    f"Codex PreToolUse Hook Trust={trust_status}. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 'uv run aia hook verify'를 실행하세요."
+                    f"Codex PreToolUse Hook Trust={trust_status}. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 '{cli_prefix} hook verify'를 실행하세요."
                 )
             else:
                 failures.append(
-                    "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+                    f"실제 Codex Hook 검증이 없습니다. 먼저 '{cli_prefix} hook verify'를 실행하세요."
                 )
     return not failures, failures
 
@@ -2167,10 +2175,11 @@ def _run_protected(args: argparse.Namespace) -> int:
         print("AIA 보호 실행을 시작하지 않았습니다.")
         for failure in failures:
             print(f"[FAIL] {failure}")
+        cli_prefix = _cli_prefix(CodexHookInstaller())
         if any("hook verify" in failure for failure in failures):
-            print("[다음] uv run aia hook verify")
+            print(f"[다음] {cli_prefix} hook verify")
         else:
-            print("[다음] uv run aia setup")
+            print(f"[다음] {cli_prefix} setup")
         return 2
     service = RunApplicationService(
         _control_root(args.control_root),

@@ -9,6 +9,7 @@ from aia import CodexHookInstaller
 from aia.cli import (
     _extract_session_id,
     _live_hook_proof_is_valid,
+    _cli_prefix,
     _parser,
     _print_protected_run_summary,
     _protected_run_preflight,
@@ -173,7 +174,7 @@ def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
     output = capsys.readouterr().out
     assert "AIA 제품 데모" in output
     assert "[1/1]" in output
-    assert "aia demo --live" in output
+    assert f"{_cli_prefix(CodexHookInstaller())} demo --live" in output
 
 
 def test_demo_live_delegates_to_real_codex_proof(monkeypatch, tmp_path) -> None:
@@ -1089,7 +1090,7 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
     assert "PreToolUse=MODIFIED" in trust_check["value"]
     assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
     assert payload["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
-    assert "aia hook verify" in payload["next_step"]
+    assert f"{_cli_prefix(CodexHookInstaller(hook_path))} hook verify" in payload["next_step"]
 
 
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
