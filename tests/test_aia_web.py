@@ -889,7 +889,11 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-primary-action"' in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
     assert 'id="dashboard-readiness-label">실행 준비</span>' in dashboard.text
-    assert 'id="dashboard-readiness-title">보호 실행을 시작할 수 있습니다.</h2>' in dashboard.text
+    assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
+    assert 'id="dashboard-preflight-loading"' in dashboard.text
+    assert 'id="dashboard-preflight-checks"' in dashboard.text
+    assert "loadDashboardPreflight" in dashboard.text
+    assert "PREFLIGHT_TIMEOUT" in dashboard.text
     assert 'id="dashboard-readiness-ready-notice"' in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-current-meta"' in dashboard.text

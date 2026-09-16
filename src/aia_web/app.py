@@ -76,6 +76,29 @@ def default_control_root() -> Path:
     return Path(configured).expanduser() if configured else Path.home() / ".aia" / "control"
 
 
+def _dashboard_preflight_placeholder() -> dict[str, Any]:
+    """Return a safe loading state for the dashboard's deferred preflight."""
+
+    return {
+        "ready": False,
+        "readiness_code": "CHECKING",
+        "next_step": "AIA가 Codex Hook과 로컬 실행 환경을 확인하고 있습니다.",
+        "checks": [],
+        "hook_trust": {
+            "status": "CHECKING",
+            "detail": "Codex Hook Trust 상태를 확인하고 있습니다.",
+        },
+        "hook_activation": {
+            "status": "CHECKING",
+            "detail": "실제 Hook 연결 상태를 확인하고 있습니다.",
+        },
+        "protection_claim": {
+            "status": "CHECKING",
+            "detail": "준비 상태 확인이 끝날 때까지 보호 실행을 시작하지 않습니다.",
+        },
+    }
+
+
 def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:
     """Run the existing CLI Hook verification from the local console.
 
@@ -161,7 +184,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             request,
             "dashboard.html",
             {
-                "preflight": app.state.service.preflight(runs=runs),
+                "preflight": _dashboard_preflight_placeholder(),
+                "dashboard_preflight_deferred": True,
                 "runs": runs,
                 "capabilities": product_capabilities(),
             },

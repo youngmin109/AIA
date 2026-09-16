@@ -3,6 +3,7 @@
 {% block content %}
 {% set readiness = preflight.get('readiness_code', 'UNKNOWN') %}
 {% set readiness_ok = preflight.get('ready', False) %}
+{% set preflight_deferred = dashboard_preflight_deferred|default(False) %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
 {% set hook_activation = preflight.get('hook_activation') or {} %}
 {% set hook_verified = hook_activation.get('status') == 'CURRENTLY_VERIFIED' %}
@@ -35,15 +36,15 @@
 </section>
 
 <section class="metric-grid dashboard-metrics" aria-label="현재 제품 상태">
-  <div class="metric metric-status {{ 'metric-ok' if readiness_ok else 'metric-warning' }}">
+  <div id="dashboard-readiness-metric" class="metric metric-status {{ 'metric-ok' if readiness_ok else 'metric-warning' }}">
     <span id="dashboard-readiness-label">{{ '현재 보호 실행' if active_run.item else '실행 준비' }}</span>
-    <strong id="dashboard-readiness-value">{{ '실행 중' if active_run.item else ('준비 완료' if readiness_ok else '확인 필요') }}</strong>
+    <strong id="dashboard-readiness-value">{{ '실행 중' if active_run.item else ('준비 완료' if readiness_ok else ('확인 중' if preflight_deferred else '확인 필요')) }}</strong>
     <small id="dashboard-readiness-code">{{ 'ACTIVE' if active_run.item else readiness }}</small>
   </div>
   <div class="metric">
     <span>Codex Hook Trust</span>
-    <strong>{{ trust_labels.get(trust, trust) }}</strong>
-    <small>PreToolUse 실행 전 관문 · {{ trust }}</small>
+    <strong id="dashboard-hook-trust-value">{{ '확인 중' if preflight_deferred else trust_labels.get(trust, trust) }}</strong>
+    <small id="dashboard-hook-trust-detail">{{ 'Codex Hook Trust 상태를 확인하고 있습니다.' if preflight_deferred else 'PreToolUse 실행 전 관문 · ' ~ trust }}</small>
   </div>
   <div class="metric">
     <span>지원 Agent</span>
@@ -88,12 +89,13 @@
 <section id="dashboard-readiness" class="panel dashboard-readiness {{ 'panel-active' if active_run.item else ('panel-ready' if readiness_ok else 'panel-attention') }}">
   <div class="panel-heading">
     <div>
-      <h2 id="dashboard-readiness-title">{{ '현재 보호 세션이 실행 중입니다.' if active_run.item else ('보호 실행을 시작할 수 있습니다.' if readiness_ok else '보호 실행 전에 확인이 필요합니다.') }}</h2>
+      <h2 id="dashboard-readiness-title">{{ '현재 보호 세션이 실행 중입니다.' if active_run.item else ('보호 실행을 시작할 수 있습니다.' if readiness_ok else ('보호 실행 준비를 확인하는 중입니다.' if preflight_deferred else '보호 실행 전에 확인이 필요합니다.')) }}</h2>
       <p id="dashboard-readiness-hint" class="hint" data-default-text="{{ preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}">{{ '현재 작업은 Workbench에서 계속하세요.' if active_run.item else preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}</p>
     </div>
-    <span id="dashboard-readiness-status" class="status-badge {{ 'status-active' if active_run.item else ('status-success' if readiness_ok else 'status-warning') }}" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '현재 실행 중' if active_run.item else readiness }}</span>
+    <span id="dashboard-readiness-status" class="status-badge {{ 'status-active' if active_run.item else ('status-success' if readiness_ok else 'status-warning') }}" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '현재 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness) }}</span>
   </div>
-  <div class="preflight-list dashboard-checks">
+  <div id="dashboard-preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred or active_run.item %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span>Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span></div>
+  <div id="dashboard-preflight-checks" class="preflight-list dashboard-checks"{% if preflight_deferred or active_run.item %} hidden{% endif %}>
     {% for check in preflight.get('checks', []) %}
     <div class="preflight-row">
       <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인' }}</span>
@@ -106,8 +108,7 @@
     <strong>현재 보호 세션을 계속하세요.</strong>
     <a id="dashboard-readiness-active-link" class="text-link" href="{% if active_run.item %}{% if active_run.item.launch_mode == 'web_terminal' %}/runs/{{ active_run.item.session_id }}/workbench{% else %}/runs/{{ active_run.item.session_id }}{% endif %}{% else %}/new{% endif %}">{% if active_run.item and active_run.item.launch_mode == 'web_terminal' %}Workbench 열기 →{% elif active_run.item %}상태 보기 →{% else %}현재 실행 열기 →{% endif %}</a>
   </div>
-  {% if not readiness_ok %}
-  <div id="dashboard-readiness-next-steps" class="next-steps"{% if active_run.item %} hidden{% endif %}>
+  <div id="dashboard-readiness-next-steps" class="next-steps"{% if active_run.item or preflight_deferred or readiness_ok %} hidden{% endif %}>
     <strong>다음 단계</strong>
     <p class="hint">저장소에서 실행 중이면 <span class="mono">uv run</span>을 붙이고, 설치된 도구를 사용하면 앞부분을 생략하세요.</p>
     <ol>
@@ -117,9 +118,7 @@
       <li><span class="mono">uv run aia hook verify</span>로 실제 연결을 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook verify</span>)</span></li>
     </ol>
   </div>
-  {% else %}
-  <div id="dashboard-readiness-ready-notice" class="notice success"{% if active_run.item %} hidden{% endif %}>AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
-  {% endif %}
+  <div id="dashboard-readiness-ready-notice" class="notice success"{% if active_run.item or preflight_deferred or not readiness_ok %} hidden{% endif %}>AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
 </section>
 
 <section id="dashboard-sensors" class="panel dashboard-sensor-panel">
@@ -128,11 +127,11 @@
       <h2>보호 센서</h2>
       <p class="hint">AIA는 모델의 설명이 아니라 실제 실행 증거를 세 센서에서 확인합니다.</p>
     </div>
-    <span class="status-badge {{ 'status-success' if hook_verified else 'status-warning' }}" title="{{ hook_activation.get('status', 'UNKNOWN') }}">{{ 'Hook 검증됨' if hook_verified else '실행 전 확인' }}</span>
+    <span id="dashboard-sensors-status" class="status-badge {{ 'status-success' if hook_verified else 'status-warning' }}" title="{{ hook_activation.get('status', 'UNKNOWN') }}">{{ 'Hook 검증됨' if hook_verified else ('확인 중' if preflight_deferred else '실행 전 확인') }}</span>
   </div>
   <div class="sensor-cards dashboard-sensors">
     <div class="sensor-card dashboard-sensor-card">
-      <div class="dashboard-sensor-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="dashboard-sensor-hook-status" class="status-badge {{ 'status-success' if dashboard_hook_verified else 'status-warning' }}">{% if active_run.item %}{{ '검증됨' if dashboard_hook_verified else '관찰 중' }}{% else %}{{ '검증됨' if hook_verified else '확인 필요' }}{% endif %}</span></div>
+      <div class="dashboard-sensor-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="dashboard-sensor-hook-status" class="status-badge {{ 'status-success' if dashboard_hook_verified else 'status-warning' }}">{% if active_run.item %}{{ '검증됨' if dashboard_hook_verified else '관찰 중' }}{% else %}{{ '검증됨' if hook_verified else ('확인 중' if preflight_deferred else '확인 필요') }}{% endif %}</span></div>
       <small>Codex의 지원되는 도구 요청을 실행 전에 관찰하고 정책 관문으로 전달합니다.</small>
       <span id="dashboard-sensor-hook-detail" class="hint">{% if active_run.item %}{% if active_run.item.hook_event_count %}현재 실행에서 Hook Event {{ active_run.item.hook_event_count }}건을 확인했습니다.{% else %}현재 실행에서 Hook Event를 확인하는 중입니다.{% endif %}{% else %}{{ '실제 Session-bound Hook Event 확인됨' if hook_verified else '보호 실행 전에 Codex Hook 연결을 확인해야 합니다' }}{% endif %}</span>
     </div>
@@ -191,11 +190,17 @@ const dashboardCurrentAction = document.getElementById('dashboard-current-action
 const dashboardPrimaryAction = document.getElementById('dashboard-primary-action');
 const dashboardReadiness = document.getElementById('dashboard-readiness');
 const dashboardReadinessLabel = document.getElementById('dashboard-readiness-label');
+const dashboardReadinessMetric = document.getElementById('dashboard-readiness-metric');
 const dashboardReadinessValue = document.getElementById('dashboard-readiness-value');
 const dashboardReadinessCodeElement = document.getElementById('dashboard-readiness-code');
 const dashboardReadinessTitle = document.getElementById('dashboard-readiness-title');
 const dashboardReadinessHint = document.getElementById('dashboard-readiness-hint');
 const dashboardReadinessStatus = document.getElementById('dashboard-readiness-status');
+const dashboardHookTrustValue = document.getElementById('dashboard-hook-trust-value');
+const dashboardHookTrustDetail = document.getElementById('dashboard-hook-trust-detail');
+const dashboardSensorsStatus = document.getElementById('dashboard-sensors-status');
+const dashboardPreflightLoading = document.getElementById('dashboard-preflight-loading');
+const dashboardPreflightChecks = document.getElementById('dashboard-preflight-checks');
 const dashboardReadinessActiveNotice = document.getElementById('dashboard-readiness-active-notice');
 const dashboardReadinessActiveLink = document.getElementById('dashboard-readiness-active-link');
 const dashboardReadinessNextSteps = document.getElementById('dashboard-readiness-next-steps');
@@ -217,9 +222,13 @@ const dashboardActiveTitle = ['보호', '실행이 진행 중입니다.'].join('
 const dashboardActiveStatuses = ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'];
 const dashboardProtectionLabels = {ACTIVE_VERIFIED: '보호 검증됨', ACTIVE_UNVERIFIED: '행위 관찰 전', ACTIVE_DEGRADED: '보호 상태 저하', COMPLETED_VERIFIED: '완료 · 검증됨', COMPLETED_DEGRADED: '완료 · 일부 확인', ABORTED_VERIFIED: '중지 · 검증됨', ABORTED_DEGRADED: '중지 · 일부 확인', ORPHANED_DEGRADED: '보호 경계 저하'};
 const dashboardBundleLabels = {VALID: '유효', INVALID: '무효', UNVERIFIED: '검증 전', PENDING: '검증 중', NOT_FOUND: '없음'};
-const dashboardReadinessOk = {{ 'true' if readiness_ok else 'false' }};
-const dashboardReadinessCode = {{ readiness|tojson }};
-const dashboardHookVerified = {{ 'true' if dashboard_hook_verified else 'false' }};
+let dashboardReadinessOk = {{ 'true' if readiness_ok else 'false' }};
+let dashboardReadinessCode = {{ readiness|tojson }};
+let dashboardHookVerified = {{ 'true' if dashboard_hook_verified else 'false' }};
+let dashboardPreflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
+let dashboardPreflightInFlight = false;
+let dashboardPreflightTimer = null;
+let dashboardRunsLoaded = false;
 let dashboardRefreshInFlight = false;
 let dashboardRefreshBusyTimer = null;
 let dashboardRefreshTimer = null;
@@ -232,6 +241,11 @@ function dashboardActiveRun(runs) {
 function renderDashboardReadiness(run) {
   if (!dashboardReadiness) return;
   const active = Boolean(run);
+  if (dashboardReadinessMetric) {
+    const metricReady = active || dashboardReadinessOk;
+    dashboardReadinessMetric.classList.toggle('metric-ok', metricReady);
+    dashboardReadinessMetric.classList.toggle('metric-warning', !metricReady);
+  }
   dashboardReadiness.classList.toggle('panel-active', active);
   dashboardReadiness.classList.toggle('panel-ready', !active && dashboardReadinessOk);
   dashboardReadiness.classList.toggle('panel-attention', !active && !dashboardReadinessOk);
@@ -246,6 +260,8 @@ function renderDashboardReadiness(run) {
     dashboardReadinessStatus.textContent = active ? '현재 실행 중' : dashboardReadinessCode;
   }
   if (active) {
+    if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
+    if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = true;
     if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = '현재 보호 세션이 실행 중입니다.';
     if (dashboardReadinessHint) dashboardReadinessHint.textContent = '현재 작업은 Workbench에서 계속하세요.';
     if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = false;
@@ -258,6 +274,28 @@ function renderDashboardReadiness(run) {
     }
     return;
   }
+  if (!dashboardPreflightLoaded) {
+    dashboardReadiness.classList.remove('panel-ready');
+    dashboardReadiness.classList.add('panel-attention');
+    if (dashboardReadinessLabel) dashboardReadinessLabel.textContent = '실행 준비';
+    if (dashboardReadinessValue) dashboardReadinessValue.textContent = '확인 중';
+    if (dashboardReadinessCodeElement) dashboardReadinessCodeElement.textContent = 'CHECKING';
+    if (dashboardReadinessStatus) {
+      dashboardReadinessStatus.className = 'status-badge status-warning';
+      dashboardReadinessStatus.title = 'CHECKING';
+      dashboardReadinessStatus.textContent = '확인 중';
+    }
+    if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = '보호 실행 준비를 확인하는 중입니다.';
+    if (dashboardReadinessHint) dashboardReadinessHint.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다.';
+    if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = true;
+    if (dashboardReadinessNextSteps) dashboardReadinessNextSteps.hidden = true;
+    if (dashboardReadinessReadyNotice) dashboardReadinessReadyNotice.hidden = true;
+    if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = false;
+    if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = true;
+    return;
+  }
+  if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
+  if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = false;
   if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = dashboardReadinessOk ? '보호 실행을 시작할 수 있습니다.' : '보호 실행 전에 확인이 필요합니다.';
   if (dashboardReadinessHint) dashboardReadinessHint.textContent = dashboardReadinessHint.dataset.defaultText || '사전 점검 결과를 확인하세요.';
   if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = true;
@@ -274,17 +312,103 @@ function setDashboardSensorStatus(element, label, className) {
 function renderDashboardSensors(run) {
   const active = Boolean(run);
   const hookVerified = active ? run.protection_state === 'ACTIVE_VERIFIED' : dashboardHookVerified;
-  setDashboardSensorStatus(dashboardSensorHookStatus, active ? (hookVerified ? '검증됨' : '관찰 중') : (hookVerified ? '검증됨' : '확인 필요'), hookVerified ? 'status-success' : 'status-warning');
+  const hookChecking = !active && !dashboardPreflightLoaded;
+  setDashboardSensorStatus(dashboardSensorHookStatus, active ? (hookVerified ? '검증됨' : '관찰 중') : (hookChecking ? '확인 중' : (hookVerified ? '검증됨' : '확인 필요')), hookVerified && !hookChecking ? 'status-success' : 'status-warning');
   if (dashboardSensorHookDetail) {
     const hookCount = Number(run?.hook_event_count || 0);
     dashboardSensorHookDetail.textContent = active
       ? hookCount ? `현재 실행에서 Hook Event ${hookCount}건을 확인했습니다.` : '현재 실행에서 Hook Event를 확인하는 중입니다.'
-      : hookVerified ? '실제 Session-bound Hook Event 확인됨' : '보호 실행 전에 Codex Hook 연결을 확인해야 합니다';
+      : hookChecking ? 'Codex Hook 연결을 확인하고 있습니다.' : hookVerified ? '실제 Session-bound Hook Event 확인됨' : '보호 실행 전에 Codex Hook 연결을 확인해야 합니다';
+  }
+  if (dashboardSensorsStatus) {
+    dashboardSensorsStatus.className = `status-badge ${hookChecking ? 'status-warning' : hookVerified ? 'status-success' : 'status-warning'}`;
+    dashboardSensorsStatus.textContent = active ? '현재 실행' : hookChecking ? '확인 중' : hookVerified ? 'Hook 검증됨' : '실행 전 확인';
   }
   setDashboardSensorStatus(dashboardSensorFileStatus, active ? '관찰 중' : '실행 시 활성화', 'status-active');
   if (dashboardSensorFileDetail) dashboardSensorFileDetail.textContent = active ? '현재 Workbench에서 Workspace 변화를 확인합니다.' : 'Protected Run이 시작되면 Workspace 관찰을 시작합니다.';
   setDashboardSensorStatus(dashboardSensorProcessStatus, active ? '관찰 중' : '실행 시 활성화', 'status-active');
   if (dashboardSensorProcessDetail) dashboardSensorProcessDetail.textContent = active ? '현재 Workbench에서 실행 트리를 확인합니다.' : 'Protected Run이 시작되면 실행 트리를 관찰합니다.';
+}
+
+const dashboardTrustLabels = {TRUSTED: '신뢰됨', MANAGED: '관리됨', MANUAL_REVIEW_REQUIRED: '검토 필요', MODIFIED: '변경됨', UNTRUSTED: '신뢰되지 않음', CHECKING: '확인 중'};
+function renderDashboardPreflightChecks(checks) {
+  if (!dashboardPreflightChecks) return;
+  dashboardPreflightChecks.replaceChildren();
+  const source = Array.isArray(checks) ? checks : [];
+  if (!source.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = '준비 상태 확인 결과가 없습니다.';
+    dashboardPreflightChecks.append(empty);
+    return;
+  }
+  source.forEach((check) => {
+    const row = document.createElement('div');
+    row.className = 'preflight-row';
+    const mark = document.createElement('span');
+    mark.className = `preflight-mark ${check?.ok ? 'ok' : 'fail'}`;
+    mark.textContent = check?.ok ? '통과' : '확인';
+    const label = document.createElement('strong');
+    label.textContent = String(check?.label || '준비 상태');
+    const detail = document.createElement('span');
+    detail.className = 'hint';
+    detail.textContent = String(check?.detail || '상세 정보 없음');
+    row.append(mark, label, detail);
+    dashboardPreflightChecks.append(row);
+  });
+}
+
+function renderDashboardPreflight(payload) {
+  const data = payload && typeof payload === 'object' ? payload : {};
+  dashboardPreflightLoaded = true;
+  dashboardReadinessOk = data.ready === true;
+  dashboardReadinessCode = String(data.readiness_code || 'UNKNOWN');
+  const trustStatus = String(data.hook_trust?.status || 'UNKNOWN');
+  const activationStatus = String(data.hook_activation?.status || 'UNKNOWN');
+  dashboardHookVerified = activationStatus === 'CURRENTLY_VERIFIED';
+  if (dashboardHookTrustValue) dashboardHookTrustValue.textContent = dashboardTrustLabels[trustStatus] || trustStatus;
+  if (dashboardHookTrustDetail) dashboardHookTrustDetail.textContent = data.hook_trust?.detail || `PreToolUse 실행 전 관문 · ${trustStatus}`;
+  if (dashboardReadinessHint && data.next_step) dashboardReadinessHint.dataset.defaultText = String(data.next_step);
+  renderDashboardPreflightChecks(data.checks);
+  if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
+  if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = false;
+  if (dashboardRunsLoaded) {
+    const activeRun = dashboardCurrentActiveRun;
+    renderDashboardReadiness(activeRun);
+    renderDashboardSensors(activeRun);
+  }
+}
+
+function scheduleDashboardPreflight() {
+  if (dashboardPreflightTimer !== null) window.clearTimeout(dashboardPreflightTimer);
+  dashboardPreflightTimer = null;
+  if (document.hidden) return;
+  dashboardPreflightTimer = window.setTimeout(loadDashboardPreflight, 30000);
+}
+
+async function loadDashboardPreflight() {
+  if (dashboardPreflightInFlight || document.hidden) return;
+  dashboardPreflightInFlight = true;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch('/api/preflight', {cache: 'no-store', signal: controller.signal});
+    if (!response.ok) throw new Error('preflight request failed');
+    renderDashboardPreflight(await response.json());
+  } catch (error) {
+    renderDashboardPreflight({
+      ready: false,
+      readiness_code: error?.name === 'AbortError' ? 'PREFLIGHT_TIMEOUT' : 'PREFLIGHT_UNAVAILABLE',
+      next_step: 'AIA 준비 상태를 확인하지 못했습니다. 잠시 후 다시 시도하세요.',
+      checks: [{label: 'AIA 준비 상태', ok: false, detail: error?.name === 'AbortError' ? '확인 시간이 초과되어 다시 시도합니다.' : '로컬 AIA 서버 연결을 확인하세요.'}],
+      hook_trust: {status: 'UNKNOWN', detail: 'Codex Hook Trust를 확인하지 못했습니다.'},
+      hook_activation: {status: 'UNKNOWN'},
+    });
+  } finally {
+    window.clearTimeout(timeout);
+    dashboardPreflightInFlight = false;
+    scheduleDashboardPreflight();
+  }
 }
 
 function renderDashboardCurrentRun(run) {
@@ -390,6 +514,7 @@ async function refreshDashboard() {
     dashboardRunCount.textContent = `${runs.length}건`;
     const activeRun = dashboardActiveRun(runs);
     dashboardCurrentActiveRun = activeRun;
+    dashboardRunsLoaded = true;
     renderDashboardCurrentRun(activeRun);
     renderDashboardReadiness(activeRun);
     renderDashboardSensors(activeRun);
@@ -418,11 +543,13 @@ function scheduleDashboardRefresh() {
 }
 
 refreshDashboard();
+loadDashboardPreflight();
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     if (dashboardRefreshTimer !== null) window.clearTimeout(dashboardRefreshTimer);
     dashboardRefreshTimer = null;
     refreshDashboard();
+    loadDashboardPreflight();
   }
 });
 </script>
