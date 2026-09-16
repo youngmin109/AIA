@@ -1235,7 +1235,8 @@ def test_result_event_timeline_shows_latest_event_first() -> None:
 
     assert result.status_code == 200
     assert result.text.index("최신 차단 사건") < result.text.index("오래된 관찰")
-    assert "최신 이벤트부터 표시합니다." in result.text
+    assert "전체 타임라인은 최신 시각순으로 표시합니다." in result.text
+    assert "정책·행위만 보려면 `행위` 필터를 선택하세요." in result.text
 
 
 def test_result_event_timeline_labels_sensor_observations_separately() -> None:

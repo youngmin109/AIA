@@ -889,3 +889,5 @@ samp,
 .security-events-card .workbench-event.event-action .event-category-label { color: #0878ae; border-color: rgba(21, 139, 196, .4); background: rgba(224, 247, 255, .7); }
 .security-events-card .workbench-event.event-sensor { opacity: .84; }
 .security-events-card .workbench-event.event-sensor .event-category-label { opacity: .82; }
+.result-event-row[data-result-event-category="ACTION"] { padding-left: 9px; border-left: 3px solid rgba(21, 139, 196, .55); background: rgba(224, 247, 255, .34); }
+.result-event-row[data-result-event-category="SENSOR"] { opacity: .84; }
