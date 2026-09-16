@@ -4,6 +4,7 @@
 {% set readiness = preflight.get('readiness_code', 'UNKNOWN') %}
 {% set readiness_ok = preflight.get('ready', False) %}
 {% set preflight_deferred = dashboard_preflight_deferred|default(False) %}
+{% set cli_prefix = cli_prefix|default('uv run aia') %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
 {% set hook_activation = preflight.get('hook_activation') or {} %}
 {% set hook_verified = hook_activation.get('status') == 'CURRENTLY_VERIFIED' %}
@@ -110,12 +111,12 @@
   </div>
   <div id="dashboard-readiness-next-steps" class="next-steps"{% if active_run.item or preflight_deferred or readiness_ok %} hidden{% endif %}>
     <strong>다음 단계</strong>
-    <p class="hint">저장소에서 실행 중이면 <span class="mono">uv run</span>을 붙이고, 설치된 도구를 사용하면 앞부분을 생략하세요.</p>
+    <p class="hint">저장소에서는 아래에 표시된 명령을 사용하고, 설치된 도구는 앞부분을 생략하세요.</p>
     <ol>
-      <li><span class="mono">uv run aia setup</span>으로 AIA Hook을 설치합니다. <span class="muted">(설치형: <span class="mono">aia setup</span>)</span></li>
-      <li><span class="mono">uv run aia hook explain</span>으로 검토할 matcher와 command를 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook explain</span>)</span></li>
+      <li><span class="mono">{{ cli_prefix }} setup</span>으로 AIA Hook을 설치합니다. <span class="muted">(설치형: <span class="mono">aia setup</span>)</span></li>
+      <li><span class="mono">{{ cli_prefix }} hook explain</span>으로 검토할 matcher와 command를 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook explain</span>)</span></li>
       <li>Codex에서 <span class="mono">/hooks</span>를 열고 AIA PreToolUse Hook을 검토·신뢰합니다.</li>
-      <li><span class="mono">uv run aia hook verify</span>로 실제 연결을 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook verify</span>)</span></li>
+      <li><span class="mono">{{ cli_prefix }} hook verify</span>로 실제 연결을 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook verify</span>)</span></li>
     </ol>
   </div>
   <div id="dashboard-readiness-ready-notice" class="notice success"{% if active_run.item or preflight_deferred or not readiness_ok %} hidden{% endif %}>AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
@@ -161,9 +162,9 @@
   </section>
 
   <section class="panel">
-    <div class="panel-heading"><div><h2>제품 사용 순서</h2><p class="hint">처음 사용할 때의 최소 흐름입니다. 저장소에서는 <span class="mono">uv run</span>을 붙입니다.</p></div></div>
+    <div class="panel-heading"><div><h2>제품 사용 순서</h2><p class="hint">처음 사용할 때의 최소 흐름입니다.</p></div></div>
     <ol class="product-steps">
-      <li><span>1</span><div><strong>준비 상태 확인</strong><code>uv run aia doctor</code></div></li>
+      <li><span>1</span><div><strong>준비 상태 확인</strong><code>{{ cli_prefix }} doctor</code></div></li>
       <li><span>2</span><div><strong>보호 실행 시작</strong><code>새 보호 실행</code></div></li>
       <li><span>3</span><div><strong>Workbench에서 작업</strong><code>가운데 Codex 작업창</code></div></li>
       <li><span>4</span><div><strong>센서·결과 확인</strong><code>오른쪽 보안 관찰 · 결과 보기</code></div></li>

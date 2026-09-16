@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from aia_app.service import RunApplicationService
 from aia_app.terminal import TerminalSessionError
 from aia.capabilities import product_capabilities
+from aia.codex_installation import CodexHookInstaller
 
 
 _ROOT = Path(__file__).resolve().parent
@@ -98,6 +99,15 @@ def _dashboard_preflight_placeholder() -> dict[str, Any]:
             "detail": "준비 상태 확인이 끝날 때까지 보호 실행을 시작하지 않습니다.",
         },
     }
+
+
+def _console_cli_prefix() -> str:
+    """Return the CLI form that matches the interpreter serving this page."""
+
+    installer = CodexHookInstaller()
+    if installer.uses_uv_launcher:
+        return "uv run --isolated python -m aia.cli"
+    return "uv run aia"
 
 
 def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:
@@ -189,6 +199,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "dashboard_preflight_deferred": True,
                 "runs": runs,
                 "capabilities": product_capabilities(),
+                "cli_prefix": _console_cli_prefix(),
             },
         )
 
@@ -202,6 +213,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "preflight": _dashboard_preflight_placeholder(),
                 "new_run_preflight_deferred": True,
                 "capabilities": product_capabilities(),
+                "cli_prefix": _console_cli_prefix(),
             },
         )
 

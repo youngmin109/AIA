@@ -5,6 +5,7 @@ import importlib
 
 from aia_web.app import _coalesce_terminal_output, create_app
 from aia_app.service import RunApplicationService
+from aia.codex_installation import CodexHookInstaller
 
 
 class FakeService:
@@ -903,7 +904,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
     assert "저장소에서는" in dashboard.text
-    assert "uv run aia doctor" in dashboard.text
+    expected_cli_prefix = "uv run --isolated python -m aia.cli" if CodexHookInstaller().uses_uv_launcher else "uv run aia"
+    assert f"{expected_cli_prefix} doctor" in dashboard.text
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
     assert 'aria-label="AIA 주요 메뉴"' in dashboard.text
     assert 'aria-current="page"' in dashboard.text

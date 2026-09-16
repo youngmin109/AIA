@@ -2,6 +2,7 @@
 {% block title %}새 보호 실행 · AIA{% endblock %}
 {% block content %}
 {% set preflight_deferred = new_run_preflight_deferred|default(False) %}
+{% set cli_prefix = cli_prefix|default('uv run aia') %}
 <div class="new-run-page">
 <section class="hero">
   <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
@@ -96,7 +97,7 @@
     <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
     <ol>
       {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
-      <li>PowerShell에서 <span class="mono">uv run aia hook verify</span>를 실행합니다.</li>
+      <li>PowerShell에서 <span class="mono">{{ cli_prefix }} hook verify</span>를 실행합니다.</li>
       <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
     </ol>
   </div>
