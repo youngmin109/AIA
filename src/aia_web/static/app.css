@@ -739,3 +739,6 @@ samp,
 /* Keep slow local preflight checks visibly alive without implying a fake percentage. */
 .preflight-loading-elapsed { margin-left: auto; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (max-width: 760px) { .preflight-loading-elapsed { margin-left: 0; } }
+.dashboard-next-steps-list .dashboard-command-step { display: flex; align-items: flex-start; gap: 9px; }
+.dashboard-next-steps-list .dashboard-command-step > span { min-width: 0; }
+.dashboard-command-copy { flex: 0 0 auto; margin-left: auto; padding: 3px 8px; color: var(--cyan); }
