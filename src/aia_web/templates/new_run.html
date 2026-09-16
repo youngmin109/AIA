@@ -235,6 +235,7 @@
       {% if cli_project_root %}<div class="preflight-command-context" role="note"><strong>이 화면의 AIA 기준 폴더</strong><code>{{ cli_project_root }}</code><em>다른 aia-mvp 복사본에서 실행하면 Hook 설치와 검증 결과가 달라질 수 있습니다.</em></div>{% endif %}
       <div class="preflight-command-list">
         <div class="preflight-command-row" data-preflight-command="setup"><span>설치</span><code>{{ cli_prefix }} setup</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} setup">복사</button></div>
+        <div class="preflight-command-row" data-preflight-command="explain"><span>설명</span><code>{{ cli_prefix }} hook explain</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} hook explain">복사</button></div>
         <div class="preflight-command-row" data-preflight-command="verify"><span>검증</span><code>{{ cli_prefix }} hook verify</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} hook verify">복사</button></div>
       </div>
       {% if module_cli_prefix != cli_prefix %}
@@ -244,6 +245,7 @@
         <div class="preflight-command-list preflight-command-fallback-list">
           <div class="preflight-command-row" data-preflight-command="doctor"><span>점검</span><code>{{ module_cli_prefix }} doctor</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} doctor">복사</button></div>
           <div class="preflight-command-row" data-preflight-command="setup"><span>설치</span><code>{{ module_cli_prefix }} setup</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} setup">복사</button></div>
+          <div class="preflight-command-row" data-preflight-command="explain"><span>설명</span><code>{{ module_cli_prefix }} hook explain</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} hook explain">복사</button></div>
           <div class="preflight-command-row" data-preflight-command="verify"><span>검증</span><code>{{ module_cli_prefix }} hook verify</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} hook verify">복사</button></div>
         </div>
       </div>

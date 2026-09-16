@@ -416,6 +416,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "python -m aia.cli hook verify" in new_run.text
     assert "data-copy-command" in new_run.text
     assert 'data-preflight-command="setup"' in new_run.text
+    assert 'data-preflight-command="explain"' in new_run.text
     assert 'data-preflight-command="verify"' in new_run.text
     assert "표시된 명령을 PowerShell에 그대로 붙여넣어 실행하세요." in new_run.text
     assert "preflightCommandRows" in new_run.text
