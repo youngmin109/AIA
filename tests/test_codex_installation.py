@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 from aia import CodexHookInstaller
 from aia.hook_verification import HookVerificationStore
+import aia.codex_installation as codex_installation
 
 
 def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
@@ -51,6 +53,36 @@ def test_codex_hook_installer_uses_codex_home_when_path_is_omitted(
     assert installer.path == (codex_home / "hooks.json").resolve()
     installer.install()
     assert installer.path.exists()
+
+
+def test_codex_hook_installer_uses_stable_uv_launcher_from_isolated_environment(
+    tmp_path: Path, monkeypatch
+) -> None:
+    isolated_python = (
+        tmp_path
+        / "uv"
+        / "cache"
+        / "builds-v0"
+        / ".tmpExample"
+        / "Scripts"
+        / "python.exe"
+    )
+    monkeypatch.setattr(sys, "executable", str(isolated_python))
+    monkeypatch.setattr(
+        codex_installation.shutil,
+        "which",
+        lambda name: r"C:\Tools\uv.exe" if name == "uv" else None,
+    )
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    assert "uv.exe" in installer.command
+    assert "--project" in installer.command
+    assert "--isolated" in installer.command
+    assert "aia.codex_hook_runtime" in installer.command
+    assert installer.is_installed() is False
+    installer.install()
+    assert installer.is_installed() is True
 
 
 def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path) -> None:

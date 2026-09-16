@@ -654,7 +654,7 @@ def test_hook_explain_is_read_only_and_describes_manual_review(
     assert "/hooks" in output
     assert "matcher: *" in output
     assert "preToolUse=MODIFIED" in output
-    assert "aia hook verify" in output
+    assert "hook verify" in output
     assert hook_path.read_bytes() == before
 
 
@@ -769,7 +769,7 @@ def test_hook_status_human_output_explains_trust_and_verification_steps(
     output = capsys.readouterr().out
     assert exit_code == 1
     assert "/hooks" in output
-    assert "aia hook verify" in output
+    assert "hook verify" in output
 
 
 def test_hook_status_does_not_report_ready_when_current_fingerprint_is_untrusted(

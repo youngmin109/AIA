@@ -55,6 +55,14 @@ from aia_app.presenters import action_summary
 _HOOK_VERIFICATION_PROBE_TOKEN_ENV = "AIA_HOOK_VERIFICATION_PROBE_TOKEN"
 
 
+def _cli_prefix(installer: CodexHookInstaller) -> str:
+    """Return commands that work with the current AIA launch environment."""
+
+    if installer.uses_uv_launcher:
+        return "uv run --isolated python -m aia.cli"
+    return "uv run aia"
+
+
 def _json_text(value: object, *, default: object | None = None) -> str:
     options: dict[str, object] = {"ensure_ascii": True, "indent": 2}
     if default is not None:
@@ -1008,6 +1016,7 @@ def _setup(args: argparse.Namespace) -> int:
     """Install the stable Hook and make the manual trust boundary explicit."""
 
     installer = CodexHookInstaller(args.path)
+    cli_prefix = _cli_prefix(installer)
     try:
         path = installer.install()
     except CodexHookInstallationError as error:
@@ -1051,14 +1060,14 @@ def _setup(args: argparse.Namespace) -> int:
     if pretool_trust_status in {"TRUSTED", "MANAGED"}:
         next_steps = [
             "Codex PreToolUse Hook은 신뢰된 상태입니다.",
-            "aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
-            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
+            f"{cli_prefix} hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            f"검증 결과가 VERIFIED이면 {cli_prefix} protect <workspace>를 실행합니다.",
         ]
     else:
         next_steps = [
             "Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰합니다.",
-            "신뢰한 뒤 aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
-            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
+            f"신뢰한 뒤 {cli_prefix} hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            f"검증 결과가 VERIFIED이면 {cli_prefix} protect <workspace>를 실행합니다.",
         ]
     trust_status = (
         pretool_trust_status
@@ -1114,10 +1123,10 @@ def _setup(args: argparse.Namespace) -> int:
             f"({payload['readiness_code']})"
         )
         if not payload["ready"]:
-            print("[검증] uv run aia hook verify")
-            print("[확인] uv run aia doctor")
+            print(f"[검증] {cli_prefix} hook verify")
+            print(f"[확인] {cli_prefix} doctor")
         else:
-            print("[실행] uv run aia start C:\\workspace\\my-project")
+            print(f"[실행] {cli_prefix} start C:\\workspace\\my-project")
     return 0
 
 
@@ -1149,6 +1158,7 @@ def _hook_status(args: argparse.Namespace) -> int:
     """Show the difference between an installed Hook and an observed Hook."""
 
     installer = CodexHookInstaller(args.path)
+    cli_prefix = _cli_prefix(installer)
     service = RunApplicationService(_control_root(args.control_root))
     try:
         runs = service.list_runs()
@@ -1267,7 +1277,7 @@ def _hook_status(args: argparse.Namespace) -> int:
         if payload["activation_status"] == "OBSERVED_IN_PAST":
             print("주의: 과거 관찰 기록만 있으며 현재 검증 증명은 없습니다.")
         if payload["ready"]:
-            print("[다음] uv run aia protect <workspace>")
+            print(f"[다음] {cli_prefix} protect <workspace>")
         else:
             print("주의: CURRENT가 아니면 aia protect는 보호 실행을 시작하지 않습니다.")
             if any(
@@ -1277,7 +1287,7 @@ def _hook_status(args: argparse.Namespace) -> int:
                 for item in trust_entries
             ):
                 print("[다음] Codex에서 /hooks를 열고 AIA PreToolUse Hook을 검토·신뢰하세요.")
-            print("[다음] uv run aia hook verify")
+            print(f"[다음] {cli_prefix} hook verify")
     return 0 if payload["ready"] else 1
 
 
@@ -1290,6 +1300,7 @@ def _hook_explain(args: argparse.Namespace) -> int:
     """
 
     installer = CodexHookInstaller(args.path)
+    cli_prefix = _cli_prefix(installer)
     executable: Path | None = None
     try:
         executable = CodexAdapter().discover()
@@ -1350,8 +1361,8 @@ def _hook_explain(args: argparse.Namespace) -> int:
             "Codex에서 /hooks를 엽니다.",
             "AIA PreToolUse Hook의 matcher(*)와 command를 검토합니다.",
             "내용을 이해한 뒤 Codex 화면에서 직접 Trust합니다.",
-            "uv run aia hook verify를 실행합니다.",
-            "uv run aia doctor에서 READY를 확인한 뒤 aia start <workspace>를 실행합니다.",
+            f"{cli_prefix} hook verify를 실행합니다.",
+            f"{cli_prefix} doctor에서 READY를 확인한 뒤 {cli_prefix} start <workspace>를 실행합니다.",
         ],
         "security_note": (
             "AIA는 사용자의 Codex Hook Trust를 대신 승인하지 않습니다. "

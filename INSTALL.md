@@ -18,6 +18,23 @@ Hook을 덮어쓰지 않는다. Hook을 추가하지 않고 Python 환경만 준
 실행 중인 `aia-web` 또는 AIA Python 프로세스가 있으면 Windows가 `.venv` 파일을
 잠글 수 있다. 이 경우 해당 프로세스를 종료한 뒤 설치 명령을 다시 실행한다.
 
+Windows 애플리케이션 제어 정책이 `.venv` 실행 파일을 차단해 `os error 4551`이
+표시되면 저장소에서 다음 격리 호출을 사용할 수 있다.
+
+```powershell
+uv run --isolated python -m aia.cli setup
+```
+
+이 호출은 임시 Python 경로를 Hook에 저장하지 않고 프로젝트와 `uv.exe`를
+사용하는 안정적인 Hook 실행 명령을 기록한다. 이후에도 같은 형식으로 검증과
+콘솔을 실행한다.
+
+```powershell
+uv run --isolated python -m aia.cli hook verify
+uv run --isolated python -m aia.cli doctor
+uv run --isolated python -m aia.cli console --open
+```
+
 저장소 폴더 안에서 `uv run aia`를 붙이지 않고 어느 Workspace에서든 `aia`를
 사용하려면 다음처럼 사용자 도구로도 설치할 수 있다.
 

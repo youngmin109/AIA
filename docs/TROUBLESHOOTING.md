@@ -95,6 +95,43 @@ uv run aia self-test
 릴리스 wheel을 사용자 명령으로 설치한 경우에는 새 PowerShell 창을 열거나
 사용자 PATH를 갱신한 뒤 `aia --version`을 실행한다.
 
+## `os error 4551` 또는 애플리케이션 제어 정책 차단
+
+`uv sync`는 성공하지만 `uv run aia` 또는 `uv run python`에서 다음 오류가
+발생할 수 있다.
+
+```text
+애플리케이션 제어 정책에서 이 파일을 차단했습니다. (os error 4551)
+```
+
+이 경우 Windows 정책이 가상환경의 실행 파일을 AIA가 시작되기 전에 차단한
+것이다. 저장소에서 실행하는 동안에는 콘솔 실행 파일 대신 uv의 격리 Python
+호출을 사용할 수 있다.
+
+```powershell
+uv run --isolated python -m aia.cli setup
+```
+
+그 다음 Codex에서 `/hooks`를 열어 AIA `PreToolUse` Hook을 검토·신뢰하고,
+같은 방식으로 연결을 검증한다.
+
+```powershell
+uv run --isolated python -m aia.cli hook verify
+uv run --isolated python -m aia.cli doctor
+uv run --isolated python -m aia.cli console --open
+```
+
+AIA는 격리 환경의 임시 `python.exe`를 Hook 설정에 저장하지 않고, 프로젝트와
+`uv.exe`를 가리키는 안정적인 실행 명령을 저장한다. 따라서 각 명령을 별도의
+PowerShell에서 실행해도 Hook이 `미설치`로 오인되지 않는다. 이미 임시 경로가
+저장된 경우에는 위 `setup`을 다시 실행하면 AIA가 자신의 이전 Hook 항목만
+교체한다.
+
+이 방식도 동일한 오류로 차단되면 Windows 애플리케이션 제어 정책이 Python
+자식 프로세스 자체를 차단하는 상태다. 정책을 전체 해제하지 말고, 관리자에게
+현재 프로젝트의 `.venv\\Scripts\\python.exe`와 `.venv\\Scripts\\aia.exe`를
+허용할 수 있는지 확인한다.
+
 ## 문제를 보고할 진단 파일
 
 문제를 재현한 뒤 다음 명령을 실행한다.

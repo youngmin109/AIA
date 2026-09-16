@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -35,6 +36,25 @@ AIA_CODEX_TOOL_ALIASES = {
 AIA_CODEX_HOOK_MATCHER = "*"
 
 
+def _is_ephemeral_uv_python(path: Path) -> bool:
+    """Return whether *path* belongs to uv's short-lived isolated environment."""
+
+    parts = tuple(part.casefold() for part in path.resolve(strict=False).parts)
+    return any(part.startswith("builds-v") for part in parts) and any(
+        part.startswith(".tmp") for part in parts
+    )
+
+
+def _project_root() -> Path | None:
+    """Find the source project root when AIA is running from a checkout."""
+
+    source = Path(__file__).resolve()
+    for candidate in (source.parent, *source.parents):
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    return None
+
+
 class CodexHookInstaller:
     """Manage one explicit user-level Hook entry without changing other hooks."""
 
@@ -58,6 +78,40 @@ class CodexHookInstaller:
         self.python_executable = str(
             Path(python_executable or sys.executable).expanduser().resolve(strict=False)
         )
+        self._command_tokens = self._resolve_command_tokens(
+            explicit_python=python_executable is not None
+        )
+
+    def _resolve_command_tokens(self, *, explicit_python: bool) -> tuple[str, ...]:
+        """Use a stable uv command when the caller runs from uv's temp env.
+
+        ``uv run --isolated`` gives each invocation a different temporary
+        interpreter. Persisting that interpreter in Codex's Hook config makes
+        the next AIA command report the Hook as missing. The project and uv
+        executable paths are stable across those invocations, so use them as
+        the Hook launcher in that specific case. Explicit test/runtime paths
+        retain the historical direct-Python behavior.
+        """
+
+        python_path = Path(self.python_executable)
+        if explicit_python or not _is_ephemeral_uv_python(python_path):
+            return (self.python_executable, "-m", "aia.codex_hook_runtime")
+
+        project = _project_root()
+        uv = shutil.which("uv")
+        if project is None or uv is None:
+            return (self.python_executable, "-m", "aia.codex_hook_runtime")
+        return (
+            str(Path(uv).expanduser().resolve(strict=False)),
+            "run",
+            "--quiet",
+            "--project",
+            str(project),
+            "--isolated",
+            "python",
+            "-m",
+            "aia.codex_hook_runtime",
+        )
 
     @staticmethod
     def _default_hook_path() -> Path:
@@ -73,9 +127,15 @@ class CodexHookInstaller:
 
     @property
     def command(self) -> str:
-        return subprocess.list2cmdline(
-            [self.python_executable, "-m", "aia.codex_hook_runtime"]
-        )
+        return subprocess.list2cmdline(list(self._command_tokens))
+
+    @property
+    def uses_uv_launcher(self) -> bool:
+        """Whether the Hook is launched through uv's stable project command."""
+
+        return len(self._command_tokens) > 1 and Path(
+            self._command_tokens[0]
+        ).name.casefold() in {"uv", "uv.exe"}
 
     def hook_entry(self, event: str = "PreToolUse") -> dict[str, Any]:
         if event not in self._EVENTS:
