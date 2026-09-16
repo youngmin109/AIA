@@ -334,6 +334,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preflightReadinessLabels" in new_run.text
     assert "preflightCheckDetailLabel" in new_run.text
     assert "preflightTrustStatusLabels" in new_run.text
+    assert "상태는 단계별로 표시됩니다" in new_run.text
+    assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : ['fail', '설치 필요'];" in new_run.text
+    assert "if (name === 'codex_hook_trust') return check?.ok ? ['ok', '신뢰됨'] : blocksRun ? ['attention', '신뢰 필요'] : ['optional', '확인 전'];" in new_run.text
+    assert "if (name === 'hook_verification') return check?.ok ? ['ok', '검증됨'] : ['attention', '검증 필요'];" in new_run.text
     assert 'id="readiness-config"' in new_run.text
     assert "현재 실행 설정: Workspace 입력 필요" in new_run.text
     assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." not in new_run.text
