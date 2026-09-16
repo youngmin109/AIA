@@ -880,6 +880,27 @@ def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None
     assert result.text.index("Codex 실행 정책 경고") < result.text.index("이번 보호 실행에서 확인된 내용")
 
 
+def test_result_summary_does_not_claim_full_verification_when_codex_policy_is_unobserved() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data.update(
+        {
+            "execution_policy_status": "NOT_OBSERVED",
+            "requested_sandbox": "workspace-write",
+            "requested_approval_policy": "on-request",
+        }
+    )
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert "센서 증거와 Result Bundle은 확인했지만" in result.text
+    assert "실행 정책의 실제 적용 상태는 완전히 확인되지 않았습니다." in result.text
+    assert "작업이 끝났고, AIA가 수집한 보호 증거와 결과 Bundle의 검증이 완료되었습니다." not in result.text
+
+
 def test_result_event_timeline_localizes_enforcement_decisions() -> None:
     service = FakeService()
     result_data = service.get_result("run-1")
