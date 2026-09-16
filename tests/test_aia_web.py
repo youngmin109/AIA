@@ -360,6 +360,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preflightReadinessLabels" in new_run.text
     assert "preflightCheckDetailLabel" in new_run.text
     assert "preflightTrustStatusLabels" in new_run.text
+    assert "hookVerificationResultLabel" in new_run.text
+    assert "Codex가 아직 AIA Hook을 신뢰하지 않았습니다" in new_run.text
     assert "상태는 단계별로 표시됩니다" in new_run.text
     assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];" in new_run.text
     assert "if (name === 'codex_hook_trust') return check?.ok ? ['ok', '신뢰됨'] : blocksRun ? ['attention', '신뢰 필요'] : ['optional', '확인 전'];" in new_run.text
