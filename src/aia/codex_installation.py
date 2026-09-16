@@ -179,6 +179,35 @@ class CodexHookInstaller:
 
         return self.is_installed() and self.is_posttool_installed()
 
+    def has_aia_runtime(self, event: str = "PreToolUse") -> bool:
+        """Return whether an AIA runtime handler exists for *event*.
+
+        This deliberately does not mean that the handler is usable.  A stale
+        isolated-Python path or another checkout can leave an AIA handler in
+        ``hooks.json`` whose exact command differs from this installer.  The
+        distinction lets the CLI explain that situation without accepting the
+        stale handler as current.
+        """
+
+        if event not in self._EVENTS:
+            raise CodexHookInstallationError(f"unsupported AIA Hook event: {event}")
+        try:
+            document = self._read()
+        except (OSError, ValueError, TypeError):
+            return False
+        hooks = document.get("hooks")
+        entries = hooks.get(event) if isinstance(hooks, Mapping) else None
+        if not isinstance(entries, list):
+            return False
+        return any(
+            isinstance(entry, Mapping)
+            and any(
+                self._is_aia_runtime_handler(handler)
+                for handler in (entry.get("hooks") or ())
+            )
+            for entry in entries
+        )
+
     def install(self) -> Path:
         document = self._read()
         hooks = document.setdefault("hooks", {})

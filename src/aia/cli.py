@@ -1440,15 +1440,30 @@ def _hook_verify(args: argparse.Namespace) -> int:
     if args.timeout <= 0:
         raise ApplicationValidationError("timeout must be positive")
     if not installer.is_installed():
+        runtime_detected = installer.has_aia_runtime("PreToolUse")
+        reason = (
+            "PRETOOL_HOOK_COMMAND_MISMATCH"
+            if runtime_detected
+            else "PRETOOL_HOOK_NOT_INSTALLED"
+        )
         payload = {
             "verified": False,
-            "reason": "PRETOOL_HOOK_NOT_INSTALLED",
+            "reason": reason,
             "hook_path": str(installer.path),
+            "aia_runtime_detected": runtime_detected,
         }
         if args.json:
             print(_json_text(payload))
         else:
-            print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
+            if runtime_detected:
+                print(
+                    "Hook 검증 실패: PreToolUse Hook 설정은 있지만 현재 AIA 실행 경로와 일치하지 않습니다."
+                )
+                print(
+                    "[원인] 이전 uv 격리 환경이나 다른 AIA 프로젝트에서 생성된 Hook일 수 있습니다."
+                )
+            else:
+                print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
             print(f"[다음] {_cli_prefix(installer)} setup")
         return 2
     try:

@@ -85,6 +85,20 @@ def test_codex_hook_installer_uses_stable_uv_launcher_from_isolated_environment(
     assert installer.is_installed() is True
 
 
+def test_codex_hook_installer_distinguishes_stale_aia_runtime_from_missing_hook(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    old = CodexHookInstaller(path, python_executable=tmp_path / "old-python.exe")
+    old.install()
+
+    current = CodexHookInstaller(path, python_executable=tmp_path / "new-python.exe")
+
+    assert current.has_aia_runtime() is True
+    assert current.is_installed() is False
+    assert current.has_aia_runtime("PostToolUse") is True
+
+
 def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path) -> None:
     path = tmp_path / "hooks.json"
     python_executable = tmp_path / "python.exe"

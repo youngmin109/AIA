@@ -885,6 +885,34 @@ def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:
     assert args.timeout == 30
 
 
+def test_hook_verify_explains_stale_aia_command_before_probe(tmp_path, monkeypatch, capsys) -> None:
+    hook_path = tmp_path / "hooks.json"
+    old = CodexHookInstaller(hook_path, python_executable=tmp_path / "old-python.exe")
+    old.install()
+
+    monkeypatch.setattr(
+        "aia.cli.CodexHookInstaller",
+        lambda _path=None: CodexHookInstaller(
+            hook_path, python_executable=tmp_path / "new-python.exe"
+        ),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "verify",
+            "--json",
+            "--path",
+            str(hook_path),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert payload["reason"] == "PRETOOL_HOOK_COMMAND_MISMATCH"
+    assert payload["aia_runtime_detected"] is True
+
+
 def test_hook_verify_fails_before_probe_when_codex_hook_is_untrusted(
     tmp_path, monkeypatch, capsys
 ) -> None:
