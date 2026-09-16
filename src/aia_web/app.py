@@ -106,6 +106,27 @@ def _console_cli_prefix() -> str:
 
     installer = CodexHookInstaller()
     if installer.uses_uv_launcher:
+        project_root = next(
+            (
+                candidate
+                for candidate in (_ROOT, *_ROOT.parents)
+                if (candidate / "pyproject.toml").is_file()
+            ),
+            None,
+        )
+        if project_root is not None:
+            return subprocess.list2cmdline(
+                [
+                    "uv",
+                    "run",
+                    "--isolated",
+                    "--project",
+                    str(project_root),
+                    "python",
+                    "-m",
+                    "aia.cli",
+                ]
+            )
         return "uv run --isolated python -m aia.cli"
     return "uv run aia"
 

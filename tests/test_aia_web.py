@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 import importlib
 
-from aia_web.app import _coalesce_terminal_output, create_app
+from aia_web.app import _coalesce_terminal_output, _console_cli_prefix, create_app
 from aia_app.service import RunApplicationService
 from aia.codex_installation import CodexHookInstaller
 
@@ -245,7 +245,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-7" in dashboard.text
+    assert "glassbox-ui-8" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -928,7 +928,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "Workbench에서 작업" in dashboard.text
     assert "오른쪽 보안 관찰 · 결과 보기" in dashboard.text
     assert "저장소에서는" in dashboard.text
-    expected_cli_prefix = "uv run --isolated python -m aia.cli" if CodexHookInstaller().uses_uv_launcher else "uv run aia"
+    expected_cli_prefix = _console_cli_prefix()
     assert f"{expected_cli_prefix} doctor" in dashboard.text
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
     assert 'aria-label="AIA 주요 메뉴"' in dashboard.text
