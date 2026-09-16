@@ -1079,6 +1079,10 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     assert "이전 보호 실행이 현재 연결되어 있지 않습니다" in dashboard.text
     assert 'id="dashboard-stale-run"' in dashboard.text
     assert 'href="/runs/stale-run"' in dashboard.text
+    assert "연결 끊김" in dashboard.text
+    assert "보호 경계 끊김 · 정리 필요" in dashboard.text
+    assert '<a href="/runs/stale-run">정리 검토</a>' in dashboard.text
+    assert 'href="/runs/stale-run/workbench"' not in dashboard.text
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:
