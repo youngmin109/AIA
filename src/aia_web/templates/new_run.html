@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}새 보호 실행 · AIA{% endblock %}
 {% block content %}
+{% set preflight_deferred = new_run_preflight_deferred|default(False) %}
 <div class="new-run-page">
 <section class="hero">
   <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
@@ -30,9 +31,10 @@
 <section id="preflight-panel" class="panel preflight-panel">
   <div class="panel-heading">
     <h2>실행 전 준비 상태</h2>
-    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">자동 확인 완료</span></div>
+    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">{{ '확인 중…' if preflight_deferred else '자동 확인 완료' }}</span></div>
   </div>
-  <div id="preflight-checks" class="preflight-list">
+  <div id="preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span>Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span></div>
+  <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
     {% for check in preflight.checks %}
     <div class="preflight-row">
       <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인 필요' }}</span>
@@ -43,14 +45,14 @@
   </div>
   {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
   {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
-  <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust">{{ preflight.hook_trust.detail }}</div>
+  <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust" id="preflight-trust-summary">{{ 'Codex Hook Trust 상태를 확인하고 있습니다.' if preflight_deferred else preflight.hook_trust.detail }}</div>
   <div id="codex-hook-trust" class="notice {{ 'success' if preflight_trust_ok else 'warning' }}">
     <strong>Codex 설정 Trust 상태:</strong>
     {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
     {% if trust_hooks %}
       {% for hook in trust_hooks %}{{ hook.event }}={{ hook.trust_status }}{% if not loop.last %} · {% endif %}{% endfor %}
     {% else %}
-      확인할 수 없음
+      {{ '확인 중' if preflight_deferred else '확인할 수 없음' }}
     {% endif %}
     <small class="hint">Codex 설정의 신뢰 상태입니다. 현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다.</small>
   </div>
@@ -59,7 +61,7 @@
     {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
   </div>
   <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}success{% else %}warning{% endif %}">
-    <strong>현재 연결 증명:</strong> {{ (preflight.get('hook_activation') or {}).get('detail', '아직 현재 환경의 실제 Hook Event가 관찰되지 않았습니다.') }}
+    <strong>현재 연결 증명:</strong> {{ '실제 Hook 연결 상태를 확인하고 있습니다.' if preflight_deferred else (preflight.get('hook_activation') or {}).get('detail', '아직 현재 환경의 실제 Hook Event가 관찰되지 않았습니다.') }}
   </div>
   {% set preflight_hook_verified = (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}
   <div class="preflight-sensor-summary" id="preflight-sensor-summary">
@@ -69,7 +71,7 @@
     </div>
     <div class="sensor-cards preflight-sensor-cards">
       <div class="sensor-card preflight-sensor-card">
-        <div class="sensor-card-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="preflight-sensor-hook-status" class="status-badge {{ 'status-success' if preflight_hook_verified else 'status-warning' }}" title="{{ (preflight.get('hook_activation') or {}).get('status', 'UNKNOWN') }}">{{ '검증됨' if preflight_hook_verified else '확인 필요' }}</span></div>
+        <div class="sensor-card-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="preflight-sensor-hook-status" class="status-badge {{ 'status-success' if preflight_hook_verified else 'status-warning' }}" title="{{ (preflight.get('hook_activation') or {}).get('status', 'UNKNOWN') }}">{{ '검증됨' if preflight_hook_verified else ('확인 중' if preflight_deferred else '확인 필요') }}</span></div>
         <small>Codex의 지원되는 도구 요청을 실행 전에 관찰합니다.</small>
       </div>
       <div class="sensor-card preflight-sensor-card">
@@ -82,15 +84,15 @@
       </div>
     </div>
   </div>
-  <div id="preflight-error" class="error" {% if preflight.ready %}hidden{% endif %}>
+  <div id="preflight-error" class="error" {% if preflight.ready or preflight_deferred %}hidden{% endif %}>
     <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 항목을 먼저 해결하세요. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
   </div>
   <div id="readiness-summary" class="notice {% if preflight.ready %}success{% else %}warning{% endif %}">
-    <strong>시스템 준비 상태: <span id="readiness-code">{{ preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
+    <strong>시스템 준비 상태: <span id="readiness-code">{{ 'CHECKING' if preflight_deferred else preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
     <span id="readiness-config" class="readiness-config">현재 실행 설정: Workspace 입력 필요</span>
-    <span id="readiness-next-step">{{ preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
+    <span id="readiness-next-step">{{ 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다.' if preflight_deferred else preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
   </div>
-  <div id="preflight-next-steps" class="next-steps"{% if preflight.ready %} hidden{% endif %}>
+  <div id="preflight-next-steps" class="next-steps"{% if preflight.ready or preflight_deferred %} hidden{% endif %}>
     <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
     <ol>
       {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
@@ -99,8 +101,8 @@
     </ol>
   </div>
   <div class="form-actions">
-    <button id="verify-hook" class="button" type="button">{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
-    <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.' }}</span>
+    <button id="verify-hook" class="button" type="button"{% if preflight_deferred %} disabled{% endif %}>{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
+    <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else ('준비 상태 확인이 끝난 뒤 Hook 연결을 검증할 수 있습니다.' if preflight_deferred else 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.') }}</span>
   </div>
 </section>
 
@@ -286,6 +288,8 @@ const recentWorkspaceActions = document.getElementById('recent-workspace-actions
 const recentWorkspaceButtons = document.getElementById('recent-workspace-buttons');
 const clearRecentWorkspaces = document.getElementById('clear-recent-workspaces');
 const preflightChecks = document.getElementById('preflight-checks');
+const preflightLoading = document.getElementById('preflight-loading');
+const preflightTrustSummary = document.getElementById('preflight-trust-summary');
 const preflightError = document.getElementById('preflight-error');
 const readinessSummary = document.getElementById('readiness-summary');
 const readinessCode = document.getElementById('readiness-code');
@@ -328,6 +332,9 @@ const editorRules = [];
 let editorValidated = false;
 let runSubmissionInProgress = false;
 let preflightReady = {{ preflight.ready|tojson }};
+let preflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
+let preflightRequestInFlight = false;
+let preflightRequestTimer = null;
 let workspaceValidationRequest = 0;
 let workspaceValidationTimer = null;
 let validatedWorkspacePath = '';
@@ -514,8 +521,19 @@ profile.addEventListener('change', () => { updateCustomPolicyField(); updateProf
 updateCustomPolicyField();
 updateProfileDescription();
 function renderPreflight(payload) {
+  const data = payload && typeof payload === 'object' ? payload : {};
+  const checks = Array.isArray(data.checks) ? data.checks : [];
+  preflightLoaded = true;
+  if (preflightLoading) preflightLoading.hidden = true;
+  preflightChecks.hidden = false;
   preflightChecks.replaceChildren();
-  payload.checks.forEach((check) => {
+  if (!checks.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = '준비 상태 확인 결과가 없습니다.';
+    preflightChecks.append(empty);
+  }
+  checks.forEach((check) => {
     const row = document.createElement('div');
     row.className = 'preflight-row';
     const mark = document.createElement('span');
@@ -529,13 +547,14 @@ function renderPreflight(payload) {
     row.append(mark, label, detail);
     preflightChecks.append(row);
   });
-  preflightError.hidden = payload.ready;
-  readinessSummary.className = `notice ${payload.ready ? 'success' : 'warning'}`;
-  readinessCode.textContent = payload.readiness_code || 'UNKNOWN';
-  readinessNextStep.textContent = payload.next_step || '위의 확인 필요 항목을 해결하세요.';
-  jumpToRun.hidden = !payload.ready;
-  preflightNextSteps.hidden = payload.ready;
-  const activation = payload.hook_activation || {};
+  preflightError.hidden = data.ready === true;
+  readinessSummary.className = `notice ${data.ready === true ? 'success' : 'warning'}`;
+  readinessCode.textContent = data.readiness_code || 'UNKNOWN';
+  readinessNextStep.textContent = data.next_step || '위의 확인 필요 항목을 해결하세요.';
+  jumpToRun.hidden = data.ready !== true;
+  preflightNextSteps.hidden = data.ready === true;
+  if (preflightTrustSummary) preflightTrustSummary.textContent = data.hook_trust?.detail || 'Codex Hook Trust 상태를 확인할 수 없습니다.';
+  const activation = data.hook_activation || {};
   hookActivation.className = `notice ${activation.status === 'CURRENTLY_VERIFIED' ? 'success' : 'warning'}`;
   hookActivation.replaceChildren();
   const activationLabel = document.createElement('strong');
@@ -548,9 +567,10 @@ function renderPreflight(payload) {
   hookSensorStatus.title = activation.status || 'UNKNOWN';
   verifyHookButton.textContent = activationVerified ? 'Hook 연결 다시 검증' : '실제 Hook 연결 검증';
   verifyHookButton.dataset.idleLabel = verifyHookButton.textContent;
+  verifyHookButton.disabled = false;
   verifyHookStatus.className = activationVerified ? 'hint success-text' : 'hint';
   verifyHookStatus.textContent = activationVerified ? '현재 Session-bound Hook Event가 확인되었습니다.' : 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.';
-  const trust = payload.codex_hook_trust || {};
+  const trust = data.codex_hook_trust || {};
   const trustHooks = Array.isArray(trust.hooks) ? trust.hooks : [];
   const trustSummary = trustHooks.map((hook) => `${hook.event}=${hook.trust_status}`).join(' · ');
   const preToolTrust = trustHooks.find((hook) => hook.event === 'preToolUse')?.trust_status;
@@ -563,26 +583,49 @@ function renderPreflight(payload) {
   trustHint.className = 'hint';
   trustHint.textContent = 'Codex 설정의 신뢰 상태입니다. 현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다.';
   codexHookTrust.append(trustLabel, trustValue, trustHint);
-  preflightReady = Boolean(payload.ready);
+  preflightReady = data.ready === true;
   updateRunSubmitState();
 }
-refreshPreflightButton.addEventListener('click', async () => {
+async function loadPreflight({manual = false} = {}) {
+  if (preflightRequestInFlight) return;
+  preflightRequestInFlight = true;
+  if (preflightRequestTimer) window.clearTimeout(preflightRequestTimer);
+  const controller = new AbortController();
+  preflightRequestTimer = window.setTimeout(() => controller.abort(), 10000);
+  verifyHookButton.disabled = true;
+  updateRunSubmitState();
+  updateRunProgress();
   setButtonBusy(refreshPreflightButton, true, '확인 중…');
   preflightRefreshStatus.className = 'hint';
-  preflightRefreshStatus.textContent = 'AIA 실행 준비 상태를 확인하는 중…';
+  preflightRefreshStatus.textContent = manual ? 'AIA 실행 준비 상태를 다시 확인하는 중…' : 'AIA 실행 준비 상태를 확인하는 중…';
   try {
-    const response = await fetch('/api/preflight', {cache: 'no-store'});
+    const response = await fetch('/api/preflight', {cache: 'no-store', signal: controller.signal});
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || '사전 점검 결과를 불러오지 못했습니다.');
     renderPreflight(payload);
     preflightRefreshStatus.textContent = '확인 완료';
   } catch (error) {
+    renderPreflight({
+      ready: false,
+      readiness_code: error?.name === 'AbortError' ? 'PREFLIGHT_TIMEOUT' : 'PREFLIGHT_UNAVAILABLE',
+      next_step: 'AIA 준비 상태를 확인하지 못했습니다. 잠시 후 다시 검사하세요.',
+      checks: [{label: 'AIA 준비 상태', ok: false, detail: error?.name === 'AbortError' ? '확인 시간이 초과되었습니다.' : '로컬 AIA 서버 연결을 확인하세요.'}],
+      hook_trust: {detail: 'Codex Hook Trust를 확인하지 못했습니다.'},
+      hook_activation: {status: 'UNKNOWN', detail: '현재 Hook 연결을 확인하지 못했습니다.'},
+      codex_hook_trust: {hooks: []},
+    });
     preflightRefreshStatus.className = 'hint error-text';
-    preflightRefreshStatus.textContent = `확인 실패: ${error.message}`;
+    preflightRefreshStatus.textContent = error?.name === 'AbortError' ? '확인 시간 초과 · 다시 시도할 수 있습니다.' : `확인 실패: ${error.message}`;
   } finally {
+    window.clearTimeout(preflightRequestTimer);
+    preflightRequestTimer = null;
+    preflightRequestInFlight = false;
     setButtonBusy(refreshPreflightButton, false);
+    updateRunSubmitState();
+    updateRunProgress();
   }
-});
+}
+refreshPreflightButton.addEventListener('click', () => loadPreflight({manual: true}));
 verifyHookButton.addEventListener('click', async () => {
   setButtonBusy(verifyHookButton, true, '검증 중…');
   verifyHookStatus.className = 'hint';
@@ -607,23 +650,28 @@ verifyHookButton.addEventListener('click', async () => {
   }
 });
 function updateRunSubmitState() {
-  const ready = preflightReady && workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  const preflightChecking = !preflightLoaded || preflightRequestInFlight;
+  const ready = preflightReady && !preflightChecking && workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
   submitRun.disabled = !ready || runSubmissionInProgress;
   readinessConfig.textContent = workspaceValidationInProgress
     ? '현재 실행 설정: Workspace 확인 중…'
     : !workspaceIsValid || validatedWorkspacePath !== workspaceInput.value.trim()
       ? '현재 실행 설정: Workspace 입력 필요'
-      : !preflightReady
-        ? '현재 실행 설정: 실행 전 준비 필요'
+      : preflightChecking
+        ? '현재 실행 설정: 실행 전 준비 상태 확인 중…'
+        : !preflightReady
+          ? '현재 실행 설정: 실행 전 준비 필요'
         : '현재 실행 설정: 실행 가능';
   readinessConfig.className = `readiness-config ${ready ? 'readiness-config-ready' : ''}`;
-  document.getElementById('run-submit-hint').textContent = !preflightReady
-    ? '실행 전 준비 상태를 먼저 해결하세요.'
+  document.getElementById('run-submit-hint').textContent = preflightChecking
+    ? '실행 전 준비 상태를 확인하는 중입니다.'
+    : !preflightReady
+      ? '실행 전 준비 상태를 먼저 해결하세요.'
       : workspaceValidationInProgress
-      ? 'Workspace 확인이 끝나면 실행 버튼이 활성화됩니다.'
-      : !workspaceIsValid
-      ? '존재하는 Workspace 경로를 확인하면 실행할 수 있습니다.'
-      : '실행 설정이 준비되었습니다.';
+        ? 'Workspace 확인이 끝나면 실행 버튼이 활성화됩니다.'
+        : !workspaceIsValid
+          ? '존재하는 Workspace 경로를 확인하면 실행할 수 있습니다.'
+          : '실행 설정이 준비되었습니다.';
   updateLaunchSummary(ready);
   updateRunProgress();
 }
@@ -637,7 +685,7 @@ function updateLaunchSummary(ready = preflightReady && workspaceIsValid && valid
   runSummaryMode.textContent = interactive ? '대화형 보호 세션' : '한 번의 작업 실행';
   const workbench = form.querySelector('input[name="terminal_surface"]:checked')?.value === 'workbench';
   runSummarySurface.textContent = interactive ? workbench ? 'AIA Workbench' : '별도 Windows 터미널' : 'Codex 기본 실행';
-  const state = runSubmissionInProgress ? 'busy' : ready ? 'ready' : 'pending';
+  const state = runSubmissionInProgress ? 'busy' : ready && preflightLoaded && !preflightRequestInFlight ? 'ready' : 'pending';
   runLaunchSummary.dataset.state = state;
   runLaunchSummaryState.className = `badge ${state === 'ready' ? 'badge-ready' : state === 'busy' ? 'badge-running' : ''}`;
   runLaunchSummaryState.textContent = state === 'busy' ? '시작 중…' : state === 'ready' ? '실행 가능' : '입력 필요';
@@ -651,6 +699,8 @@ function updateLaunchSummary(ready = preflightReady && workspaceIsValid && valid
           ? '존재하는 Workspace 경로를 입력하면 실행 가능 여부를 확인합니다.'
           : !workspaceIsValid
             ? '입력한 경로가 존재하는 프로젝트 폴더인지 확인하세요.'
+          : !preflightLoaded || preflightRequestInFlight
+            ? 'AIA 실행 전 준비 상태를 확인하는 중입니다.'
             : '실행 전 준비 상태를 먼저 해결하세요.';
 }
 function updateNextAction() {
@@ -668,6 +718,13 @@ function updateNextAction() {
     detail = '정책·Checkpoint·센서를 준비하고 있습니다. 잠시 후 Workbench로 이동합니다.';
     link = '';
     linkLabel = '';
+  } else if (!preflightLoaded || preflightRequestInFlight) {
+    state = 'preflight-checking';
+    mark = '…';
+    title = '실행 전 준비 상태를 확인하는 중입니다.';
+    detail = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다. 확인이 끝나면 실행 버튼이 활성화됩니다.';
+    link = '#preflight-panel';
+    linkLabel = '확인 상태 보기';
   } else if (!preflightReady) {
     state = 'preflight';
     mark = '2';
@@ -707,7 +764,7 @@ function updateNextAction() {
 }
 function updateRunProgress() {
   const workspaceReady = workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
-  const currentStep = !workspaceReady ? 1 : !preflightReady ? 2 : 3;
+  const currentStep = !workspaceReady ? 1 : !preflightLoaded || preflightRequestInFlight || !preflightReady ? 2 : 3;
   const stepLabels = {
     1: '작업 폴더 선택',
     2: '정책·기준점 준비',
@@ -727,7 +784,7 @@ function updateRunProgress() {
     const nextAction = currentStep === 1
       ? 'Workspace 경로를 입력하세요.'
       : currentStep === 2
-        ? '실행 전 준비 상태를 확인하세요.'
+        ? preflightLoaded && !preflightRequestInFlight ? '실행 전 준비 상태를 확인하세요.' : '실행 전 준비 상태를 확인하는 중입니다.'
         : '실행 설정을 확인하고 시작 버튼을 누르세요.';
     runProgressStatus.textContent = `현재 단계 ${currentStep}/4 · ${stepLabels[currentStep]} · ${nextAction}`;
   }
@@ -882,6 +939,10 @@ previewButton.addEventListener('click', async () => {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (runSubmissionInProgress) return;
+  if (!preflightLoaded || preflightRequestInFlight) {
+    showRunStartError('실행 전 준비 상태를 확인하는 중입니다. 잠시 후 다시 시도하세요.');
+    return;
+  }
   if (!preflightReady) {
     showRunStartError('실행 전 준비 상태를 먼저 해결하세요.');
     return;
@@ -926,5 +987,6 @@ form.addEventListener('submit', async (event) => {
     submitRun.textContent = '보호 실행 시작';
   }
 });
+loadPreflight();
 </script>
 {% endblock %}

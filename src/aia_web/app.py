@@ -92,6 +92,7 @@ def _dashboard_preflight_placeholder() -> dict[str, Any]:
             "status": "CHECKING",
             "detail": "실제 Hook 연결 상태를 확인하고 있습니다.",
         },
+        "codex_hook_trust": {"hooks": []},
         "protection_claim": {
             "status": "CHECKING",
             "detail": "준비 상태 확인이 끝날 때까지 보호 실행을 시작하지 않습니다.",
@@ -198,7 +199,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             "new_run.html",
             {
                 "profiles": app.state.service.policy_profiles(),
-                "preflight": app.state.service.preflight(),
+                "preflight": _dashboard_preflight_placeholder(),
+                "new_run_preflight_deferred": True,
                 "capabilities": product_capabilities(),
             },
         )
