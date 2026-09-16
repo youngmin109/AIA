@@ -476,6 +476,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "중지 확인" in workbench.text
     assert 'data-terminal-focus' in workbench.text
     assert '입력창으로 이동' in workbench.text
+    assert 'class="terminal-focus-link" href="#terminal-input-proxy" data-terminal-focus' in workbench.text
+    assert 'const terminalUnavailable = runEnded || protectionDisconnected || terminalClosed' in workbench.text
+    assert '이 실행은 종료되었습니다 · 결과 보기에서 기록을 확인하세요.' in workbench.text
+    assert 'Codex 작업창 연결 후 입력할 수 있습니다.' in workbench.text
     assert "terminalInput.scrollIntoView({behavior: 'smooth', block: 'center'})" in workbench.text
     assert 'id="terminal-activity"' in workbench.text
     assert 'class="terminal-output' in workbench.text
@@ -1124,6 +1128,29 @@ def test_workbench_disables_input_and_marks_sensors_when_runtime_is_orphaned() -
     assert 'placeholder="AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다."' in workbench.text
     assert "sensor-disconnected" in workbench.text
     assert "!protectionDisconnected" in workbench.text
+
+
+def test_workbench_hides_input_navigation_when_run_is_ended() -> None:
+    service = FakeService()
+    original_get_run_status = service.get_run_status
+
+    def ended_status(session_id):
+        status = original_get_run_status(session_id)
+        status["phase"] = "ABORTED"
+        status["session"] = {**status["session"], "status": "ABORTED"}
+        status["protection"] = {**status["protection"], "state": "ABORTED_DEGRADED"}
+        return status
+
+    service.get_run_status = ended_status
+    client = TestClient(create_app(service))
+
+    workbench = client.get("/runs/run-1/workbench")
+
+    assert workbench.status_code == 200
+    assert 'class="terminal-focus-link" href="#terminal-input-proxy" data-terminal-focus hidden' in workbench.text
+    assert 'id="terminal-input-proxy"' in workbench.text
+    assert 'disabled></textarea>' in workbench.text
+    assert 'id="terminal-send" class="button primary terminal-send" type="submit" disabled' in workbench.text
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:

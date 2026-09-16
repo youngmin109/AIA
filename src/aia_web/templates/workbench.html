@@ -116,7 +116,7 @@
           </div>
         </div>
         <div class="terminal-heading-actions">
-          <a class="terminal-focus-link" href="#terminal-input-proxy" data-terminal-focus>입력창으로 이동</a>
+          <a class="terminal-focus-link" href="#terminal-input-proxy" data-terminal-focus{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] or protection_disconnected %} hidden{% endif %}>입력창으로 이동</a>
           <button id="terminal-reconnect" class="button secondary terminal-reconnect" type="button" hidden>터미널 다시 연결</button>
           <button id="terminal-scroll-latest" class="button secondary terminal-scroll-latest" type="button" hidden>최신 출력으로 이동</button>
           <span id="terminal-pid" class="badge">PID —</span>
@@ -275,6 +275,7 @@ const terminalClosedBundle = document.getElementById('terminal-closed-bundle');
 const terminalClosedResult = document.getElementById('terminal-closed-result');
 const terminalInputForm = document.getElementById('terminal-input-form');
 const terminalInput = document.getElementById('terminal-input-proxy');
+const terminalInputHelp = document.getElementById('terminal-input-help');
 const terminalSend = document.getElementById('terminal-send');
 const terminalStatus = document.getElementById('terminal-status');
 const terminalPid = document.getElementById('terminal-pid');
@@ -1193,6 +1194,24 @@ function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
   const protectionDisconnected = Boolean(latestStatus?.runtime_reconciliation?.orphaned);
   const terminalReady = terminalRuntimeStatus === 'RUNNING' && terminalSocketConnected && terminalComposerReady && !trustRequired && !protectionDisconnected;
+  const runEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
+  const terminalUnavailable = runEnded || protectionDisconnected || terminalClosed || ['EXITED', 'FAILED'].includes(terminalRuntimeStatus);
+  if (terminalFocusLink) terminalFocusLink.hidden = terminalUnavailable;
+  if (terminalInputHelp) {
+    terminalInputHelp.textContent = runEnded
+      ? '이 실행은 종료되었습니다 · 결과 보기에서 기록을 확인하세요.'
+      : protectionDisconnected
+        ? 'AIA 보호 연결이 끊겼습니다 · 실행 기록에서 상태를 확인하세요.'
+        : terminalClosed || ['EXITED', 'FAILED'].includes(terminalRuntimeStatus)
+          ? 'Codex 작업창이 종료되었습니다 · 다시 연결하거나 실행 기록을 확인하세요.'
+          : trustRequired
+            ? 'Codex 작업창에서 “신뢰하고 계속”을 눌러주세요.'
+            : awaitingResponse
+              ? '응답을 기다리는 중입니다 · 완료될 때까지 다시 전송하지 마세요.'
+              : terminalReady
+                ? 'Enter로 전송 · Shift+Enter로 줄바꿈 · Ctrl+C·방향키 지원'
+                : 'Codex 작업창 연결 후 입력할 수 있습니다.';
+  }
   terminalInput.disabled = !terminalReady;
   terminalSend.disabled = !terminalReady || awaitingResponse;
   terminalSend.textContent = awaitingResponse
@@ -1205,7 +1224,6 @@ function updateTerminalInputState() {
   terminalInterrupt.classList.toggle('is-busy', interruptPending);
   terminalInterrupt.setAttribute('aria-busy', String(interruptPending));
   terminalInterrupt.textContent = interruptPending ? '중지 요청 전송됨' : '현재 요청 중지';
-  const runEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
   const reconnectVisible = (terminalSocketEverConnected || terminalConnectionFailed) && !terminalSocketConnected && !terminalClosed && !runEnded;
   terminalReconnect.hidden = !reconnectVisible;
   terminalReconnect.disabled = terminalReconnectPending;
