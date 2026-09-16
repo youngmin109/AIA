@@ -1435,6 +1435,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-readiness-label">실행 준비</span>' in dashboard.text
     assert '<small id="dashboard-readiness-code" title="CHECKING">확인 중</small>' in dashboard.text
     assert '<strong id="dashboard-hook-trust-value" title="CHECKING">확인 중</strong>' in dashboard.text
+    assert "MODIFIED: '변경됨 · 검토 필요'" in dashboard.text
+    assert "Codex /hooks에서 AIA Hook을 검토·신뢰하세요." in dashboard.text
     assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-preflight-loading"' in dashboard.text
     assert 'id="dashboard-preflight-loading-elapsed"' in dashboard.text
