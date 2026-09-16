@@ -104,7 +104,7 @@
           <span id="terminal-status" class="hint" aria-live="polite">터미널 연결을 기다리는 중입니다.</span>
           <div class="terminal-live-meta" role="status" aria-live="polite">
             <span id="terminal-connection" class="terminal-connection connection-pending"><i aria-hidden="true"></i>연결 확인 중</span>
-            <span>마지막 출력 수신 <strong id="terminal-last-output">기록 없음</strong></span>
+            <span id="terminal-last-output-meta">마지막 출력 수신 <strong id="terminal-last-output">기록 없음</strong></span>
           </div>
           <div id="terminal-activity" class="terminal-activity" role="status" aria-live="polite" hidden>
             <span class="terminal-activity-bar" aria-hidden="true"></span>
@@ -280,6 +280,7 @@ const terminalPid = document.getElementById('terminal-pid');
 const terminalScrollLatest = document.getElementById('terminal-scroll-latest');
 const terminalConnection = document.getElementById('terminal-connection');
 const protectionStateNote = document.getElementById('protection-state-note');
+const terminalLastOutputMeta = document.getElementById('terminal-last-output-meta');
 const terminalLastOutput = document.getElementById('terminal-last-output');
 const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
@@ -335,6 +336,7 @@ let activityMode = 'IDLE';
 let activityStartedAt = 0;
 let activityTimer = null;
 let lastTerminalOutputAt = 0;
+let terminalConnectionFailed = false;
 let terminalClosed = false;
 let terminalRuntimeStatus = 'UNKNOWN';
 let terminalSocketConnected = false;
@@ -635,6 +637,13 @@ const formatOutputAge = (timestamp) => {
 };
 function updateTerminalOutputAge() {
   terminalLastOutput.textContent = formatOutputAge(lastTerminalOutputAt);
+  const waitingForOutput = awaitingResponse && ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode);
+  const elapsed = lastTerminalOutputAt ? Math.max(0, Math.floor((Date.now() - lastTerminalOutputAt) / 1000)) : 0;
+  terminalLastOutputMeta.classList.toggle('output-aging', waitingForOutput && elapsed >= 5 && elapsed < 15);
+  terminalLastOutputMeta.classList.toggle('output-stale', waitingForOutput && elapsed >= 15);
+  terminalLastOutputMeta.title = lastTerminalOutputAt
+    ? `마지막 출력 수신 시각: ${formatTime(new Date(lastTerminalOutputAt).toISOString())}`
+    : '아직 수신한 Codex 출력이 없습니다.';
 }
 const sessionLabel = (value) => ({
   CREATED: '생성됨',
@@ -1181,7 +1190,7 @@ function updateTerminalInputState() {
   terminalInterrupt.setAttribute('aria-busy', String(interruptPending));
   terminalInterrupt.textContent = interruptPending ? '중지 요청 전송됨' : '현재 요청 중지';
   const runEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
-  const reconnectVisible = terminalSocketEverConnected && !terminalSocketConnected && !terminalClosed && !runEnded;
+  const reconnectVisible = (terminalSocketEverConnected || terminalConnectionFailed) && !terminalSocketConnected && !terminalClosed && !runEnded;
   terminalReconnect.hidden = !reconnectVisible;
   terminalReconnect.disabled = terminalReconnectPending;
   terminalReconnect.classList.toggle('is-busy', terminalReconnectPending);
@@ -1336,6 +1345,7 @@ function openSocket() {
       updateTerminalScrollControl();
     }
     terminalSocketEverConnected = true;
+    terminalConnectionFailed = false;
     terminalReconnectPending = false;
     terminalSocketConnected = true;
     terminalOutput.classList.add('is-loading');
@@ -1366,6 +1376,7 @@ function openSocket() {
   socket.onclose = () => {
     terminalReconnectPending = false;
     terminalSocketConnected = false;
+    if (!terminalSocketEverConnected) terminalConnectionFailed = true;
     updateTerminalInputState();
     if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
       showTerminalError('Codex에 요청을 전송하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');
@@ -1379,6 +1390,7 @@ function openSocket() {
   socket.onerror = () => {
     terminalReconnectPending = false;
     terminalSocketConnected = false;
+    terminalConnectionFailed = true;
     updateTerminalInputState();
     setTerminalConnection('연결 오류', 'connection-failed');
     showTerminalError('Workbench 터미널 연결을 확인할 수 없습니다.');

@@ -252,6 +252,11 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .terminal-scroll-latest { font-size: 10px; padding: 5px 8px; white-space: nowrap; }
 .terminal-live-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; }
 .terminal-live-meta strong { color: var(--text); font-weight: 600; margin-left: 3px; }
+.terminal-live-meta #terminal-last-output-meta { transition: color .2s ease, background .2s ease, border-color .2s ease; }
+.terminal-live-meta #terminal-last-output-meta.output-aging { color: #9a670d; }
+.terminal-live-meta #terminal-last-output-meta.output-aging strong { color: #82520b; }
+.terminal-live-meta #terminal-last-output-meta.output-stale { border: 1px solid rgba(169,108,12,.34); border-radius: 999px; padding: 2px 7px; color: #82520b; background: rgba(255,246,218,.72); }
+.terminal-live-meta #terminal-last-output-meta.output-stale strong { color: #704507; }
 .terminal-connection { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
 .terminal-connection i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 .terminal-connection.connection-live { color: var(--green); }

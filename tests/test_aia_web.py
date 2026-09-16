@@ -476,10 +476,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="terminal-placeholder"' in workbench.text
     assert "is-loading" in workbench.text
     assert 'id="terminal-connection"' in workbench.text
+    assert 'id="terminal-last-output-meta"' in workbench.text
     assert 'id="terminal-last-output"' in workbench.text
     assert "재연결 중" in workbench.text
     assert "terminalClosed" in workbench.text
+    assert "terminalConnectionFailed" in workbench.text
     assert "formatOutputAge" in workbench.text
+    assert "output-stale" in workbench.text
     assert "terminalInputForm" in workbench.text
     assert "activityMode" in workbench.text
     assert "awaitingResponse" in workbench.text
