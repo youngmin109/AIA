@@ -601,6 +601,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalScreen.reset()" in workbench.text
     assert "transientProgressLine" in workbench.text
     assert "terminalScreen.refresh()" in workbench.text
+    assert "function scheduleTerminalResize()" in workbench.text
+    assert "function syncTerminalSize()" in workbench.text
+    assert "new ResizeObserver(scheduleTerminalResize)" in workbench.text
+    assert "terminalOutput.clientWidth" in workbench.text
     assert "terminalOutput.classList.remove('terminal-closed')" in workbench.text
     assert "terminalOutput.classList.remove('is-loading')" in workbench.text
     assert "function terminalRunEnded()" in workbench.text

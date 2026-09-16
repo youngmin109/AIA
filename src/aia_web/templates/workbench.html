@@ -408,6 +408,8 @@ let selectedChainId = null;
 let terminalFollowingOutput = true;
 let terminalPendingOutputCount = 0;
 let pendingSubmission = null;
+let terminalResizeTimer = null;
+let lastTerminalResize = '';
 const STATUS_REQUEST_TIMEOUT_MS = 7000;
 let knownEventKeys = new Set((initialStatus.events || []).map((event) => `${event.event_id || event.summary || ''}|${event.observed_at || ''}`));
 let securityEventsInitialized = false;
@@ -1275,6 +1277,7 @@ function setTerminalStatus(status) {
   terminalPid.textContent = status?.pid ? `PID ${status.pid}` : 'PID —';
   updateTerminalInputState();
   if (status?.rows && status?.cols) terminalScreen.resize(Number(status.rows), Number(status.cols));
+  if (value === 'RUNNING') scheduleTerminalResize();
   // A browser can connect during the short launch window before the terminal
   // object is attached. Clear that transient message once the live session is
   // confirmed so a stale warning does not look like a current failure.
@@ -1457,6 +1460,24 @@ function appendTerminal(data) {
   }
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
+function scheduleTerminalResize() {
+  if (terminalResizeTimer) window.clearTimeout(terminalResizeTimer);
+  terminalResizeTimer = window.setTimeout(syncTerminalSize, 120);
+}
+function syncTerminalSize() {
+  terminalResizeTimer = null;
+  if (terminalRuntimeStatus !== 'RUNNING' || !terminalSocketConnected || !terminalOutput.clientWidth) return;
+  const style = window.getComputedStyle(terminalOutput);
+  const horizontalPadding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  const verticalPadding = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+  const lineHeight = Number.parseFloat(style.lineHeight) || 19;
+  const cols = Math.max(48, Math.min(240, Math.floor((terminalOutput.clientWidth - horizontalPadding) / 8)));
+  const rows = Math.max(16, Math.min(64, Math.floor((terminalOutput.clientHeight - verticalPadding) / lineHeight)));
+  const signature = `${rows}x${cols}`;
+  if (signature === lastTerminalResize) return;
+  lastTerminalResize = signature;
+  send({type: 'resize', rows, cols});
+}
 function restorePendingSubmission(message) {
   if (!pendingSubmission) return false;
   if (pendingSubmission.timer) window.clearTimeout(pendingSubmission.timer);
@@ -2005,7 +2026,11 @@ terminalInput.addEventListener('keydown', (event) => {
 document.getElementById('terminal-action').addEventListener('click', continueTerminalAction);
 terminalInterrupt.addEventListener('click', interruptTerminalRequest);
 terminalReconnect.addEventListener('click', reconnectTerminal);
-window.addEventListener('resize', () => send({type:'resize', rows: 32, cols: Math.max(80, Math.floor(terminalOutput.clientWidth / 8))}));
+window.addEventListener('resize', scheduleTerminalResize);
+if (typeof ResizeObserver !== 'undefined') {
+  const terminalResizeObserver = new ResizeObserver(scheduleTerminalResize);
+  terminalResizeObserver.observe(terminalOutput);
+}
 function resetStopConfirmation() {
   if (stopConfirmationTimer) window.clearTimeout(stopConfirmationTimer);
   stopConfirmationTimer = null;
