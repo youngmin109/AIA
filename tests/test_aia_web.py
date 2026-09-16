@@ -820,6 +820,28 @@ def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None
     assert result.text.index("Codex 실행 정책 경고") < result.text.index("이번 보호 실행에서 확인된 내용")
 
 
+def test_result_event_timeline_localizes_enforcement_decisions() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["events"] = [
+        {
+            "severity": "WARNING",
+            "summary": "EXECUTE 행위 관찰",
+            "target_label": "명령 실행",
+            "sensor": "AGENT_HOOK",
+            "decision": "CONTINUE",
+            "execution_result": "NOT_ATTEMPTED",
+        }
+    ]
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert '<span class="badge" title="CONTINUE">계속 진행</span>' in result.text
+
+
 def test_result_page_does_not_show_success_when_bundle_is_invalid() -> None:
     service = FakeService()
     result_data = service.get_result("run-1")

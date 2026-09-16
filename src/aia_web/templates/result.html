@@ -18,7 +18,7 @@
 {% set health_names = {'HEALTHY': '정상 관찰', 'FAILED': '관찰 실패', 'STOPPED': '관찰 종료'} %}
 {% set final_names = {'STOPPED': '정상 종료', 'FAILED': '종료 실패', 'RUNNING': '실행 중'} %}
 {% set session_names = {'CREATED': '생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': '실행 중', 'COMPLETED': '정상 완료', 'ABORTED': '사용자 중지', 'FAILED': '실행 실패'} %}
-{% set decision_names = {'VIOLATION': '정책 위반', 'COMPLIANT': '정상·허용', 'INDETERMINATE': '판정 불가', 'OBSERVED': '관찰됨', 'AUDIT': '기록', 'ALLOW': '허용', 'DENY': '금지', 'NONE': '조치 없음', 'NOT_APPLICABLE': '해당 없음'} %}
+{% set decision_names = {'VIOLATION': '정책 위반', 'COMPLIANT': '정상·허용', 'INDETERMINATE': '판정 불가', 'OBSERVED': '관찰됨', 'AUDIT': '기록', 'ALLOW': '허용', 'DENY': '금지', 'CONTINUE': '계속 진행', 'CONTAIN': '차단 판단', 'REFUSE': '자동 조치 보류', 'BLOCKED': '실행 전 차단', 'TERMINATED': '프로세스 종료', 'NONE': '조치 없음', 'NOT_APPLICABLE': '해당 없음'} %}
 {% set effect_names = {'DENY': '금지', 'ALLOW': '허용', 'AUDIT': '기록'} %}
 {% set attribution_names = {'EXACT': '정확히 귀속', 'PROCESS': '프로세스 수준', 'TEMPORAL': '시간적 연관', 'UNKNOWN': '귀속 불가'} %}
 {% set enforcement_names = {'CONTINUE': '계속 진행', 'CONTAIN': '차단·격리 승인', 'REFUSE': '자동 조치 보류', 'BLOCKED': '실행 전 차단', 'TERMINATED': '프로세스 종료', 'NONE': '조치 없음'} %}
