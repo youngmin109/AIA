@@ -567,6 +567,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실행 흐름" in workbench.text
     assert "보호 준비" in workbench.text
     assert 'id="workbench-flow"' in workbench.text
+    assert 'id="workbench-flow-status"' in workbench.text
+    assert "현재 단계를 확인하는 중입니다." in workbench.text
+    assert "모든 단계 완료 · Evidence Bundle이 검증되었습니다." in workbench.text
+    assert "File Sensor가 ${fileEvidence}건을 기록했습니다." in workbench.text
     assert 'data-flow-step="1"' in workbench.text
     assert 'data-flow-step="4"' in workbench.text
     assert "function updateFlow(status = {})" in workbench.text

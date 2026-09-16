@@ -121,6 +121,7 @@
       <section class="workbench-card glassbox-slot">
         <div class="panel-heading"><div><h2>실행 흐름</h2><p class="hint">AIA가 확인 가능한 실행 경로입니다.</p></div><span class="badge">Glass-box 확장 영역</span></div>
         <p class="hint">모델의 내부 생각이 아니라 실제 실행 증거를 단계별로 확인합니다.</p>
+        <p id="workbench-flow-status" class="workbench-flow-status" role="status" aria-live="polite">현재 단계를 확인하는 중입니다.</p>
         <ol class="workbench-flow" id="workbench-flow" aria-label="보호 실행 진행 단계">
           <li data-flow-step="1"><span>1</span><div><strong>보호 준비</strong><small>Workspace · 정책 · Checkpoint</small></div></li>
           <li data-flow-step="2"><span>2</span><div><strong>Codex 작업</strong><small>Hook · Process 관찰</small></div></li>
@@ -367,6 +368,7 @@ const lastRefreshTime = document.getElementById('last-refresh-time');
 const eventVisibilitySummary = document.getElementById('event-visibility-summary');
 const eventDetailLink = document.getElementById('event-detail-link');
 const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
+const flowStatus = document.getElementById('workbench-flow-status');
 const eventFilterButtons = [...document.querySelectorAll('[data-event-filter]')];
 const evidenceFilterButtons = [...document.querySelectorAll('[data-evidence-filter]')];
 let socket = null;
@@ -1418,22 +1420,34 @@ function updateFlow(status = {}) {
   const resultVerified = terminal && status?.result_available && status?.bundle_status === 'VALID';
   let currentStep = 1;
   let completedThrough = 0;
+  let progressText = '현재 단계를 확인하는 중입니다.';
   if (phase === 'CREATED' || phase === 'PREPARING') {
     currentStep = 1;
+    progressText = '보호 준비 단계 · Workspace·정책·Checkpoint를 준비합니다.';
   } else if (resultVerified) {
     currentStep = 0;
     completedThrough = 4;
+    progressText = '모든 단계 완료 · Evidence Bundle이 검증되었습니다.';
   } else if (terminal) {
     currentStep = 4;
     completedThrough = 3;
+    progressText = '결과 검증 단계 · 실행 기록과 Evidence Bundle을 확인하세요.';
   } else if (fileEvidence > 0) {
     currentStep = 3;
     completedThrough = 2;
+    progressText = `파일 변화 단계 · File Sensor가 ${fileEvidence}건을 기록했습니다.`;
   } else if (['READY', 'LAUNCHING', 'RUNNING'].includes(phase) || actionEvidence) {
     currentStep = 2;
     completedThrough = 1;
+    progressText = actionEvidence
+      ? `Codex 작업 단계 · Hook·Process Evidence ${hookEvidence + processEvidence}건을 관찰했습니다.`
+      : 'Codex 작업 단계 · Hook·Process Sensor가 실행을 관찰합니다.';
   }
-  if (reconciliation.orphaned && !terminal && currentStep < 2) currentStep = 2;
+  if (reconciliation.orphaned && !terminal) {
+    if (currentStep < 2) currentStep = 2;
+    progressText = '보호 연결 끊김 · 실행 기록을 검토하고 정리 상태를 확인하세요.';
+  }
+  if (flowStatus) flowStatus.textContent = progressText;
   flowSteps.forEach((step) => {
     const number = Number(step.dataset.flowStep);
     const active = number === currentStep;
