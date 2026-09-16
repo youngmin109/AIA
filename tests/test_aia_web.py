@@ -1399,6 +1399,7 @@ def test_workbench_hides_input_navigation_when_run_is_ended() -> None:
     assert 'disabled></textarea>' in workbench.text
     assert 'id="terminal-send" class="button primary terminal-send" type="submit" disabled' in workbench.text
     assert 'id="workbench-howto-title">다음 단계</h2>' in workbench.text
+    assert 'id="workbench-context-title">실행 정보</h2>' in workbench.text
     assert 'data-howto-title>결과 확인</strong>' in workbench.text
     assert 'data-howto-title>사건 검토</strong>' in workbench.text
 
@@ -1424,6 +1425,7 @@ def test_workbench_changes_next_steps_when_runtime_is_orphaned() -> None:
 
     assert workbench.status_code == 200
     assert 'id="workbench-howto-title">복구 검토</h2>' in workbench.text
+    assert 'id="workbench-context-title">실행 정보</h2>' in workbench.text
     assert 'data-howto-title>정리 상태 확인</strong>' in workbench.text
     assert 'data-howto-title>실행 기록 검토</strong>' in workbench.text
     assert 'data-howto-title>새 보호 실행</strong>' in workbench.text
