@@ -1086,6 +1086,7 @@ class RunApplicationService:
             "evidence_summary": self._evidence_summary(
                 session_id,
                 require_valid=record.result_path is not None,
+                metadata=evidence_metadata,
             ),
             "sensor_health": dict(record.sensor_health),
             "session": {
@@ -1480,25 +1481,41 @@ class RunApplicationService:
         record = self.registry.snapshot(session_id)
         if record is not None and record.result is not None and record.bundle_status is not None:
             view = result_view(record.result, record.bundle_status)
+            evidence_metadata = self._evidence_metadata(
+                session_id,
+                require_valid=False,
+            )
             _annotate_execution_observations(
                 view,
                 control_root=self.control_root,
                 session_id=session_id,
-                evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
+                evidence_metadata=evidence_metadata,
             )
             view["launch_mode"] = record.launch_mode
             view["protection_state"] = record.protection_state
-            view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
-            view["evidence_summary"] = self._evidence_summary(session_id)
+            view["posttool_event_count"] = sum(
+                1
+                for item in evidence_metadata
+                if item.get("source") == "AGENT_HOOK"
+                and item.get("record_type") == "POSTTOOL_OBSERVED"
+            )
+            view["evidence_summary"] = self._evidence_summary(
+                session_id,
+                metadata=evidence_metadata,
+            )
             return view
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
         view = result_view(result, verification.status.value if verification else "NOT_FOUND")
+        evidence_metadata = self._evidence_metadata(
+            session_id,
+            require_valid=False,
+        )
         _annotate_execution_observations(
             view,
             control_root=self.control_root,
             session_id=session_id,
-            evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
+            evidence_metadata=evidence_metadata,
         )
         runtime_state = self._read_runtime_state(session_id)
         if isinstance(runtime_state, Mapping):
@@ -1516,8 +1533,16 @@ class RunApplicationService:
                 "COMPLETED": "COMPLETED_DEGRADED",
             }.get(result.get("session_status"), "UNKNOWN")
         )
-        view["posttool_event_count"] = self.reader.posttool_event_count(session_id)
-        view["evidence_summary"] = self._evidence_summary(session_id)
+        view["posttool_event_count"] = sum(
+            1
+            for item in evidence_metadata
+            if item.get("source") == "AGENT_HOOK"
+            and item.get("record_type") == "POSTTOOL_OBSERVED"
+        )
+        view["evidence_summary"] = self._evidence_summary(
+            session_id,
+            metadata=evidence_metadata,
+        )
         return view
 
     def _evidence_summary(
@@ -1525,6 +1550,7 @@ class RunApplicationService:
         session_id: str,
         *,
         require_valid: bool = True,
+        metadata: list[dict[str, Any]] | None = None,
     ) -> dict[str, int | bool]:
         """Return safe counts from the Evidence metadata index.
 
@@ -1534,7 +1560,9 @@ class RunApplicationService:
         """
 
         return evidence_summary(
-            self._evidence_metadata(session_id, require_valid=require_valid)
+            metadata
+            if metadata is not None
+            else self._evidence_metadata(session_id, require_valid=require_valid)
         )
 
     def _evidence_metadata(
@@ -2766,13 +2794,22 @@ class RunApplicationService:
     def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
         result = self.reader.read_result(session_id)
         view = result_view(result, self.reader.verification(session_id).status.value)
+        evidence_metadata = self._evidence_metadata(
+            session_id,
+            require_valid=False,
+        )
         _annotate_execution_observations(
             view,
             control_root=self.control_root,
             session_id=session_id,
-            evidence_metadata=self._evidence_metadata(session_id, require_valid=False),
+            evidence_metadata=evidence_metadata,
         )
-        hook_events = self.reader.hook_event_count(session_id)
+        hook_events = sum(
+            1
+            for item in evidence_metadata
+            if item.get("source") == "AGENT_HOOK"
+            and item.get("record_type") == "PRETOOL_REQUEST"
+        )
         sensor_failed = any(
             item.get("runtime_health_before_stop") == "FAILED"
             for item in result.get("sensor_summary", [])
@@ -2825,7 +2862,10 @@ class RunApplicationService:
             "stop": {"requested": aborted, "error": None},
             "policy": view["policy"],
             "result_available": True,
-            "evidence_summary": self._evidence_summary(session_id),
+            "evidence_summary": self._evidence_summary(
+                session_id,
+                metadata=evidence_metadata,
+            ),
             "sensor_health": {
                 item.get("sensor"): item.get("runtime_health_before_stop")
                 for item in result.get("sensor_summary", [])

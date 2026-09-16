@@ -867,7 +867,13 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
         "verification",
         lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
     )
-    monkeypatch.setattr(service.reader, "hook_event_count", lambda _session_id: 1)
+    monkeypatch.setattr(
+        service,
+        "_evidence_metadata",
+        lambda _session_id, *, require_valid=True: [
+            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
+        ],
+    )
     monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
     try:
         status = service._status_from_completed_bundle("session-1")
