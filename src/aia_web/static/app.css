@@ -694,6 +694,10 @@ body > header, body > main, body > footer { position: relative; z-index: 1; }
 
 .result-outcome-card-warning strong { color: #82520b; }
 
+.dashboard-run-row-has-incidents > td:first-child { border-left: 3px solid rgba(184, 122, 20, .62); padding-left: 7px; }
+.dashboard-incident-count { display: inline-flex; align-items: center; min-height: 22px; color: var(--muted); }
+.dashboard-incident-count.has-incidents { padding: 3px 8px; border: 1px solid rgba(184, 122, 20, .46); border-radius: 999px; color: #82520b; background: rgba(255, 246, 218, .72); font-weight: 800; }
+
 .metric { box-shadow: var(--glass-shadow); transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
 .metric:hover { border-color: rgba(70, 153, 211, .48); box-shadow: var(--glass-shadow), 0 9px 24px rgba(79, 111, 150, .1); transform: translateY(-1px); }
 .metric-action:hover, .metric-action:focus-visible, .metric-action.is-active { background: rgba(224, 247, 255, .78); }

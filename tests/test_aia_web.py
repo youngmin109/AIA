@@ -330,6 +330,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".page-actions { flex-wrap: wrap; gap: 10px 14px; }" in css.text
     assert "#dashboard-recent-table > table { display: block; min-width: 0; }" in css.text
     assert "#dashboard-recent-table > table tbody > tr > td:nth-child(3)::before" in css.text
+    assert ".dashboard-run-row-has-incidents > td:first-child" in css.text
+    assert ".dashboard-incident-count.has-incidents" in css.text
     assert ".workbench-header > div:first-child { display: grid; gap: 4px; }" in css.text
     assert ".workbench-header h1 { margin: 0; font-size: 24px; }" in css.text
     assert ".workbench-guidance { min-height: 0; margin-bottom: 10px; padding: 9px 11px; }" in css.text
@@ -1022,6 +1024,28 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "SUPER_SECRET" not in result.text
 
 
+def test_dashboard_highlights_policy_incidents_in_recent_runs() -> None:
+    service = FakeService()
+    service.list_runs = lambda: [{
+        "session_id": "incident-run",
+        "status": "COMPLETED",
+        "workspace": "C:/workspace/incident-demo",
+        "policy": {"id": "basic", "version": "1.0"},
+        "incident_count": 2,
+        "bundle_status": "VALID",
+        "protection_state": "COMPLETED_DEGRADED",
+        "launch_mode": "web_terminal",
+        "result_url": "/runs/incident-run/result",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }]
+
+    dashboard = TestClient(create_app(service)).get("/")
+
+    assert dashboard.status_code == 200
+    assert '<tr class="dashboard-run-row dashboard-run-row-has-incidents">' in dashboard.text
+    assert 'class="dashboard-incident-count has-incidents" title="정책 사건 · 결과에서 확인">2건</span>' in dashboard.text
+
+
 def test_new_run_shows_launcher_fallback_only_when_paths_differ(monkeypatch) -> None:
     web_module = importlib.import_module("aia_web.app")
     monkeypatch.setattr(web_module, "_console_cli_prefix", lambda: "uv run aia")
@@ -1545,6 +1569,9 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert '상태 확인 중…' in dashboard.text
     assert 'id="dashboard-recent-runs"' in dashboard.text
     assert 'id="dashboard-recent-empty"' in dashboard.text
+    assert 'dashboard-run-row-has-incidents' in dashboard.text
+    assert 'dashboard-incident-count' in dashboard.text
+    assert '정책 사건 · 결과에서 확인' in dashboard.text
     assert "refreshDashboard" in dashboard.text
     assert "renderDashboardRecentRuns" in dashboard.text
     assert "scheduleDashboardRefresh" in dashboard.text
