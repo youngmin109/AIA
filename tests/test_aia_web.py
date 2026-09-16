@@ -592,6 +592,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "센서가 관찰하면 여기에 표시됩니다" in workbench.text
     assert "eventTitleLabel(incident)" in workbench.text
     assert "eventTitleLabel(candidate)" in workbench.text
+    assert "const observational = ['PROCESS_OBSERVATION', 'FILESYSTEM_OBSERVATION'].includes(event?.event_origin)" in workbench.text
+    assert "const text = observational ? '센서 관찰' : decisionLabel(value)" in workbench.text
     assert "statusPollFailures" in workbench.text
     assert "연결 확인 필요" in workbench.text
     assert 'id="refresh-status"' in workbench.text
@@ -951,6 +953,34 @@ def test_result_event_timeline_localizes_enforcement_decisions() -> None:
     assert '<span class="badge" title="CONTINUE">계속 진행</span>' in result.text
     assert 'class="result-event-time" datetime="2026-09-16T10:20:08+09:00"' in result.text
     assert "result-event-time" in result.text
+
+
+def test_result_event_timeline_labels_sensor_observations_separately() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["events"] = [
+        {
+            "severity": "INFO",
+            "summary": "EXECUTE 행위 관찰",
+            "display_summary": "프로세스 실행 관찰",
+            "display_target_label": "프로세스",
+            "event_origin": "PROCESS_OBSERVATION",
+            "origin_label": "프로세스 관찰",
+            "sensor": "PROCESS_RUNTIME",
+            "decision": "CONTINUE",
+            "display_decision": "OBSERVED",
+            "execution_result": "NOT_ATTEMPTED",
+            "observed_at": "2026-09-16T10:20:08+09:00",
+        }
+    ]
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert '<span class="badge" title="OBSERVED">센서 관찰</span>' in result.text
+    assert "정책상 허용" not in result.text
 
 
 def test_result_page_does_not_show_success_when_bundle_is_invalid() -> None:

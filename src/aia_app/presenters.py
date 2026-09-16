@@ -220,6 +220,16 @@ def safe_event_views(
                 "origin_label": origin_label,
                 "tool_name": tool_name,
                 "decision": display_decision,
+                # Process and filesystem sensors report observed effects. They
+                # do not perform a policy evaluation, so do not let a
+                # transport-level CONTINUE value look like a policy result in
+                # the user-facing timeline.
+                "display_decision": (
+                    "OBSERVED"
+                    if event_origin
+                    in {"PROCESS_OBSERVATION", "FILESYSTEM_OBSERVATION"}
+                    else display_decision
+                ),
                 "execution_result": execution or "NOT_REPORTED",
                 "execution_observed": execution_observed,
                 "sensor": sensor,

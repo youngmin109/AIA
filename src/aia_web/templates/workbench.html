@@ -763,8 +763,9 @@ const eventTargetLabel = (event) => event?.display_target_label || event?.target
 const eventTitleLabel = (event) => [toolNameLabel(event?.tool_name), eventSummaryLabel(event?.summary, event)].filter(Boolean).join(' · ') || '보호 대상 행위';
 const eventCategoryLabel = (event) => eventOriginLabel(event);
 const eventDecisionBadge = (event, orphaned = false) => {
-  const value = event?.decision || 'OBSERVED';
-  const text = decisionLabel(value);
+  const observational = ['PROCESS_OBSERVATION', 'FILESYSTEM_OBSERVATION'].includes(event?.event_origin);
+  const value = event?.display_decision || event?.decision || 'OBSERVED';
+  const text = observational ? '센서 관찰' : decisionLabel(value);
   return badge(value, orphaned && event?.category === 'SENSOR' ? `마지막 기록 · ${text}` : text);
 };
 const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : ['FAILED', 'ORPHANED'].includes(value) ? 'status-danger' : '';
