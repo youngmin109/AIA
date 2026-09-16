@@ -238,6 +238,9 @@ class UnreadableRunService(FakeService):
     def get_result(self, session_id):
         raise ValueError("Evidence Bundle Integrity Failure")
 
+    def get_run_actions(self, session_id):
+        raise ValueError("Evidence Bundle Integrity Failure")
+
 
 def test_unreadable_run_record_renders_actionable_integrity_state() -> None:
     client = TestClient(create_app(UnreadableRunService()))
@@ -252,6 +255,10 @@ def test_unreadable_run_record_renders_actionable_integrity_state() -> None:
         assert "Evidence Bundle Integrity Failure" not in response.text
         assert 'href="/runs"' in response.text
         assert 'href="/new"' in response.text
+
+    actions = client.get("/api/runs/run-1/actions")
+    assert actions.status_code == 409
+    assert actions.json() == {"error": "Evidence Bundle 무결성 검증 실패"}
 
 
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
@@ -426,6 +433,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "pollInFlight" in live.text
     assert "if (pollInFlight) return;" in live.text
     assert "stopPolling" in live.text
+    assert "actionsError" in live.text
+    assert "실행 행위 기록을 표시할 수 없습니다. Evidence Bundle 무결성 확인이 필요합니다." in live.text
     assert "renderIncident(status.events || [], terminal)" in live.text
     assert "최근 확인 필요 사건" in live.text
     assert "HEALTHY" in live.text

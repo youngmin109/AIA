@@ -239,7 +239,12 @@ async function poll() {
     const [statusResponse, actionsResponse] = await Promise.all([fetch(`/api/runs/${sessionId}`), fetch(`/api/runs/${sessionId}/actions`)]);
     if (!statusResponse.ok) throw new Error('Run status unavailable');
     const status = await statusResponse.json();
-    const actions = actionsResponse.ok ? await actionsResponse.json() : {actions: []};
+    const actionsPayload = await actionsResponse.json().catch(() => ({}));
+    const actionsError = actionsResponse.ok
+      ? ''
+      : actionsPayload.error === 'Evidence Bundle 무결성 검증 실패'
+        ? '실행 행위 기록을 표시할 수 없습니다. Evidence Bundle 무결성 확인이 필요합니다.'
+        : '실행 행위 기록을 확인할 수 없습니다. 상태를 새로고침하거나 결과를 검토하세요.';
     const reconciliation = status.runtime_reconciliation || {};
     const orphaned = Boolean(reconciliation.orphaned);
     const displaySessionStatus = orphaned ? 'ORPHANED' : status.session.status;
@@ -304,9 +309,9 @@ async function poll() {
     renderSafeEvents(status.events || []);
     renderIncident(status.events || [], terminal);
     const errorBox = document.getElementById('error-box');
-    errorBox.textContent = status.error || '';
-    errorBox.hidden = !status.error;
-    renderActions(actions.actions || []);
+    errorBox.textContent = status.error || actionsError || '';
+    errorBox.hidden = !(status.error || actionsError);
+    renderActions(actionsError ? [] : (actionsPayload.actions || []));
     document.getElementById('result-link').hidden = !status.result_available;
     stopButton.hidden = terminal || orphaned || Boolean(status.stop?.requested);
     stopButton.disabled = Boolean(status.stop?.requested);

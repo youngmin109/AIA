@@ -350,6 +350,13 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse({"actions": app.state.service.get_run_actions(session_id)})
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
+        except ValueError as exc:
+            safe_reason = (
+                "Evidence Bundle 무결성 검증 실패"
+                if str(exc) == "Evidence Bundle Integrity Failure"
+                else "실행 증거를 확인하지 못함"
+            )
+            return JSONResponse({"error": safe_reason}, status_code=409)
 
     @app.get("/api/runs/{session_id}/terminal/status")
     def terminal_status(session_id: str) -> JSONResponse:
