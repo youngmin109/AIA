@@ -479,6 +479,26 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
   .page-actions .text-link { flex-basis: 100%; }
 }
 
+@media (max-width: 760px) {
+  #dashboard-recent-table { overflow: visible; }
+  #dashboard-recent-table > table { display: block; min-width: 0; }
+  #dashboard-recent-table > table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  #dashboard-recent-table > table tbody { display: grid; gap: 12px; }
+  #dashboard-recent-table > table tbody > tr { display: grid; gap: 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.62); box-shadow: 0 8px 20px rgba(79,111,150,.08); }
+  #dashboard-recent-table > table tbody > tr > td { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  #dashboard-recent-table > table tbody > tr > td::before { color: var(--muted); font-size: 11px; line-height: 1.45; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(1)::before { content: '세션'; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(2)::before { content: '상태'; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(3)::before { content: '작업 폴더'; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(4)::before { content: '사건'; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(5)::before { content: '결과 검증'; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(6)::before { content: '열기'; }
+  #dashboard-recent-table > table tbody > tr > td:first-child { padding-top: 3px; }
+  #dashboard-recent-table > table tbody > tr > td:last-child { padding-bottom: 3px; border-bottom: 0; }
+  #dashboard-recent-table > table tbody > tr > td:last-child a { justify-self: start; }
+  #dashboard-recent-table > table tbody > tr > td:nth-child(3) { max-width: none; word-break: break-word; }
+}
+
 /* Glass-box visual system: a bright, local-only glass surface around the existing security UI. */
 :root {
   color-scheme: light;
