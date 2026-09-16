@@ -1059,6 +1059,38 @@ def test_result_event_timeline_localizes_enforcement_decisions() -> None:
     assert "updateResultEventTimeline" in result.text
 
 
+def test_result_event_timeline_shows_latest_event_first() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["events"] = [
+        {
+            "severity": "INFO",
+            "display_summary": "오래된 관찰",
+            "target_label": "초기 대상",
+            "event_origin": "PROCESS_OBSERVATION",
+            "sensor": "PROCESS_RUNTIME",
+            "decision": "OBSERVED",
+            "observed_at": "2026-09-16T10:20:01+09:00",
+        },
+        {
+            "severity": "WARNING",
+            "display_summary": "최신 차단 사건",
+            "target_label": "위험 대상",
+            "event_origin": "FILESYSTEM_OBSERVATION",
+            "sensor": "FILESYSTEM_WATCHER",
+            "decision": "OBSERVED",
+            "observed_at": "2026-09-16T10:20:08+09:00",
+        },
+    ]
+    service.get_result = lambda session_id: result_data
+
+    result = TestClient(create_app(service)).get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert result.text.index("최신 차단 사건") < result.text.index("오래된 관찰")
+    assert "최신 이벤트부터 표시합니다." in result.text
+
+
 def test_result_event_timeline_labels_sensor_observations_separately() -> None:
     service = FakeService()
     result_data = service.get_result("run-1")
