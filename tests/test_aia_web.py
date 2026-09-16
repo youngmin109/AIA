@@ -243,7 +243,16 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".ambient-scene" in css.text
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
-    assert "glassbox-ui-4" in dashboard.text
+    assert "glassbox-ui-5" in dashboard.text
+    assert '@font-face' in css.text
+    assert 'font-family: "Pretendard"' in css.text
+    assert 'PretendardVariable.woff2' in css.text
+    pretendard = client.get("/static/fonts/PretendardVariable.woff2")
+    assert pretendard.status_code == 200
+    assert pretendard.content.startswith(b"wOF2")
+    pretendard_license = client.get("/static/fonts/OFL.txt")
+    assert pretendard_license.status_code == 200
+    assert "SIL Open Font License" in pretendard_license.text
     assert 'class="ambient-scene"' in dashboard.text
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
 
