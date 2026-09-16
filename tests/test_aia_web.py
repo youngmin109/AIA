@@ -275,13 +275,15 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-13" in dashboard.text
+    assert "glassbox-ui-14" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
     assert ".topbar { height: 60px; min-height: 60px;" in css.text
     assert ".workbench-jumpbar { margin-right: 0; flex-wrap: nowrap; overflow-x: auto; }" in css.text
     assert ".workbench-jumpbar-label { flex-basis: auto; }" in css.text
+    assert ".history-table { display: block; min-width: 0; }" in css.text
+    assert "content: attr(data-label)" in css.text
     pretendard = client.get("/static/fonts/PretendardVariable.woff2")
     assert pretendard.status_code == 200
     assert pretendard.content.startswith(b"wOF2")
@@ -1345,6 +1347,9 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
 
     assert 'href="/runs/run-1/workbench"' in dashboard.text
     assert 'href="/runs/run-1/workbench"' in history.text
+    assert 'class="table-wrap history-table-wrap"' in history.text
+    assert 'class="history-table"' in history.text
+    assert 'data-label="작업 폴더"' in history.text
     assert "보호 실행이 진행 중입니다" in dashboard.text
     assert "Workbench 열기" in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/runs/run-1/workbench">Workbench 열기</a>' in dashboard.text
