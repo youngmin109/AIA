@@ -1568,6 +1568,9 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "noFilters" in history.text
     assert "new URLSearchParams(window.location.search)" in history.text
     assert "window.history.replaceState" in history.text
+    assert 'id="history-results-heading"' in history.text
+    assert 'id="history-results-hint"' in history.text
+    assert "const viewHeading = origin === 'user'" in history.text
     assert "사용자 작업" in history.text
     assert "Bundle 유효" in history.text
     assert "유효한 Result Bundle 실행만 보기" in history.text

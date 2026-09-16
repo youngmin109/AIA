@@ -50,7 +50,7 @@
 </section>
 {% endif %}
 <section class="panel">
-  <div class="panel-heading history-heading"><div><h2>전체 실행</h2><p class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><div class="history-heading-actions"><span id="history-sync-status" class="history-sync-status" role="status" aria-live="polite">마지막 확인 <time id="history-sync-time"></time></span><button id="refresh-history" class="button" type="button" title="최신 실행 상태를 다시 확인합니다.">최신 상태 확인</button><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div></div>
+  <div class="panel-heading history-heading"><div><h2 id="history-results-heading">전체 실행</h2><p id="history-results-hint" class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><div class="history-heading-actions"><span id="history-sync-status" class="history-sync-status" role="status" aria-live="polite">마지막 확인 <time id="history-sync-time"></time></span><button id="refresh-history" class="button" type="button" title="최신 실행 상태를 다시 확인합니다.">최신 상태 확인</button><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div></div>
   <div class="history-legend" aria-label="상태 설명">
     <span><b class="legend-dot legend-running"></b>실행 중: 현재 세션에 연결됨</span>
     <span><b class="legend-dot legend-warning"></b>연결 끊김: 보호 경계가 종료되어 정리 검토 필요</span>
@@ -162,6 +162,9 @@ function filterRuns() {
   const filterStatus = document.getElementById('history-filter-status');
   filterStatus.hidden = activeFilters.length === 0;
   filterStatus.textContent = activeFilters.length ? `현재 조건: ${activeFilters.join(' · ')}` : '';
+  const viewHeading = origin === 'user' ? '사용자 작업' : origin === 'diagnostic' ? 'AIA 자체 진단' : activeOnly ? '현재 진행 중' : incident === 'yes' ? '정책 사건 실행' : bundle === 'valid' ? '유효한 결과 Bundle' : protection === 'orphaned_degraded' ? '정리 검토 실행' : '전체 실행';
+  document.getElementById('history-results-heading').textContent = viewHeading;
+  document.getElementById('history-results-hint').textContent = activeFilters.length ? `${viewHeading} 기준으로 ${matchingRows.length}건을 표시합니다. 다른 조건을 추가할 수 있습니다.` : '필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.';
   historyQuickFilters.forEach((button) => {
   const quickFilter = button.dataset.historyQuickFilter;
   const noFilters = !workspace && !origin && !status && !protection && !incident && !bundle && !date && !activeOnly;
