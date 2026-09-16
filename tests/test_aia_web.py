@@ -454,6 +454,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "마지막 이벤트" in workbench.text
     assert "마지막 출력 수신" in workbench.text
     assert "화면 갱신" in workbench.text
+    assert 'id="event-visibility-summary"' in workbench.text
+    assert "최근 ${visibleEventCount}건 표시 · 전체 ${events.length}건" in workbench.text
     assert 'id="event-count"' in workbench.text
     assert "Glass-box 확장 영역" in workbench.text
     assert "실행 흐름" in workbench.text

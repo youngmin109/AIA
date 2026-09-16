@@ -201,6 +201,7 @@
         <div class="workbench-observation-meta">
           <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
           <span>화면 갱신 <strong id="last-refresh-time">확인 중</strong></span>
+          <span id="event-visibility-summary">표시 이벤트 0건</span>
         </div>
         <div class="workbench-event-filters" role="group" aria-label="최근 이벤트 필터">
           <button type="button" class="event-filter is-active" data-event-filter="ALL" aria-pressed="true">전체</button>
@@ -337,6 +338,7 @@ const resultLink = document.getElementById('result-link');
 const incidentDetailLink = document.getElementById('incident-detail-link');
 const lastEventTime = document.getElementById('last-event-time');
 const lastRefreshTime = document.getElementById('last-refresh-time');
+const eventVisibilitySummary = document.getElementById('event-visibility-summary');
 const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
 const eventFilterButtons = [...document.querySelectorAll('[data-event-filter]')];
 const evidenceFilterButtons = [...document.querySelectorAll('[data-evidence-filter]')];
@@ -1649,6 +1651,12 @@ function renderSecurity(status) {
     item.execution_observed ? 'observed' : '',
     item.observed_at || '',
   ].join('~')).join('|')}`;
+  if (eventVisibilitySummary) {
+    const visibleEventCount = Math.min(events.length, 12);
+    eventVisibilitySummary.textContent = events.length > visibleEventCount
+      ? `최근 ${visibleEventCount}건 표시 · 전체 ${events.length}건`
+      : `전체 ${events.length}건 표시`;
+  }
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
     const emptyMessage = allEvents.length
