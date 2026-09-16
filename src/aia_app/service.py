@@ -64,6 +64,7 @@ from .presenters import (
     incident_views_for_result,
     result_view,
     safe_event_views,
+    safe_tool_name,
 )
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
@@ -85,6 +86,20 @@ _PRODUCT_SENSOR_NAMES = frozenset(
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _event_tool_name(event: Any | None) -> str | None:
+    """Extract only an allowlisted tool label from Hook Evidence."""
+
+    if event is None:
+        return None
+    for record in getattr(event, "records", ()):
+        payload = getattr(record, "payload", None)
+        if isinstance(payload, Mapping):
+            tool_name = safe_tool_name(payload.get("tool_name"))
+            if tool_name:
+                return tool_name
+    return None
 
 
 def _popen_kwargs_for_launch_mode(launch_mode: str) -> dict[str, Any]:
@@ -288,6 +303,7 @@ def _runtime_action_view(
     gate_result: Any,
     *,
     execution_observed: bool = False,
+    tool_name: str | None = None,
 ) -> dict[str, Any]:
     """Build the redacted live/result action view from authoritative facts."""
 
@@ -300,6 +316,7 @@ def _runtime_action_view(
         "enforcement_decision": gate_result.decision.value,
         "execution_result": gate_result.execution_result.value,
         "execution_observed": execution_observed,
+        "tool_name": safe_tool_name(tool_name),
         "operation": action.operation.value,
         "observed_at": observed_at.isoformat() if observed_at is not None else None,
         "policy_decision": policy_result.policy_decision.value,
@@ -2339,6 +2356,7 @@ class RunApplicationService:
             gate_result: Any,
             *,
             execution_observed: bool = False,
+            tool_name: str | None = None,
         ) -> None:
             action_views.append(
                 _runtime_action_view(
@@ -2347,6 +2365,7 @@ class RunApplicationService:
                     attribution_result,
                     gate_result,
                     execution_observed=execution_observed,
+                    tool_name=tool_name,
                 )
             )
 
@@ -2387,6 +2406,7 @@ class RunApplicationService:
                     codex_event is not None
                     and codex_event.tool_use_id in posttool_ids
                 ),
+                tool_name=_event_tool_name(codex_event),
             )
 
         post_action_containments = (
@@ -2404,6 +2424,7 @@ class RunApplicationService:
                 containment.attribution,
                 containment.gate_result,
                 execution_observed=True,
+                tool_name=_event_tool_name(containment.source_event),
             )
             if containment.termination_error:
                 record.runtime.setdefault("post_action_containment_errors", []).append(
@@ -2512,6 +2533,7 @@ class RunApplicationService:
                 event.policy_evaluation,
                 event.attribution,
                 event.gate_result,
+                tool_name=_event_tool_name(event),
             )
             for event in events
         ]
@@ -2523,6 +2545,7 @@ class RunApplicationService:
                     containment.attribution,
                     containment.gate_result,
                     execution_observed=True,
+                    tool_name=_event_tool_name(containment.source_event),
                 )
             )
         display_view = {"actions": action_views}

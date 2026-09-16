@@ -245,7 +245,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-9" in dashboard.text
+    assert "glassbox-ui-10" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -608,6 +608,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventFilter === 'SENSOR'" in workbench.text
     assert "eventFilter === 'ACTION'" in workbench.text
     assert "const eventCategoryLabel = (event)" in workbench.text
+    assert "const toolNameLabel = (value)" in workbench.text
+    assert "const contextLabel = [" in workbench.text
+    assert "event.tool_name" in workbench.text
     assert "eventFilterCounts" in workbench.text
     assert "증거 흐름 보기 →" in workbench.text
     assert 'class="event-category-label"' in workbench.text

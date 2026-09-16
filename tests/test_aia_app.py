@@ -46,6 +46,7 @@ from aia_app.service import (
     ApplicationValidationError,
     RunApplicationService,
     _sensor_summary_is_verified,
+    _event_tool_name,
     _product_sensor_set_present,
     _sensors_runtime_healthy,
 )
@@ -138,6 +139,7 @@ def test_safe_event_view_never_copies_command_or_secret() -> None:
     )
     assert events[0]["target_label"] == "명령 실행"
     assert events[0]["chain_action_id"] == "a1"
+    assert events[0]["tool_name"] is None
     assert "SUPER_SECRET" not in repr(events)
     assert "type SUPER_SECRET" not in repr(events)
 
@@ -178,6 +180,39 @@ def test_safe_event_view_uses_runtime_when_sensor_evidence_is_not_linked() -> No
     )
 
     assert events[0]["sensor"] == "RUNTIME"
+
+
+def test_safe_event_view_keeps_only_allowlisted_tool_labels() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "tool_name": "Bash",
+                "target": {"target_kind": "COMMAND", "raw_command": "echo SECRET"},
+            },
+            {
+                "action_id": "a2",
+                "operation": "EXECUTE",
+                "tool_name": "mcp__unknown__write_file",
+                "target": {"target_kind": "COMMAND"},
+            },
+        ]
+    )
+
+    assert events[0]["tool_name"] == "Bash"
+    assert events[1]["tool_name"] is None
+    assert "SECRET" not in repr(events)
+
+
+def test_event_tool_name_reads_allowlisted_hook_evidence_only() -> None:
+    assert _event_tool_name(
+        SimpleNamespace(records=(SimpleNamespace(payload={"tool_name": "Bash"}),))
+    ) == "Bash"
+    assert _event_tool_name(
+        SimpleNamespace(records=(SimpleNamespace(payload={"tool_name": "mcp__unknown"}),))
+    ) is None
+    assert _event_tool_name(None) is None
 
 
 def test_evidence_chain_links_sensor_metadata_without_copying_payload() -> None:

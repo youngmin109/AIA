@@ -54,6 +54,13 @@ _INCIDENT_REASON_LABELS = {
     "Action timestamp overlaps one explicit Agent Turn Window": "행위 시각이 명시된 Agent Turn 구간과 겹칩니다.",
     "hook and process evidence": "Hook과 Process Evidence가 함께 확인되었습니다.",
 }
+_SAFE_TOOL_NAMES = frozenset({"Bash", "apply_patch", "Edit", "Write"})
+
+
+def safe_tool_name(value: Any) -> str | None:
+    """Return a supported tool label without exposing arbitrary Hook input."""
+
+    return str(value) if isinstance(value, str) and value in _SAFE_TOOL_NAMES else None
 
 
 def _incident_reason_label(value: Any, fallback: Any = None) -> str:
@@ -157,6 +164,7 @@ def safe_event_views(
         execution_observed = bool(action.get("execution_observed"))
         target = action.get("target") if isinstance(action.get("target"), Mapping) else {}
         target_kind = str(target.get("target_kind") or "")
+        tool_name = safe_tool_name(action.get("tool_name") or action.get("tool"))
         target_label = "명령 실행" if operation == "EXECUTE" or target_kind == "COMMAND" else "파일·프로세스 행위"
         severity = "CRITICAL" if execution == "FAILED" else "WARNING" if policy in {"VIOLATION", "INDETERMINATE"} or enforcement not in {None, "NONE"} else "INFO"
         display_decision = (
@@ -173,6 +181,7 @@ def safe_event_views(
                 "category": "ENFORCEMENT" if display_decision in {"CONTAIN", "REFUSE", "BLOCKED", "TERMINATED"} else "POLICY",
                 "summary": f"{operation} 행위 관찰",
                 "target_label": target_label,
+                "tool_name": tool_name,
                 "decision": display_decision,
                 "execution_result": execution or "NOT_REPORTED",
                 "execution_observed": execution_observed,
@@ -250,6 +259,7 @@ def action_view(action: Mapping[str, Any]) -> dict[str, Any]:
         "route": route,
         "enforcement_route": route,
         "target": target,
+        "tool_name": safe_tool_name(action.get("tool_name") or action.get("tool")),
     }
 
 
