@@ -1661,6 +1661,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "현재 진행 중" in history.text
     assert 'data-history-quick-filter="active"' in history.text
     assert "정책 사건 실행" in history.text
+    assert "클릭하여 보기 · 실제 차단은 결과에서 확인" in history.text
     assert "실제 차단은 결과에서 확인" in history.text
     assert "data-active=" in history.text
     assert "activeOnly" in history.text

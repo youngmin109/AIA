@@ -26,7 +26,7 @@
 <section class="metric-grid history-summary" aria-label="실행 기록 요약">
   <div class="metric"><span>전체 실행</span><strong>{{ runs|length }}건</strong><small>사용자 작업 {{ history_summary.user }}건 · AIA 자체 진단 {{ history_summary.diagnostics }}건</small></div>
   <button type="button" class="metric metric-status metric-action {{ 'metric-ok' if history_summary.active == 0 else 'metric-warning' }}" data-history-quick-filter="active" aria-label="현재 실행 중인 보호 실행만 보기"{% if history_summary.active == 0 %} disabled{% endif %}><span>현재 진행 중</span><strong>{{ history_summary.active }}건</strong><small>연결된 실행만 집계 · 클릭하여 보기</small></button>
-  <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="정책 사건이 있는 실행만 보기"><span>정책 사건 실행</span><strong>{{ history_summary.incidents }}건</strong><small>정책 판정·실행 실패 기록이 있는 실행 · 실제 차단은 결과에서 확인</small></button>
+  <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="정책 사건이 있는 실행만 보기"><span>정책 사건 실행</span><strong>{{ history_summary.incidents }}건</strong><small>정책 판정·실행 실패 기록이 있는 실행 · 클릭하여 보기 · 실제 차단은 결과에서 확인</small></button>
   <button type="button" class="metric metric-ok metric-action" data-history-quick-filter="valid" aria-label="유효한 Result Bundle 실행만 보기"><span>Bundle 유효</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle 무결성 확인 · 클릭하여 보기</small></button>
 </section>
 <div class="history-view-presets" role="group" aria-label="실행 기록 빠른 보기">
