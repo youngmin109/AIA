@@ -763,6 +763,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "프로세스 수준" in incident.text
     assert "자동 조치 보류" in incident.text
     assert "실행 결과 증거 없음" in incident.text
+    assert "삭제 사건" in incident.text
+    assert "사건 ID 보기" in incident.text
     assert "정책 위반은 확인됐지만" in incident.text
     result = client.get("/runs/run-1/result")
     assert result.status_code == 200
