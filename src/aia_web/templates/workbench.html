@@ -753,10 +753,12 @@ const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실�
 const executionDisplayLabel = (value, ended = false, observed = false) => observed && value === 'NOT_ATTEMPTED' ? '실행 관찰됨' : ended && value === 'NOT_ATTEMPTED' ? '실행 결과 증거 없음' : value === 'NOT_ATTEMPTED' ? '실행 결과 대기' : executionLabel(value);
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor', MULTI_SENSOR: '복수 센서'})[value] || value || 'AIA';
 const toolNameLabel = (value) => ({Bash: 'Bash', apply_patch: 'apply_patch', Edit: 'Edit', Write: 'Write'})[value] || '';
-const eventTitleLabel = (event) => [toolNameLabel(event?.tool_name), eventSummaryLabel(event?.summary)].filter(Boolean).join(' · ') || '보호 대상 행위';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
-const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
-const eventCategoryLabel = (event) => event?.category === 'SENSOR' ? '센서 상태' : '행위 요청';
+const eventSummaryLabel = (value, event = null) => event?.display_summary || String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
+const eventOriginLabel = (event) => event?.category === 'SENSOR' ? '센서 상태' : event?.origin_label || '행위 기록';
+const eventTargetLabel = (event) => event?.display_target_label || event?.target_label || '';
+const eventTitleLabel = (event) => [toolNameLabel(event?.tool_name), eventSummaryLabel(event?.summary, event)].filter(Boolean).join(' · ') || '보호 대상 행위';
+const eventCategoryLabel = (event) => eventOriginLabel(event);
 const eventDecisionBadge = (event, orphaned = false) => {
   const value = event?.decision || 'OBSERVED';
   const text = decisionLabel(value);
@@ -1764,7 +1766,7 @@ function renderSecurity(status) {
           const toolLabel = toolNameLabel(event.tool_name);
           const contextLabel = [
             toolLabel,
-            event.target_label || '',
+            eventTargetLabel(event),
             sensorNameLabel(event.sensor || 'AIA'),
           ].filter(Boolean).join(' · ');
           return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><div class="workbench-event-title"><span class="event-category-label">${esc(eventCategoryLabel(event))}</span><strong>${esc(eventTitleLabel(event))}</strong></div><small>${esc(formatTime(event.observed_at))} · ${esc(contextLabel)}</small>${detailHint}</div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${eventDecisionBadge(event, orphaned)}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`;

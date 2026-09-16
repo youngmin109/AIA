@@ -674,6 +674,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventFilter === 'SENSOR'" in workbench.text
     assert "eventFilter === 'ACTION'" in workbench.text
     assert "const eventCategoryLabel = (event)" in workbench.text
+    assert "event?.display_summary" in workbench.text
+    assert "event?.origin_label" in workbench.text
+    assert "event?.display_target_label" in workbench.text
     assert "const toolNameLabel = (value)" in workbench.text
     assert "const contextLabel = [" in workbench.text
     assert "event.tool_name" in workbench.text

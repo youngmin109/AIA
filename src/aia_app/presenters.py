@@ -55,6 +55,15 @@ _INCIDENT_REASON_LABELS = {
     "hook and process evidence": "Hook과 Process Evidence가 함께 확인되었습니다.",
 }
 _SAFE_TOOL_NAMES = frozenset({"Bash", "apply_patch", "Edit", "Write"})
+_SAFE_EVENT_OPERATION_LABELS = {
+    "READ": "읽기",
+    "CREATE": "생성",
+    "MODIFY": "수정",
+    "DELETE": "삭제",
+    "MOVE": "이동",
+    "RENAME": "이름 변경",
+    "EXECUTE": "명령 실행",
+}
 
 
 def safe_tool_name(value: Any) -> str | None:
@@ -164,8 +173,32 @@ def safe_event_views(
         execution_observed = bool(action.get("execution_observed"))
         target = action.get("target") if isinstance(action.get("target"), Mapping) else {}
         target_kind = str(target.get("target_kind") or "")
+        sensor = event_sensor(action)
         tool_name = safe_tool_name(action.get("tool_name") or action.get("tool"))
         target_label = "명령 실행" if operation == "EXECUTE" or target_kind == "COMMAND" else "파일·프로세스 행위"
+        operation_label = _SAFE_EVENT_OPERATION_LABELS.get(operation, "보호 대상 행위")
+        event_origin = "RUNTIME_ACTION"
+        origin_label = "행위 기록"
+        display_summary = f"{operation_label} 행위 관찰"
+        display_target_label = target_label
+        if target_kind == "PROCESS":
+            event_origin = "PROCESS_OBSERVATION"
+            origin_label = "프로세스 관찰"
+            display_summary = (
+                "프로세스 실행 관찰"
+                if operation == "EXECUTE"
+                else f"프로세스 {operation_label} 관찰"
+            )
+            display_target_label = "프로세스"
+        elif sensor == "FILESYSTEM_WATCHER" and target_kind == "FILE":
+            event_origin = "FILESYSTEM_OBSERVATION"
+            origin_label = "파일 관찰"
+            display_summary = f"파일 {operation_label} 관찰"
+            display_target_label = "파일 변화"
+        elif sensor == "AGENT_HOOK":
+            event_origin = "HOOK_REQUEST"
+            origin_label = "Hook 요청"
+            display_summary = f"{operation_label} 요청"
         severity = "CRITICAL" if execution == "FAILED" else "WARNING" if policy in {"VIOLATION", "INDETERMINATE"} or enforcement not in {None, "NONE"} else "INFO"
         display_decision = (
             enforcement_decision
@@ -181,11 +214,15 @@ def safe_event_views(
                 "category": "ENFORCEMENT" if display_decision in {"CONTAIN", "REFUSE", "BLOCKED", "TERMINATED"} else "POLICY",
                 "summary": f"{operation} 행위 관찰",
                 "target_label": target_label,
+                "display_summary": display_summary,
+                "display_target_label": display_target_label,
+                "event_origin": event_origin,
+                "origin_label": origin_label,
                 "tool_name": tool_name,
                 "decision": display_decision,
                 "execution_result": execution or "NOT_REPORTED",
                 "execution_observed": execution_observed,
-                "sensor": event_sensor(action),
+                "sensor": sensor,
                 "severity": severity,
                 "observed_at": action.get("observed_at"),
                 "chain_action_id": action.get("action_id"),

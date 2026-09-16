@@ -165,6 +165,43 @@ def test_safe_event_view_does_not_treat_observation_stage_as_hook_sensor() -> No
     )
 
     assert events[0]["sensor"] == "PROCESS_RUNTIME"
+    assert events[0]["event_origin"] == "PROCESS_OBSERVATION"
+    assert events[0]["origin_label"] == "프로세스 관찰"
+    assert events[0]["display_summary"] == "프로세스 실행 관찰"
+    assert events[0]["display_target_label"] == "프로세스"
+
+
+def test_safe_event_view_labels_filesystem_observation_separately_from_hook_request() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "DELETE",
+                "evidence_ids": ["file-1"],
+                "target": {"target_kind": "FILE"},
+            },
+            {
+                "action_id": "a2",
+                "operation": "MODIFY",
+                "sensor": "AGENT_HOOK",
+                "target": {"target_kind": "FILE"},
+            },
+        ],
+        evidence_metadata=[
+            {
+                "evidence_id": "file-1",
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+            }
+        ],
+    )
+
+    assert events[0]["event_origin"] == "FILESYSTEM_OBSERVATION"
+    assert events[0]["display_summary"] == "파일 삭제 관찰"
+    assert events[0]["display_target_label"] == "파일 변화"
+    assert events[1]["event_origin"] == "HOOK_REQUEST"
+    assert events[1]["display_summary"] == "수정 요청"
+    assert events[1]["origin_label"] == "Hook 요청"
 
 
 def test_safe_event_view_uses_runtime_when_sensor_evidence_is_not_linked() -> None:
