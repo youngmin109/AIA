@@ -315,7 +315,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".history-view-preset.is-active" in css.text
     assert ".preflight-scope-complete" in css.text
     assert '.field textarea[aria-invalid="true"]' in css.text
-    assert "glassbox-ui-29" in dashboard.text
+    assert "glassbox-ui-30" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -1091,6 +1091,18 @@ def test_result_page_explains_degraded_protection_separately_from_valid_bundle()
     assert 'class="status-badge status-success" title="VALID">Bundle 유효</div>' in result.text
     assert 'class="status-badge status-warning" title="COMPLETED_DEGRADED">보호 상태 확인 필요</div>' in result.text
     assert "유효 · 보호 확인 필요" not in result.text
+
+
+def test_result_page_localizes_known_policy_name_but_keeps_identifier_in_title() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data.update({"policy_id": "aia-protected-development", "policy_version": "1.1"})
+    service.get_result = lambda session_id: result_data
+
+    result = TestClient(create_app(service)).get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert 'title="aia-protected-development · 1.1">보호 우선 개발형 · 1.1</span>' in result.text
 
 
 def test_result_page_labels_policy_events_without_claiming_confirmed_block() -> None:
