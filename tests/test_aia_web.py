@@ -378,8 +378,15 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert live.status_code == 200
     assert "보호 실행 상태" in live.text
     assert 'id="filesystem-event-count">2건' in live.text
-    assert '<span>Hook Sensor</span><strong id="hook-broker-health">' in live.text
+    assert '<span>Hook Sensor</span><strong id="hook-broker-health" title="HEALTHY">정상</strong>' in live.text
     assert "실시간 센서 상태" in live.text
+    assert '<div id="status-badge" class="status-badge" title="RUNNING">실행 중</div>' in live.text
+    assert '<strong id="phase" title="RUNNING">Agent 실행 중</strong>' in live.text
+    assert '<strong id="checkpoint" title="READY">생성됨 · 사용 가능</strong>' in live.text
+    assert '<strong id="lease" title="ACTIVE">보호 실행에 연결됨</strong>' in live.text
+    assert '<strong id="protection-state" aria-live="polite" title="ACTIVE_VERIFIED">보호 검증됨</strong>' in live.text
+    assert '<strong id="hook-broker-health" title="HEALTHY">정상</strong>' in live.text
+    assert '<span id="launch-mode" class="badge" title="inherit">기본 실행</span>' in live.text
     assert 'id="event-timeline"' in live.text
     assert 'id="run-refresh-status"' in live.text
     assert 'id="refresh-run"' in live.text
