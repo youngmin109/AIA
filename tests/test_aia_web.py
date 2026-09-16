@@ -315,7 +315,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".history-view-preset.is-active" in css.text
     assert ".preflight-scope-complete" in css.text
     assert '.field textarea[aria-invalid="true"]' in css.text
-    assert "glassbox-ui-28" in dashboard.text
+    assert "glassbox-ui-29" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -951,6 +951,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "유효 · 검증됨" in result.text
     assert result.text.index("Hook Sensor") < result.text.index("File Sensor") < result.text.index("Process Sensor")
     assert "이번 보호 실행에서 확인된 내용" in result.text
+    assert 'aria-label="실행 정보"' in result.text
+    assert "Workspace" in result.text
+    assert "basic · 1.0" in result.text
+    assert "Workbench 내 터미널" in result.text
     assert 'class="technical-meta"' in result.text
     assert "실행 ID 보기" in result.text
     assert 'aria-label="결과 읽는 순서"' in result.text
