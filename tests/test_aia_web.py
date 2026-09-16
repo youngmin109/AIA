@@ -775,6 +775,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="incident-heading"' in workbench.text
     assert 'id="incident-status-badge"' in workbench.text
     assert "Number(status.incident_count || 0) > 0" in workbench.text
+    assert "정책 사건 · 결과에서 확인" in workbench.text
+    assert "결과 화면에서 실제 영향 확인" in workbench.text
     assert "정책 사건 기록 확인 필요" in workbench.text
     assert "이 화면에서 부작용을 확정할 수 없음" in workbench.text
     assert "incidentCard.hidden = true" in workbench.text
