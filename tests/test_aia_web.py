@@ -307,7 +307,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-22" in dashboard.text
+    assert ".preflight-requirement-summary" in css.text
+    assert ".preflight-scope-complete" in css.text
+    assert "glassbox-ui-24" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -362,6 +364,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "현재 연결 증명" in new_run.text
     assert "현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다" in new_run.text
     assert "preflightCheckBlocksRun" in new_run.text
+    assert 'id="preflight-requirement-summary"' in new_run.text
+    assert "실행 차단" in new_run.text
+    assert "필수" in new_run.text
+    assert "preflight-scope-required" in new_run.text
+    assert "preflight-scope-complete" in new_run.text
+    assert "preflight-scope-optional" in new_run.text
+    assert "updatePreflightRequirementSummary" in new_run.text
     assert "CODEX_HOOK_TRUST_REQUIRED" in new_run.text
     assert "preflightCheckMark" in new_run.text
     assert "아래 설치 명령을 실행하세요." in new_run.text

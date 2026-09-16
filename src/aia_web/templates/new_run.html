@@ -152,13 +152,14 @@
       'attention' if check.name == 'pretool_hook' and check.stale else
       'optional' if not check_blocks_run else 'fail'
     ) %}
-    <div class="preflight-row">
+    <div class="preflight-row" data-preflight-check="{{ check.name }}" data-preflight-required="{{ 'yes' if check_blocks_run else 'no' }}">
       <span class="preflight-mark {{ check_mark_class }}">{{ check_status }}</span>
       <strong>{{ check.label }}</strong>
-      <span class="hint">{{ check_display_detail }}</span>
+      <span class="preflight-check-detail"><span class="preflight-scope {{ 'preflight-scope-required' if check_blocks_run and not check.ok else 'preflight-scope-complete' if check_blocks_run else 'preflight-scope-optional' }}">{{ '실행 차단' if check_blocks_run and not check.ok else '필수' if check_blocks_run else '선택' }}</span><span class="hint">{{ check_display_detail }}</span></span>
     </div>
     {% endfor %}
   </div>
+  <p id="preflight-requirement-summary" class="preflight-requirement-summary hint" role="status" aria-live="polite">실행을 막는 확인 필요 항목을 확인하는 중입니다.</p>
   <p class="preflight-legend hint">상태는 단계별로 표시됩니다: <strong>설치됨</strong>은 설정 파일, <strong>신뢰됨</strong>은 Codex 승인, <strong>검증됨</strong>은 실제 Hook Event 확인을 뜻합니다.</p>
   {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
   {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
@@ -344,6 +345,7 @@ const recentWorkspaceActions = document.getElementById('recent-workspace-actions
 const recentWorkspaceButtons = document.getElementById('recent-workspace-buttons');
 const clearRecentWorkspaces = document.getElementById('clear-recent-workspaces');
 const preflightChecks = document.getElementById('preflight-checks');
+const preflightRequirementSummary = document.getElementById('preflight-requirement-summary');
 const preflightLoading = document.getElementById('preflight-loading');
 const preflightLoadingLabel = document.getElementById('preflight-loading-label');
 const preflightLoadingElapsed = document.getElementById('preflight-loading-elapsed');
@@ -438,6 +440,22 @@ const preflightCheckDetailLabel = (check) => {
   return 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';
 };
 const preflightCheckBlocksRun = (check, readinessStatus) => !check?.optional || (check?.name === 'codex_hook_trust' && readinessStatus === 'CODEX_HOOK_TRUST_REQUIRED');
+function updatePreflightRequirementSummary(checks, readinessStatus = 'UNKNOWN') {
+  if (!preflightRequirementSummary) return;
+  const source = Array.isArray(checks) ? checks : [];
+  const unresolvedRequired = source.filter((check) => preflightCheckBlocksRun(check, readinessStatus) && check?.ok !== true).length;
+  const unresolvedOptional = source.filter((check) => !preflightCheckBlocksRun(check, readinessStatus) && check?.ok !== true).length;
+  if (unresolvedRequired > 0) {
+    preflightRequirementSummary.className = 'preflight-requirement-summary hint preflight-requirement-attention';
+    preflightRequirementSummary.textContent = `실행을 막는 확인 필요 ${unresolvedRequired}건${unresolvedOptional ? ` · 선택 항목 ${unresolvedOptional}건` : ''}`;
+  } else if (unresolvedOptional > 0) {
+    preflightRequirementSummary.className = 'preflight-requirement-summary hint preflight-requirement-ready';
+    preflightRequirementSummary.textContent = `필수 항목을 모두 통과했습니다 · 선택 항목 ${unresolvedOptional}건`;
+  } else {
+    preflightRequirementSummary.className = 'preflight-requirement-summary hint preflight-requirement-ready';
+    preflightRequirementSummary.textContent = '모든 실행 전 확인 항목을 통과했습니다.';
+  }
+}
 const preflightCheckMark = (check, readinessStatus) => {
   const name = String(check?.name || '');
   const blocksRun = preflightCheckBlocksRun(check, readinessStatus);
@@ -714,21 +732,31 @@ function renderPreflight(payload) {
     row.className = 'preflight-row';
     const readinessStatus = data.readiness_code || 'UNKNOWN';
     const [markClass, markLabel] = preflightCheckMark(check, readinessStatus);
+    const blocksRun = preflightCheckBlocksRun(check, readinessStatus);
+    row.dataset.preflightCheck = String(check?.name || 'unknown');
+    row.dataset.preflightRequired = blocksRun ? 'yes' : 'no';
     const mark = document.createElement('span');
     mark.className = `preflight-mark ${markClass}`;
     mark.textContent = markLabel;
     const label = document.createElement('strong');
     label.textContent = check.label;
     const detail = document.createElement('span');
-    detail.className = 'hint';
-    detail.textContent = preflightCheckDetailLabel(check);
-    detail.title = String(check.detail || '');
+    detail.className = 'preflight-check-detail';
+    const scope = document.createElement('span');
+    scope.className = `preflight-scope ${blocksRun && check?.ok !== true ? 'preflight-scope-required' : blocksRun ? 'preflight-scope-complete' : 'preflight-scope-optional'}`;
+    scope.textContent = blocksRun && check?.ok !== true ? '실행 차단' : blocksRun ? '필수' : '선택';
+    const detailText = document.createElement('span');
+    detailText.className = 'hint';
+    detailText.textContent = preflightCheckDetailLabel(check);
+    detailText.title = String(check.detail || '');
+    detail.replaceChildren(scope, detailText);
     row.append(mark, label, detail);
     preflightChecks.append(row);
   });
   preflightError.hidden = data.ready === true;
   readinessSummary.className = `notice ${data.ready === true ? 'success' : 'warning'}`;
   const readinessStatus = data.readiness_code || 'UNKNOWN';
+  updatePreflightRequirementSummary(checks, readinessStatus);
   readinessCode.textContent = preflightReadinessLabels[readinessStatus] || '확인 필요';
   readinessCode.title = readinessStatus;
   readinessNextStep.textContent = data.next_step || '위의 확인 필요 항목을 해결하세요.';
