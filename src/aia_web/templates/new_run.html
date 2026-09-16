@@ -160,6 +160,14 @@
     {% endfor %}
   </div>
   <p id="preflight-requirement-summary" class="preflight-requirement-summary hint" role="status" aria-live="polite">실행을 막는 확인 필요 항목을 확인하는 중입니다.</p>
+  <div id="hook-readiness-path" class="hook-readiness-path" data-state="checking" role="group" aria-label="Hook 준비 단계">
+    <div class="hook-readiness-step is-current" data-hook-step="installed"><span class="hook-readiness-step-mark">1</span><div><strong>Hook 설치</strong><small id="hook-step-installed">확인 중</small></div></div>
+    <span class="hook-readiness-connector" aria-hidden="true"></span>
+    <div class="hook-readiness-step" data-hook-step="trusted"><span class="hook-readiness-step-mark">2</span><div><strong>Codex 신뢰</strong><small id="hook-step-trusted">확인 전</small></div></div>
+    <span class="hook-readiness-connector" aria-hidden="true"></span>
+    <div class="hook-readiness-step" data-hook-step="verified"><span class="hook-readiness-step-mark">3</span><div><strong>실제 연결 검증</strong><small id="hook-step-verified">확인 전</small></div></div>
+  </div>
+  <p id="hook-readiness-path-summary" class="hook-readiness-path-summary hint" role="status" aria-live="polite">Hook 준비 단계를 확인하는 중입니다.</p>
   <p class="preflight-legend hint">상태는 단계별로 표시됩니다: <strong>설치됨</strong>은 설정 파일, <strong>신뢰됨</strong>은 Codex 승인, <strong>검증됨</strong>은 실제 Hook Event 확인을 뜻합니다.</p>
   {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
   {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
@@ -346,6 +354,13 @@ const recentWorkspaceButtons = document.getElementById('recent-workspace-buttons
 const clearRecentWorkspaces = document.getElementById('clear-recent-workspaces');
 const preflightChecks = document.getElementById('preflight-checks');
 const preflightRequirementSummary = document.getElementById('preflight-requirement-summary');
+const hookReadinessPath = document.getElementById('hook-readiness-path');
+const hookReadinessPathSummary = document.getElementById('hook-readiness-path-summary');
+const hookReadinessSteps = {
+  installed: {root: document.querySelector('[data-hook-step="installed"]'), detail: document.getElementById('hook-step-installed')},
+  trusted: {root: document.querySelector('[data-hook-step="trusted"]'), detail: document.getElementById('hook-step-trusted')},
+  verified: {root: document.querySelector('[data-hook-step="verified"]'), detail: document.getElementById('hook-step-verified')},
+};
 const preflightLoading = document.getElementById('preflight-loading');
 const preflightLoadingLabel = document.getElementById('preflight-loading-label');
 const preflightLoadingElapsed = document.getElementById('preflight-loading-elapsed');
@@ -455,6 +470,38 @@ function updatePreflightRequirementSummary(checks, readinessStatus = 'UNKNOWN') 
     preflightRequirementSummary.className = 'preflight-requirement-summary hint preflight-requirement-ready';
     preflightRequirementSummary.textContent = '모든 실행 전 확인 항목을 통과했습니다.';
   }
+}
+function updateHookReadinessPath(checks, payload = {}) {
+  if (!hookReadinessPath) return;
+  const source = Array.isArray(checks) ? checks : [];
+  const checkByName = (name) => source.find((check) => check?.name === name) || {};
+  const installedCheck = checkByName('pretool_hook');
+  const trustCheck = checkByName('codex_hook_trust');
+  const verificationCheck = checkByName('hook_verification');
+  const activationVerified = payload?.hook_activation?.status === 'CURRENTLY_VERIFIED';
+  const trustVerified = trustCheck.ok === true || ['TRUSTED', 'MANAGED'].includes(payload?.hook_trust?.status);
+  const states = {
+    installed: installedCheck.ok === true ? 'complete' : installedCheck.stale ? 'attention' : 'pending',
+    trusted: trustVerified ? 'complete' : installedCheck.ok === true ? 'attention' : 'pending',
+    verified: activationVerified || verificationCheck.ok === true ? 'complete' : trustVerified ? 'attention' : 'pending',
+  };
+  const labels = {
+    installed: installedCheck.ok === true ? '설치됨' : installedCheck.stale ? '갱신 필요' : '설치 필요',
+    trusted: trustVerified ? '신뢰됨' : states.trusted === 'attention' ? '신뢰 필요' : '대기 중',
+    verified: states.verified === 'complete' ? '검증됨' : states.verified === 'attention' ? '검증 필요' : '대기 중',
+  };
+  const stepEntries = Object.entries(hookReadinessSteps);
+  stepEntries.forEach(([name, step]) => {
+    if (!step.root || !step.detail) return;
+    step.root.className = `hook-readiness-step is-${states[name]}`;
+    step.detail.textContent = labels[name];
+  });
+  const current = ['installed', 'trusted', 'verified'].find((name) => states[name] !== 'complete');
+  hookReadinessPath.dataset.state = current ? states[current] === 'attention' ? 'attention' : 'pending' : 'ready';
+  if (current === 'installed') hookReadinessPathSummary.textContent = '첫 단계: AIA PreToolUse Hook을 설치하세요.';
+  else if (current === 'trusted') hookReadinessPathSummary.textContent = '다음 단계: Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';
+  else if (current === 'verified') hookReadinessPathSummary.textContent = '마지막 단계: 실제 Hook 연결을 검증하세요.';
+  else hookReadinessPathSummary.textContent = 'Hook 준비가 완료되었습니다. 보호 실행을 시작할 수 있습니다.';
 }
 const preflightCheckMark = (check, readinessStatus) => {
   const name = String(check?.name || '');
@@ -757,6 +804,7 @@ function renderPreflight(payload) {
   readinessSummary.className = `notice ${data.ready === true ? 'success' : 'warning'}`;
   const readinessStatus = data.readiness_code || 'UNKNOWN';
   updatePreflightRequirementSummary(checks, readinessStatus);
+  updateHookReadinessPath(checks, data);
   readinessCode.textContent = preflightReadinessLabels[readinessStatus] || '확인 필요';
   readinessCode.title = readinessStatus;
   readinessNextStep.textContent = data.next_step || '위의 확인 필요 항목을 해결하세요.';
