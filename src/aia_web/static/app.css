@@ -763,4 +763,9 @@ samp,
 .dashboard-readiness-progress[data-state="checking"] { border-color: rgba(101,217,232,.42); background: rgba(101,217,232,.045); }
 .dashboard-readiness-progress[data-state="checking"] .dashboard-readiness-progress-fill { width: 38% !important; transform: translateX(-120%); background: linear-gradient(90deg, transparent, var(--cyan), transparent); animation: dashboard-readiness-indeterminate 1.35s ease-in-out infinite; }
 @keyframes dashboard-readiness-indeterminate { 0% { transform: translateX(-120%); } 100% { transform: translateX(360%); } }
+.history-attention { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 0 0 18px; }
+.history-attention-copy { display: grid; gap: 4px; }
+.history-attention-copy p { margin: 0; color: var(--muted); }
+.history-attention-link { flex: 0 0 auto; color: var(--text); }
 @media (max-width: 640px) { .run-unavailable-panel { display: block; } .run-unavailable-icon { margin-bottom: 12px; } }
+@media (max-width: 640px) { .history-attention { display: grid; gap: 10px; } .history-attention-link { justify-self: start; } }

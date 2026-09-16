@@ -1313,6 +1313,31 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "/runs/run-1/result" not in history.text
 
 
+def test_history_surfaces_orphaned_runs_with_quick_filter() -> None:
+    service = FakeService()
+    service.list_runs = lambda: [{
+        "session_id": "orphaned-run",
+        "status": "RUNNING",
+        "workspace": "C:/workspace",
+        "policy": {"id": "basic", "version": "1.0"},
+        "incident_count": 0,
+        "bundle_status": "PENDING",
+        "protection_state": "ORPHANED_DEGRADED",
+        "runtime_reconciliation": {"orphaned": True},
+        "run_classification": "LIVE_PROTECTED_RUN",
+        "launch_mode": "web_terminal",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }]
+
+    history = TestClient(create_app(service)).get("/runs")
+
+    assert history.status_code == 200
+    assert "정리 검토가 필요한 실행이 1건 있습니다." in history.text
+    assert 'data-history-quick-filter="orphaned"' in history.text
+    assert 'id="history-filters"' in history.text
+    assert "ORPHANED_DEGRADED" in history.text
+
+
 def test_ended_valid_runs_open_result_bundle_from_primary_session_link() -> None:
     service = FakeService()
     service.list_runs = lambda: [{

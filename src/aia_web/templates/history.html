@@ -5,11 +5,12 @@
 {% set protection_labels = {'STARTING': 'AIA 시작 중', 'PREPARING': '보호 준비 중', 'READY_UNVERIFIED': '실행 준비 확인 중', 'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '행위 관찰 전', 'ACTIVE_DEGRADED': '보호 상태 저하', 'STOP_REQUESTED': '중지 처리 중', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_BEFORE_LAUNCH': '시작 전 중지', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'DEGRADED': '보호 상태 저하', 'FAILED': '보호 실패', 'ORPHANED_DEGRADED': '보호 연결 끊김 · 정리 필요'} %}
 {% set bundle_labels = {'VALID': '유효', 'INVALID': '무효', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '없음'} %}
 {% set active_statuses = ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'] %}
-{% set history_summary = namespace(active=0, incidents=0, valid=0) %}
+{% set history_summary = namespace(active=0, incidents=0, valid=0, orphaned=0) %}
 {% for item in runs %}
   {% if item.status in active_statuses and not (item.runtime_reconciliation or {}).get('orphaned') and item.run_classification != 'UNVERIFIED_RUNTIME_STATE' %}{% set history_summary.active = history_summary.active + 1 %}{% endif %}
   {% if item.incident_count %}{% set history_summary.incidents = history_summary.incidents + 1 %}{% endif %}
   {% if item.bundle_status == 'VALID' %}{% set history_summary.valid = history_summary.valid + 1 %}{% endif %}
+  {% if (item.runtime_reconciliation or {}).get('orphaned') %}{% set history_summary.orphaned = history_summary.orphaned + 1 %}{% endif %}
 {% endfor %}
 <section class="hero compact">
   <div>
@@ -25,6 +26,15 @@
   <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="사건 발생 실행만 보기"><span>사건 발생 실행</span><strong>{{ history_summary.incidents }}건</strong><small>차단·정책 사건이 있는 실행 · 클릭하여 보기</small></button>
   <button type="button" class="metric metric-ok metric-action" data-history-quick-filter="valid" aria-label="유효한 Result Bundle 실행만 보기"><span>Bundle 유효</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle 무결성 확인 · 클릭하여 보기</small></button>
 </section>
+{% if history_summary.orphaned %}
+<section class="notice warning history-attention" aria-label="정리 검토가 필요한 실행">
+  <div class="history-attention-copy">
+    <strong>정리 검토가 필요한 실행이 {{ history_summary.orphaned }}건 있습니다.</strong>
+    <p>보호 프로세스와의 연결이 끊긴 실행은 현재 보호 중으로 간주하지 않습니다. 마지막 상태를 확인한 뒤 새 실행을 시작하세요.</p>
+  </div>
+  <button type="button" class="text-button history-attention-link" data-history-quick-filter="orphaned">정리 필요한 실행 보기 →</button>
+</section>
+{% endif %}
 <section class="panel">
   <div class="panel-heading history-heading"><div><h2>전체 실행</h2><p class="hint">필터를 사용해 원하는 보호 실행과 결과 Bundle을 찾습니다.</p></div><div class="history-heading-actions"><span id="history-sync-status" class="history-sync-status" role="status" aria-live="polite">마지막 확인 <time id="history-sync-time"></time></span><button id="refresh-history" class="button" type="button" title="최신 실행 상태를 다시 확인합니다.">최신 상태 확인</button><span id="history-result-count" class="badge" aria-live="polite">{{ runs|length }}건 표시 / {{ runs|length }}건 전체</span></div></div>
   <div class="history-legend" aria-label="상태 설명">
@@ -33,7 +43,7 @@
     <span><b class="legend-dot legend-warning"></b>일부 확인: 센서·실행 결과를 모두 검증하지 못함</span>
     <span><b class="legend-dot legend-valid"></b>검증됨: Result Bundle 무결성 확인</span>
   </div>
-  <div class="history-filters">
+  <div id="history-filters" class="history-filters">
     <label class="field">작업 폴더<input id="filter-workspace" placeholder="경로 검색"></label>
     <label class="field">실행 상태<select id="filter-status"><option value="">전체 상태</option><option value="CREATED">생성됨</option><option value="PREPARING">보호 준비 중</option><option value="READY">실행 준비 완료</option><option value="LAUNCHING">Codex 시작 중</option><option value="RUNNING">실행 중</option><option value="COMPLETED">정상 완료</option><option value="ABORTED">사용자 중지</option><option value="FAILED">실패</option></select></label>
     <label class="field">보호 상태<select id="filter-protection"><option value="">전체 보호 상태</option><option value="STARTING">AIA 시작 중</option><option value="PREPARING">보호 준비 중</option><option value="READY_UNVERIFIED">실행 준비 확인 중</option><option value="ACTIVE_VERIFIED">실행 중 · 검증됨</option><option value="ACTIVE_UNVERIFIED">실행 중 · 행위 관찰 전</option><option value="ACTIVE_DEGRADED">실행 중 · 일부 확인</option><option value="STOP_REQUESTED">중지 처리 중</option><option value="COMPLETED_VERIFIED">완료 · 검증됨</option><option value="COMPLETED_DEGRADED">완료 · 일부 확인</option><option value="ABORTED_BEFORE_LAUNCH">시작 전 중지</option><option value="ABORTED_VERIFIED">중지 · 검증됨</option><option value="ABORTED_DEGRADED">중지 · 일부 확인</option><option value="DEGRADED">보호 상태 저하</option><option value="FAILED">보호 실패</option><option value="ORPHANED_DEGRADED">보호 연결 끊김 · 정리 필요</option></select></label>
@@ -129,7 +139,7 @@ function filterRuns() {
   filterStatus.textContent = activeFilters.length ? `현재 조건: ${activeFilters.join(' · ')}` : '';
   historyQuickFilters.forEach((button) => {
     const quickFilter = button.dataset.historyQuickFilter;
-    const active = (quickFilter === 'active' && activeOnly) || (!activeOnly && quickFilter === 'incident' && incident === 'yes') || (!activeOnly && quickFilter === 'valid' && bundle === 'valid');
+    const active = (quickFilter === 'active' && activeOnly) || (!activeOnly && quickFilter === 'incident' && incident === 'yes') || (!activeOnly && quickFilter === 'valid' && bundle === 'valid') || (!activeOnly && quickFilter === 'orphaned' && protection === 'orphaned_degraded');
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
   });
@@ -169,6 +179,14 @@ historyQuickFilters.forEach((button) => button.addEventListener('click', () => {
     bundleFilter.value = bundleFilter.value === 'VALID' ? '' : 'VALID';
     incidentFilter.value = '';
     bundleFilter.focus();
+  } else if (quickFilter === 'orphaned') {
+    activeOnly = false;
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-protection').value = document.getElementById('filter-protection').value === 'ORPHANED_DEGRADED' ? '' : 'ORPHANED_DEGRADED';
+    incidentFilter.value = '';
+    bundleFilter.value = '';
+    document.getElementById('filter-date').value = '';
+    document.getElementById('filter-protection').focus();
   }
   historyPage = 1;
   filterRuns();
