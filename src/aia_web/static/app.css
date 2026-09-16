@@ -651,9 +651,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 
 /* Workbench balance: keep the Codex surface compact and give the event feed its own glass tone. */
 .workbench-grid { grid-template-columns: minmax(235px, .95fr) minmax(360px, 1.7fr) minmax(300px, 1.05fr); align-items: start; }
-.workbench-terminal-panel { align-self: start; align-content: start; grid-template-rows: auto auto minmax(280px, auto) max-content max-content max-content max-content; min-height: 0; height: fit-content; }
-.terminal-examples { align-self: start; min-height: 0; height: max-content; }
-.terminal-output { min-height: 280px; }
+.workbench-terminal-panel { display: flex; flex-direction: column; align-self: start; align-content: initial; min-height: 0; height: auto; }
+.workbench-terminal-panel > * { flex: 0 0 auto; }
+.terminal-output { flex: 0 0 280px; min-height: 280px; }
+.terminal-examples { align-self: stretch; min-height: 0; height: auto; }
+.workbench-terminal-panel.terminal-ended .terminal-output { flex-basis: 160px; min-height: 160px; }
 .security-events-card {
   border-color: rgba(76, 151, 205, .38);
   background: linear-gradient(145deg, rgba(239, 248, 255, .9), rgba(221, 239, 253, .66));
@@ -681,10 +683,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 @media (max-width: 1120px) {
   .workbench-grid { grid-template-columns: minmax(210px, .82fr) minmax(0, 1.8fr); }
   .workbench-terminal-panel { min-height: 0; }
-  .terminal-output { min-height: 280px; }
+  .terminal-output { min-height: 280px; flex-basis: 280px; }
 }
 
 @media (max-width: 760px) {
-  .workbench-terminal-panel { min-height: 500px; }
-  .terminal-output { min-height: 340px; }
+  .workbench-terminal-panel { min-height: 0; }
+  .terminal-output { min-height: 340px; flex-basis: 340px; }
 }
