@@ -719,6 +719,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "updateSensorCount" in workbench.text
     assert "sensor-updated" in workbench.text
     assert "+${delta} 새 증거" in workbench.text
+    assert "정상 종료 · 관찰 없음" in workbench.text
+    assert "sensorLabel = (value, ended = false, orphaned = false, evidenceCount = null)" in workbench.text
     assert "securityEventKey" in workbench.text
     assert "eventHighlightKeys" in workbench.text
     assert "scheduleEventHighlightClear" in workbench.text
