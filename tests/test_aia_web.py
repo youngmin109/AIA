@@ -320,6 +320,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex 설정에서 신뢰된 Hook이 확인되었습니다." in new_run.text
     assert "Codex Hook Trust 상태를 확인할 수 없습니다." in new_run.text
     assert "preflight-command-help" in new_run.text
+    assert "Windows 실행 파일 오류가 나면" in new_run.text
+    assert "preflight-command-note" in new_run.text
+    assert "python -m aia.cli setup" in new_run.text
+    assert "python -m aia.cli hook verify" in new_run.text
     assert "data-copy-command" in new_run.text
     assert "같은 AIA 프로젝트 폴더에서 순서대로 실행" in new_run.text
     assert "preToolUse=MODIFIED" not in new_run.text

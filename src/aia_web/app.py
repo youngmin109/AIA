@@ -101,34 +101,38 @@ def _dashboard_preflight_placeholder() -> dict[str, Any]:
     }
 
 
+def _console_module_cli_prefix() -> str:
+    """Return the launcher that bypasses a blocked generated ``aia.exe``."""
+
+    project_root = next(
+        (
+            candidate
+            for candidate in (_ROOT, *_ROOT.parents)
+            if (candidate / "pyproject.toml").is_file()
+        ),
+        None,
+    )
+    if project_root is not None:
+        return subprocess.list2cmdline(
+            [
+                "uv",
+                "run",
+                "--isolated",
+                "--project",
+                str(project_root),
+                "python",
+                "-m",
+                "aia.cli",
+            ]
+        )
+    return "uv run --isolated python -m aia.cli"
+
+
 def _console_cli_prefix() -> str:
     """Return the CLI form that matches the interpreter serving this page."""
 
     installer = CodexHookInstaller()
-    if installer.uses_uv_launcher:
-        project_root = next(
-            (
-                candidate
-                for candidate in (_ROOT, *_ROOT.parents)
-                if (candidate / "pyproject.toml").is_file()
-            ),
-            None,
-        )
-        if project_root is not None:
-            return subprocess.list2cmdline(
-                [
-                    "uv",
-                    "run",
-                    "--isolated",
-                    "--project",
-                    str(project_root),
-                    "python",
-                    "-m",
-                    "aia.cli",
-                ]
-            )
-        return "uv run --isolated python -m aia.cli"
-    return "uv run aia"
+    return _console_module_cli_prefix() if installer.uses_uv_launcher else "uv run aia"
 
 
 def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:
@@ -235,6 +239,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "new_run_preflight_deferred": True,
                 "capabilities": product_capabilities(),
                 "cli_prefix": _console_cli_prefix(),
+                "module_cli_prefix": _console_module_cli_prefix(),
                 "hook_path": str(CodexHookInstaller().path),
             },
         )

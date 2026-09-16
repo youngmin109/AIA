@@ -750,6 +750,9 @@ samp,
 .dashboard-next-steps-list .dashboard-command-step { display: flex; align-items: flex-start; gap: 9px; }
 .dashboard-next-steps-list .dashboard-command-step > span { min-width: 0; }
 .dashboard-command-copy { flex: 0 0 auto; margin-left: auto; padding: 3px 8px; color: var(--cyan); }
+.preflight-command-note { display: grid; gap: 4px; margin-top: 10px; padding: 9px 11px; border: 1px solid rgba(169, 108, 12, .28); border-radius: 9px; background: rgba(255, 246, 218, .52); color: var(--muted); font-size: 11px; line-height: 1.45; }
+.preflight-command-note strong { color: #82520b; }
+.preflight-command-note code { overflow-wrap: anywhere; color: var(--text); }
 .run-unavailable-panel { display: flex; align-items: flex-start; gap: 16px; border-color: rgba(255,125,133,.42); background: linear-gradient(135deg, rgba(44,24,31,.86), rgba(17,27,38,.92)); }
 .run-unavailable-icon { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; color: #241014; background: var(--red); font-size: 22px; font-weight: 850; box-shadow: 0 8px 20px rgba(255,125,133,.2); }
 .run-unavailable-panel h2 { margin-top: 2px; }
