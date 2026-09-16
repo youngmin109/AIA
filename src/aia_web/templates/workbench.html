@@ -758,7 +758,9 @@ const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCH
 const toolNameLabel = (value) => ({Bash: 'Bash', apply_patch: 'apply_patch', Edit: 'Edit', Write: 'Write'})[value] || '';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value, event = null) => event?.display_summary || String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
-const eventOriginLabel = (event) => event?.category === 'SENSOR' ? '센서 상태' : event?.origin_label || '행위 기록';
+const sensorEventOrigins = new Set(['PROCESS_OBSERVATION', 'FILESYSTEM_OBSERVATION']);
+const isSensorEvent = (event) => event?.category === 'SENSOR' || sensorEventOrigins.has(event?.event_origin);
+const eventOriginLabel = (event) => isSensorEvent(event) && !event?.origin_label ? '센서 상태' : event?.origin_label || '행위 기록';
 const eventTargetLabel = (event) => event?.display_target_label || event?.target_label || '';
 const eventTitleLabel = (event) => [toolNameLabel(event?.tool_name), eventSummaryLabel(event?.summary, event)].filter(Boolean).join(' · ') || '보호 대상 행위';
 const eventCategoryLabel = (event) => eventOriginLabel(event);
@@ -766,7 +768,7 @@ const eventDecisionBadge = (event, orphaned = false) => {
   const observational = ['PROCESS_OBSERVATION', 'FILESYSTEM_OBSERVATION'].includes(event?.event_origin);
   const value = event?.display_decision || event?.decision || 'OBSERVED';
   const text = observational ? '센서 관찰' : decisionLabel(value);
-  return badge(value, orphaned && event?.category === 'SENSOR' ? `마지막 기록 · ${text}` : text);
+  return badge(value, orphaned && isSensorEvent(event) ? `마지막 기록 · ${text}` : text);
 };
 const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : ['FAILED', 'ORPHANED'].includes(value) ? 'status-danger' : '';
 const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
@@ -1065,7 +1067,7 @@ function announceNewSecurityEvents(events, ended = false) {
     securityEventsInitialized = true;
     return;
   }
-  const candidate = fresh.slice().reverse().find((event) => event.category !== 'SENSOR');
+  const candidate = fresh.slice().reverse().find((event) => !isSensorEvent(event));
   if (!candidate || !workbenchAlert) return;
   const isIncident = Boolean(candidate.incident_action_id) || ['WARNING', 'CRITICAL'].includes(candidate.severity) || ['CONTAIN', 'REFUSE'].includes(candidate.decision);
   workbenchAlert.className = `workbench-alert ${isIncident ? 'alert-incident' : 'alert-observation'}`;
@@ -1784,9 +1786,9 @@ function renderSecurity(status) {
   seenSecurityEventKeys = currentEventKeys;
   announceNewSecurityEvents(allEvents, ended);
   const events = eventFilter === 'SENSOR'
-    ? allEvents.filter((event) => event.category === 'SENSOR')
+    ? allEvents.filter((event) => isSensorEvent(event))
     : eventFilter === 'ACTION'
-      ? allEvents.filter((event) => event.category !== 'SENSOR')
+      ? allEvents.filter((event) => !isSensorEvent(event))
       : allEvents;
   // Sensor health rows are useful context, but they have no event timestamp.
   // Keep timestamped actions at the top so the newest user-visible activity
@@ -1797,8 +1799,8 @@ function renderSecurity(status) {
       const leftTime = Date.parse(left.item.observed_at || '') || 0;
       const rightTime = Date.parse(right.item.observed_at || '') || 0;
       if (leftTime !== rightTime) return rightTime - leftTime;
-      const leftIsSensor = left.item.category === 'SENSOR' ? 1 : 0;
-      const rightIsSensor = right.item.category === 'SENSOR' ? 1 : 0;
+      const leftIsSensor = isSensorEvent(left.item) ? 1 : 0;
+      const rightIsSensor = isSensorEvent(right.item) ? 1 : 0;
       if (leftIsSensor !== rightIsSensor) return leftIsSensor - rightIsSensor;
       return left.index - right.index;
     })
@@ -1861,8 +1863,8 @@ function renderSecurity(status) {
     bindChainSelectors();
   }
   const eventCount = document.getElementById('event-count');
-  const actionEventCount = allEvents.filter((event) => event.category !== 'SENSOR').length;
-  const sensorEventCount = allEvents.filter((event) => event.category === 'SENSOR').length;
+  const actionEventCount = allEvents.filter((event) => !isSensorEvent(event)).length;
+  const sensorEventCount = allEvents.filter((event) => isSensorEvent(event)).length;
   const eventFilterLabels = {ALL: '전체', ACTION: '행위', SENSOR: '센서 상태'};
   const eventFilterCounts = {
     ALL: allEvents.length,

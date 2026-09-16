@@ -633,6 +633,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventTitleLabel(candidate)" in workbench.text
     assert "const observational = ['PROCESS_OBSERVATION', 'FILESYSTEM_OBSERVATION'].includes(event?.event_origin)" in workbench.text
     assert "const text = observational ? '센서 관찰' : decisionLabel(value)" in workbench.text
+    assert "const sensorEventOrigins = new Set(['PROCESS_OBSERVATION', 'FILESYSTEM_OBSERVATION'])" in workbench.text
+    assert "const isSensorEvent = (event) => event?.category === 'SENSOR' || sensorEventOrigins.has(event?.event_origin)" in workbench.text
+    assert "allEvents.filter((event) => isSensorEvent(event))" in workbench.text
+    assert "allEvents.filter((event) => !isSensorEvent(event))" in workbench.text
     assert "statusPollFailures" in workbench.text
     assert "연결 확인 필요" in workbench.text
     assert "function updateWorkbenchDocumentTitle(status = latestStatus)" in workbench.text
