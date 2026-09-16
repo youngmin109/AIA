@@ -1497,6 +1497,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
         if args.json:
             print(_json_text(payload))
         else:
+            print(f"[확인] 읽은 Hook 설정: {installer.path}")
             if runtime_detected:
                 print(
                     "Hook 검증 실패: PreToolUse Hook 설정은 있지만 현재 AIA 실행 경로와 일치하지 않습니다."
@@ -1506,6 +1507,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
                 )
             else:
                 print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
+            print(f"[예상] 현재 AIA Hook 명령: {installer.command}")
             print(f"[다음] {_cli_prefix(installer)} setup")
         return 2
     try:

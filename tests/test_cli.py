@@ -921,6 +921,33 @@ def test_hook_verify_explains_stale_aia_command_before_probe(tmp_path, monkeypat
     assert payload["aia_runtime_detected"] is True
 
 
+def test_hook_verify_human_failure_shows_hook_path_and_expected_command(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    monkeypatch.setattr(
+        "aia.cli.CodexHookInstaller",
+        lambda _path=None: CodexHookInstaller(
+            hook_path, python_executable=tmp_path / "new-python.exe"
+        ),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "verify",
+            "--path",
+            str(hook_path),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 2
+    assert f"[확인] 읽은 Hook 설정: {hook_path}" in output
+    assert "[예상] 현재 AIA Hook 명령:" in output
+    assert "-m aia.codex_hook_runtime" in output
+
+
 def test_hook_verify_fails_before_probe_when_codex_hook_is_untrusted(
     tmp_path, monkeypatch, capsys
 ) -> None:
