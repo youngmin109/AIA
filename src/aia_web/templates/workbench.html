@@ -1935,7 +1935,27 @@ function renderSecurity(status) {
     } else {
       incidentDetailLink.hidden = true;
     }
+  } else if (Number(status.incident_count || 0) > 0) {
+    // The event feed is intentionally bounded, so an older incident may be
+    // counted by the run without being present in the recent event window.
+    // Keep the count visible, but do not invent a target, decision, or effect.
+    incidentCard.hidden = false;
+    document.getElementById('incident-heading').textContent = '정책 사건 기록 확인 필요';
+    document.getElementById('incident-status-badge').textContent = '상세 확인';
+    document.getElementById('incident-status-badge').className = 'badge badge-warning';
+    document.getElementById('incident-title').textContent = `이 실행에 정책 사건 ${status.incident_count}건이 기록되었습니다.`;
+    document.getElementById('incident-policy').textContent = '결과 기록 기준';
+    document.getElementById('incident-decision').textContent = '상세 판정 확인 필요';
+    document.getElementById('incident-execution').textContent = '결과 화면에서 확인';
+    document.getElementById('incident-effect').textContent = '이 화면에서 부작용을 확정할 수 없음';
+    incidentNote.textContent = '최근 이벤트 목록에 상세 사건 Evidence가 없어 AIA가 차단·실행 결과를 추측하지 않습니다. 실행 결과에서 전체 사건을 확인하세요.';
+    incidentDetailLink.hidden = !status.result_available;
+    if (status.result_available) {
+      incidentDetailLink.href = `/runs/${encodeURIComponent(sessionId)}/result`;
+      incidentDetailLink.textContent = '실행 결과에서 사건 확인 →';
+    }
   } else {
+    incidentCard.hidden = true;
     incidentDetailLink.hidden = true;
     incidentNote.textContent = '';
   }
