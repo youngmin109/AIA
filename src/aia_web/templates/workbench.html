@@ -1875,11 +1875,11 @@ function renderSecurity(status) {
     const filter = button.dataset.eventFilter || 'ALL';
     const label = eventFilterLabels[filter] || filter;
     const count = eventFilterCounts[filter] ?? 0;
-    button.textContent = `${label} ${count}`;
+    button.textContent = `${label} ${count}건`;
     button.setAttribute('aria-label', `${label} 이벤트 ${count}건`);
   });
   eventCount.textContent = eventFilter === 'ALL'
-    ? `전체 ${allEvents.length}건 · 행위 ${actionEventCount} · 센서 ${sensorEventCount}`
+    ? `전체 ${allEvents.length}건 · 행위 ${actionEventCount}건 · 센서 ${sensorEventCount}건`
     : `${events.length}건 / 전체 ${allEvents.length}건`;
   eventCount.title = eventFilter === 'ALL'
     ? `행위 ${actionEventCount}건 · 센서 상태 ${sensorEventCount}건`

@@ -137,7 +137,7 @@ function updateResultEventTimeline() {
     const count = button.dataset.resultEventFilter === 'ALL'
       ? resultEventRows.length
       : resultEventRows.filter((row) => row.dataset.resultEventCategory === button.dataset.resultEventFilter).length;
-    button.textContent = `${buttonLabel} ${count}`;
+    button.textContent = `${buttonLabel} ${count}건`;
     button.setAttribute('aria-label', `${buttonLabel} 이벤트 ${count}건`);
   });
 }

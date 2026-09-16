@@ -690,6 +690,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'data-event-filter="ALL"' in workbench.text
     assert 'data-event-filter="ACTION"' in workbench.text
     assert 'data-event-filter="SENSOR"' in workbench.text
+    assert "button.textContent = `${label} ${count}건`;" in workbench.text
+    assert "전체 ${allEvents.length}건 · 행위 ${actionEventCount}건 · 센서 ${sensorEventCount}건" in workbench.text
     assert "현재 필터에 해당하는 이벤트가 없습니다." in workbench.text
     assert 'id="evidence-chain-panel"' in workbench.text
     assert '<details id="evidence-chain-panel"' in workbench.text
@@ -751,7 +753,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "eventDetailLink?.addEventListener" in workbench.text
     assert "전체 센서 Evidence 보기 →" in workbench.text
     assert "eventFilter === 'ALL'" in workbench.text
-    assert "전체 ${allEvents.length}건 · 행위 ${actionEventCount} · 센서 ${sensorEventCount}" in workbench.text
+    assert "전체 ${allEvents.length}건 · 행위 ${actionEventCount}건 · 센서 ${sensorEventCount}건" in workbench.text
     assert "현재 필터 결과" in workbench.text
     assert "bindChainSelectors" in workbench.text
     assert "sensor-evidence-row ${linked ? 'is-linked'" in workbench.text
@@ -880,6 +882,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert '<span>정책 사건</span><strong>0건</strong><small>정책 판정 기록 기준</small>' in result.text
     assert '<span>차단 사건</span><strong>0건</strong>' not in result.text
     assert 'id="event-timeline"' in result.text
+    assert "button.textContent = `${buttonLabel} ${count}건`;" in result.text
     assert 'href="#evidence-chain">증거</a>' in result.text
     assert 'href="#execution-policy">실행 정책</a>' in result.text
     assert '<details id="evidence-chain" class="panel result-details">' in result.text
