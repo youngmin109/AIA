@@ -238,6 +238,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     favicon = client.get("/static/favicon.svg")
     assert favicon.status_code == 200
     assert favicon.text.startswith("<svg")
+    css = client.get("/static/app.css")
+    assert css.status_code == 200
+    assert ".ambient-scene" in css.text
+    assert "backdrop-filter" in css.text
+    assert "prefers-reduced-motion" in css.text
+    assert "glassbox-ui-1" in dashboard.text
+    assert 'class="ambient-scene"' in dashboard.text
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
 
     new_run = client.get("/new")

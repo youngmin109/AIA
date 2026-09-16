@@ -4,10 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AIA Local Security Console{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=workbench-ui-44">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=glassbox-ui-1">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg') }}">
 </head>
 <body>
+  <div class="ambient-scene" aria-hidden="true">
+    <div class="ambient-glow ambient-glow-one"></div>
+    <div class="ambient-glow ambient-glow-two"></div>
+    <div class="ambient-orbit ambient-orbit-one"></div>
+    <div class="ambient-orbit ambient-orbit-two"></div>
+    <div class="star-layer star-layer-one"></div>
+    <div class="star-layer star-layer-two"></div>
+  </div>
   <header class="topbar{% if is_workbench %} topbar-workbench{% endif %}">
     <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>로컬 보안 콘솔</small></div>
     {% set current_path = request.url.path %}
