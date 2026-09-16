@@ -495,6 +495,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert '<span id="protection-state" class="badge" title="ACTIVE_VERIFIED" aria-live="polite">보호 검증됨</span>' in workbench.text
     assert '<strong id="summary-protection">보호 검증됨</strong>' in workbench.text
     assert '<strong id="summary-incidents">1건</strong>' in workbench.text
+    assert '정책 사건 0건' in workbench.text
+    assert "정책 사건 ${status.incident_count || 0}건" in workbench.text
+    assert '차단 여부는 결과에서 확인' in workbench.text
     assert '<strong id="evidence-count">5건</strong>' in workbench.text
     assert '<strong id="file-count">2건</strong>' in workbench.text
     assert '<strong id="process-count">0건</strong>' in workbench.text
@@ -1001,6 +1004,20 @@ def test_result_page_explains_degraded_protection_separately_from_valid_bundle()
     assert "완료 · 일부 확인" in result.text
 
 
+def test_result_page_labels_policy_events_without_claiming_confirmed_block() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data["incidents"] = [service.get_incident("run-1", "a1")]
+    service.get_result = lambda session_id: result_data
+
+    result = TestClient(create_app(service)).get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert "정책 사건 상세" in result.text
+    assert "실제 차단 여부는 각 행의 실행 결과로 확인하세요." in result.text
+    assert "차단·주의 사건" not in result.text
+
+
 def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None:
     service = FakeService()
     result_data = service.get_result("run-1")
@@ -1429,7 +1446,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'id="dashboard-sensor-process-detail" class="hint">현재 Workbench에서 실행 트리를 확인합니다.</span>' in dashboard.text
     assert "결과 검증" in dashboard.text
     assert "행위 관찰 전" in dashboard.text
-    assert "사건" in dashboard.text
+    assert "정책 사건" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "전체 실행" in history.text
     assert 'href="/runs"' in history.text
@@ -1449,8 +1466,11 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "실행 기록 요약" in history.text
     assert '<label class="field">작업 폴더<input id="filter-workspace"' in history.text
     assert "<th>작업 폴더</th>" in history.text
+    assert "<th>정책 사건</th>" in history.text
     assert "현재 진행 중" in history.text
     assert 'data-history-quick-filter="active"' in history.text
+    assert "정책 사건 실행" in history.text
+    assert "실제 차단은 결과에서 확인" in history.text
     assert "data-active=" in history.text
     assert "activeOnly" in history.text
     assert "현재 실행 중인 보호 실행만 보기" in history.text
@@ -1648,7 +1668,7 @@ def test_workbench_hides_input_navigation_when_run_is_ended() -> None:
     assert 'id="workbench-howto-title">다음 단계</h2>' in workbench.text
     assert 'id="workbench-context-title">실행 정보</h2>' in workbench.text
     assert 'data-howto-title>결과 확인</strong>' in workbench.text
-    assert 'data-howto-title>사건 검토</strong>' in workbench.text
+    assert 'data-howto-title>정책 사건 검토</strong>' in workbench.text
 
 
 def test_workbench_changes_next_steps_when_runtime_is_orphaned() -> None:

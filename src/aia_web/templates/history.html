@@ -23,7 +23,7 @@
 <section class="metric-grid history-summary" aria-label="실행 기록 요약">
   <div class="metric"><span>전체 실행</span><strong>{{ runs|length }}건</strong><small>로컬에 보존된 보호 실행</small></div>
   <button type="button" class="metric metric-status metric-action {{ 'metric-ok' if history_summary.active == 0 else 'metric-warning' }}" data-history-quick-filter="active" aria-label="현재 실행 중인 보호 실행만 보기"{% if history_summary.active == 0 %} disabled{% endif %}><span>현재 진행 중</span><strong>{{ history_summary.active }}건</strong><small>연결된 실행만 집계 · 클릭하여 보기</small></button>
-  <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="사건 발생 실행만 보기"><span>사건 발생 실행</span><strong>{{ history_summary.incidents }}건</strong><small>차단·정책 사건이 있는 실행 · 클릭하여 보기</small></button>
+  <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="정책 사건이 있는 실행만 보기"><span>정책 사건 실행</span><strong>{{ history_summary.incidents }}건</strong><small>정책 판정·실행 실패 기록이 있는 실행 · 실제 차단은 결과에서 확인</small></button>
   <button type="button" class="metric metric-ok metric-action" data-history-quick-filter="valid" aria-label="유효한 Result Bundle 실행만 보기"><span>Bundle 유효</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle 무결성 확인 · 클릭하여 보기</small></button>
 </section>
 {% if history_summary.orphaned %}
@@ -47,12 +47,12 @@
     <label class="field">작업 폴더<input id="filter-workspace" placeholder="경로 검색"></label>
     <label class="field">실행 상태<select id="filter-status"><option value="">전체 상태</option><option value="CREATED">생성됨</option><option value="PREPARING">보호 준비 중</option><option value="READY">실행 준비 완료</option><option value="LAUNCHING">Codex 시작 중</option><option value="RUNNING">실행 중</option><option value="COMPLETED">정상 완료</option><option value="ABORTED">사용자 중지</option><option value="FAILED">실패</option></select></label>
     <label class="field">보호 상태<select id="filter-protection"><option value="">전체 보호 상태</option><option value="STARTING">AIA 시작 중</option><option value="PREPARING">보호 준비 중</option><option value="READY_UNVERIFIED">실행 준비 확인 중</option><option value="ACTIVE_VERIFIED">실행 중 · 검증됨</option><option value="ACTIVE_UNVERIFIED">실행 중 · 행위 관찰 전</option><option value="ACTIVE_DEGRADED">실행 중 · 일부 확인</option><option value="STOP_REQUESTED">중지 처리 중</option><option value="COMPLETED_VERIFIED">완료 · 검증됨</option><option value="COMPLETED_DEGRADED">완료 · 일부 확인</option><option value="ABORTED_BEFORE_LAUNCH">시작 전 중지</option><option value="ABORTED_VERIFIED">중지 · 검증됨</option><option value="ABORTED_DEGRADED">중지 · 일부 확인</option><option value="DEGRADED">보호 상태 저하</option><option value="FAILED">보호 실패</option><option value="ORPHANED_DEGRADED">보호 연결 끊김 · 정리 필요</option></select></label>
-    <label class="field">차단 사건<select id="filter-incident"><option value="">전체</option><option value="yes">있음</option><option value="no">없음</option></select></label>
+    <label class="field">정책 사건<select id="filter-incident"><option value="">전체</option><option value="yes">있음</option><option value="no">없음</option></select></label>
     <label class="field">결과 검증<select id="filter-bundle"><option value="">전체 결과</option><option value="VALID">유효</option><option value="INVALID">무효</option><option value="UNVERIFIED">검증 전</option><option value="PENDING">검증 중</option><option value="NOT_FOUND">없음</option></select></label>
     <label class="field">날짜<input id="filter-date" type="date"></label>
   </div>
   <div class="history-filter-actions"><span id="history-filter-status" class="history-filter-status" aria-live="polite" hidden></span><button id="reset-history-filters" class="button" type="button">필터 초기화</button></div>
-  <div class="table-wrap history-table-wrap"><table class="history-table"><thead><tr><th>시작 시각</th><th>실행</th><th>상태</th><th>작업 폴더</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
+  <div class="table-wrap history-table-wrap"><table class="history-table"><thead><tr><th>시작 시각</th><th>실행</th><th>상태</th><th>작업 폴더</th><th>정책</th><th>정책 사건</th><th>결과 검증</th><th></th></tr></thead>
   <tbody>
   {% for run in runs %}
     <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-bundle="{{ run.bundle_status|default('') }}" data-date="{{ (run.created_at or '')[:10] }}" data-active="{{ 'yes' if run.status in active_statuses and not (run.runtime_reconciliation or {}).get('orphaned') and run.run_classification != 'UNVERIFIED_RUNTIME_STATE' else 'no' }}">
@@ -63,7 +63,7 @@
       <td data-label="상태"><span class="badge badge-{{ 'disconnected' if orphaned else (run.status or 'unknown')|lower }}" title="{{ run.status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '연결 끊김' if orphaned else status_labels.get(run.status, run.status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">보호 경계 끊김 · 정리 필요</span>{% elif run.protection_state %}<br><span class="muted" title="{{ run.protection_state }}">{{ protection_labels.get(run.protection_state, run.protection_state) }}</span>{% endif %}</td>
       <td data-label="작업 폴더" class="mono target-cell">{{ run.workspace }}</td>
       <td data-label="정책">{{ (run.policy or {}).get('id') or (run.policy or {}).get('policy_id', '—') }}<br><span class="muted">{{ (run.policy or {}).get('version') or (run.policy or {}).get('policy_version', '—') }}</span></td>
-      <td data-label="사건">{{ run.incident_count }}건</td>
+      <td data-label="정책 사건">{{ run.incident_count }}건</td>
       <td data-label="결과 검증"><span class="badge badge-{{ 'disconnected' if orphaned else (run.bundle_status or 'unknown')|lower }}" title="{{ run.bundle_status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '확인 필요' if orphaned else bundle_labels.get(run.bundle_status, run.bundle_status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">결과 Bundle을 확인할 수 없습니다</span>{% elif run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% elif run.run_classification == 'LIVE_PROTECTED_RUN' %}<br><span class="muted">실행 중 상태</span>{% endif %}</td>
       <td data-label="열기">{% if run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}<a href="{{ run.result_url }}">결과 보기</a>{% elif orphaned %}<a href="/runs/{{ run.session_id }}">정리 검토</a>{% elif run.launch_mode == 'web_terminal' %}<a href="/runs/{{ run.session_id }}/workbench">Workbench 열기</a>{% else %}<a href="/runs/{{ run.session_id }}">상태 보기</a>{% endif %}</td>
     </tr>
@@ -130,7 +130,7 @@ function filterRuns() {
   if (workspace) activeFilters.push('Workspace');
   if (status) activeFilters.push(document.getElementById('filter-status').selectedOptions[0].textContent);
   if (protection) activeFilters.push(document.getElementById('filter-protection').selectedOptions[0].textContent);
-  if (incident) activeFilters.push(`사건 ${document.getElementById('filter-incident').selectedOptions[0].textContent}`);
+  if (incident) activeFilters.push(`정책 사건 ${document.getElementById('filter-incident').selectedOptions[0].textContent}`);
   if (bundle) activeFilters.push(`결과 ${document.getElementById('filter-bundle').selectedOptions[0].textContent}`);
   if (date) activeFilters.push('날짜');
   if (activeOnly) activeFilters.push('현재 진행 중');

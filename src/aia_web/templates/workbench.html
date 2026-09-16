@@ -109,7 +109,7 @@
           <span>3</span><div><strong data-howto-title>새 보호 실행</strong><small data-howto-detail>필요하면 새 세션으로 다시 시작</small></div>
           {% elif run_ended %}
           <span>1</span><div><strong data-howto-title>결과 확인</strong><small data-howto-detail>실행 결과에서 정책·Evidence·무결성 확인</small></div>
-          <span>2</span><div><strong data-howto-title>사건 검토</strong><small data-howto-detail>차단·주의 사건과 센서 Timeline 열기</small></div>
+          <span>2</span><div><strong data-howto-title>정책 사건 검토</strong><small data-howto-detail>정책 사건과 센서 Timeline 열기</small></div>
           <span>3</span><div><strong data-howto-title>다음 실행</strong><small data-howto-detail>필요하면 새 보호 실행 시작</small></div>
           {% else %}
           <span>1</span><div><strong data-howto-title>작업 입력</strong><small data-howto-detail>가운데 Codex 작업창에 입력</small></div>
@@ -231,7 +231,7 @@
       </section>
       <section class="workbench-card security-events-card">
         <div class="panel-heading"><h2>최근 이벤트</h2><span id="event-count" class="badge" aria-live="polite">0건</span></div>
-        <p id="incident-summary" class="workbench-card-subtitle">차단 사건 0건</p>
+        <p id="incident-summary" class="workbench-card-subtitle">정책 사건 0건</p>
         <p class="workbench-event-meaning"><strong>판정</strong>은 AIA 정책 결과이고, <strong>실행</strong>은 실제 도구 결과 Evidence입니다. 실행 Evidence가 없으면 성공으로 표시하지 않습니다.</p>
         <div class="workbench-observation-meta">
           <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
@@ -269,7 +269,7 @@
   <section class="workbench-bottom workbench-summary" aria-label="실행 요약">
     <div class="workbench-bottom-card"><span>보호 상태</span><strong id="summary-protection">{{ initial_protection_label }}</strong><small id="summary-protection-detail">{{ 'AIA 보호 연결을 확인하는 중입니다.' if initial_protection == 'UNKNOWN' else 'AIA 보호 상태' }}</small></div>
     <div class="workbench-bottom-card"><span>센서 상태</span><strong id="summary-sensors">확인 중</strong><small id="summary-sensors-detail">Hook · File · Process</small></div>
-    <div class="workbench-bottom-card"><span>차단·주의</span><strong id="summary-incidents">{{ status.incident_count or 0 }}건</strong><small>정책 사건</small></div>
+    <div class="workbench-bottom-card"><span>정책 사건</span><strong id="summary-incidents">{{ status.incident_count or 0 }}건</strong><small>차단 여부는 결과에서 확인</small></div>
     <div class="workbench-bottom-card"><span>증거</span><strong id="evidence-count">{{ initial_evidence_count }}건</strong><small>원시 증거 집계</small></div>
     <div class="workbench-bottom-card"><span>파일 이벤트</span><strong id="file-count">{{ initial_evidence_summary.filesystem_events or 0 }}건</strong><small>Workspace 변화</small></div>
     <div class="workbench-bottom-card"><span>프로세스</span><strong id="process-count">{{ initial_evidence_summary.process_observed or 0 }}건</strong><small>프로세스 관찰</small></div>
@@ -836,7 +836,7 @@ function updateWorkbenchHowTo(status = latestStatus) {
     description = '이 실행은 끝났습니다. 결과와 센서 Evidence를 확인한 뒤 다음 작업을 시작하세요.';
     steps = [
       ['결과 확인', '실행 결과에서 정책·Evidence·무결성 확인'],
-      ['사건 검토', '차단·주의 사건과 센서 Timeline 열기'],
+      ['정책 사건 검토', '정책 사건과 센서 Timeline 열기'],
       ['다음 실행', '필요하면 새 보호 실행 시작'],
     ];
   }
@@ -1894,7 +1894,7 @@ function renderSecurity(status) {
   eventCount.title = eventFilter === 'ALL'
     ? `행위 ${actionEventCount}건 · 센서 상태 ${sensorEventCount}건`
     : `현재 필터 결과 ${events.length}건 · 전체 보안 이벤트 ${allEvents.length}건`;
-  document.getElementById('incident-summary').textContent = `차단·주의 사건 ${status.incident_count || 0}건`;
+  document.getElementById('incident-summary').textContent = `정책 사건 ${status.incident_count || 0}건`;
   const incident = allEvents.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity) || ['CONTAIN', 'REFUSE'].includes(event.decision));
   const incidentCard = document.getElementById('incident-card');
   const incidentNote = document.getElementById('incident-note');
