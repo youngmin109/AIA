@@ -123,11 +123,11 @@ uv run --isolated --project . python -m aia.cli console --open
 uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project
 ```
 
-현재 PowerShell이 프로젝트 폴더 안에 있다면 Workspace 경로를 생략해도 됩니다.
+저장소 모듈 방식은 AIA 저장소 루트에서 실행하므로 Workspace 경로를 명시한다.
 
 ```powershell
-cd C:\workspace\my-project
-uv run --isolated --project . python -m aia.cli start
+cd C:\workspace\01_projects\aia-mvp
+uv run --isolated --project . python -m aia.cli start C:\workspace\my-project
 ```
 
 실행이 시작되면 AIA는 실제로 보호하는 Workspace 절대 경로를 터미널에 표시합니다.
