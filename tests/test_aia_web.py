@@ -962,6 +962,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "유효 · 검증됨" in result.text
     assert result.text.index("Hook Sensor") < result.text.index("File Sensor") < result.text.index("Process Sensor")
     assert "이번 보호 실행에서 확인된 내용" in result.text
+    assert "핵심 결론" in result.text
     assert 'aria-label="실행 정보"' in result.text
     assert "Workspace" in result.text
     assert "basic · 1.0" in result.text
@@ -1149,6 +1150,7 @@ def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None
     assert 'aria-label="Codex 실행 정책 경고"' in result.text
     assert "보호 수준이 낮아진 상태로 실행되었습니다." in result.text
     assert "Evidence Bundle이 유효해도" in result.text
+    assert "센서와 Bundle은 확인됐지만 Codex 적용 정책은 확인되지 않았습니다." in result.text
     assert 'class="status-badge status-success" title="VALID">Bundle 유효</div>' in result.text
     assert 'class="status-badge status-warning" title="DEGRADED">실행 정책 확인 필요</div>' in result.text
     assert "유효 · 보호 확인 필요" not in result.text
@@ -1174,6 +1176,7 @@ def test_result_summary_does_not_claim_full_verification_when_codex_policy_is_un
     assert result.status_code == 200
     assert "센서 증거와 Result Bundle은 확인했지만" in result.text
     assert "실행 정책의 실제 적용 상태는 완전히 확인되지 않았습니다." in result.text
+    assert "핵심 결론" in result.text
     assert "작업이 끝났고, AIA가 수집한 보호 증거와 결과 Bundle의 검증이 완료되었습니다." not in result.text
 
 
