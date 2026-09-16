@@ -1037,7 +1037,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'aria-label="AIA 주요 메뉴"' in dashboard.text
     assert 'aria-current="page"' in dashboard.text
     assert 'id="dashboard-primary-action"' in dashboard.text
-    assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
+    assert 'id="dashboard-primary-action" class="button primary" href="#dashboard-readiness">준비 상태 확인 중…</a>' in dashboard.text
     assert 'id="dashboard-readiness-label">실행 준비</span>' in dashboard.text
     assert '<small id="dashboard-readiness-code" title="CHECKING">확인 중</small>' in dashboard.text
     assert '<strong id="dashboard-hook-trust-value" title="CHECKING">확인 중</strong>' in dashboard.text
@@ -1061,6 +1061,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-command-status"' in dashboard.text
     assert "copyDashboardCommand" in dashboard.text
     assert "renderDashboardNextSteps" in dashboard.text
+    assert "renderDashboardEmptyAction" in dashboard.text
     assert "checkByName('pretool_hook')" in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-current-meta"' in dashboard.text
