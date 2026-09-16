@@ -17,7 +17,7 @@
 {% set enforcement_label = enforcement_labels.get(enforcement_action, enforcement_action) %}
 {% set execution_result = incident.execution_result or 'NOT_ATTEMPTED' %}
 {% set execution_label = execution_labels.get(execution_result, execution_result) %}
-<section class="hero compact"><div><p class="eyebrow">INCIDENT DETAIL · 사건 상세</p><h1>{{ incident.action_id }}</h1><p class="muted">AIA가 이 행위의 판정과 증거 경계를 기록했습니다.</p></div><div class="status-badge" title="{{ status_code }}">{{ status_label }}</div></section>
+<section class="hero compact"><div><p class="eyebrow">사건 상세</p><h1>{{ incident.action_id }}</h1><p class="muted">AIA가 이 행위의 판정과 증거 경계를 기록했습니다.</p></div><div class="status-badge" title="{{ status_code }}">{{ status_label }}</div></section>
 <div class="notice {% if enforcement_action == 'BLOCKED' and execution_result == 'SUCCEEDED' %}success{% else %}warning{% endif %} incident-interpretation">
   {% if enforcement_action == 'BLOCKED' and execution_result == 'SUCCEEDED' %}<strong>실행 전에 차단했고, 실제 실행되지 않았음을 확인했습니다.</strong>{% elif incident.attribution_class == 'PROCESS' and enforcement_action == 'REFUSE' %}<strong>정책 위반은 확인했지만, 프로세스 수준 근거만 있어 자동 조치를 보류했습니다.</strong>{% elif policy_decision == 'INDETERMINATE' %}<strong>독립 Evidence가 부족해 정책 판정을 확정하지 못했습니다.</strong>{% elif enforcement_action == 'TERMINATED' and execution_result == 'SUCCEEDED' %}<strong>관리 대상 프로세스 트리의 종료를 확인했습니다.</strong>{% else %}<strong>아래에서 정책 판정, 실제 실행 결과, AIA 조치를 순서대로 확인하세요.</strong>{% endif %}
 </div>

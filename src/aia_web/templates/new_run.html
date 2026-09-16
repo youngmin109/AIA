@@ -7,7 +7,7 @@
 {% set trust_status_labels = {'TRUSTED': '신뢰됨', 'MANAGED': '관리됨', 'MANUAL_REVIEW_REQUIRED': '검토 필요', 'MODIFIED': '변경됨 · 검토 필요', 'UNTRUSTED': '신뢰되지 않음', 'CHECKING': '확인 중', 'UNKNOWN': '확인 필요'} %}
 <div class="new-run-page">
 <section class="hero">
-  <p class="eyebrow">PROTECTED EXECUTION · 보호 실행</p>
+  <p class="eyebrow">AIA 보호 실행 · 실행 설정</p>
   <h1>보호 실행 시작</h1>
   <p class="lede">먼저 작업 폴더와 보호 정책을 선택합니다. 준비가 끝나면 AIA가 보호된 Codex 세션을 열고, 실행 전 도구 요청과 파일 변화를 기록합니다.</p>
   <div id="run-next-action" class="run-next-action" data-state="workspace" aria-live="polite">
@@ -73,7 +73,7 @@
         <span class="hint">아래 작업 요청을 보호 준비가 끝난 뒤 Codex에 한 번 전달합니다.</span>
       </fieldset>
       <fieldset class="field field-wide run-mode-field">
-        <legend>Codex 화면</legend>
+        <legend>Codex 작업창</legend>
         <label class="choice"><input type="radio" name="terminal_surface" value="workbench" checked> AIA Workbench에서 Codex 작업창 열기</label>
         <span class="hint">대시보드·Codex 작업창·세 센서 상태를 한 화면에 표시합니다.</span>
         <label class="choice"><input type="radio" id="new-terminal" name="terminal_surface" value="new_terminal"> 별도 Windows 터미널에서 Codex 열기</label>
@@ -110,7 +110,7 @@
         <dt>Workspace</dt><dd id="run-summary-workspace">입력 필요</dd>
         <dt>정책</dt><dd id="run-summary-policy">보호 우선 개발형</dd>
         <dt>작업 방식</dt><dd id="run-summary-mode">대화형 보호 세션</dd>
-        <dt>Codex 화면</dt><dd id="run-summary-surface">AIA Workbench</dd>
+        <dt>Codex 작업창</dt><dd id="run-summary-surface">AIA Workbench</dd>
       </dl>
       <p id="run-launch-summary-note" class="hint">존재하는 Workspace 경로를 입력하면 실행 가능 여부를 확인합니다.</p>
     </div>
@@ -185,7 +185,7 @@
   <div id="preflight-next-steps" class="next-steps"{% if preflight.ready or preflight_deferred %} hidden{% endif %}>
     <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
     <ol>
-      {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
+      {% if not preflight_trust_ok %}<li>Codex에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
       <li>PowerShell에서 <span class="mono">{{ cli_prefix }} hook verify</span>를 실행합니다.</li>
       <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
     </ol>

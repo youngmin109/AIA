@@ -26,7 +26,7 @@
 {% if active_run.item %}{% set dashboard_hook_verified = active_run.item.protection_state == 'ACTIVE_VERIFIED' %}{% endif %}
 <section class="hero compact dashboard-hero">
   <div>
-    <p class="eyebrow">AIA PROTECTED EXECUTION · 제품 대시보드</p>
+    <p class="eyebrow">AIA 보호 실행 · 제품 대시보드</p>
     <h1>보호 상태를 한눈에 확인하세요.</h1>
     <p class="lede">AIA는 사용자가 선택한 Workspace에서 Codex를 보호 실행하고, 지원되는 도구 요청을 실행 전에 평가합니다.</p>
   </div>
@@ -44,7 +44,7 @@
     <small id="dashboard-readiness-code" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '보호 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness_labels.get(readiness, '확인 필요')) }}</small>
   </div>
   <div class="metric">
-    <span>Codex Hook Trust</span>
+    <span>Codex Hook 신뢰 상태</span>
     <strong id="dashboard-hook-trust-value" title="{{ trust }}">{{ '확인 중' if preflight_deferred else trust_labels.get(trust, '확인 필요') }}</strong>
     <small id="dashboard-hook-trust-detail">{{ 'Codex Hook Trust 상태를 확인하고 있습니다.' if preflight_deferred else 'PreToolUse 실행 전 관문 · ' ~ trust_labels.get(trust, '확인 필요') }}</small>
   </div>
@@ -63,7 +63,7 @@
 <section id="dashboard-current-run" class="active-run-card panel {{ 'active-run-present' if active_run.item else 'active-run-empty' }}">
   <div class="active-run-indicator" aria-hidden="true"></div>
   <div class="active-run-copy">
-    <p class="eyebrow">CURRENT PROTECTED RUN · 현재 보호 실행</p>
+    <p class="eyebrow">현재 보호 실행</p>
     {% if active_run.item %}
     <h2 id="dashboard-current-title">보호 실행이 진행 중입니다.</h2>
     <p id="dashboard-current-detail" class="hint"><span class="badge badge-{{ (active_run.item.status or 'unknown')|lower }}">{{ status_labels.get(active_run.item.status, active_run.item.status or '확인 필요') }}</span> · <span class="mono active-run-workspace" title="{{ active_run.item.workspace }}">{{ active_run.item.workspace }}</span></p>
@@ -176,7 +176,7 @@
 
 <section class="panel">
   <div class="panel-heading"><div><h2>최근 보호 실행</h2><p class="hint">검증된 Bundle 상태를 기준으로 표시합니다.</p></div><a href="/runs" class="text-link">실행 기록 전체 →</a></div>
-  <div id="dashboard-recent-table" class="table-wrap"{% if not runs %} hidden{% endif %}><table><thead><tr><th>세션</th><th>상태</th><th>Workspace</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
+  <div id="dashboard-recent-table" class="table-wrap"{% if not runs %} hidden{% endif %}><table><thead><tr><th>세션</th><th>상태</th><th>작업 폴더</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
     <tbody id="dashboard-recent-runs">{% for run in runs[:5] %}{% set result_ready = run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}{% set orphaned = run.runtime_reconciliation and run.runtime_reconciliation.orphaned %}<tr><td class="mono">{% if result_ready %}<a class="run-link" href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}" title="전체 Session ID: {{ run.session_id }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% elif run.launch_mode == 'web_terminal' and not orphaned %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="전체 Session ID: {{ run.session_id }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="{{ '연결 끊긴 실행 검토' if orphaned else '실행 상태 열기' }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% endif %}</td><td><span class="badge badge-{{ 'disconnected' if orphaned else (run.status or 'unknown')|lower }}" title="{{ run.status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '연결 끊김' if orphaned else status_labels.get(run.status, run.status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">보호 경계 끊김 · 정리 필요</span>{% elif run.protection_state %}<br><span class="muted" title="{{ run.protection_state }}">{{ protection_labels.get(run.protection_state, run.protection_state) }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}건</td><td><span class="badge badge-{{ 'disconnected' if orphaned else (run.bundle_status or 'unknown')|lower }}" title="{{ run.bundle_status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '확인 필요' if orphaned else bundle_labels.get(run.bundle_status, run.bundle_status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">결과 Bundle을 확인할 수 없습니다</span>{% elif run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td>{% if result_ready %}<a href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}">결과 보기</a>{% elif orphaned %}<a href="/runs/{{ run.session_id }}">정리 검토</a>{% elif run.launch_mode == 'web_terminal' %}<a href="/runs/{{ run.session_id }}/workbench">Workbench 열기</a>{% else %}<a href="/runs/{{ run.session_id }}">상태 보기</a>{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
   <div id="dashboard-recent-empty" class="empty dashboard-empty"{% if runs %} hidden{% endif %}>아직 보호 실행 기록이 없습니다. <a href="/new">첫 보호 실행을 시작하세요.</a></div>

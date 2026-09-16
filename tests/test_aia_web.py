@@ -331,7 +331,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "MCP" in new_run.text
     assert "aliases=Edit, Write" in new_run.text
     assert "작업 방식" in new_run.text
-    assert "Codex 화면" in new_run.text
+    assert "Codex 작업창" in new_run.text
     assert '<details class="panel policy-editor-panel">' in new_run.text
     assert '<details class="panel capability-panel">' in new_run.text
     assert "정책 만들기" in new_run.text
