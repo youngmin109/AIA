@@ -1133,6 +1133,23 @@ def test_result_page_labels_policy_events_without_claiming_confirmed_block() -> 
     assert 'href="/runs/run-1/incidents/a1">첫 정책 사건 상세 보기 →</a>' in result.text
 
 
+def test_result_summary_combines_incident_and_unobserved_policy_attention() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data.update(
+        {
+            "incidents": [service.get_incident("run-1", "a1")],
+            "execution_policy_status": "NOT_OBSERVED",
+        }
+    )
+    service.get_result = lambda session_id: result_data
+
+    result = TestClient(create_app(service)).get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert "정책 사건 1건이 확인됐고 Codex 적용 정책도 확인되지 않았습니다." in result.text
+
+
 def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None:
     service = FakeService()
     result_data = service.get_result("run-1")
