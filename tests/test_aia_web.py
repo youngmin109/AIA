@@ -596,6 +596,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalReconnectPending" in workbench.text
     assert "statusPollPromise" in workbench.text
     assert "statusPollBusyTimer" in workbench.text
+    assert "STATUS_REQUEST_TIMEOUT_MS = 7000" in workbench.text
+    assert "new AbortController()" in workbench.text
+    assert "controller.abort()" in workbench.text
+    assert "응답 시간 초과 · 재시도 중" in workbench.text
     assert "lastRefreshTime.classList.add('is-refreshing')" in workbench.text
     assert "갱신 중…" in workbench.text
     assert 'id="workbench-sticky-status"' in workbench.text

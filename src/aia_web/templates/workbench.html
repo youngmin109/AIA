@@ -359,6 +359,7 @@ let selectedChainId = null;
 let terminalFollowingOutput = true;
 let terminalPendingOutputCount = 0;
 let pendingSubmission = null;
+const STATUS_REQUEST_TIMEOUT_MS = 7000;
 let knownEventKeys = new Set((initialStatus.events || []).map((event) => `${event.event_id || event.summary || ''}|${event.observed_at || ''}`));
 let securityEventsInitialized = false;
 let workbenchAlertTimer = null;
@@ -1843,16 +1844,22 @@ async function pollStatus() {
     lastRefreshTime.classList.add('is-refreshing');
   }, 350);
   const request = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), STATUS_REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`, {cache: 'no-store'});
+      const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}`, {cache: 'no-store', signal: controller.signal});
       if (!response.ok) throw new Error('status request failed');
       statusPollFailures = 0;
       renderSecurity(await response.json());
-    } catch (_) {
+    } catch (error) {
       statusPollFailures += 1;
-      lastRefreshTime.textContent = statusPollFailures >= 2 ? '연결 확인 필요' : '갱신 실패';
+      lastRefreshTime.textContent = error?.name === 'AbortError'
+        ? '응답 시간 초과 · 재시도 중'
+        : statusPollFailures >= 2 ? '연결 확인 필요' : '갱신 실패';
       lastRefreshTime.classList.add('error-text');
       updateWorkbenchGuidance();
+    } finally {
+      window.clearTimeout(timeout);
     }
   })();
   statusPollPromise = request;
