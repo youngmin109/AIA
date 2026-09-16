@@ -309,7 +309,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "data-copy-command" in new_run.text
     assert "같은 AIA 프로젝트 폴더에서 순서대로 실행" in new_run.text
     assert "preToolUse=MODIFIED" not in new_run.text
-    assert 'id="readiness-code">CHECKING' in new_run.text
+    assert 'id="readiness-code" title="CHECKING">확인 중</span>' in new_run.text
     assert 'id="preflight-loading"' in new_run.text
     assert 'id="preflight-loading-elapsed"' in new_run.text
     assert "startPreflightLoading" in new_run.text
@@ -317,6 +317,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="preflight-checks"' in new_run.text
     assert "loadPreflight" in new_run.text
     assert "PREFLIGHT_TIMEOUT" in new_run.text
+    assert "preflightReadinessLabels" in new_run.text
+    assert "preflightCheckDetailLabel" in new_run.text
+    assert "preflightTrustStatusLabels" in new_run.text
     assert 'id="readiness-config"' in new_run.text
     assert "현재 실행 설정: Workspace 입력 필요" in new_run.text
     assert "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다." not in new_run.text
@@ -1036,6 +1039,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-primary-action"' in dashboard.text
     assert 'id="dashboard-primary-action" class="button primary" href="/new">새 보호 실행</a>' in dashboard.text
     assert 'id="dashboard-readiness-label">실행 준비</span>' in dashboard.text
+    assert '<small id="dashboard-readiness-code" title="CHECKING">확인 중</small>' in dashboard.text
+    assert '<strong id="dashboard-hook-trust-value" title="CHECKING">확인 중</strong>' in dashboard.text
     assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-preflight-loading"' in dashboard.text
     assert 'id="dashboard-preflight-loading-elapsed"' in dashboard.text
@@ -1107,12 +1112,12 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'id="dashboard-primary-action" class="button primary" href="/runs/run-1/workbench">Workbench 열기</a>' in dashboard.text
     assert 'id="dashboard-readiness-label">현재 보호 실행</span>' in dashboard.text
     assert 'id="dashboard-readiness-value">실행 중</strong>' in dashboard.text
-    assert 'id="dashboard-readiness-code">ACTIVE</small>' in dashboard.text
+    assert 'id="dashboard-readiness-code" title="ACTIVE">보호 실행 중</small>' in dashboard.text
     assert 'id="dashboard-readiness-title">현재 보호 세션이 실행 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-readiness-status" class="status-badge status-active" title="ACTIVE">현재 실행 중</span>' in dashboard.text
     assert "active ? '현재 보호 실행' : '실행 준비'" in dashboard.text
     assert "active ? '실행 중' : (dashboardReadinessOk ? '준비 완료' : '확인 필요')" in dashboard.text
-    assert "dashboardReadinessCodeElement.textContent = active ? 'ACTIVE' : dashboardReadinessCode" in dashboard.text
+    assert "dashboardReadinessCodeElement.textContent = active ? dashboardReadinessLabels.ACTIVE" in dashboard.text
     assert 'id="dashboard-readiness-active-link" class="text-link" href="/runs/run-1/workbench">Workbench 열기 →</a>' in dashboard.text
     assert '현재 작업은 Workbench에서 계속하세요.' in dashboard.text
     assert 'id="dashboard-sensor-hook-status"' in dashboard.text
