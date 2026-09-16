@@ -280,6 +280,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "SIL Open Font License" in pretendard_license.text
     assert 'class="ambient-scene"' in dashboard.text
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
+    assert "dashboardCheckBlocksRun" in dashboard.text
+    assert "dashboardCheckMark" in dashboard.text
+    assert "CODEX_HOOK_TRUST_REQUIRED" in dashboard.text
 
     new_run = client.get("/new")
     assert new_run.status_code == 200
@@ -1053,12 +1056,17 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-preflight-loading"' in dashboard.text
     assert 'id="dashboard-preflight-loading-elapsed"' in dashboard.text
+    assert 'id="dashboard-preflight-retry"' in dashboard.text
     assert 'id="dashboard-preflight-checks"' in dashboard.text
-    assert "check?.optional ? 'optional' : 'fail'" in dashboard.text
+    assert "dashboardCheckBlocksRun(check, readinessStatus)" in dashboard.text
+    assert "dashboardCheckMark(check, readinessStatus)" in dashboard.text
+    assert "renderDashboardPreflightChecks(data.checks, dashboardReadinessCode)" in dashboard.text
+    assert "dashboardPreflightRetry" in dashboard.text
     assert "loadDashboardPreflight" in dashboard.text
     assert "startDashboardPreflightLoading" in dashboard.text
     assert "updateDashboardPreflightElapsed" in dashboard.text
     assert "PREFLIGHT_TIMEOUT" in dashboard.text
+    assert "PREFLIGHT_UNAVAILABLE" in dashboard.text
     assert "dashboardReadinessLabels" in dashboard.text
     assert "HOOK_VERIFICATION_REQUIRED: '확인 필요'" in dashboard.text
     assert 'id="dashboard-readiness-ready-notice"' in dashboard.text

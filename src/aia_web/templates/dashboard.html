@@ -96,13 +96,14 @@
       <h2 id="dashboard-readiness-title">{{ '현재 보호 세션이 실행 중입니다.' if active_run.item else ('보호 실행을 시작할 수 있습니다.' if readiness_ok else ('보호 실행 준비를 확인하는 중입니다.' if preflight_deferred else '보호 실행 전에 확인이 필요합니다.')) }}</h2>
       <p id="dashboard-readiness-hint" class="hint" data-default-text="{{ preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}">{{ '현재 작업은 Workbench에서 계속하세요.' if active_run.item else preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}</p>
     </div>
-    <span id="dashboard-readiness-status" class="status-badge {{ 'status-active' if active_run.item else ('status-success' if readiness_ok else 'status-warning') }}" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '현재 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness) }}</span>
+    <div class="panel-heading-actions"><span id="dashboard-readiness-status" class="status-badge {{ 'status-active' if active_run.item else ('status-success' if readiness_ok else 'status-warning') }}" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '현재 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness) }}</span><button id="dashboard-preflight-retry" class="button" type="button" hidden>다시 확인</button></div>
   </div>
   <div id="dashboard-preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred or active_run.item %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span id="dashboard-preflight-loading-label">Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span><span id="dashboard-preflight-loading-elapsed" class="preflight-loading-elapsed">경과 0초</span></div>
   <div id="dashboard-preflight-checks" class="preflight-list dashboard-checks"{% if preflight_deferred or active_run.item %} hidden{% endif %}>
     {% for check in preflight.get('checks', []) %}
+    {% set check_blocks_run = (not check.optional) or (check.name == 'codex_hook_trust' and readiness == 'CODEX_HOOK_TRUST_REQUIRED') %}
     <div class="preflight-row">
-      <span class="preflight-mark {{ 'ok' if check.ok else ('optional' if check.optional else 'fail') }}">{{ '통과' if check.ok else ('선택' if check.optional else '확인') }}</span>
+      <span class="preflight-mark {{ 'ok' if check.ok else ('fail' if check_blocks_run else 'optional') }}">{{ '통과' if check.ok else ('확인 필요' if check_blocks_run else '선택') }}</span>
       <strong>{{ check.label }}</strong>
       <span class="hint">{{ check.detail }}</span>
     </div>
@@ -201,6 +202,7 @@ const dashboardReadinessCodeElement = document.getElementById('dashboard-readine
 const dashboardReadinessTitle = document.getElementById('dashboard-readiness-title');
 const dashboardReadinessHint = document.getElementById('dashboard-readiness-hint');
 const dashboardReadinessStatus = document.getElementById('dashboard-readiness-status');
+const dashboardPreflightRetry = document.getElementById('dashboard-preflight-retry');
 const dashboardHookTrustValue = document.getElementById('dashboard-hook-trust-value');
 const dashboardHookTrustDetail = document.getElementById('dashboard-hook-trust-detail');
 const dashboardSensorsStatus = document.getElementById('dashboard-sensors-status');
@@ -385,7 +387,9 @@ function renderDashboardSensors(run) {
 }
 
 const dashboardTrustLabels = {TRUSTED: '신뢰됨', MANAGED: '관리됨', MANUAL_REVIEW_REQUIRED: '검토 필요', MODIFIED: '변경됨', UNTRUSTED: '신뢰되지 않음', CHECKING: '확인 중'};
-function renderDashboardPreflightChecks(checks) {
+const dashboardCheckBlocksRun = (check, readinessStatus = dashboardReadinessCode) => !check?.optional || (check?.name === 'codex_hook_trust' && readinessStatus === 'CODEX_HOOK_TRUST_REQUIRED');
+const dashboardCheckMark = (check, readinessStatus = dashboardReadinessCode) => check?.ok ? ['ok', '통과'] : dashboardCheckBlocksRun(check, readinessStatus) ? ['fail', '확인 필요'] : ['optional', '선택'];
+function renderDashboardPreflightChecks(checks, readinessStatus = dashboardReadinessCode) {
   if (!dashboardPreflightChecks) return;
   dashboardPreflightChecks.replaceChildren();
   const source = Array.isArray(checks) ? checks : [];
@@ -399,9 +403,10 @@ function renderDashboardPreflightChecks(checks) {
   source.forEach((check) => {
     const row = document.createElement('div');
     row.className = 'preflight-row';
+    const [markClass, markLabel] = dashboardCheckMark(check, readinessStatus);
     const mark = document.createElement('span');
-    mark.className = `preflight-mark ${check?.ok ? 'ok' : check?.optional ? 'optional' : 'fail'}`;
-    mark.textContent = check?.ok ? '통과' : check?.optional ? '선택' : '확인';
+    mark.className = `preflight-mark ${markClass}`;
+    mark.textContent = markLabel;
     const label = document.createElement('strong');
     label.textContent = String(check?.label || '준비 상태');
     const detail = document.createElement('span');
@@ -500,6 +505,13 @@ function renderDashboardPreflight(payload) {
   dashboardPreflightLoaded = true;
   dashboardReadinessOk = data.ready === true;
   dashboardReadinessCode = String(data.readiness_code || 'UNKNOWN');
+  const preflightTransientFailure = ['PREFLIGHT_TIMEOUT', 'PREFLIGHT_UNAVAILABLE'].includes(dashboardReadinessCode);
+  if (dashboardPreflightRetry) {
+    dashboardPreflightRetry.hidden = !preflightTransientFailure;
+    dashboardPreflightRetry.disabled = false;
+    dashboardPreflightRetry.removeAttribute('aria-busy');
+    dashboardPreflightRetry.textContent = '다시 확인';
+  }
   const trustStatus = String(data.hook_trust?.status || 'UNKNOWN');
   const activationStatus = String(data.hook_activation?.status || 'UNKNOWN');
   dashboardHookVerified = activationStatus === 'CURRENTLY_VERIFIED';
@@ -509,7 +521,7 @@ function renderDashboardPreflight(payload) {
   }
   if (dashboardHookTrustDetail) dashboardHookTrustDetail.textContent = data.hook_trust?.detail || `PreToolUse 실행 전 관문 · ${dashboardTrustLabels[trustStatus] || '확인 필요'}`;
   if (dashboardReadinessHint && data.next_step) dashboardReadinessHint.dataset.defaultText = String(data.next_step);
-  renderDashboardPreflightChecks(data.checks);
+  renderDashboardPreflightChecks(data.checks, dashboardReadinessCode);
   renderDashboardNextSteps(data);
   if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
   if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = false;
@@ -530,6 +542,14 @@ function scheduleDashboardPreflight() {
 async function loadDashboardPreflight() {
   if (dashboardPreflightInFlight || document.hidden) return;
   dashboardPreflightInFlight = true;
+  dashboardPreflightLoaded = false;
+  renderDashboardReadiness(dashboardCurrentActiveRun);
+  renderDashboardSensors(dashboardCurrentActiveRun);
+  if (dashboardPreflightRetry) {
+    dashboardPreflightRetry.disabled = true;
+    dashboardPreflightRetry.setAttribute('aria-busy', 'true');
+    dashboardPreflightRetry.textContent = '확인 중…';
+  }
   startDashboardPreflightLoading();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10000);
@@ -552,6 +572,8 @@ async function loadDashboardPreflight() {
     scheduleDashboardPreflight();
   }
 }
+
+dashboardPreflightRetry?.addEventListener('click', loadDashboardPreflight);
 
 function renderDashboardCurrentRun(run) {
   if (!run) {
