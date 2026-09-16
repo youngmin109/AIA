@@ -71,6 +71,36 @@ from .registry import RunRecord, RunRegistry
 from .terminal import TerminalSessionError, WinPtyTerminalSession
 
 
+def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
+    """Return a usable local CLI command for messages shown by the web app."""
+
+    if not installer.uses_uv_launcher:
+        return "uv run aia"
+    module_path = Path(__file__).resolve()
+    project_root = next(
+        (
+            candidate
+            for candidate in (module_path.parent, *module_path.parents)
+            if (candidate / "pyproject.toml").is_file()
+        ),
+        None,
+    )
+    if project_root is None:
+        return "uv run --isolated python -m aia.cli"
+    return subprocess.list2cmdline(
+        [
+            "uv",
+            "run",
+            "--isolated",
+            "--project",
+            str(project_root),
+            "python",
+            "-m",
+            "aia.cli",
+        ]
+    )
+
+
 class ApplicationValidationError(ValueError):
     """Raised when a console request cannot enter the Core pipeline."""
 
@@ -656,11 +686,7 @@ class RunApplicationService:
             )
 
         installer = CodexHookInstaller()
-        cli_prefix = (
-            "uv run --isolated python -m aia.cli"
-            if installer.uses_uv_launcher
-            else "uv run aia"
-        )
+        cli_prefix = _aia_cli_prefix(installer)
         pretool_installed = installer.is_installed()
         pretool_check: dict[str, Any] = {
             "name": "pretool_hook",
@@ -908,11 +934,7 @@ class RunApplicationService:
         if not isinstance(request, CreateRunRequest):
             raise ApplicationValidationError("request is invalid")
         installer = CodexHookInstaller()
-        cli_prefix = (
-            "uv run --isolated python -m aia.cli"
-            if installer.uses_uv_launcher
-            else "uv run aia"
-        )
+        cli_prefix = _aia_cli_prefix(installer)
         if self.require_hook_verification:
             try:
                 executable = CodexAdapter().discover()

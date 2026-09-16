@@ -44,6 +44,7 @@ from aia import (
 )
 from aia_app.service import (
     ApplicationValidationError,
+    _aia_cli_prefix,
     RunApplicationService,
     _sensor_summary_is_verified,
     _event_tool_name,
@@ -1665,11 +1666,7 @@ def test_application_preflight_requires_live_hook_verification_when_enabled(
         assert "hook verify" in result["next_step"]
         checks = {item["name"]: item for item in result["checks"]}
         assert checks["hook_verification"]["ok"] is False
-        expected_cli_prefix = (
-            "uv run --isolated python -m aia.cli"
-            if CodexHookInstaller().uses_uv_launcher
-            else "uv run aia"
-        )
+        expected_cli_prefix = _aia_cli_prefix(CodexHookInstaller())
         assert checks["hook_verification"]["detail"] == (
             f"{expected_cli_prefix} hook verify 필요"
         )
@@ -1713,11 +1710,7 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         assert result["ready"] is False
         assert result["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
         assert "/hooks" in result["next_step"]
-        expected_cli_prefix = (
-            "uv run --isolated python -m aia.cli"
-            if CodexHookInstaller().uses_uv_launcher
-            else "uv run aia"
-        )
+        expected_cli_prefix = _aia_cli_prefix(CodexHookInstaller())
         assert f"{expected_cli_prefix} hook verify" in result["next_step"]
     finally:
         service.shutdown()
