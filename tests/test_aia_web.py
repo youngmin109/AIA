@@ -1164,7 +1164,9 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "현재 실행 중인 보호 실행만 보기" in history.text
     assert "시작 시각" in history.text
     assert "history-time" in history.text
-    assert "Result Bundle VALID" in history.text
+    assert "Result Bundle 무결성 확인" in history.text
+    assert "Bundle 유효" in history.text
+    assert "유효한 Result Bundle 실행만 보기" in history.text
     assert "중지 처리 중" in history.text
     assert "보호 실패" in history.text
     assert "READY_UNVERIFIED" in history.text
