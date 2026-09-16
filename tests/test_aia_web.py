@@ -245,7 +245,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-10" in dashboard.text
+    assert "glassbox-ui-11" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -795,6 +795,29 @@ def test_result_page_explains_degraded_protection_separately_from_valid_bundle()
     assert result.status_code == 200
     assert "Evidence Bundle은 유효 · 검증됨이지만 보호 상태가 완전히 검증되지 않았습니다." in result.text
     assert "완료 · 일부 확인" in result.text
+
+
+def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None:
+    service = FakeService()
+    result_data = service.get_result("run-1")
+    result_data.update(
+        {
+            "execution_policy_status": "DEGRADED",
+            "requested_sandbox": "workspace-write",
+            "effective_sandbox": "danger-full-access",
+        }
+    )
+    service.get_result = lambda session_id: result_data
+    client = TestClient(create_app(service))
+
+    result = client.get("/runs/run-1/result")
+
+    assert result.status_code == 200
+    assert 'aria-label="Codex 실행 정책 경고"' in result.text
+    assert "보호 수준이 낮아진 상태로 실행되었습니다." in result.text
+    assert "Evidence Bundle이 유효해도" in result.text
+    assert 'href="#execution-policy"' in result.text
+    assert result.text.index("Codex 실행 정책 경고") < result.text.index("이번 보호 실행에서 확인된 내용")
 
 
 def test_result_page_does_not_show_success_when_bundle_is_invalid() -> None:
