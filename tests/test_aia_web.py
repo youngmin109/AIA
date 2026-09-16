@@ -864,6 +864,7 @@ def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None
     assert 'aria-label="Codex 실행 정책 경고"' in result.text
     assert "보호 수준이 낮아진 상태로 실행되었습니다." in result.text
     assert "Evidence Bundle이 유효해도" in result.text
+    assert 'class="status-badge status-warning" title="VALID">유효 · 보호 확인 필요</div>' in result.text
     assert 'href="#execution-policy"' in result.text
     assert result.text.index("Codex 실행 정책 경고") < result.text.index("이번 보호 실행에서 확인된 내용")
 
