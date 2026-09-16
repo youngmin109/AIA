@@ -1860,6 +1860,29 @@ def test_workbench_hides_input_navigation_when_run_is_ended() -> None:
     assert 'data-howto-title>정책 사건 검토</strong>' in workbench.text
 
 
+def test_workbench_ended_guidance_surfaces_incident_count() -> None:
+    service = FakeService()
+    original_get_run_status = service.get_run_status
+
+    def ended_status(session_id):
+        status = original_get_run_status(session_id)
+        status["phase"] = "COMPLETED"
+        status["session"] = {**status["session"], "status": "COMPLETED"}
+        status["incident_count"] = 2
+        status["result_available"] = True
+        return status
+
+    service.get_run_status = ended_status
+    client = TestClient(create_app(service))
+
+    workbench = client.get("/runs/run-1/workbench")
+
+    assert workbench.status_code == 200
+    assert "실행이 끝났습니다. 정책 사건 2건을 확인하세요." in workbench.text
+    assert "결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요." in workbench.text
+    assert "incidentCount > 0" in workbench.text
+
+
 def test_workbench_changes_next_steps_when_runtime_is_orphaned() -> None:
     service = FakeService()
     original_get_run_status = service.get_run_status
