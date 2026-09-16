@@ -890,7 +890,13 @@ function updateRunSubmitState() {
 function updateLaunchSummary(ready = preflightReady && workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim()) {
   if (!runLaunchSummary) return;
   const workspace = workspaceInput.value.trim();
-  runSummaryWorkspace.textContent = workspace && workspaceIsValid && validatedWorkspacePath === workspace ? workspace : workspace ? '확인 중 · 입력한 경로' : '입력 필요';
+  runSummaryWorkspace.textContent = !workspace
+    ? '입력 필요'
+    : workspaceValidationInProgress
+      ? '확인 중 · 입력한 경로'
+      : workspaceIsValid && validatedWorkspacePath === workspace
+        ? workspace
+        : '확인 필요 · 입력한 경로';
   const policyOption = profile.selectedOptions[0]?.textContent?.trim() || '정책 확인 필요';
   runSummaryPolicy.textContent = policyOption.replace(/\s+·\s+권장$/, '');
   const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
@@ -900,7 +906,19 @@ function updateLaunchSummary(ready = preflightReady && workspaceIsValid && valid
   const state = runSubmissionInProgress ? 'busy' : ready && preflightLoaded && !preflightRequestInFlight ? 'ready' : 'pending';
   runLaunchSummary.dataset.state = state;
   runLaunchSummaryState.className = `badge ${state === 'ready' ? 'badge-ready' : state === 'busy' ? 'badge-running' : ''}`;
-  runLaunchSummaryState.textContent = state === 'busy' ? '시작 중…' : state === 'ready' ? '실행 가능' : '입력 필요';
+  runLaunchSummaryState.textContent = state === 'busy'
+    ? '시작 중…'
+    : state === 'ready'
+      ? '실행 가능'
+      : !workspace
+        ? '입력 필요'
+        : workspaceValidationInProgress
+          ? '확인 중'
+          : !workspaceIsValid
+            ? '경로 확인 필요'
+            : !preflightLoaded || preflightRequestInFlight
+              ? '확인 중'
+              : '준비 필요';
   runLaunchSummaryNote.textContent = state === 'busy'
     ? 'AIA가 정책·Checkpoint·센서를 준비하고 보호 실행을 시작합니다.'
     : state === 'ready'

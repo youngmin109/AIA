@@ -1690,7 +1690,7 @@ function renderSecurity(status) {
   const file = status.sensor_health?.FILESYSTEM_WATCHER || '확인 중';
   const process = status.sensor_health?.PROCESS_RUNTIME || '확인 중';
   updateTerminalClosedCard(status, ended);
-  if (ended) stopStatusPolling();
+  if (ended || orphaned) stopStatusPolling();
   const stopPending = Boolean(status.stop?.requested) || status.protection?.state === 'STOP_REQUESTED';
   stopButton.hidden = ended || orphaned;
   reconcileButton.hidden = !orphaned || reconciliation.action === 'RECONCILED';
@@ -2180,7 +2180,7 @@ function stopStatusPolling() {
   statusPollTimer = null;
 }
 function startStatusPolling() {
-  if (statusPollTimer !== null || document.hidden || ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status)) return;
+  if (statusPollTimer !== null || document.hidden || ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status) || Boolean(latestStatus?.runtime_reconciliation?.orphaned)) return;
   statusPollTimer = window.setInterval(pollStatus, 1000);
 }
 document.addEventListener('visibilitychange', () => {

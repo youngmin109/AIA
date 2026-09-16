@@ -330,6 +330,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "표시된 명령을 PowerShell에 그대로 붙여넣어 실행하세요." in new_run.text
     assert "preflightCommandRows" in new_run.text
     assert "preflightCommandHelp.hidden" in new_run.text
+    assert "확인 필요 · 입력한 경로" in new_run.text
+    assert "경로 확인 필요" in new_run.text
+    assert "준비 필요" in new_run.text
     assert "preToolUse=MODIFIED" not in new_run.text
     assert 'id="readiness-code" title="CHECKING">확인 중</span>' in new_run.text
     assert 'id="preflight-loading"' in new_run.text
@@ -532,6 +535,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "statusPollTimer" in workbench.text
     assert "stopStatusPolling" in workbench.text
     assert "startStatusPolling" in workbench.text
+    assert "if (ended || orphaned) stopStatusPolling();" in workbench.text
+    assert "Boolean(latestStatus?.runtime_reconciliation?.orphaned)" in workbench.text
     assert "visibilitychange" in workbench.text
     assert "마지막 이벤트" in workbench.text
     assert "마지막 출력 수신" in workbench.text
