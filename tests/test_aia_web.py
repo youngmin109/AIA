@@ -304,7 +304,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실제 Hook 연결 검증" in new_run.text
     assert "현재 연결 증명" in new_run.text
     assert "현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다" in new_run.text
-    assert "check.optional ? 'optional' : 'fail'" in new_run.text
+    assert "preflightCheckBlocksRun" in new_run.text
+    assert "CODEX_HOOK_TRUST_REQUIRED" in new_run.text
+    assert "preflightCheckMark" in new_run.text
     assert "preflight-command-help" in new_run.text
     assert "data-copy-command" in new_run.text
     assert "같은 AIA 프로젝트 폴더에서 순서대로 실행" in new_run.text

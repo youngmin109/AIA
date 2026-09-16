@@ -126,8 +126,9 @@
   <div id="preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span id="preflight-loading-label">Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span><span id="preflight-loading-elapsed" class="preflight-loading-elapsed">경과 0초</span></div>
   <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
     {% for check in preflight.checks %}
+    {% set check_blocks_run = (not check.optional) or (check.name == 'codex_hook_trust' and preflight.get('readiness_code') == 'CODEX_HOOK_TRUST_REQUIRED') %}
     <div class="preflight-row">
-      <span class="preflight-mark {{ 'ok' if check.ok else ('optional' if check.optional else 'fail') }}">{{ '통과' if check.ok else ('선택' if check.optional else '확인 필요') }}</span>
+      <span class="preflight-mark {{ 'ok' if check.ok else ('fail' if check_blocks_run else 'optional') }}">{{ '통과' if check.ok else ('확인 필요' if check_blocks_run else '선택') }}</span>
       <strong>{{ check.label }}</strong>
       <span class="hint">{{ check.detail }}</span>
     </div>
@@ -370,6 +371,8 @@ const policyEditorPanel = document.querySelector('.policy-editor-panel');
 const preflightReadinessLabels = {READY: '준비 완료', HOOK_VERIFICATION_REQUIRED: '확인 필요', CODEX_HOOK_TRUST_REQUIRED: 'Hook 검토 필요', CODEX_HOOK_NOT_INSTALLED: 'Hook 설치 필요', CODEX_EXECUTABLE_UNAVAILABLE: 'Codex 확인 필요', PREFLIGHT_TIMEOUT: '확인 시간 초과', PREFLIGHT_UNAVAILABLE: '확인 실패', CHECKING: '확인 중', UNKNOWN: '확인 필요'};
 const preflightTrustStatusLabels = {TRUSTED: '신뢰됨', MANAGED: '관리됨', MANUAL_REVIEW_REQUIRED: '검토 필요', MODIFIED: '변경됨 · 검토 필요', UNTRUSTED: '신뢰되지 않음', CHECKING: '확인 중', UNKNOWN: '확인 필요'};
 const preflightCheckDetailLabel = (check) => check?.name === 'codex_hook_trust' ? 'Codex 설정에서 Hook을 검토·신뢰하세요.' : String(check?.detail || '상세 정보 없음');
+const preflightCheckBlocksRun = (check, readinessStatus) => !check?.optional || (check?.name === 'codex_hook_trust' && readinessStatus === 'CODEX_HOOK_TRUST_REQUIRED');
+const preflightCheckMark = (check, readinessStatus) => check?.ok ? ['ok', '통과'] : preflightCheckBlocksRun(check, readinessStatus) ? ['fail', '확인 필요'] : ['optional', '선택'];
 const preflightHookEventLabel = (value) => ({preToolUse: 'PreToolUse', postToolUse: 'PostToolUse'})[value] || 'Hook';
 function renderEditorRules() {
   if (!editorRules.length) { editorRuleList.innerHTML = '<div class="empty">아직 추가된 Rule이 없습니다.</div>'; return; }
@@ -599,9 +602,11 @@ function renderPreflight(payload) {
   checks.forEach((check) => {
     const row = document.createElement('div');
     row.className = 'preflight-row';
+    const readinessStatus = data.readiness_code || 'UNKNOWN';
+    const [markClass, markLabel] = preflightCheckMark(check, readinessStatus);
     const mark = document.createElement('span');
-    mark.className = `preflight-mark ${check.ok ? 'ok' : check.optional ? 'optional' : 'fail'}`;
-    mark.textContent = check.ok ? '통과' : check.optional ? '선택' : '확인 필요';
+    mark.className = `preflight-mark ${markClass}`;
+    mark.textContent = markLabel;
     const label = document.createElement('strong');
     label.textContent = check.label;
     const detail = document.createElement('span');
