@@ -1148,6 +1148,8 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "filterIds" in history.text
     assert "1건 표시 / 1건 전체" in history.text
     assert "실행 기록 요약" in history.text
+    assert '<label class="field">작업 폴더<input id="filter-workspace"' in history.text
+    assert "<th>작업 폴더</th>" in history.text
     assert "현재 진행 중" in history.text
     assert 'data-history-quick-filter="active"' in history.text
     assert "data-active=" in history.text

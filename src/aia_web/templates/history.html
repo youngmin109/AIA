@@ -34,7 +34,7 @@
     <span><b class="legend-dot legend-valid"></b>검증됨: Result Bundle 무결성 확인</span>
   </div>
   <div class="history-filters">
-    <label class="field">Workspace<input id="filter-workspace" placeholder="경로 검색"></label>
+    <label class="field">작업 폴더<input id="filter-workspace" placeholder="경로 검색"></label>
     <label class="field">실행 상태<select id="filter-status"><option value="">전체 상태</option><option value="CREATED">생성됨</option><option value="PREPARING">보호 준비 중</option><option value="READY">실행 준비 완료</option><option value="LAUNCHING">Codex 시작 중</option><option value="RUNNING">실행 중</option><option value="COMPLETED">정상 완료</option><option value="ABORTED">사용자 중지</option><option value="FAILED">실패</option></select></label>
     <label class="field">보호 상태<select id="filter-protection"><option value="">전체 보호 상태</option><option value="STARTING">AIA 시작 중</option><option value="PREPARING">보호 준비 중</option><option value="READY_UNVERIFIED">실행 준비 확인 중</option><option value="ACTIVE_VERIFIED">실행 중 · 검증됨</option><option value="ACTIVE_UNVERIFIED">실행 중 · 행위 관찰 전</option><option value="ACTIVE_DEGRADED">실행 중 · 일부 확인</option><option value="STOP_REQUESTED">중지 처리 중</option><option value="COMPLETED_VERIFIED">완료 · 검증됨</option><option value="COMPLETED_DEGRADED">완료 · 일부 확인</option><option value="ABORTED_BEFORE_LAUNCH">시작 전 중지</option><option value="ABORTED_VERIFIED">중지 · 검증됨</option><option value="ABORTED_DEGRADED">중지 · 일부 확인</option><option value="DEGRADED">보호 상태 저하</option><option value="FAILED">보호 실패</option><option value="ORPHANED_DEGRADED">보호 연결 끊김 · 정리 필요</option></select></label>
     <label class="field">차단 사건<select id="filter-incident"><option value="">전체</option><option value="yes">있음</option><option value="no">없음</option></select></label>
@@ -42,7 +42,7 @@
     <label class="field">날짜<input id="filter-date" type="date"></label>
   </div>
   <div class="history-filter-actions"><span id="history-filter-status" class="history-filter-status" aria-live="polite" hidden></span><button id="reset-history-filters" class="button" type="button">필터 초기화</button></div>
-  <div class="table-wrap"><table><thead><tr><th>시작 시각</th><th>실행</th><th>상태</th><th>Workspace</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
+  <div class="table-wrap"><table><thead><tr><th>시작 시각</th><th>실행</th><th>상태</th><th>작업 폴더</th><th>정책</th><th>사건</th><th>결과 검증</th><th></th></tr></thead>
   <tbody>
   {% for run in runs %}
     <tr class="run-row" data-workspace="{{ run.workspace|default('')|lower }}" data-status="{{ run.status|default('') }}" data-protection="{{ run.protection_state|default('') }}" data-incidents="{{ 'yes' if run.incident_count else 'no' }}" data-bundle="{{ run.bundle_status|default('') }}" data-date="{{ (run.created_at or '')[:10] }}" data-active="{{ 'yes' if run.status in active_statuses and not (run.runtime_reconciliation or {}).get('orphaned') and run.run_classification != 'UNVERIFIED_RUNTIME_STATE' else 'no' }}">
