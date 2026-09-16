@@ -624,6 +624,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "const text = observational ? '센서 관찰' : decisionLabel(value)" in workbench.text
     assert "statusPollFailures" in workbench.text
     assert "연결 확인 필요" in workbench.text
+    assert "function updateWorkbenchDocumentTitle(status = latestStatus)" in workbench.text
+    assert "응답 지연 · AIA Workbench" in workbench.text
+    assert "document.title = `${activityLabel} · AIA Workbench`;" in workbench.text
     assert 'id="refresh-status"' in workbench.text
     assert "상태 새로고침" in workbench.text
     assert "terminalSocketConnected" in workbench.text
