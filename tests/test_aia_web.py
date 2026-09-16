@@ -1369,6 +1369,8 @@ def test_workbench_disables_input_and_marks_sensors_when_runtime_is_orphaned() -
     assert 'AIA 연결 끊김 · 정리 필요</dd>' in workbench.text
     assert 'id="terminal-output" class="terminal-output' in workbench.text
     assert "AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다. 실행 기록에서 상태를 확인하세요." in workbench.text
+    assert "eventDecisionBadge" in workbench.text
+    assert "마지막 기록 · ${text}" in workbench.text
     assert 'id="terminal-input-proxy"' in workbench.text
     assert 'placeholder="AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다."' in workbench.text
     assert "sensor-disconnected" in workbench.text
