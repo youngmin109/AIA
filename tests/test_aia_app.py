@@ -1330,22 +1330,25 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
     session_dir.mkdir(parents=True)
     monkeypatch.setattr(
         reader,
-        "read_result",
-        lambda _session_id: {
-            "session_status": "COMPLETED",
-            "session_end_reason": "AGENT_EXITED",
-            "launch_mode": "web_terminal",
-            "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
-            "action_outcomes": [],
-        },
+        "_read_verified_result",
+        lambda _session_id: (
+            {
+                "session_status": "COMPLETED",
+                "session_end_reason": "AGENT_EXITED",
+                "launch_mode": "web_terminal",
+                "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+                "action_outcomes": [],
+            },
+            SimpleNamespace(status=SimpleNamespace(value="VALID")),
+        ),
     )
     monkeypatch.setattr(
         reader,
-        "verification",
-        lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
+        "read_evidence_metadata",
+        lambda _session_id, *, require_valid=True: [
+            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
+        ],
     )
-    monkeypatch.setattr(reader, "hook_event_count", lambda _session_id: 1)
-    monkeypatch.setattr(reader, "posttool_event_count", lambda _session_id: 0)
 
     runs = reader.list_completed()
 

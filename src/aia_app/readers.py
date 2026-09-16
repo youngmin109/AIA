@@ -38,12 +38,18 @@ class ResultBundleReader:
             return None
         return verify_evidence_bundle(result_directory)
 
-    def read_result(self, session_id: str) -> dict[str, Any]:
+    def _read_verified_result(self, session_id: str) -> tuple[dict[str, Any], Any]:
+        """Read a result together with the single verification used for it."""
+
         result_directory = self.result_directory(session_id)
         verification = self.verification(session_id)
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
-        return self._read_json(result_directory / "result.json")
+        return self._read_json(result_directory / "result.json"), verification
+
+    def read_result(self, session_id: str) -> dict[str, Any]:
+        result, _ = self._read_verified_result(session_id)
+        return result
 
     def read_report(self, session_id: str) -> str:
         result_directory = self.result_directory(session_id)
@@ -107,14 +113,27 @@ class ResultBundleReader:
             if not candidate.is_dir() or not _SAFE_SESSION_ID.fullmatch(candidate.name):
                 continue
             try:
-                result = self.read_result(candidate.name)
-                verification = self.verification(candidate.name)
+                result, verification = self._read_verified_result(candidate.name)
             except (OSError, ValueError, KeyError):
                 continue
             if verification is None:
                 continue
-            hook_event_count = self.hook_event_count(candidate.name)
-            posttool_event_count = self.posttool_event_count(candidate.name)
+            evidence_metadata = self.read_evidence_metadata(
+                candidate.name,
+                require_valid=False,
+            )
+            hook_event_count = sum(
+                1
+                for item in evidence_metadata
+                if item.get("source") == "AGENT_HOOK"
+                and item.get("record_type") == "PRETOOL_REQUEST"
+            )
+            posttool_event_count = sum(
+                1
+                for item in evidence_metadata
+                if item.get("source") == "AGENT_HOOK"
+                and item.get("record_type") == "POSTTOOL_OBSERVED"
+            )
             session_status = result.get("session_status")
             session_end_reason = result.get("session_end_reason")
             protection_downgraded = any(

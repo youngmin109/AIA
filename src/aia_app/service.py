@@ -609,7 +609,11 @@ class RunApplicationService:
         summary = RunApplicationService.validate_policy_document(document)
         return {**summary, "path": str(path)}
 
-    def preflight(self) -> dict[str, Any]:
+    def preflight(
+        self,
+        *,
+        runs: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Report local prerequisites without starting a Protected Run."""
 
         checks: list[dict[str, Any]] = []
@@ -754,9 +758,10 @@ class RunApplicationService:
             (item for item in checks if item.get("name") == "control_root"),
             None,
         )
+        recent_runs = runs if runs is not None else self.list_runs()
         recent_verified = [
             item
-            for item in self.list_runs()
+            for item in recent_runs
             if item.get("hook_event_count", 0) > 0
             and item.get("protection_state")
             in {"ACTIVE_VERIFIED", "COMPLETED_VERIFIED", "ABORTED_VERIFIED"}

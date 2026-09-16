@@ -156,12 +156,13 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def dashboard(request: Request) -> HTMLResponse:
         """Render the local product overview without starting an Agent."""
 
+        runs = app.state.service.list_runs()
         return _TEMPLATES.TemplateResponse(
             request,
             "dashboard.html",
             {
-                "preflight": app.state.service.preflight(),
-                "runs": app.state.service.list_runs(),
+                "preflight": app.state.service.preflight(runs=runs),
+                "runs": runs,
                 "capabilities": product_capabilities(),
             },
         )

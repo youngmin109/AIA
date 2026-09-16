@@ -35,7 +35,7 @@ class FakeService:
     def list_runs(self):
         return []
 
-    def preflight(self):
+    def preflight(self, *, runs=None):
         return {
             "ready": True,
             "readiness_code": "READY",
@@ -700,6 +700,23 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
     assert "SUPER_SECRET" not in result.text
+
+
+def test_dashboard_reuses_one_run_snapshot_for_readiness_and_history() -> None:
+    service = FakeService()
+    original_list_runs = service.list_runs
+    calls = 0
+
+    def counted_list_runs():
+        nonlocal calls
+        calls += 1
+        return original_list_runs()
+
+    service.list_runs = counted_list_runs
+    response = TestClient(create_app(service)).get("/")
+
+    assert response.status_code == 200
+    assert calls == 1
 
 
 def test_result_page_explains_degraded_protection_separately_from_valid_bundle() -> None:
