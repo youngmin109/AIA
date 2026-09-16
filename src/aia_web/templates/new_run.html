@@ -421,6 +421,7 @@ let preflightRequestTimer = null;
 const PREFLIGHT_REQUEST_TIMEOUT_MS = 30000;
 let preflightStartedAt = 0;
 let preflightElapsedTimer = null;
+let preflightLoadingMessageTimer = null;
 let verifyHookStartedAt = 0;
 let verifyHookElapsedTimer = null;
 let workspaceValidationRequest = 0;
@@ -879,14 +880,23 @@ function stopVerifyHookProgress() {
 }
 function startPreflightLoading() {
   if (preflightElapsedTimer !== null) window.clearInterval(preflightElapsedTimer);
+  if (preflightLoadingMessageTimer !== null) window.clearTimeout(preflightLoadingMessageTimer);
   preflightStartedAt = Date.now();
   if (preflightLoadingLabel) preflightLoadingLabel.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다…';
   updatePreflightElapsed();
   preflightElapsedTimer = window.setInterval(updatePreflightElapsed, 1000);
+  preflightLoadingMessageTimer = window.setTimeout(() => {
+    if (preflightLoadingLabel) preflightLoadingLabel.textContent = '로컬 Codex Hook Trust 응답을 기다리고 있습니다…';
+    preflightLoadingMessageTimer = window.setTimeout(() => {
+      if (preflightLoadingLabel) preflightLoadingLabel.textContent = '확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…';
+    }, 7000);
+  }, 4000);
 }
 function stopPreflightLoading() {
   if (preflightElapsedTimer !== null) window.clearInterval(preflightElapsedTimer);
+  if (preflightLoadingMessageTimer !== null) window.clearTimeout(preflightLoadingMessageTimer);
   preflightElapsedTimer = null;
+  preflightLoadingMessageTimer = null;
   preflightStartedAt = 0;
 }
 async function loadPreflight({manual = false} = {}) {

@@ -417,6 +417,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="verify-hook-elapsed"' in new_run.text
     assert "startPreflightLoading" in new_run.text
     assert "updatePreflightElapsed" in new_run.text
+    assert "로컬 Codex Hook Trust 응답을 기다리고 있습니다…" in new_run.text
+    assert "확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…" in new_run.text
+    assert "preflightLoadingMessageTimer" in new_run.text
     assert "startVerifyHookProgress" in new_run.text
     assert "updateVerifyHookElapsed" in new_run.text
     assert 'id="preflight-checks"' in new_run.text
