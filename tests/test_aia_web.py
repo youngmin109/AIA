@@ -1179,8 +1179,11 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "['attention', '신뢰 필요']" in dashboard.text
     assert "if (name === 'hook_verification') return check?.ok ? ['ok', '검증됨'] : ['attention', '검증 필요'];" in dashboard.text
     assert 'id="dashboard-readiness-progress"' in dashboard.text
+    assert 'data-state="checking"' in dashboard.text
     assert 'role="progressbar" aria-label="보호 실행 준비 단계"' in dashboard.text
     assert "renderDashboardReadinessProgress(data.checks, dashboardReadinessCode)" in dashboard.text
+    assert "renderDashboardReadinessChecking()" in dashboard.text
+    assert "aria-valuetext', '보호 실행 준비 확인 중'" in dashboard.text
     assert "${completed}/${stages.length} 단계 완료" in dashboard.text
     assert "다음: ${firstPending?.[1] || '확인 필요'}" in dashboard.text
     assert "renderDashboardPreflightChecks(data.checks, dashboardReadinessCode)" in dashboard.text

@@ -760,4 +760,7 @@ samp,
 .technical-details { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); }
 .technical-details summary { width: fit-content; cursor: pointer; }
 .technical-details p { margin: 10px 0 0; overflow-wrap: anywhere; }
+.dashboard-readiness-progress[data-state="checking"] { border-color: rgba(101,217,232,.42); background: rgba(101,217,232,.045); }
+.dashboard-readiness-progress[data-state="checking"] .dashboard-readiness-progress-fill { width: 38% !important; transform: translateX(-120%); background: linear-gradient(90deg, transparent, var(--cyan), transparent); animation: dashboard-readiness-indeterminate 1.35s ease-in-out infinite; }
+@keyframes dashboard-readiness-indeterminate { 0% { transform: translateX(-120%); } 100% { transform: translateX(360%); } }
 @media (max-width: 640px) { .run-unavailable-panel { display: block; } .run-unavailable-icon { margin-bottom: 12px; } }
