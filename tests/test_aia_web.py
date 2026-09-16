@@ -310,6 +310,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".preflight-requirement-summary" in css.text
     assert ".hook-readiness-path" in css.text
     assert ".hook-readiness-step.is-attention" in css.text
+    assert ".hook-readiness-step.is-current" in css.text
     assert ".preflight-scope-complete" in css.text
     assert "glassbox-ui-25" in dashboard.text
     assert '@font-face' in css.text
@@ -379,6 +380,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preflight-scope-optional" in new_run.text
     assert "updatePreflightRequirementSummary" in new_run.text
     assert "updateHookReadinessPath" in new_run.text
+    assert "setAttribute('aria-current', 'step')" in new_run.text
     assert "CODEX_HOOK_TRUST_REQUIRED" in new_run.text
     assert "preflightCheckMark" in new_run.text
     assert "아래 설치 명령을 실행하세요." in new_run.text

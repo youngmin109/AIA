@@ -491,12 +491,14 @@ function updateHookReadinessPath(checks, payload = {}) {
     verified: states.verified === 'complete' ? '검증됨' : states.verified === 'attention' ? '검증 필요' : '대기 중',
   };
   const stepEntries = Object.entries(hookReadinessSteps);
+  const current = ['installed', 'trusted', 'verified'].find((name) => states[name] !== 'complete');
   stepEntries.forEach(([name, step]) => {
     if (!step.root || !step.detail) return;
-    step.root.className = `hook-readiness-step is-${states[name]}`;
+    step.root.className = `hook-readiness-step is-${states[name]}${name === current ? ' is-current' : ''}`;
+    if (name === current) step.root.setAttribute('aria-current', 'step');
+    else step.root.removeAttribute('aria-current');
     step.detail.textContent = labels[name];
   });
-  const current = ['installed', 'trusted', 'verified'].find((name) => states[name] !== 'complete');
   hookReadinessPath.dataset.state = current ? states[current] === 'attention' ? 'attention' : 'pending' : 'ready';
   if (current === 'installed') hookReadinessPathSummary.textContent = '첫 단계: AIA PreToolUse Hook을 설치하세요.';
   else if (current === 'trusted') hookReadinessPathSummary.textContent = '다음 단계: Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';

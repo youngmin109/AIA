@@ -129,6 +129,8 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .hook-readiness-step.is-attention .hook-readiness-step-mark { color: #9a670d; background: rgba(245,199,106,.28); }
 .hook-readiness-step.is-attention strong { color: #82520b; }
 .hook-readiness-step.is-pending { opacity: .72; }
+.hook-readiness-step.is-current { box-shadow: 0 0 0 2px rgba(101,217,232,.14); }
+.hook-readiness-step.is-current .hook-readiness-step-mark { box-shadow: 0 0 0 3px rgba(101,217,232,.12); }
 .hook-readiness-connector { align-self: center; width: 100%; height: 1px; background: var(--line); }
 .hook-readiness-path-summary { margin: 8px 0 0; padding: 8px 10px; border: 1px solid rgba(101,217,232,.2); border-radius: 8px; background: rgba(101,217,232,.04); }
 .hook-readiness-path[data-state="attention"] + .hook-readiness-path-summary { border-color: rgba(245,199,106,.35); background: rgba(255,246,218,.4); color: #82520b; }
