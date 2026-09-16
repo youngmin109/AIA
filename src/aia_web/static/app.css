@@ -686,6 +686,14 @@ body > header, body > main, body > footer { position: relative; z-index: 1; }
   background: linear-gradient(135deg, rgba(255, 255, 255, .72), rgba(242, 248, 255, .54));
 }
 
+.result-outcome-card-warning {
+  border-color: rgba(184, 122, 20, .5);
+  background: linear-gradient(135deg, rgba(255, 249, 229, .9), rgba(255, 244, 211, .64));
+  box-shadow: 0 8px 22px rgba(184, 122, 20, .1);
+}
+
+.result-outcome-card-warning strong { color: #82520b; }
+
 .metric { box-shadow: var(--glass-shadow); transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
 .metric:hover { border-color: rgba(70, 153, 211, .48); box-shadow: var(--glass-shadow), 0 9px 24px rgba(79, 111, 150, .1); transform: translateY(-1px); }
 .metric-action:hover, .metric-action:focus-visible, .metric-action.is-active { background: rgba(224, 247, 255, .78); }
