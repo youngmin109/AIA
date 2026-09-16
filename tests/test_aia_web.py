@@ -459,7 +459,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert '<strong id="file-count">2건</strong>' in workbench.text
     assert '<strong id="process-count">0건</strong>' in workbench.text
     assert "센서 카드를 누르면 해당 Evidence로 이동합니다." in workbench.text
-    assert workbench.text.count("Evidence 보기 →") == 3
+    assert workbench.text.count("Evidence 보기 →") == 4
     assert 'id="security-panel-toggle"' in workbench.text
     assert 'id="security-panel-content"' in workbench.text
     assert "setSecurityPanelCollapsed" in workbench.text
@@ -514,6 +514,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "마지막 출력 수신" in workbench.text
     assert "화면 갱신" in workbench.text
     assert 'id="event-visibility-summary"' in workbench.text
+    assert 'id="event-detail-link"' in workbench.text
+    assert "전체 실행 흐름 보기 →" in workbench.text
     assert "최근 ${visibleEventCount}건 표시 · 전체 ${events.length}건" in workbench.text
     assert 'id="event-count"' in workbench.text
     assert "Glass-box 확장 영역" in workbench.text
@@ -679,6 +681,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "증거 흐름 보기 →" in workbench.text
     assert 'class="event-category-label"' in workbench.text
     assert "const orderedEvents = (items) => items" in workbench.text
+    assert "eventDetailLink?.addEventListener" in workbench.text
+    assert "전체 센서 Evidence 보기 →" in workbench.text
     assert "eventFilter === 'ALL'" in workbench.text
     assert "전체 ${allEvents.length}건 · 행위 ${actionEventCount} · 센서 ${sensorEventCount}" in workbench.text
     assert "현재 필터 결과" in workbench.text

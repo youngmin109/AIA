@@ -225,6 +225,7 @@
           <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
           <span>화면 갱신 <strong id="last-refresh-time">확인 중</strong></span>
           <span id="event-visibility-summary">표시 이벤트 0건</span>
+          <a id="event-detail-link" class="text-link" href="#evidence-chain-panel" hidden>전체 실행 흐름 보기 →</a>
         </div>
         <div class="workbench-event-filters" role="group" aria-label="최근 이벤트 필터">
           <button type="button" class="event-filter is-active" data-event-filter="ALL" aria-pressed="true">전체</button>
@@ -363,6 +364,7 @@ const incidentDetailLink = document.getElementById('incident-detail-link');
 const lastEventTime = document.getElementById('last-event-time');
 const lastRefreshTime = document.getElementById('last-refresh-time');
 const eventVisibilitySummary = document.getElementById('event-visibility-summary');
+const eventDetailLink = document.getElementById('event-detail-link');
 const flowSteps = [...document.querySelectorAll('[data-flow-step]')];
 const eventFilterButtons = [...document.querySelectorAll('[data-event-filter]')];
 const evidenceFilterButtons = [...document.querySelectorAll('[data-evidence-filter]')];
@@ -1053,6 +1055,10 @@ workbenchJumpLinks.forEach((link) => link.addEventListener('click', () => {
   if (link.dataset.workbenchJump === 'security-panel') setSecurityPanelCollapsed(false);
   if (target?.tagName === 'DETAILS') target.open = true;
 }));
+eventDetailLink?.addEventListener('click', () => {
+  const target = document.querySelector(eventDetailLink.getAttribute('href'));
+  if (target?.tagName === 'DETAILS') target.open = true;
+});
 function setWorkbenchJumpActive(targetId) {
   workbenchJumpLinks.forEach((link) => {
     const active = link.dataset.workbenchJump === targetId;
@@ -1727,6 +1733,13 @@ function renderSecurity(status) {
     eventVisibilitySummary.textContent = events.length > visibleEventCount
       ? `최근 ${visibleEventCount}건 표시 · 전체 ${events.length}건`
       : `전체 ${events.length}건 표시`;
+    if (eventDetailLink) {
+      const hasOverflow = events.length > visibleEventCount;
+      const sensorFilter = eventFilter === 'SENSOR';
+      eventDetailLink.hidden = !hasOverflow;
+      eventDetailLink.href = sensorFilter ? '#sensor-evidence-panel' : '#evidence-chain-panel';
+      eventDetailLink.textContent = sensorFilter ? '전체 센서 Evidence 보기 →' : '전체 실행 흐름 보기 →';
+    }
   }
   if (eventKey !== lastRenderedEventKey) {
     lastRenderedEventKey = eventKey;
