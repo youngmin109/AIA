@@ -743,6 +743,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="sensor-results"' in result.text
     assert 'id="event-timeline"' in result.text
     assert 'href="#evidence-chain">증거</a>' in result.text
+    assert 'href="#execution-policy">실행 정책</a>' in result.text
     assert '<details id="evidence-chain" class="panel result-details">' in result.text
     assert '<details id="sensor-evidence-timeline" class="panel result-details">' in result.text
     assert '<details id="action-results" class="panel result-details">' in result.text
