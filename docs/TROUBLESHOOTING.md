@@ -1,5 +1,12 @@
 # AIA 문제 해결
 
+저장소에서 실행하는 명령은 다음 형식을 권장한다. 생성된 `aia.exe`가 Windows
+애플리케이션 제어 정책으로 차단되는 환경에서도 사용할 수 있다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli <명령>
+```
+
 ## `workspace must be an existing directory`
 
 AIA는 입력한 Workspace를 자동으로 만들지 않는다. 사용자가 이미 존재하는

@@ -19,11 +19,17 @@ EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.
 처음 사용하는 사람은 [사용자 가이드](docs/USER-GUIDE.md)를 먼저 읽는다.
 
 릴리스 ZIP을 사용하는 경우에는 압축을 푼 폴더에서 포함된 `install.ps1`을 실행하면
-wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는
-`uv run aia` 경로를 사용한다. Windows 애플리케이션 제어 정책이 가상환경의
-실행 파일을 차단해 `os error 4551`이 표시되면, 같은 명령에서 `uv run aia` 대신
-`uv run --isolated python -m aia.cli`를 사용한다. 자세한 순서는
-[설치 가이드](INSTALL.md)에 정리되어 있다.
+wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는 아래의
+Python 모듈 실행 경로를 권장한다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli doctor
+```
+
+Windows 애플리케이션 제어 정책이 가상환경에서 생성된 `aia.exe`를 차단하면
+`uv run aia`는 `os error 4551`로 시작하지 못할 수 있다. 위 모듈 실행 경로는
+생성된 콘솔 실행 파일을 거치지 않으므로 같은 환경에서 사용할 수 있다. 자세한
+순서는 [설치 가이드](INSTALL.md)에 정리되어 있다.
 
 사용자 지원 범위와 상태 해석은 [제품 지원 범위](docs/PRODUCT-SUPPORT.md),
 보안 문제 보고 절차는 [SECURITY.md](SECURITY.md), 기여 규칙은
@@ -62,7 +68,7 @@ uv run aia demo
 선택적으로 로컬 콘솔을 실행할 수 있다.
 
 ```powershell
-uv run aia console --open
+uv run --isolated --project . python -m aia.cli console --open
 ```
 
 기본 주소는 [http://127.0.0.1:8787](http://127.0.0.1:8787)이다. `--open`을 지정하면 기본 브라우저에서 이 로컬 주소를 연다. 화면에서 Workspace, Codex 작업 요청, Policy Profile, ENFORCE/AUDIT 모드를 입력하면 AIA Core의 보호 실행 흐름을 시작하고, Live Run과 Result Bundle을 확인할 수 있다. 기본 Control Root는 `%USERPROFILE%\.aia\control`이며 `AIA_CONTROL_ROOT` 환경 변수로 바꿀 수 있다. 기존의 `uv run aia-web` 명령도 계속 사용할 수 있다.

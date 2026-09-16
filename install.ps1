@@ -54,6 +54,11 @@ if (-not (Test-Path -LiteralPath (Join-Path $root "pyproject.toml"))) {
 
 Push-Location $root
 try {
+    # Use the Python module launcher for source checkouts. The generated
+    # .venv\Scripts\aia.exe can be rejected by Windows application-control
+    # policy even when uv and python.exe are allowed to run.
+    $moduleCliArgs = @("run", "--isolated", "--project", $root, "python", "-m", "aia.cli")
+
     Write-Host "[AIA] Syncing the locked environment..."
     & uv sync --locked
     if ($LASTEXITCODE -ne 0) {
@@ -78,7 +83,7 @@ try {
             & $aiaExecutable setup
         }
         else {
-            & uv run aia setup
+            & uv @moduleCliArgs setup
         }
         if ($LASTEXITCODE -ne 0) {
             throw "AIA Hook setup failed with exit code $LASTEXITCODE"
@@ -99,7 +104,7 @@ try {
             }
         }
         else {
-            & uv run aia doctor
+            & uv @moduleCliArgs doctor
             $doctorExitCode = $LASTEXITCODE
         }
         if ($doctorExitCode -ne 0) {
@@ -107,7 +112,7 @@ try {
                 Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Open a new PowerShell window and run 'aia doctor' for details."
             }
             else {
-                Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Run 'uv run aia doctor' for details."
+                Write-Warning "AIA is installed, but the local prerequisites are not ready yet. Run 'uv run --isolated --project . python -m aia.cli doctor' for details."
             }
         }
     }
@@ -118,8 +123,8 @@ try {
         Write-Host "Start a protected run with: aia protect C:\workspace\my-project"
     }
     else {
-        Write-Host "Next: review/trust the Hook in Codex with /hooks, then run 'uv run aia doctor'."
-        Write-Host "Start a protected run with: uv run aia protect C:\workspace\my-project"
+        Write-Host "Next: review/trust the Hook in Codex with /hooks, then run 'uv run --isolated --project . python -m aia.cli doctor'."
+        Write-Host "Start a protected run with: uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project"
         Write-Host "For a user-level command available from any folder, rerun with -InstallTool."
     }
 }

@@ -7,6 +7,15 @@ AIA 0.1은 Windows 11과 Python 3.13 환경을 지원한다. Codex CLI와 `uv`�
 
 PowerShell에서 저장소 폴더로 이동한 뒤 다음을 실행한다.
 
+저장소에서 AIA 명령을 실행할 때는 생성된 `aia.exe`가 Windows 애플리케이션 제어
+정책에 막힐 수 있으므로 다음 모듈 실행 형식을 권장한다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli <명령>
+```
+
+아래에서 `uv run aia`가 필요한 기존 예시는 이 형식으로 바꿔 실행해도 된다.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -SetupHook
 ```
