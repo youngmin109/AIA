@@ -244,7 +244,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".ambient-scene" in css.text
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
-    assert "glassbox-ui-5" in dashboard.text
+    assert "glassbox-ui-6" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text

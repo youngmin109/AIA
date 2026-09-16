@@ -30,8 +30,8 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .new-run-page { display: flex; flex-direction: column; }
 .new-run-page > .hero { order: 1; }
 .new-run-page > .run-steps { order: 2; }
-.new-run-page > .preflight-panel { order: 3; }
-.new-run-page > .form-panel { order: 4; }
+.new-run-page > .form-panel { order: 3; }
+.new-run-page > .preflight-panel { order: 4; }
 .new-run-page > .preview-panel { order: 5; }
 .new-run-page > .policy-editor-panel { order: 6; }
 .new-run-page > .capability-panel { order: 7; }
