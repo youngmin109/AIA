@@ -236,6 +236,8 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .workbench-guidance-copy strong, .workbench-guidance-copy small { display: block; overflow-wrap: anywhere; }
 .workbench-guidance-copy strong { font-size: 13px; }
 .workbench-guidance-copy small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.workbench-guidance-link { margin-left: auto; flex: 0 0 auto; white-space: nowrap; font-size: 11px; font-weight: 700; }
+.workbench-guidance-link + .badge { margin-left: 0; }
 .workbench-guidance > .badge { margin-left: auto; flex: 0 0 auto; }
 .workbench-guidance.guidance-active { border-color: rgba(101,217,232,.42); background: rgba(101,217,232,.05); }
 .workbench-guidance.guidance-active .workbench-guidance-mark { animation: terminal-connection-pulse 1.2s ease-in-out infinite; }
@@ -842,8 +844,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
   .workbench-technical-meta { margin-top: 1px; }
   .workbench-header-actions { margin-top: 8px; gap: 6px; }
   .workbench-guidance { min-height: 0; margin-bottom: 10px; padding: 9px 11px; }
+  .workbench-guidance { flex-wrap: wrap; }
   .workbench-guidance-copy strong { font-size: 12px; }
   .workbench-guidance-copy small { font-size: 10px; line-height: 1.3; }
+  .workbench-guidance-link { margin-left: 38px; }
+  .workbench-guidance-link + .badge { margin-left: auto; }
   .workbench-jumpbar { margin-bottom: 10px; padding: 6px 8px; }
 }
 

@@ -54,6 +54,7 @@
     <strong id="workbench-guidance-title">{{ 'AIA 보호 연결이 끊겼습니다.' if protection_disconnected else '보호된 Codex 작업을 관찰하고 있습니다.' if not run_ended else '실행이 끝났습니다. 정책 사건 ' ~ initial_incident_count ~ '건을 확인하세요.' if initial_incident_count else '실행이 끝났습니다. 결과를 확인하세요.' }}</strong>
     <small id="workbench-guidance-detail">{{ '이 실행은 보호된 상태로 간주하지 않습니다. 연결 끊긴 실행을 정리하거나 실행 기록을 검토하세요.' if protection_disconnected else '오른쪽 센서와 이벤트에서 실제 관찰 결과를 확인할 수 있습니다.' if not run_ended else '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.' if initial_incident_count else '결과 보기에서 정책·센서 Evidence·무결성 상태를 확인하세요.' }}</small>
     </div>
+    <a id="workbench-guidance-link" class="text-link workbench-guidance-link" href="/runs/{{ session_id }}/result"{% if not run_ended or not status.result_available %} hidden{% endif %}>{{ '정책 사건 확인 →' if initial_incident_count else '실행 결과 확인 →' }}</a>
     <span id="workbench-guidance-owner" class="badge">AIA</span>
   </section>
   <section id="workbench-system-alert" class="workbench-system-alert" role="alert" aria-live="assertive" hidden>
@@ -341,6 +342,7 @@ const workbenchHowToSteps = [...document.querySelectorAll('#workbench-howto-step
 const workbenchGuidance = document.getElementById('workbench-guidance');
 const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
+const workbenchGuidanceLink = document.getElementById('workbench-guidance-link');
 const workbenchGuidanceOwner = document.getElementById('workbench-guidance-owner');
 const workbenchSystemAlert = document.getElementById('workbench-system-alert');
 const workbenchSystemAlertTitle = document.getElementById('workbench-system-alert-title');
@@ -1019,6 +1021,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
   workbenchGuidance.className = `workbench-guidance ${guidanceClass(kind)}`;
   workbenchGuidanceTitle.textContent = title;
   workbenchGuidanceDetail.textContent = detail;
+  if (workbenchGuidanceLink) {
+    const resultAvailable = ended && Boolean(status?.result_available);
+    workbenchGuidanceLink.hidden = !resultAvailable;
+    workbenchGuidanceLink.textContent = incidentCount > 0 ? '정책 사건 확인 →' : '실행 결과 확인 →';
+  }
   workbenchGuidanceOwner.textContent = owner;
 }
 function showSensorUpdate(sensorKey, count) {

@@ -333,6 +333,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".workbench-header > div:first-child { display: grid; gap: 4px; }" in css.text
     assert ".workbench-header h1 { margin: 0; font-size: 24px; }" in css.text
     assert ".workbench-guidance { min-height: 0; margin-bottom: 10px; padding: 9px 11px; }" in css.text
+    assert ".workbench-guidance-link { margin-left: auto; flex: 0 0 auto; white-space: nowrap;" in css.text
     assert ".page-shell-workbench { padding-top: 36px; }" in css.text
     assert ".workbench-header > div:first-child > .muted { margin: 6px 0 0; }" in css.text
     pretendard = client.get("/static/fonts/PretendardVariable.woff2")
@@ -1880,6 +1881,8 @@ def test_workbench_ended_guidance_surfaces_incident_count() -> None:
     assert workbench.status_code == 200
     assert "실행이 끝났습니다. 정책 사건 2건을 확인하세요." in workbench.text
     assert "결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요." in workbench.text
+    assert 'id="workbench-guidance-link"' in workbench.text
+    assert ">정책 사건 확인 →</a>" in workbench.text
     assert "incidentCount > 0" in workbench.text
 
 
