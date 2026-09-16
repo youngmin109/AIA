@@ -1584,6 +1584,31 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         service.shutdown()
 
 
+def test_application_preflight_explains_stale_hook_path(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_installed",
+        lambda _installer: False,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.has_aia_runtime",
+        lambda _installer, event="PreToolUse": True,
+    )
+    try:
+        result = service.preflight()
+        checks = {item["name"]: item for item in result["checks"]}
+        assert result["readiness_code"] == "NOT_READY"
+        assert checks["pretool_hook"]["stale"] is True
+        assert "기존 AIA Hook 경로" in checks["pretool_hook"]["detail"]
+        assert "갱신" in result["next_step"]
+    finally:
+        service.shutdown()
+
+
 def test_application_preflight_reports_actual_trusted_hook_status(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(tmp_path / "control")
     monkeypatch.setattr(

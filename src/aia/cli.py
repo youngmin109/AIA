@@ -554,16 +554,22 @@ def _doctor(args: argparse.Namespace) -> int:
     installer = CodexHookInstaller(args.hook_path)
     cli_prefix = _cli_prefix(installer)
     hook_installed = installer.is_installed()
+    stale_hook_detected = not hook_installed and installer.has_aia_runtime("PreToolUse")
     posttool_installed = installer.is_posttool_installed()
     checks.append(
         {
             "name": "codex_hook",
             "ok": hook_installed,
+            "stale": stale_hook_detected,
             "value": str(installer.path),
             "detail": (
                 "Hook definition installed; review/trust it in Codex"
                 if hook_installed
-                else f"Run '{cli_prefix} setup', then review/trust the Hook in Codex"
+                else (
+                    f"기존 AIA Hook 경로가 남아 있습니다. '{cli_prefix} setup'으로 현재 경로를 갱신하세요."
+                    if stale_hook_detected
+                    else f"Run '{cli_prefix} setup', then review/trust the Hook in Codex"
+                )
             ),
         }
     )
@@ -673,7 +679,11 @@ def _doctor(args: argparse.Namespace) -> int:
         next_step = f"Codex CLI 설치와 PATH를 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     elif not hook_installed:
         readiness_code = "CODEX_HOOK_NOT_INSTALLED"
-        next_step = f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+        next_step = (
+            f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
+            if stale_hook_detected
+            else f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+        )
     elif pretool_status not in {"TRUSTED", "MANAGED"}:
         readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
         next_step = (

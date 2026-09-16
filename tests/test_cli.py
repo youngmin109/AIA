@@ -1129,6 +1129,52 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
     assert f"{_cli_prefix(CodexHookInstaller(hook_path))} hook verify" in payload["next_step"]
 
 
+def test_doctor_marks_stale_aia_hook_for_refresh(tmp_path, monkeypatch, capsys) -> None:
+    hook_path = tmp_path / "hooks.json"
+    hook_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "*",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "python -m aia.codex_hook_runtime",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+
+    exit_code = main(
+        [
+            "doctor",
+            "--json",
+            "--hook-path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    hook_check = next(item for item in payload["checks"] if item["name"] == "codex_hook")
+    assert exit_code == 1
+    assert hook_check["ok"] is False
+    assert hook_check["stale"] is True
+    assert "기존 AIA Hook 경로" in hook_check["detail"]
+    assert "갱신" in payload["next_step"]
+
+
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: "codex.exe")
     monkeypatch.setattr("aia.cli.CodexHookInstaller.is_installed", lambda _installer: False)

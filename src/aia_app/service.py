@@ -687,14 +687,20 @@ class RunApplicationService:
         installer = CodexHookInstaller()
         cli_prefix = _aia_cli_prefix(installer)
         pretool_installed = installer.is_installed()
+        stale_hook_detected = not pretool_installed and installer.has_aia_runtime("PreToolUse")
         pretool_check: dict[str, Any] = {
             "name": "pretool_hook",
             "label": "PreToolUse Hook",
             "ok": pretool_installed,
+            "stale": stale_hook_detected,
             "detail": (
                 "설치됨 · Trust 상태 확인 중"
                 if pretool_installed
-                else f"설치되지 않음 · {cli_prefix} setup 필요"
+                else (
+                    f"기존 AIA Hook 경로가 남아 있음 · {cli_prefix} setup으로 현재 경로 갱신 필요"
+                    if stale_hook_detected
+                    else f"설치되지 않음 · {cli_prefix} setup 필요"
+                )
             ),
         }
         checks.append(pretool_check)
@@ -843,14 +849,22 @@ class RunApplicationService:
             next_step = (
                 "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
                 if readiness_code == "READY"
-                else "위의 필수 확인 항목을 해결한 뒤 다시 검사하세요."
+                else (
+                    f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
+                    if stale_hook_detected
+                    else "위의 필수 확인 항목을 해결한 뒤 다시 검사하세요."
+                )
             )
         elif executable is None:
             readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
             next_step = "Codex CLI 설치와 PATH를 확인한 뒤 다시 검사하세요."
         elif not pretool_installed:
             readiness_code = "CODEX_HOOK_NOT_INSTALLED"
-            next_step = f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+            next_step = (
+                f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
+                if stale_hook_detected
+                else f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+            )
         elif pretool_status not in {"TRUSTED", "MANAGED"}:
             readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
             next_step = (

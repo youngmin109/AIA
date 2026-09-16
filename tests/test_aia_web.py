@@ -361,7 +361,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preflightCheckDetailLabel" in new_run.text
     assert "preflightTrustStatusLabels" in new_run.text
     assert "상태는 단계별로 표시됩니다" in new_run.text
-    assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : ['fail', '설치 필요'];" in new_run.text
+    assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];" in new_run.text
     assert "if (name === 'codex_hook_trust') return check?.ok ? ['ok', '신뢰됨'] : blocksRun ? ['attention', '신뢰 필요'] : ['optional', '확인 전'];" in new_run.text
     assert "if (name === 'hook_verification') return check?.ok ? ['ok', '검증됨'] : ['attention', '검증 필요'];" in new_run.text
     assert 'id="readiness-config"' in new_run.text
@@ -1320,7 +1320,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "dashboardCheckMark(check, readinessStatus)" in dashboard.text
     assert "dashboardCheckDetailLabel(check)" in dashboard.text
     assert "상태는 단계별로 표시됩니다" in dashboard.text
-    assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : ['fail', '설치 필요'];" in dashboard.text
+    assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];" in dashboard.text
     assert "if (name === 'codex_hook_trust')" in dashboard.text
     assert "['attention', '신뢰 필요']" in dashboard.text
     assert "if (name === 'hook_verification') return check?.ok ? ['ok', '검증됨'] : ['attention', '검증 필요'];" in dashboard.text

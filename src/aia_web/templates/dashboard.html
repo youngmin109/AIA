@@ -110,6 +110,7 @@
     {% set check_blocks_run = (not check.optional) or (check.name == 'codex_hook_trust' and readiness == 'CODEX_HOOK_TRUST_REQUIRED') %}
     {% set check_status = (
       '설치됨' if check.name in ['pretool_hook', 'posttool_hook'] and check.ok else
+      '갱신 필요' if check.name == 'pretool_hook' and check.stale else
       '설치 필요' if check.name == 'pretool_hook' else
       '신뢰됨' if check.name == 'codex_hook_trust' and check.ok else
       '신뢰 필요' if check.name == 'codex_hook_trust' and check_blocks_run else
@@ -125,6 +126,7 @@
       'info' if check.name in ['codex_executable', 'pretool_hook', 'posttool_hook', 'control_root'] and check.ok else
       'ok' if check.ok else
       'attention' if check.name in ['codex_hook_trust', 'hook_verification'] and check_blocks_run else
+      'attention' if check.name == 'pretool_hook' and check.stale else
       'optional' if not check_blocks_run else 'fail'
     ) %}
     <div class="preflight-row">
@@ -453,7 +455,7 @@ const dashboardCheckBlocksRun = (check, readinessStatus = dashboardReadinessCode
 const dashboardCheckMark = (check, readinessStatus = dashboardReadinessCode) => {
   const name = String(check?.name || '');
   const blocksRun = dashboardCheckBlocksRun(check, readinessStatus);
-  if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : ['fail', '설치 필요'];
+  if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];
   if (name === 'posttool_hook') return check?.ok ? ['info', '설치됨'] : ['optional', '선택'];
   if (name === 'codex_hook_trust') {
     return check?.ok ? ['ok', '신뢰됨'] : blocksRun ? ['attention', '신뢰 필요'] : ['optional', '확인 전'];
@@ -464,7 +466,7 @@ const dashboardCheckMark = (check, readinessStatus = dashboardReadinessCode) => 
   return check?.ok ? ['ok', '통과'] : blocksRun ? ['fail', '확인 필요'] : ['optional', '선택'];
 };
 const dashboardCheckDetailLabel = (check) => {
-  if (check?.name === 'pretool_hook' && !check?.ok) return 'AIA Hook 설치가 필요합니다. 아래 명령 안내를 확인하세요.';
+  if (check?.name === 'pretool_hook' && !check?.ok) return check?.stale ? '이전 AIA Hook 경로가 남아 있습니다. 아래 명령으로 현재 환경에 맞게 갱신하세요.' : 'AIA Hook 설치가 필요합니다. 아래 명령 안내를 확인하세요.';
   if (check?.name === 'hook_verification' && !check?.ok) return '아래 명령 안내로 실제 Hook 연결을 확인하세요.';
   return String(check?.detail || '상세 정보 없음');
 };
