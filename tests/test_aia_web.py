@@ -1073,6 +1073,7 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     client = TestClient(create_app(service))
 
     dashboard = client.get("/")
+    history = client.get("/runs")
 
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text
     assert "보호 실행이 진행 중입니다" not in dashboard.text
@@ -1083,6 +1084,11 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     assert "보호 경계 끊김 · 정리 필요" in dashboard.text
     assert '<a href="/runs/stale-run">정리 검토</a>' in dashboard.text
     assert 'href="/runs/stale-run/workbench"' not in dashboard.text
+    assert "연결 끊김: 보호 경계가 종료되어 정리 검토 필요" in history.text
+    assert '<option value="ORPHANED_DEGRADED">보호 연결 끊김 · 정리 필요</option>' in history.text
+    assert "보호 경계 끊김 · 정리 필요" in history.text
+    assert '<a href="/runs/stale-run">정리 검토</a>' in history.text
+    assert 'href="/runs/stale-run/workbench"' not in history.text
 
 
 def test_workbench_disables_input_and_marks_sensors_when_runtime_is_orphaned() -> None:
