@@ -429,6 +429,16 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'class="workbench-context"' in workbench.text
     assert "보호 중인 Workspace" in workbench.text
     assert "실행 ID 보기" in workbench.text
+    assert 'id="run-status"' in workbench.text and ">실행 중</span>" in workbench.text
+    assert '<dd id="phase" title="RUNNING">Agent 실행 중</dd>' in workbench.text
+    assert '<dd id="checkpoint" title="READY">생성됨 · 사용 가능</dd>' in workbench.text
+    assert '<dd id="lease" title="ACTIVE">보호 실행에 연결됨</dd>' in workbench.text
+    assert '<span id="protection-state" class="badge" title="ACTIVE_VERIFIED" aria-live="polite">보호 검증됨</span>' in workbench.text
+    assert '<strong id="summary-protection">보호 검증됨</strong>' in workbench.text
+    assert '<strong id="summary-incidents">1건</strong>' in workbench.text
+    assert '<strong id="evidence-count">5건</strong>' in workbench.text
+    assert '<strong id="file-count">2건</strong>' in workbench.text
+    assert '<strong id="process-count">0건</strong>' in workbench.text
     assert "센서 카드를 누르면 해당 Evidence로 이동합니다." in workbench.text
     assert workbench.text.count("Evidence 보기 →") == 3
     assert 'id="security-panel-toggle"' in workbench.text

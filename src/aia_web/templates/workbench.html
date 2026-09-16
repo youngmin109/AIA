@@ -3,6 +3,26 @@
 {% block content %}
 {% set protection_disconnected = (status.runtime_reconciliation or {}).get('orphaned') %}
 {% set run_ended = status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
+{% set session_status_names = {'CREATED': '생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': '실행 중', 'COMPLETED': '정상 완료', 'ABORTED': '사용자 중지', 'FAILED': '실행 실패'} %}
+{% set phase_names = {'CREATED': '세션 생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': 'Agent 실행 중', 'COMPLETED': '실행 완료', 'ABORTED': '사용자 중지', 'FAILED': '실행 실패'} %}
+{% set checkpoint_names = {'NOT_READY': '준비되지 않음', 'READY': '생성됨 · 사용 가능', 'FAILED': '생성 실패', 'UNKNOWN': '정보 없음'} %}
+{% set lease_names = {'ACTIVE': '보호 실행에 연결됨', 'RELEASED': '해제됨', 'FAILED': 'Lease 오류', 'NOT_STARTED': '준비 전'} %}
+{% set protection_names = {'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '행위 관찰 전', 'ACTIVE_DEGRADED': '보호 상태 저하', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'FAILED_DEGRADED': '실패 · 확인 필요', 'ORPHANED_DEGRADED': '보호 연결 끊김 · 정리 필요', 'ABORTED_BEFORE_LAUNCH': '시작 전 사용자 중지', 'STOP_REQUESTED': '중지 처리 중'} %}
+{% set initial_session_status = status.session.status if status.session else 'UNKNOWN' %}
+{% set initial_phase = status.phase or 'UNKNOWN' %}
+{% set initial_checkpoint = status.checkpoint or 'UNKNOWN' %}
+{% set initial_lease = status.lease or 'UNKNOWN' %}
+{% set initial_protection = status.protection.state if status.protection else 'UNKNOWN' %}
+{% set initial_status_label = '보호 연결 끊김' if protection_disconnected else session_status_names.get(initial_session_status, '상태 확인 중') %}
+{% set initial_phase_label = '보호 연결 끊김' if protection_disconnected else phase_names.get(initial_phase, '상태 확인 중') %}
+{% set initial_checkpoint_label = '연결 끊김 · 확인 필요' if protection_disconnected else checkpoint_names.get(initial_checkpoint, '정보 없음') %}
+{% set initial_lease_label = '연결 끊김 · 정리 필요' if protection_disconnected else lease_names.get(initial_lease, '확인 필요') %}
+{% set initial_protection_label = '보호 연결 끊김' if protection_disconnected else protection_names.get(initial_protection, '확인 필요') %}
+{% set initial_evidence_summary = status.evidence_summary or {} %}
+{% set initial_hook_count = (initial_evidence_summary.pretool_events or 0) + (initial_evidence_summary.posttool_events or 0) %}
+{% set initial_evidence_count = initial_hook_count + (initial_evidence_summary.filesystem_events or 0) + (initial_evidence_summary.process_observed or 0) + (initial_evidence_summary.process_exit_observed or 0) + (initial_evidence_summary.sensor_health_events or 0) %}
+{% set bundle_names = {'VALID': '유효 · 검증됨', 'INVALID': '검증 실패', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '확인 불가'} %}
+{% set initial_bundle_status = status.bundle_status or 'PENDING' %}
 <div class="workbench-shell">
   <header class="workbench-header">
     <div>
@@ -17,7 +37,7 @@
     </div>
     <div class="workbench-header-actions">
       <button id="refresh-status" class="button secondary workbench-refresh" type="button" title="센서와 실행 상태를 다시 확인합니다.">상태 새로고침</button>
-      <span id="run-status" class="status-badge{% if protection_disconnected %} status-danger{% endif %}" aria-live="polite">{{ '보호 연결 끊김' if protection_disconnected else '상태 확인 중' }}</span>
+      <span id="run-status" class="status-badge{% if protection_disconnected %} status-danger{% endif %}" title="{{ initial_session_status }}" aria-live="polite">{{ initial_status_label }}</span>
       <button id="stop-run" class="button danger" type="button"{% if status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] or (status.runtime_reconciliation or {}).get('orphaned') %} hidden{% endif %}>보호 실행 중지</button>
       <span id="stop-confirmation" class="workbench-stop-confirmation" role="status" aria-live="polite" hidden>한 번 더 누르면 보호 실행을 중지합니다.</span>
       <button id="reconcile-run" class="button" type="button"{% if not (status.runtime_reconciliation or {}).get('orphaned') %} hidden{% endif %}>고아 실행 정리 확인</button>
@@ -29,8 +49,8 @@
     <span class="workbench-guidance-mark" aria-hidden="true">•</span>
     <div class="workbench-guidance-copy">
       <span class="workbench-guidance-kicker">현재 상태</span>
-    <strong id="workbench-guidance-title">{{ 'AIA 보호 연결이 끊겼습니다.' if protection_disconnected else 'AIA 실행 상태를 확인하는 중입니다.' }}</strong>
-    <small id="workbench-guidance-detail">{{ '이 실행은 보호된 상태로 간주하지 않습니다. 연결 끊긴 실행을 정리하거나 실행 기록을 검토하세요.' if protection_disconnected else '잠시 기다려 주세요.' }}</small>
+    <strong id="workbench-guidance-title">{{ 'AIA 보호 연결이 끊겼습니다.' if protection_disconnected else '보호된 Codex 작업을 관찰하고 있습니다.' if not run_ended else '보호 실행이 종료되었습니다.' }}</strong>
+    <small id="workbench-guidance-detail">{{ '이 실행은 보호된 상태로 간주하지 않습니다. 연결 끊긴 실행을 정리하거나 실행 기록을 검토하세요.' if protection_disconnected else '오른쪽 센서와 이벤트에서 실제 관찰 결과를 확인할 수 있습니다.' if not run_ended else '결과 보기에서 정책·센서 Evidence·무결성 상태를 확인하세요.' }}</small>
     </div>
     <span id="workbench-guidance-owner" class="badge">AIA</span>
   </section>
@@ -55,8 +75,8 @@
   <nav class="workbench-jumpbar" aria-label="Workbench 바로가기">
     <span id="workbench-sticky-status" class="workbench-sticky-status" role="status" aria-live="polite">
       <i id="workbench-sticky-status-mark" aria-hidden="true"></i>
-      <strong id="workbench-sticky-status-label">상태 확인 중</strong>
-      <small id="workbench-sticky-status-detail">터미널 연결 확인 중</small>
+      <strong id="workbench-sticky-status-label">{{ initial_status_label }}</strong>
+      <small id="workbench-sticky-status-detail">{{ '결과 확인 가능' if run_ended else '터미널 연결 확인 중' }}</small>
     </span>
     <span class="workbench-jumpbar-label">바로가기</span>
     <a class="workbench-jump-link is-active" data-workbench-jump="terminal-panel" href="#terminal-panel">Codex 작업창</a>
@@ -73,9 +93,9 @@
           <dt>Workspace</dt><dd class="mono path-value" title="{{ status.session.workspace }}">{{ status.session.workspace }}</dd>
           <dt>Agent</dt><dd>Codex CLI</dd>
           <dt>Policy</dt><dd>{% if status.policy.id %}{{ status.policy.id }} · {{ status.policy.version }}{% elif status.policy.profile == 'PROTECTED_DEVELOPMENT' %}보호 개발 정책{% elif status.policy.profile == 'BASIC_DEVELOPMENT' %}기본 개발 정책{% elif status.policy.profile == 'CONSERVATIVE_SECURITY' %}보수적 보안 정책{% elif status.policy.profile == 'FREE_DEVELOPMENT' %}자유 개발 정책{% elif status.policy.profile %}{{ status.policy.profile }}{% else %}정책 정보 없음{% endif %}</dd>
-          <dt>Phase</dt><dd id="phase">{{ '보호 연결 끊김' if protection_disconnected else '상태 확인 중' }}</dd>
-          <dt>Checkpoint</dt><dd id="checkpoint">{{ status.checkpoint or '정보 없음' }}</dd>
-          <dt>Lease</dt><dd id="lease">{{ '연결 끊김 · 정리 필요' if protection_disconnected else status.lease }}</dd>
+          <dt>Phase</dt><dd id="phase" title="{{ initial_phase }}">{{ initial_phase_label }}</dd>
+          <dt>Checkpoint</dt><dd id="checkpoint" title="{{ initial_checkpoint }}">{{ initial_checkpoint_label }}</dd>
+          <dt>Lease</dt><dd id="lease" title="{{ initial_lease }}">{{ initial_lease_label }}</dd>
         </dl>
       </section>
       <section class="workbench-card">
@@ -186,7 +206,7 @@
       </button>
       <div id="security-panel-content" class="security-panel-content">
       <section class="workbench-card">
-        <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다. 센서 카드를 누르면 해당 Evidence로 이동합니다.</p></div><span id="protection-state" class="badge" aria-live="polite">{{ '보호 연결 끊김' if protection_disconnected else status.protection.state }}</span></div>
+        <div class="panel-heading"><div><h2>보안 관찰</h2><p class="hint">센서와 보안 사건을 확인합니다. 센서 카드를 누르면 해당 Evidence로 이동합니다.</p></div><span id="protection-state" class="badge" title="{{ initial_protection }}" aria-live="polite">{{ initial_protection_label }}</span></div>
         <p id="protection-state-note" class="workbench-protection-note" role="status" aria-live="polite">보호 상태를 확인하는 중입니다.</p>
         <div class="workbench-sensors">
           <div id="sensor-card-hook" class="workbench-sensor" role="button" tabindex="0" data-sensor-focus="AGENT_HOOK" aria-controls="sensor-evidence-panel" title="Hook Evidence 타임라인 보기"><span class="sensor-icon hook">H</span><div><strong>Hook Sensor</strong><small id="sensor-hook">{{ '보호 연결 끊김 · 확인 필요' if protection_disconnected else '확인 중' }}</small><small class="workbench-sensor-action">Evidence 보기 →</small></div><div class="sensor-count"><b id="sensor-hook-count" aria-live="polite">0건</b><small id="sensor-hook-update" class="sensor-update-label" aria-live="polite" hidden></small></div></div>
@@ -243,13 +263,13 @@
   </div>
 
   <section class="workbench-bottom workbench-summary" aria-label="실행 요약">
-    <div class="workbench-bottom-card"><span>보호 상태</span><strong id="summary-protection">확인 중</strong><small id="summary-protection-detail">AIA 보호 상태</small></div>
+    <div class="workbench-bottom-card"><span>보호 상태</span><strong id="summary-protection">{{ initial_protection_label }}</strong><small id="summary-protection-detail">{{ 'AIA 보호 연결을 확인하는 중입니다.' if initial_protection == 'UNKNOWN' else 'AIA 보호 상태' }}</small></div>
     <div class="workbench-bottom-card"><span>센서 상태</span><strong id="summary-sensors">확인 중</strong><small id="summary-sensors-detail">Hook · File · Process</small></div>
-    <div class="workbench-bottom-card"><span>차단·주의</span><strong id="summary-incidents">0건</strong><small>정책 사건</small></div>
-    <div class="workbench-bottom-card"><span>증거</span><strong id="evidence-count">0건</strong><small>원시 증거 집계</small></div>
-    <div class="workbench-bottom-card"><span>파일 이벤트</span><strong id="file-count">0건</strong><small>Workspace 변화</small></div>
-    <div class="workbench-bottom-card"><span>프로세스</span><strong id="process-count">0건</strong><small>프로세스 관찰</small></div>
-    <div class="workbench-bottom-card"><span>결과 Bundle</span><strong id="bundle-status">검증 전</strong><small>종료 후 검증</small></div>
+    <div class="workbench-bottom-card"><span>차단·주의</span><strong id="summary-incidents">{{ status.incident_count or 0 }}건</strong><small>정책 사건</small></div>
+    <div class="workbench-bottom-card"><span>증거</span><strong id="evidence-count">{{ initial_evidence_count }}건</strong><small>원시 증거 집계</small></div>
+    <div class="workbench-bottom-card"><span>파일 이벤트</span><strong id="file-count">{{ initial_evidence_summary.filesystem_events or 0 }}건</strong><small>Workspace 변화</small></div>
+    <div class="workbench-bottom-card"><span>프로세스</span><strong id="process-count">{{ initial_evidence_summary.process_observed or 0 }}건</strong><small>프로세스 관찰</small></div>
+    <div class="workbench-bottom-card"><span>결과 Bundle</span><strong id="bundle-status">{{ bundle_names.get(initial_bundle_status, '검증 전') if status.result_available else '검증 전' }}</strong><small>종료 후 검증</small></div>
   </section>
 
 </div>
@@ -1558,7 +1578,7 @@ function renderSecurity(status) {
   protectionState.title = status.protection?.state || '';
   document.getElementById('summary-protection').textContent = protectionLabel(status.protection?.state);
   document.getElementById('summary-protection').title = status.protection?.state || '';
-  document.getElementById('summary-protection-detail').textContent = status.protection?.state || 'AIA 보호 상태';
+  document.getElementById('summary-protection-detail').textContent = protectionNote(status.protection?.state);
   protectionStateNote.textContent = protectionNote(status.protection?.state);
   protectionStateNote.className = `workbench-protection-note ${protectionNoteClass(status.protection?.state)}`;
   document.getElementById('phase').textContent = orphaned && !ended ? '보호 연결 끊김' : phaseLabel(status.phase);
