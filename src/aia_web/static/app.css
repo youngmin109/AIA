@@ -336,6 +336,10 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .workbench-event strong, .workbench-event small { display: block; overflow-wrap: anywhere; }
 .workbench-event small { color: var(--muted); margin-top: 3px; }
 .workbench-event .badge { flex: 0 0 auto; }
+.workbench-event-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.workbench-event-title strong { min-width: 0; }
+.event-category-label { flex: 0 0 auto; color: var(--muted); border: 1px solid rgba(145,164,182,.32); border-radius: 999px; padding: 2px 5px; font-size: 9px; font-weight: 750; white-space: nowrap; }
+.event-detail-hint { display: block; margin-top: 4px; color: var(--cyan); font-size: 10px; }
 .event-badges { display: flex; flex: 0 0 auto; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .event-new-label { color: var(--cyan); border: 1px solid rgba(101,217,232,.42); border-radius: 999px; padding: 2px 5px; font-size: 9px; font-weight: 750; white-space: nowrap; }
 .workbench-card-subtitle { margin: -4px 0 9px; color: var(--muted); font-size: 11px; }

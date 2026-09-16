@@ -726,6 +726,7 @@ const executionDisplayLabel = (value, ended = false, observed = false) => observ
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor', MULTI_SENSOR: '복수 센서'})[value] || value || 'AIA';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
+const eventCategoryLabel = (event) => event?.category === 'SENSOR' ? '센서 상태' : '행위 요청';
 const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
 const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'ABORTED_VERIFIED'].includes(value) ? 'status-success' : ['ACTIVE_DEGRADED', 'COMPLETED_DEGRADED', 'ABORTED_DEGRADED', 'ACTIVE_UNVERIFIED'].includes(value) ? 'status-warning' : ['FAILED_DEGRADED', 'ORPHANED_DEGRADED'].includes(value) ? 'status-danger' : '';
 const chainStatusLabel = (value) => ({LINKED: '연결됨', RUN_OBSERVED: '실행 중 관찰', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
@@ -1664,12 +1665,25 @@ function renderSecurity(status) {
       : ended
         ? '이 실행에는 보안 이벤트가 없습니다.'
         : '아직 보안 이벤트가 없습니다. 센서가 관찰하면 여기에 표시됩니다.';
-    document.getElementById('security-events').innerHTML = events.length ? orderedEvents(events).slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; const isNew = eventHighlightKeys.has(securityEventKey(event)); return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><strong>${esc(eventSummaryLabel(event.summary))}</strong><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small></div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
+    document.getElementById('security-events').innerHTML = events.length ? orderedEvents(events).slice(0, 12).map((event) => { const executionValue = event.execution_observed && event.execution_result === 'NOT_ATTEMPTED' ? 'OBSERVED' : event.execution_result; const chainActionId = event.chain_action_id || event.incident_action_id; const chainAttribute = chainActionId ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"` : ''; const isNew = eventHighlightKeys.has(securityEventKey(event)); const detailHint = chainActionId ? '<span class="event-detail-hint">증거 흐름 보기 →</span>' : ''; return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><div class="workbench-event-title"><span class="event-category-label">${esc(eventCategoryLabel(event))}</span><strong>${esc(eventSummaryLabel(event.summary))}</strong></div><small>${esc(formatTime(event.observed_at))} · ${esc(event.target_label || '')} · ${esc(sensorNameLabel(event.sensor || 'AIA'))}</small>${detailHint}</div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`; }).join('') : `<div class="empty">${emptyMessage}</div>`;
     bindChainSelectors();
   }
   const eventCount = document.getElementById('event-count');
   const actionEventCount = allEvents.filter((event) => event.category !== 'SENSOR').length;
   const sensorEventCount = allEvents.filter((event) => event.category === 'SENSOR').length;
+  const eventFilterLabels = {ALL: '전체', ACTION: '행위', SENSOR: '센서 상태'};
+  const eventFilterCounts = {
+    ALL: allEvents.length,
+    ACTION: actionEventCount,
+    SENSOR: sensorEventCount,
+  };
+  eventFilterButtons.forEach((button) => {
+    const filter = button.dataset.eventFilter || 'ALL';
+    const label = eventFilterLabels[filter] || filter;
+    const count = eventFilterCounts[filter] ?? 0;
+    button.textContent = `${label} ${count}`;
+    button.setAttribute('aria-label', `${label} 이벤트 ${count}건`);
+  });
   eventCount.textContent = eventFilter === 'ALL'
     ? `전체 ${allEvents.length}건 · 행위 ${actionEventCount} · 센서 ${sensorEventCount}`
     : `${events.length}건 / 전체 ${allEvents.length}건`;
