@@ -1062,6 +1062,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "dashboardCheckMark(check, readinessStatus)" in dashboard.text
     assert "renderDashboardPreflightChecks(data.checks, dashboardReadinessCode)" in dashboard.text
     assert "dashboardPreflightRetry" in dashboard.text
+    assert "dashboardPreflightTransientFailure" in dashboard.text
     assert "loadDashboardPreflight" in dashboard.text
     assert "startDashboardPreflightLoading" in dashboard.text
     assert "updateDashboardPreflightElapsed" in dashboard.text

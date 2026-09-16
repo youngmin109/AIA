@@ -355,7 +355,8 @@ function renderDashboardReadiness(run) {
   if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = dashboardReadinessOk ? '보호 실행을 시작할 수 있습니다.' : '보호 실행 전에 확인이 필요합니다.';
   if (dashboardReadinessHint) dashboardReadinessHint.textContent = dashboardReadinessHint.dataset.defaultText || '사전 점검 결과를 확인하세요.';
   if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = true;
-  if (dashboardReadinessNextSteps) dashboardReadinessNextSteps.hidden = dashboardReadinessOk;
+  const dashboardPreflightTransientFailure = ['PREFLIGHT_TIMEOUT', 'PREFLIGHT_UNAVAILABLE'].includes(dashboardReadinessCode);
+  if (dashboardReadinessNextSteps) dashboardReadinessNextSteps.hidden = dashboardReadinessOk || dashboardPreflightTransientFailure;
   if (dashboardReadinessReadyNotice) dashboardReadinessReadyNotice.hidden = !dashboardReadinessOk;
 }
 
