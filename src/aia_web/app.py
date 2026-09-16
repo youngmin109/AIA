@@ -101,10 +101,10 @@ def _dashboard_preflight_placeholder() -> dict[str, Any]:
     }
 
 
-def _console_module_cli_prefix() -> str:
-    """Return the launcher that bypasses a blocked generated ``aia.exe``."""
+def _console_project_root() -> Path | None:
+    """Return the checkout that is serving this local console, when present."""
 
-    project_root = next(
+    return next(
         (
             candidate
             for candidate in (_ROOT, *_ROOT.parents)
@@ -112,6 +112,12 @@ def _console_module_cli_prefix() -> str:
         ),
         None,
     )
+
+
+def _console_module_cli_prefix() -> str:
+    """Return the launcher that bypasses a blocked generated ``aia.exe``."""
+
+    project_root = _console_project_root()
     if project_root is not None:
         return subprocess.list2cmdline(
             [
@@ -229,6 +235,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "capabilities": product_capabilities(),
                 "cli_prefix": _console_cli_prefix(),
                 "module_cli_prefix": _console_module_cli_prefix(),
+                "cli_project_root": _console_project_root(),
             },
         )
 
@@ -244,6 +251,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "capabilities": product_capabilities(),
                 "cli_prefix": _console_cli_prefix(),
                 "module_cli_prefix": _console_module_cli_prefix(),
+                "cli_project_root": _console_project_root(),
                 "hook_path": str(CodexHookInstaller().path),
             },
         )

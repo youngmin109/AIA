@@ -1950,11 +1950,12 @@ def _policy_profiles(args: argparse.Namespace) -> int:
     if args.json:
         print(_json_text({"profiles": profiles}))
         return 0
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     print("AIA 정책 프로필")
     for item in profiles:
         edit_hint = "복사 후 수정 가능" if item["editable"] else "직접 JSON 필요"
         print(f"- {item['value']} / {item['label']}: {item['description']} ({edit_hint})")
-    print("기본 정책 파일 생성: uv run aia policy init C:\\workspace\\policies\\my-policy.json")
+    print(f"기본 정책 파일 생성: {cli_prefix} policy init C:\\workspace\\policies\\my-policy.json")
     return 0
 
 
@@ -1976,7 +1977,7 @@ def _init_policy(args: argparse.Namespace) -> int:
     print("정책 파일을 생성했습니다.")
     print(f"프로필: {profile.value} ({profile.display_name})")
     print(f"경로: {target}")
-    print(f"다음 단계: uv run aia policy validate \"{target}\"")
+    print(f"다음 단계: {_cli_prefix(CodexHookInstaller())} policy validate \"{target}\"")
     return 0
 
 
@@ -2120,6 +2121,7 @@ def _show_status(args: argparse.Namespace) -> int:
     policy = status.get("policy") or {}
     policy_id = policy.get("id") or policy.get("policy_id") or "-"
     policy_version = policy.get("version") or policy.get("policy_version") or ""
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     print("AIA 보호 실행 상태")
     print(f"Session: {session.get('session_id', args.session_id)}")
     print(f"상태: {session.get('status', 'UNKNOWN')} / 단계: {status.get('phase', 'UNKNOWN')}")
@@ -2147,7 +2149,7 @@ def _show_status(args: argparse.Namespace) -> int:
         )
         if reconciliation.get("orphaned"):
             print(f"주의: {reconciliation.get('detail', '보호 상태를 확인할 수 없습니다.')}")
-            print(f"[다음] uv run aia reconcile {args.session_id}")
+            print(f"[다음] {cli_prefix} reconcile {args.session_id}")
     return 0
 
 

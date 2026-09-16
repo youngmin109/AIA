@@ -6,6 +6,7 @@
 {% set preflight_deferred = dashboard_preflight_deferred|default(False) %}
 {% set cli_prefix = cli_prefix|default('uv run --isolated python -m aia.cli') %}
 {% set module_cli_prefix = module_cli_prefix|default('uv run --isolated python -m aia.cli') %}
+{% set cli_project_root = cli_project_root|default(none) %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
 {% set hook_activation = preflight.get('hook_activation') or {} %}
 {% set hook_verified = hook_activation.get('status') == 'CURRENTLY_VERIFIED' %}
@@ -144,6 +145,7 @@
   <div id="dashboard-readiness-next-steps" class="next-steps"{% if active_run.item or preflight_deferred or readiness_ok %} hidden{% endif %}>
     <strong id="dashboard-next-steps-title">다음 단계</strong>
     <p id="dashboard-next-steps-intro" class="hint">저장소에서는 아래의 Python 모듈 실행 명령을 사용하세요. Windows가 생성된 <code>aia.exe</code>를 차단하는 환경에서도 이 명령은 그대로 사용할 수 있습니다.</p>
+    {% if cli_project_root %}<div class="dashboard-command-context" role="note"><strong>이 화면의 AIA 기준 폴더</strong><code>{{ cli_project_root }}</code><em>다른 aia-mvp 복사본에서 실행하면 Hook 설치와 검증 결과가 달라질 수 있습니다.</em></div>{% endif %}
     <ol class="dashboard-next-steps-list">
       <li class="dashboard-command-step" data-dashboard-step="setup"><span><span class="mono">{{ cli_prefix }} setup</span>으로 AIA Hook을 설치합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia setup</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} setup">복사</button></li>
       <li class="dashboard-command-step" data-dashboard-step="explain"><span><span class="mono">{{ cli_prefix }} hook explain</span>으로 검토할 matcher와 command를 확인합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia hook explain</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook explain">복사</button></li>
