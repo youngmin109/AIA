@@ -941,3 +941,5 @@ samp,
 .security-events-card .workbench-event.event-sensor .event-category-label { opacity: .82; }
 .result-event-row[data-result-event-category="ACTION"] { padding-left: 9px; border-left: 3px solid rgba(21, 139, 196, .55); background: rgba(224, 247, 255, .34); }
 .result-event-row[data-result-event-category="SENSOR"] { opacity: .84; }
+.dashboard-preflight-loading { flex-wrap: wrap; }
+.preflight-loading-help { flex: 1 0 100%; margin-left: 24px; color: var(--muted); font-size: 11px; line-height: 1.45; }

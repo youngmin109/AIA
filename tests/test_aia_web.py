@@ -307,6 +307,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
+    assert ".preflight-loading-help" in css.text
     assert ".preflight-requirement-summary" in css.text
     assert ".hook-readiness-path" in css.text
     assert ".hook-readiness-step.is-attention" in css.text
@@ -428,11 +429,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="readiness-code" title="CHECKING">확인 중</span>' in new_run.text
     assert 'id="preflight-loading"' in new_run.text
     assert 'id="preflight-loading-elapsed"' in new_run.text
+    assert 'id="preflight-loading-help"' in new_run.text
     assert 'id="verify-hook-elapsed"' in new_run.text
     assert "startPreflightLoading" in new_run.text
     assert "updatePreflightElapsed" in new_run.text
     assert "로컬 Codex Hook Trust 응답을 기다리고 있습니다…" in new_run.text
     assert "확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…" in new_run.text
+    assert "Codex의 /hooks에서 AIA Hook을 검토·신뢰한 뒤, 확인이 끝나면 다시 검사할 수 있습니다." in new_run.text
     assert "preflightLoadingMessageTimer" in new_run.text
     assert "startVerifyHookProgress" in new_run.text
     assert "updateVerifyHookElapsed" in new_run.text
@@ -1526,8 +1529,10 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-preflight-loading"' in dashboard.text
     assert 'id="dashboard-preflight-loading-elapsed"' in dashboard.text
+    assert 'id="dashboard-preflight-loading-help"' in dashboard.text
     assert "로컬 Codex Hook Trust 응답을 기다리고 있습니다…" in dashboard.text
     assert "확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…" in dashboard.text
+    assert "Codex의 /hooks에서 AIA Hook을 검토·신뢰한 뒤, 확인이 끝나면 다시 검사할 수 있습니다." in dashboard.text
     assert "dashboardPreflightLoadingMessageTimer" in dashboard.text
     assert 'id="dashboard-preflight-retry"' in dashboard.text
     assert 'id="dashboard-preflight-checks"' in dashboard.text
