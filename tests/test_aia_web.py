@@ -332,6 +332,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "#dashboard-recent-table > table tbody > tr > td:nth-child(3)::before" in css.text
     assert ".dashboard-run-row-has-incidents > td:first-child" in css.text
     assert ".dashboard-incident-count.has-incidents" in css.text
+    assert ".history-run-row-has-incidents > td:first-child" in css.text
+    assert ".history-incident-count.has-incidents" in css.text
     assert ".workbench-guidance.guidance-warning { background:" in css.text
     assert ".workbench-header > div:first-child { display: grid; gap: 4px; }" in css.text
     assert ".workbench-header h1 { margin: 0; font-size: 24px; }" in css.text
@@ -1684,6 +1686,28 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'id="history-next"' in history.text
     assert "historyPageSize = 20" in history.text
     assert "/runs/run-1/result" not in history.text
+
+
+def test_history_highlights_policy_incidents_in_run_rows() -> None:
+    service = FakeService()
+    service.list_runs = lambda: [{
+        "session_id": "incident-run",
+        "status": "COMPLETED",
+        "workspace": "C:/workspace/incident-demo",
+        "policy": {"id": "basic", "version": "1.0"},
+        "incident_count": 1,
+        "bundle_status": "VALID",
+        "protection_state": "COMPLETED_DEGRADED",
+        "launch_mode": "web_terminal",
+        "result_url": "/runs/incident-run/result",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }]
+
+    history = TestClient(create_app(service)).get("/runs")
+
+    assert history.status_code == 200
+    assert 'class="run-row history-run-row-has-incidents"' in history.text
+    assert 'class="history-incident-count has-incidents" title="정책 사건 · 결과에서 확인">1건</span>' in history.text
 
 
 def test_run_history_labels_aia_diagnostic_runs_without_hiding_them() -> None:
