@@ -328,8 +328,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="readiness-code" title="CHECKING">확인 중</span>' in new_run.text
     assert 'id="preflight-loading"' in new_run.text
     assert 'id="preflight-loading-elapsed"' in new_run.text
+    assert 'id="verify-hook-elapsed"' in new_run.text
     assert "startPreflightLoading" in new_run.text
     assert "updatePreflightElapsed" in new_run.text
+    assert "startVerifyHookProgress" in new_run.text
+    assert "updateVerifyHookElapsed" in new_run.text
     assert 'id="preflight-checks"' in new_run.text
     assert "loadPreflight" in new_run.text
     assert "PREFLIGHT_TIMEOUT" in new_run.text

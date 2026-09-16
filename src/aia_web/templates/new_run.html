@@ -238,6 +238,7 @@
   <div class="form-actions">
     <button id="verify-hook" class="button" type="button"{% if preflight_deferred %} disabled{% endif %}>{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
     <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else ('준비 상태 확인이 끝난 뒤 Hook 연결을 검증할 수 있습니다.' if preflight_deferred else 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.') }}</span>
+    <span id="verify-hook-elapsed" class="preflight-loading-elapsed" hidden>경과 0초</span>
   </div>
 </section>
 
@@ -348,6 +349,7 @@ const readinessNextStep = document.getElementById('readiness-next-step');
 const submitRun = document.getElementById('submit-run');
 const verifyHookButton = document.getElementById('verify-hook');
 const verifyHookStatus = document.getElementById('verify-hook-status');
+const verifyHookElapsed = document.getElementById('verify-hook-elapsed');
 const hookActivation = document.getElementById('hook-activation');
 const codexHookTrust = document.getElementById('codex-hook-trust');
 const jumpToRun = document.getElementById('jump-to-run');
@@ -389,6 +391,8 @@ let preflightRequestInFlight = false;
 let preflightRequestTimer = null;
 let preflightStartedAt = 0;
 let preflightElapsedTimer = null;
+let verifyHookStartedAt = 0;
+let verifyHookElapsedTimer = null;
 let workspaceValidationRequest = 0;
 let workspaceValidationTimer = null;
 let validatedWorkspacePath = '';
@@ -713,6 +717,27 @@ function updatePreflightElapsed() {
   const elapsed = Math.max(0, Math.floor((Date.now() - preflightStartedAt) / 1000));
   preflightLoadingElapsed.textContent = `경과 ${elapsed}초`;
 }
+function updateVerifyHookElapsed() {
+  if (!verifyHookElapsed || !verifyHookStartedAt) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - verifyHookStartedAt) / 1000));
+  verifyHookElapsed.textContent = `경과 ${elapsed}초`;
+}
+function startVerifyHookProgress() {
+  if (verifyHookElapsedTimer !== null) window.clearInterval(verifyHookElapsedTimer);
+  verifyHookStartedAt = Date.now();
+  if (verifyHookElapsed) verifyHookElapsed.hidden = false;
+  updateVerifyHookElapsed();
+  verifyHookElapsedTimer = window.setInterval(updateVerifyHookElapsed, 1000);
+}
+function stopVerifyHookProgress() {
+  if (verifyHookElapsedTimer !== null) window.clearInterval(verifyHookElapsedTimer);
+  verifyHookElapsedTimer = null;
+  verifyHookStartedAt = 0;
+  if (verifyHookElapsed) {
+    verifyHookElapsed.hidden = true;
+    verifyHookElapsed.textContent = '경과 0초';
+  }
+}
 function startPreflightLoading() {
   if (preflightElapsedTimer !== null) window.clearInterval(preflightElapsedTimer);
   preflightStartedAt = Date.now();
@@ -768,6 +793,7 @@ async function loadPreflight({manual = false} = {}) {
 }
 refreshPreflightButton.addEventListener('click', () => loadPreflight({manual: true}));
 verifyHookButton.addEventListener('click', async () => {
+  startVerifyHookProgress();
   setButtonBusy(verifyHookButton, true, '검증 중…');
   verifyHookStatus.className = 'hint';
   verifyHookStatus.textContent = '임시 Workspace에서 실제 Hook 연결을 검증하는 중…';
@@ -787,6 +813,7 @@ verifyHookButton.addEventListener('click', async () => {
     verifyHookStatus.className = 'hint error-text';
     verifyHookStatus.textContent = `검증 요청 실패: ${error.message}`;
   } finally {
+    stopVerifyHookProgress();
     setButtonBusy(verifyHookButton, false);
   }
 });
