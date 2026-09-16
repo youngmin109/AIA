@@ -883,3 +883,9 @@ samp,
 .dashboard-readiness-progress-steps span.is-complete::before { border-color: var(--green); background: var(--green); }
 .dashboard-readiness-progress-steps span.is-current { color: #82520b; background: rgba(245,199,106,.16); box-shadow: 0 0 0 1px rgba(245,199,106,.28); }
 .dashboard-readiness-progress-steps span.is-current::before { border-color: var(--amber); background: var(--amber); box-shadow: 0 0 0 3px rgba(245,199,106,.16); }
+
+/* Make the action-first event feed scannable without changing its evidence. */
+.security-events-card .workbench-event.event-action { padding-left: 9px; border-left: 3px solid rgba(21, 139, 196, .55); background: rgba(224, 247, 255, .34); }
+.security-events-card .workbench-event.event-action .event-category-label { color: #0878ae; border-color: rgba(21, 139, 196, .4); background: rgba(224, 247, 255, .7); }
+.security-events-card .workbench-event.event-sensor { opacity: .84; }
+.security-events-card .workbench-event.event-sensor .event-category-label { opacity: .82; }

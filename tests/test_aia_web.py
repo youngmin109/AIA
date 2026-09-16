@@ -842,6 +842,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "증거 흐름 보기 →" in workbench.text
     assert 'class="event-category-label"' in workbench.text
     assert "const orderedEvents = (items) => items" in workbench.text
+    assert "const eventKindClass = isSensorEvent(event) ? 'event-sensor' : 'event-action';" in workbench.text
+    assert 'workbench-event ${eventKindClass}' in workbench.text
     assert "const displayOrderNote = eventFilter === 'ALL' ? '행위 우선 · ' : '';" in workbench.text
     assert "if (leftIsSensor !== rightIsSensor) return leftIsSensor - rightIsSensor;" in workbench.text
     assert "eventDetailLink?.addEventListener" in workbench.text

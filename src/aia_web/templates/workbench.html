@@ -1898,6 +1898,7 @@ function renderSecurity(status) {
             ? ` data-chain-select="${esc(chainActionId)}" role="button" tabindex="0" title="연결된 실행 증거 흐름 보기"`
             : '';
           const isNew = eventHighlightKeys.has(securityEventKey(event));
+          const eventKindClass = isSensorEvent(event) ? 'event-sensor' : 'event-action';
           const detailHint = chainActionId
             ? '<span class="event-detail-hint">증거 흐름 보기 →</span>'
             : '';
@@ -1907,7 +1908,7 @@ function renderSecurity(status) {
             eventTargetLabel(event),
             sensorNameLabel(event.sensor || 'AIA'),
           ].filter(Boolean).join(' · ');
-          return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><div class="workbench-event-title"><span class="event-category-label">${esc(eventCategoryLabel(event))}</span><strong>${esc(eventTitleLabel(event))}</strong></div><small>${esc(formatTime(event.observed_at))} · ${esc(contextLabel)}</small>${detailHint}</div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${eventDecisionBadge(event, orphaned)}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`;
+          return `<div class="workbench-event ${eventKindClass} severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><div class="workbench-event-title"><span class="event-category-label">${esc(eventCategoryLabel(event))}</span><strong>${esc(eventTitleLabel(event))}</strong></div><small>${esc(formatTime(event.observed_at))} · ${esc(contextLabel)}</small>${detailHint}</div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${eventDecisionBadge(event, orphaned)}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`;
         }).join('')
       : `<div class="empty">${emptyMessage}</div>`;
     bindChainSelectors();
