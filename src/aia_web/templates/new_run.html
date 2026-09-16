@@ -221,6 +221,7 @@
         <div class="preflight-command-row"><span>설치</span><code>{{ cli_prefix }} setup</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} setup">복사</button></div>
         <div class="preflight-command-row"><span>검증</span><code>{{ cli_prefix }} hook verify</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} hook verify">복사</button></div>
       </div>
+      {% if module_cli_prefix != cli_prefix %}
       <div class="preflight-command-note" role="note">
         <strong>Windows 실행 파일 오류가 나면</strong>
         <span><code>aia.exe</code>가 애플리케이션 제어 정책으로 차단될 때는 아래 대체 명령을 그대로 실행하세요.</span>
@@ -230,6 +231,7 @@
           <div class="preflight-command-row"><span>검증</span><code>{{ module_cli_prefix }} hook verify</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} hook verify">복사</button></div>
         </div>
       </div>
+      {% endif %}
       <span id="preflight-command-status" class="hint" role="status" aria-live="polite">`setup`과 `hook verify`는 같은 AIA 프로젝트 폴더에서 순서대로 실행하세요.</span>
     </div>
   </div>

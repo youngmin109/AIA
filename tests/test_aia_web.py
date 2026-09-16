@@ -320,9 +320,6 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex 설정에서 신뢰된 Hook이 확인되었습니다." in new_run.text
     assert "Codex Hook Trust 상태를 확인할 수 없습니다." in new_run.text
     assert "preflight-command-help" in new_run.text
-    assert "Windows 실행 파일 오류가 나면" in new_run.text
-    assert "preflight-command-note" in new_run.text
-    assert "python -m aia.cli doctor" in new_run.text
     assert "python -m aia.cli setup" in new_run.text
     assert "python -m aia.cli hook verify" in new_run.text
     assert "data-copy-command" in new_run.text
@@ -861,6 +858,35 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
     assert "SUPER_SECRET" not in result.text
+
+
+def test_new_run_shows_launcher_fallback_only_when_paths_differ(monkeypatch) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    monkeypatch.setattr(web_module, "_console_cli_prefix", lambda: "uv run aia")
+    monkeypatch.setattr(
+        web_module,
+        "_console_module_cli_prefix",
+        lambda: "uv run --isolated python -m aia.cli",
+    )
+
+    response = TestClient(create_app(FakeService())).get("/new")
+
+    assert response.status_code == 200
+    assert "Windows 실행 파일 오류가 나면" in response.text
+    assert "uv run --isolated python -m aia.cli doctor" in response.text
+    assert "uv run --isolated python -m aia.cli setup" in response.text
+    assert "uv run --isolated python -m aia.cli hook verify" in response.text
+
+
+def test_new_run_hides_redundant_launcher_fallback(monkeypatch) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    monkeypatch.setattr(web_module, "_console_cli_prefix", lambda: "same command")
+    monkeypatch.setattr(web_module, "_console_module_cli_prefix", lambda: "same command")
+
+    response = TestClient(create_app(FakeService())).get("/new")
+
+    assert response.status_code == 200
+    assert "Windows 실행 파일 오류가 나면" not in response.text
 
 
 def test_dashboard_reuses_one_run_snapshot_for_readiness_and_history() -> None:
