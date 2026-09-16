@@ -275,7 +275,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-14" in dashboard.text
+    assert "glassbox-ui-15" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -284,6 +284,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".workbench-jumpbar-label { flex-basis: auto; }" in css.text
     assert ".history-table { display: block; min-width: 0; }" in css.text
     assert "content: attr(data-label)" in css.text
+    assert ".result-event-toolbar" in css.text
+    assert ".result-event-filter.is-active" in css.text
     pretendard = client.get("/static/fonts/PretendardVariable.woff2")
     assert pretendard.status_code == 200
     assert pretendard.content.startswith(b"wOF2")
@@ -1047,6 +1049,10 @@ def test_result_event_timeline_localizes_enforcement_decisions() -> None:
     assert '<span class="badge" title="CONTINUE">계속 진행</span>' in result.text
     assert 'class="result-event-time" datetime="2026-09-16T10:20:08+09:00"' in result.text
     assert "result-event-time" in result.text
+    assert 'data-result-event-filter="ALL"' in result.text
+    assert 'data-result-event-filter="ACTION"' in result.text
+    assert 'id="result-event-toggle"' in result.text
+    assert "updateResultEventTimeline" in result.text
 
 
 def test_result_event_timeline_labels_sensor_observations_separately() -> None:
@@ -1075,6 +1081,7 @@ def test_result_event_timeline_labels_sensor_observations_separately() -> None:
     assert result.status_code == 200
     assert '<span class="badge" title="OBSERVED">센서 관찰</span>' in result.text
     assert "정책상 허용" not in result.text
+    assert 'data-result-event-category="SENSOR"' in result.text
 
 
 def test_result_page_does_not_show_success_when_bundle_is_invalid() -> None:

@@ -458,6 +458,21 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
   .history-table .history-empty-row td { display: block; }
 }
 
+/* Result timeline controls: keep repeated sensor observations readable while retaining every row. */
+.result-event-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 8px; }
+.result-event-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.result-event-filter { border-color: rgba(105, 157, 195, .36); background: rgba(255, 255, 255, .76); color: var(--muted); }
+.result-event-filter:hover, .result-event-filter:focus-visible, .result-event-filter.is-active { border-color: rgba(21, 139, 196, .58); background: rgba(202, 235, 252, .78); color: #0878ae; }
+.result-event-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+.result-event-visibility { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.result-event-toolbar-actions .text-button { color: #0878ae; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .result-event-toolbar { align-items: flex-start; flex-direction: column; }
+  .result-event-toolbar-actions { justify-content: space-between; width: 100%; }
+  .result-event-visibility { white-space: normal; }
+}
+
 /* Glass-box visual system: a bright, local-only glass surface around the existing security UI. */
 :root {
   color-scheme: light;
