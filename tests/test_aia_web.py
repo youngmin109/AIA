@@ -275,10 +275,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-12" in dashboard.text
+    assert "glassbox-ui-13" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
+    assert ".topbar { height: 60px; min-height: 60px;" in css.text
+    assert ".workbench-jumpbar { margin-right: 0; flex-wrap: nowrap; overflow-x: auto; }" in css.text
+    assert ".workbench-jumpbar-label { flex-basis: auto; }" in css.text
     pretendard = client.get("/static/fonts/PretendardVariable.woff2")
     assert pretendard.status_code == 200
     assert pretendard.content.startswith(b"wOF2")
