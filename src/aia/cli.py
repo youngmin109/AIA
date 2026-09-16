@@ -55,12 +55,44 @@ from aia_app.presenters import action_summary
 _HOOK_VERIFICATION_PROBE_TOKEN_ENV = "AIA_HOOK_VERIFICATION_PROBE_TOKEN"
 
 
-def _cli_prefix(installer: CodexHookInstaller) -> str:
-    """Return commands that work with the current AIA launch environment."""
+def _module_cli_prefix() -> str:
+    """Return a launcher that does not depend on a generated ``aia.exe``."""
 
-    if installer.uses_uv_launcher:
-        return "uv run --isolated python -m aia.cli"
-    return "uv run aia"
+    source = Path(__file__).resolve()
+    project_root = next(
+        (
+            candidate
+            for candidate in (source.parent, *source.parents)
+            if (candidate / "pyproject.toml").is_file()
+        ),
+        None,
+    )
+    if project_root is not None:
+        return subprocess.list2cmdline(
+            [
+                "uv",
+                "run",
+                "--isolated",
+                "--project",
+                str(project_root),
+                "python",
+                "-m",
+                "aia.cli",
+            ]
+        )
+    return subprocess.list2cmdline([sys.executable, "-m", "aia.cli"])
+
+
+def _cli_prefix(installer: CodexHookInstaller) -> str:
+    """Return a user-facing launcher that avoids a blocked console-script EXE."""
+
+    # Keep the argument for callers that already pass the installer.  The
+    # generated Windows console-script executable can be blocked by local
+    # application-control policy even when the Python interpreter is allowed.
+    # Always show the direct module path so setup/doctor guidance remains
+    # executable in that environment as well.
+    del installer
+    return _module_cli_prefix()
 
 
 def _json_text(value: object, *, default: object | None = None) -> str:

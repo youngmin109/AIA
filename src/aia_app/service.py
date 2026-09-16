@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 import json
 import subprocess
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -74,8 +75,6 @@ from .terminal import TerminalSessionError, WinPtyTerminalSession
 def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
     """Return a usable local CLI command for messages shown by the web app."""
 
-    if not installer.uses_uv_launcher:
-        return "uv run aia"
     module_path = Path(__file__).resolve()
     project_root = next(
         (
@@ -86,7 +85,7 @@ def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
         None,
     )
     if project_root is None:
-        return "uv run --isolated python -m aia.cli"
+        return subprocess.list2cmdline([sys.executable, "-m", "aia.cli"])
     return subprocess.list2cmdline(
         [
             "uv",

@@ -2,7 +2,7 @@
 {% block title %}새 보호 실행 · AIA{% endblock %}
 {% block content %}
 {% set preflight_deferred = new_run_preflight_deferred|default(False) %}
-{% set cli_prefix = cli_prefix|default('uv run aia') %}
+{% set cli_prefix = cli_prefix|default('uv run --isolated python -m aia.cli') %}
 {% set module_cli_prefix = module_cli_prefix|default('uv run --isolated python -m aia.cli') %}
 {% set readiness_labels = {'READY': '준비 완료', 'HOOK_VERIFICATION_REQUIRED': '확인 필요', 'CODEX_HOOK_TRUST_REQUIRED': 'Hook 검토 필요', 'CODEX_HOOK_NOT_INSTALLED': 'Hook 설치 필요', 'CODEX_EXECUTABLE_UNAVAILABLE': 'Codex 확인 필요', 'PREFLIGHT_TIMEOUT': '확인 시간 초과', 'PREFLIGHT_UNAVAILABLE': '확인 실패', 'CHECKING': '확인 중', 'UNKNOWN': '확인 필요'} %}
 {% set trust_status_labels = {'TRUSTED': '신뢰됨', 'MANAGED': '관리됨', 'MANUAL_REVIEW_REQUIRED': '검토 필요', 'MODIFIED': '변경됨 · 검토 필요', 'UNTRUSTED': '신뢰되지 않음', 'CHECKING': '확인 중', 'UNKNOWN': '확인 필요'} %}

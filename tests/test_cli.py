@@ -138,6 +138,14 @@ def test_doctor_parser_supports_machine_readable_preflight() -> None:
     assert args.json is True
 
 
+def test_cli_guidance_uses_module_launcher_for_source_checkout() -> None:
+    command = _cli_prefix(CodexHookInstaller())
+
+    assert "python -m aia.cli" in command
+    assert "uv run --isolated" in command
+    assert "uv run aia" not in command
+
+
 def test_self_test_parser_supports_machine_readable_output() -> None:
     args = _parser().parse_args(["self-test", "--json"])
 

@@ -133,10 +133,9 @@ def _console_module_cli_prefix() -> str:
 
 
 def _console_cli_prefix() -> str:
-    """Return the CLI form that matches the interpreter serving this page."""
+    """Return the CLI form that avoids a generated Windows console-script EXE."""
 
-    installer = CodexHookInstaller()
-    return _console_module_cli_prefix() if installer.uses_uv_launcher else "uv run aia"
+    return _console_module_cli_prefix()
 
 
 def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:

@@ -4,7 +4,7 @@
 {% set readiness = preflight.get('readiness_code', 'UNKNOWN') %}
 {% set readiness_ok = preflight.get('ready', False) %}
 {% set preflight_deferred = dashboard_preflight_deferred|default(False) %}
-{% set cli_prefix = cli_prefix|default('uv run aia') %}
+{% set cli_prefix = cli_prefix|default('uv run --isolated python -m aia.cli') %}
 {% set module_cli_prefix = module_cli_prefix|default('uv run --isolated python -m aia.cli') %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
 {% set hook_activation = preflight.get('hook_activation') or {} %}
