@@ -719,20 +719,6 @@ function updateNextAction() {
     detail = '정책·Checkpoint·센서를 준비하고 있습니다. 잠시 후 Workbench로 이동합니다.';
     link = '';
     linkLabel = '';
-  } else if (!preflightLoaded || preflightRequestInFlight) {
-    state = 'preflight-checking';
-    mark = '…';
-    title = '실행 전 준비 상태를 확인하는 중입니다.';
-    detail = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다. 확인이 끝나면 실행 버튼이 활성화됩니다.';
-    link = '#preflight-panel';
-    linkLabel = '확인 상태 보기';
-  } else if (!preflightReady) {
-    state = 'preflight';
-    mark = '2';
-    title = '실행 전 준비를 먼저 완료하세요.';
-    detail = 'Hook Trust와 현재 연결 증명을 확인한 뒤 보호 실행을 시작할 수 있습니다.';
-    link = '#preflight-panel';
-    linkLabel = '준비 상태 확인';
   } else if (workspaceValidationInProgress) {
     state = 'workspace-validating';
     mark = '…';
@@ -747,6 +733,20 @@ function updateNextAction() {
     detail = workspaceInput.value.trim() ? 'AIA가 확인할 수 있는 기존 폴더를 입력해야 실행 버튼이 활성화됩니다.' : '사용자가 만든 기존 프로젝트 폴더를 아래 실행 설정에 입력하면 AIA가 실제 경로를 확인합니다.';
     link = '#run-settings';
     linkLabel = 'Workspace 입력으로 이동';
+  } else if (!preflightLoaded || preflightRequestInFlight) {
+    state = 'preflight-checking';
+    mark = '…';
+    title = '실행 전 준비 상태를 확인하는 중입니다.';
+    detail = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다. 확인이 끝나면 실행 버튼이 활성화됩니다.';
+    link = '#preflight-panel';
+    linkLabel = '확인 상태 보기';
+  } else if (!preflightReady) {
+    state = 'preflight';
+    mark = '2';
+    title = '실행 전 준비를 먼저 완료하세요.';
+    detail = 'Hook Trust와 현재 연결 증명을 확인한 뒤 보호 실행을 시작할 수 있습니다.';
+    link = '#preflight-panel';
+    linkLabel = '준비 상태 확인';
   } else {
     state = 'ready';
     mark = '✓';
