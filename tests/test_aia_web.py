@@ -403,6 +403,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preflightCheckMark" in new_run.text
     assert "아래 설치 명령을 실행하세요." in new_run.text
     assert "아래 검증 명령을 실행해 실제 Hook 연결을 확인하세요." in new_run.text
+    assert "먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요." in new_run.text
     assert "PowerShell 권장 명령" in new_run.text
     assert "생성된 <code>aia.exe</code>를 거치지 않고" in new_run.text
     assert "preflight-command-context" in new_run.text
