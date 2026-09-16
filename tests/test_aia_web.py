@@ -482,6 +482,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
     assert 'class="workbench-card security-events-card"' in workbench.text
+    assert workbench.text.index('id="incident-card"') < workbench.text.index('class="workbench-card security-events-card"')
     assert 'class="workbench-context"' in workbench.text
     assert "보호 중인 Workspace" in workbench.text
     assert "실행 ID 보기" in workbench.text
