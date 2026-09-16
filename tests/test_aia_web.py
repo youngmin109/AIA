@@ -532,7 +532,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert '<span>Hook Sensor</span><strong id="hook-broker-health" title="HEALTHY">정상</strong>' in live.text
     assert "실시간 센서 상태" in live.text
     assert '<div id="status-badge" class="status-badge" title="RUNNING">실행 중</div>' in live.text
-    assert '<strong id="phase" title="RUNNING">Agent 실행 중</strong>' in live.text
+    assert '<strong id="phase" title="RUNNING">에이전트 실행 중</strong>' in live.text
+    assert '<span>체크포인트</span>' in live.text
+    assert '<span>보호 연결</span>' in live.text
     assert '<strong id="checkpoint" title="READY">생성됨 · 사용 가능</strong>' in live.text
     assert '<strong id="lease" title="ACTIVE">보호 실행에 연결됨</strong>' in live.text
     assert '<strong id="protection-state" aria-live="polite" title="ACTIVE_VERIFIED">보호 검증됨</strong>' in live.text
@@ -561,7 +563,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "보호 중인 Workspace" in workbench.text
     assert "실행 ID 보기" in workbench.text
     assert 'id="run-status"' in workbench.text and ">실행 중</span>" in workbench.text
-    assert '<dd id="phase" title="RUNNING">Agent 실행 중</dd>' in workbench.text
+    assert '<dd id="phase" title="RUNNING">에이전트 실행 중</dd>' in workbench.text
+    assert '<dt>에이전트</dt><dd>Codex CLI</dd>' in workbench.text
+    assert '<dt>보호 연결</dt>' in workbench.text
     assert '<dd id="checkpoint" title="READY">생성됨 · 사용 가능</dd>' in workbench.text
     assert '<dd id="lease" title="ACTIVE">보호 실행에 연결됨</dd>' in workbench.text
     assert '<span id="protection-state" class="badge" title="ACTIVE_VERIFIED" aria-live="polite">보호 검증됨</span>' in workbench.text
