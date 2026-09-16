@@ -307,7 +307,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-21" in dashboard.text
+    assert "glassbox-ui-22" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -1506,7 +1506,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "정책 사건" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "전체 실행" in history.text
-    assert "AIA 자체 진단" not in history.text
+    assert 'class="history-diagnostic-note"' not in history.text
     assert 'href="/runs"' in history.text
     assert 'class="is-active" aria-current="page" href="/runs"' in history.text
     assert 'id="history-result-count"' in history.text
@@ -1535,6 +1535,8 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "시작 시각" in history.text
     assert "history-time" in history.text
     assert "Result Bundle 무결성 확인" in history.text
+    assert 'id="filter-origin"' in history.text
+    assert "사용자 작업" in history.text
     assert "Bundle 유효" in history.text
     assert "유효한 Result Bundle 실행만 보기" in history.text
     assert "중지 처리 중" in history.text
@@ -1569,6 +1571,7 @@ def test_run_history_labels_aia_diagnostic_runs_without_hiding_them() -> None:
     assert "AIA 자체 진단 실행 1건이 포함되어 있습니다." in response.text
     assert "Hook 연결 검증용 임시 Workspace" in response.text
     assert 'data-diagnostic="yes"' in response.text
+    assert 'id="filter-origin"' in response.text
 
 
 def test_history_surfaces_orphaned_runs_with_quick_filter() -> None:
