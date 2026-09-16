@@ -639,6 +639,11 @@ class RunApplicationService:
             )
 
         installer = CodexHookInstaller()
+        cli_prefix = (
+            "uv run --isolated python -m aia.cli"
+            if installer.uses_uv_launcher
+            else "uv run aia"
+        )
         pretool_installed = installer.is_installed()
         pretool_check: dict[str, Any] = {
             "name": "pretool_hook",
@@ -647,7 +652,7 @@ class RunApplicationService:
             "detail": (
                 "설치됨 · Trust 상태 확인 중"
                 if pretool_installed
-                else "설치되지 않음 · aia setup 필요"
+                else f"설치되지 않음 · {cli_prefix} setup 필요"
             ),
         }
         checks.append(pretool_check)
@@ -726,7 +731,7 @@ class RunApplicationService:
                     "detail": (
                         "최근 실제 Codex Probe에서 Session-bound Hook Event 확인"
                         if hook_verified
-                        else "uv run aia hook verify 필요"
+                        else f"{cli_prefix} hook verify 필요"
                     ),
                 }
             )
@@ -780,7 +785,7 @@ class RunApplicationService:
             hook_activation_status = "OBSERVED_IN_PAST"
             hook_activation_detail = (
                 "과거 실행에서 Hook Event가 관찰되었지만 현재 검증 증명이 만료되었거나 없습니다. "
-                "aia hook verify를 다시 실행하세요."
+                f"{cli_prefix} hook verify를 다시 실행하세요."
             )
         else:
             hook_activation_status = "NOT_OBSERVED"
@@ -803,16 +808,16 @@ class RunApplicationService:
             next_step = "Codex CLI 설치와 PATH를 확인한 뒤 다시 검사하세요."
         elif not pretool_installed:
             readiness_code = "CODEX_HOOK_NOT_INSTALLED"
-            next_step = "'aia setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+            next_step = f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
         elif pretool_status not in {"TRUSTED", "MANAGED"}:
             readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
             next_step = (
                 "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
-                "'aia hook verify'를 실행하세요."
+                f"'{cli_prefix} hook verify'를 실행하세요."
             )
         elif not hook_verified:
             readiness_code = "HOOK_VERIFICATION_REQUIRED"
-            next_step = "'aia hook verify'를 실행한 뒤 다시 검사하세요."
+            next_step = f"'{cli_prefix} hook verify'를 실행한 뒤 다시 검사하세요."
         elif not (control_root_check and control_root_check.get("ok")):
             readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
             next_step = "AIA Control Root 권한을 확인한 뒤 다시 검사하세요."
@@ -871,7 +876,7 @@ class RunApplicationService:
                 ),
             },
             "next_steps": [
-                "PreToolUse Hook이 없으면 'uv run aia setup'을 실행합니다.",
+                f"PreToolUse Hook이 없으면 '{cli_prefix} setup'을 실행합니다.",
                 "Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰합니다.",
                 "Workspace와 정책을 선택해 보호 실행을 시작합니다.",
             ],
@@ -885,8 +890,13 @@ class RunApplicationService:
                 raise ApplicationValidationError(str(error)) from error
         if not isinstance(request, CreateRunRequest):
             raise ApplicationValidationError("request is invalid")
+        installer = CodexHookInstaller()
+        cli_prefix = (
+            "uv run --isolated python -m aia.cli"
+            if installer.uses_uv_launcher
+            else "uv run aia"
+        )
         if self.require_hook_verification:
-            installer = CodexHookInstaller()
             try:
                 executable = CodexAdapter().discover()
             except Exception as error:
@@ -898,7 +908,7 @@ class RunApplicationService:
                 executable,
             ):
                 raise ApplicationValidationError(
-                    "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+                    f"실제 Codex Hook 검증이 없습니다. 먼저 '{cli_prefix} hook verify'를 실행하세요."
                 )
             inspection = inspect_codex_hook_trust(
                 executable,
@@ -928,7 +938,7 @@ class RunApplicationService:
                 "이 Workspace에는 정리되지 않은 이전 Protected Run이 있습니다 "
                 f"({session_id}, {reconciliation.get('status', 'UNKNOWN')}). "
                 "이전 Codex가 실행 중이면 먼저 종료하고, Agent Root가 사라진 것을 "
-                f"확인한 뒤 'uv run aia reconcile {session_id}'를 실행하세요."
+                f"확인한 뒤 '{cli_prefix} reconcile {session_id}'를 실행하세요."
             )
         if not request.interactive and not request.task.strip():
             raise ApplicationValidationError(
