@@ -9,7 +9,8 @@
   'RUNNING': '실행 중',
   'COMPLETED': '정상 완료',
   'ABORTED': '사용자 중지',
-  'FAILED': '실행 실패'
+  'FAILED': '실행 실패',
+  'ORPHANED': '연결 끊김 · 정리 필요'
 } %}
 {% set phase_names = {
   'CREATED': '세션 생성됨',
@@ -19,7 +20,8 @@
   'RUNNING': 'Agent 실행 중',
   'COMPLETED': '실행 완료',
   'ABORTED': '사용자 중지',
-  'FAILED': '실행 실패'
+  'FAILED': '실행 실패',
+  'ORPHANED': 'AIA 연결 끊김 · 정리 필요'
 } %}
 {% set checkpoint_names = {
   'NOT_READY': '준비되지 않음',
@@ -31,7 +33,8 @@
   'ACTIVE': '보호 실행에 연결됨',
   'RELEASED': '해제됨',
   'FAILED': 'Lease 오류',
-  'NOT_STARTED': '준비 전'
+  'NOT_STARTED': '준비 전',
+  'ORPHANED': '연결 끊김 · 정리 필요'
 } %}
 {% set protection_names = {
   'ACTIVE_VERIFIED': '보호 검증됨',
@@ -63,6 +66,13 @@
 {% set initial_protection = status.protection.state if status.protection else 'UNKNOWN' %}
 {% set initial_hook_health = status.protection.hook_broker if status.protection else 'NOT_STARTED' %}
 {% set initial_launch_mode = status.launch_mode or 'inherit' %}
+{% set initial_reconciliation = status.runtime_reconciliation if status.runtime_reconciliation else {} %}
+{% set initial_orphaned = initial_reconciliation.orphaned %}
+{% set initial_display_session_status = 'ORPHANED' if initial_orphaned else initial_session_status %}
+{% set initial_display_phase = 'ORPHANED' if initial_orphaned else initial_phase %}
+{% set initial_display_lease = 'ORPHANED' if initial_orphaned and initial_lease == 'ACTIVE' else initial_lease %}
+{% set initial_display_protection = 'ORPHANED_DEGRADED' if initial_orphaned else initial_protection %}
+{% set initial_sensor_label = '연결 끊김 · 최종 기록 확인 필요' if initial_orphaned else health_names.get(initial_hook_health, '확인 필요') %}
 <section class="hero compact">
   <div>
     <p class="eyebrow">보호 실행</p>
@@ -71,32 +81,32 @@
   </div>
   <div class="run-header-status">
     <span id="run-refresh-status" class="dashboard-sync-status" role="status" aria-live="polite" aria-busy="true"><i class="dashboard-sync-dot" aria-hidden="true"></i><span id="run-refresh-label">상태 확인 중…</span></span>
-    <div id="status-badge" class="status-badge" title="{{ initial_session_status }}">{{ session_status_names.get(initial_session_status, '확인 필요') }}</div>
+    <div id="status-badge" class="status-badge{% if initial_orphaned %} status-danger{% endif %}" title="{{ initial_display_session_status }}">{{ session_status_names.get(initial_display_session_status, '확인 필요') }}</div>
   </div>
 </section>
 
 <section class="metric-grid" id="run-summary">
-  <div class="metric"><span>단계</span><strong id="phase" title="{{ initial_phase }}">{{ phase_names.get(initial_phase, '확인 필요') }}</strong></div>
+  <div class="metric"><span>단계</span><strong id="phase" title="{{ initial_display_phase }}">{{ phase_names.get(initial_display_phase, '확인 필요') }}</strong></div>
   <div class="metric"><span>Checkpoint</span><strong id="checkpoint" title="{{ initial_checkpoint }}">{{ checkpoint_names.get(initial_checkpoint, '정보 없음') }}</strong></div>
-  <div class="metric"><span>Workspace Lease</span><strong id="lease" title="{{ initial_lease }}">{{ lease_names.get(initial_lease, '확인 필요') }}</strong></div>
-  <div class="metric"><span>보호 상태</span><strong id="protection-state" aria-live="polite" title="{{ initial_protection }}">{{ protection_names.get(initial_protection, '확인 필요') }}</strong></div>
-  <div class="metric"><span>Hook Sensor</span><strong id="hook-broker-health" title="{{ initial_hook_health }}">{{ health_names.get(initial_hook_health, '확인 필요') }}</strong></div>
+  <div class="metric"><span>Workspace Lease</span><strong id="lease" title="{{ initial_display_lease }}">{{ lease_names.get(initial_display_lease, '확인 필요') }}</strong></div>
+  <div class="metric"><span>보호 상태</span><strong id="protection-state" aria-live="polite" title="{{ initial_display_protection }}">{{ protection_names.get(initial_display_protection, '확인 필요') }}</strong></div>
+  <div class="metric"><span>Hook Sensor</span><strong id="hook-broker-health" title="{{ 'ORPHANED' if initial_orphaned else initial_hook_health }}">{{ initial_sensor_label }}</strong></div>
   <div class="metric"><span>사건 수</span><strong id="incident-count" aria-live="polite">{{ status.incident_count }}</strong></div>
   <div class="metric"><span>파일 관찰</span><strong id="filesystem-event-count">{{ (status.evidence_summary or {}).get('filesystem_events', 0) }}건</strong></div>
   <div class="metric"><span>프로세스 관찰</span><strong id="process-observed-count">{{ (status.evidence_summary or {}).get('process_observed', 0) }}건</strong></div>
   <div class="metric"><span>프로세스 종료 관찰</span><strong id="process-exit-count">{{ (status.evidence_summary or {}).get('process_exit_observed', 0) }}건</strong></div>
 </section>
 
-<div id="interactive-instructions" class="notice success" {% if not status.interactive %}hidden{% endif %}>
+<div id="interactive-instructions" class="notice success" {% if not status.interactive or initial_orphaned %}hidden{% endif %}>
   <strong>대화형 보호 세션:</strong> Codex 창이 열리면 그 안에서 작업을 입력하세요. 작업을 마치면 Codex를 종료하면 AIA가 결과를 확정합니다.
 </div>
 
 <section class="panel sensor-panel">
   <div class="panel-heading"><div><h2>실시간 센서 상태</h2><p class="muted">AIA가 실제로 유지 중인 세 관찰 계층입니다.</p></div><span id="launch-mode" class="badge" title="{{ initial_launch_mode }}">{{ launch_mode_names.get(initial_launch_mode, '기본 실행') }}</span></div>
   <div class="sensor-cards" id="sensor-cards">
-    <div class="sensor-card"><strong>Hook Sensor</strong><span id="sensor-hook" class="badge">확인 중</span><small>Codex 도구 요청</small></div>
-    <div class="sensor-card"><strong>File Sensor</strong><span id="sensor-file" class="badge">확인 중</span><small>Workspace 파일 변화</small></div>
-    <div class="sensor-card"><strong>Process Sensor</strong><span id="sensor-process" class="badge">확인 중</span><small>Codex와 자식 프로세스</small></div>
+    <div class="sensor-card"><strong>Hook Sensor</strong><span id="sensor-hook" class="badge">{{ initial_sensor_label }}</span><small>Codex 도구 요청</small></div>
+    <div class="sensor-card"><strong>File Sensor</strong><span id="sensor-file" class="badge">{{ initial_sensor_label if initial_orphaned else '확인 중' }}</span><small>Workspace 파일 변화</small></div>
+    <div class="sensor-card"><strong>Process Sensor</strong><span id="sensor-process" class="badge">{{ initial_sensor_label if initial_orphaned else '확인 중' }}</span><small>Codex와 자식 프로세스</small></div>
   </div>
 </section>
 
@@ -107,7 +117,7 @@
 </section>
 
 <section class="panel">
-  <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted" aria-live="polite"></span></div>
+  <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted" aria-live="polite">{{ 'AIA 보호 연결 끊김 · 센서 최종 기록만 표시' if initial_orphaned else '' }}</span></div>
   <div id="protection-note" class="notice warning" hidden></div>
   <div id="error-box" class="error" {% if not status.error %}hidden{% endif %}>{{ status.error or '' }}</div>
   <div id="event-timeline" class="event-timeline"><div class="empty">안전한 이벤트 요약을 기다리는 중입니다…</div></div>
@@ -131,8 +141,8 @@ let pollTimer = null;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value, label = null) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}" title="${esc(value || 'UNKNOWN')}">${esc(label || value || '확인 필요')}</span>`;
 const labels = {
-  session: {CREATED: '생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: '실행 중', COMPLETED: '정상 완료', ABORTED: '사용자 중지', FAILED: '실행 실패'},
-  phase: {CREATED: '세션 생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: 'Agent 실행 중', COMPLETED: '실행 완료', ABORTED: '사용자 중지', FAILED: '실행 실패'},
+  session: {CREATED: '생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: '실행 중', COMPLETED: '정상 완료', ABORTED: '사용자 중지', FAILED: '실행 실패', ORPHANED: '연결 끊김 · 정리 필요'},
+  phase: {CREATED: '세션 생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: 'Agent 실행 중', COMPLETED: '실행 완료', ABORTED: '사용자 중지', FAILED: '실행 실패', ORPHANED: 'AIA 연결 끊김 · 정리 필요'},
   protection: {ACTIVE_VERIFIED: '보호 검증됨', ACTIVE_UNVERIFIED: '행위 관찰 전', ACTIVE_DEGRADED: '보호 상태 저하', COMPLETED_VERIFIED: '완료 · 검증됨', COMPLETED_DEGRADED: '완료 · 일부 확인', ABORTED_DEGRADED: '중지 · 일부 확인', FAILED_DEGRADED: '실패 · 확인 필요', ORPHANED_DEGRADED: '보호 연결 끊김 · 정리 필요', ABORTED_BEFORE_LAUNCH: '시작 전 사용자 중지', STOP_REQUESTED: '중지 처리 중'},
   decision: {VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', OBSERVED: '관찰됨', AUDIT: '기록', ALLOW: '허용', DENY: '금지', NONE: '조치 없음', NOT_APPLICABLE: '해당 없음', CONTINUE: '계속 진행', CONTAIN: '격리 승인', REFUSE: '자동 조치 보류', HEALTHY: '정상', FAILED: '실패', STOPPED: '종료됨'},
   execution: {SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행하지 않음', NOT_REPORTED: '결과 미확인', NOT_APPLICABLE: '해당 없음', NONE: '결과 없음'},
@@ -140,9 +150,9 @@ const labels = {
   operation: {READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'},
 };
 const label = (group, value, fallback = '확인 필요') => labels[group]?.[value] || value || fallback;
-const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : value === 'FAILED' ? 'status-danger' : '';
+const statusClass = (value) => ['RUNNING', 'LAUNCHING', 'PREPARING', 'READY'].includes(value) ? 'status-active' : value === 'COMPLETED' ? 'status-success' : value === 'ABORTED' ? 'status-warning' : ['FAILED', 'ORPHANED'].includes(value) ? 'status-danger' : '';
 const checkpointLabel = (value) => ({NOT_READY: '준비되지 않음', READY: '생성됨 · 사용 가능', FAILED: '생성 실패', UNKNOWN: '정보 없음'})[value] || value || '정보 없음';
-const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: '해제됨', FAILED: 'Lease 오류', NOT_STARTED: '준비 전'})[value] || value || '확인 중';
+const leaseLabel = (value) => ({ACTIVE: '보호 실행에 연결됨', RELEASED: '해제됨', FAILED: 'Lease 오류', NOT_STARTED: '준비 전', ORPHANED: '연결 끊김 · 정리 필요'})[value] || value || '확인 중';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${label('operation', operation)} 행위 관찰`);
 const actionTarget = (item) => { const target = item.target || {}; return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || '—'; };
 function renderActions(items) {
@@ -230,16 +240,21 @@ async function poll() {
     if (!statusResponse.ok) throw new Error('Run status unavailable');
     const status = await statusResponse.json();
     const actions = actionsResponse.ok ? await actionsResponse.json() : {actions: []};
+    const reconciliation = status.runtime_reconciliation || {};
+    const orphaned = Boolean(reconciliation.orphaned);
+    const displaySessionStatus = orphaned ? 'ORPHANED' : status.session.status;
+    const displayPhase = orphaned ? 'ORPHANED' : status.phase;
+    const displayLease = orphaned && status.lease === 'ACTIVE' ? 'ORPHANED' : status.lease;
     const statusBadge = document.getElementById('status-badge');
-    statusBadge.className = `status-badge ${statusClass(status.session.status)}`;
-    statusBadge.textContent = label('session', status.session.status);
-    statusBadge.title = status.session.status || '';
-    document.getElementById('phase').textContent = label('phase', status.phase);
-    document.getElementById('phase').title = status.phase || '';
+    statusBadge.className = `status-badge ${statusClass(displaySessionStatus)}`;
+    statusBadge.textContent = label('session', displaySessionStatus);
+    statusBadge.title = displaySessionStatus || '';
+    document.getElementById('phase').textContent = label('phase', displayPhase);
+    document.getElementById('phase').title = displayPhase || '';
     document.getElementById('checkpoint').textContent = checkpointLabel(status.checkpoint);
     document.getElementById('checkpoint').title = status.checkpoint || '';
-    document.getElementById('lease').textContent = leaseLabel(status.lease);
-    document.getElementById('lease').title = status.lease || '';
+    document.getElementById('lease').textContent = leaseLabel(displayLease);
+    document.getElementById('lease').title = displayLease || '';
     document.getElementById('incident-count').textContent = status.incident_count;
     document.getElementById('filesystem-event-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
     document.getElementById('process-observed-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건`;
@@ -247,9 +262,10 @@ async function poll() {
     document.getElementById('launch-mode').textContent = ({web_terminal: 'Workbench', new_terminal: '별도 터미널', inherit: '기본 실행'})[status.launch_mode] || status.launch_mode || '기본 실행';
     document.getElementById('launch-mode').title = status.launch_mode || 'inherit';
     const protection = status.protection || {};
-    document.getElementById('interactive-instructions').hidden = !status.interactive;
-    document.getElementById('protection-state').textContent = label('protection', protection.state, '확인 필요');
-    document.getElementById('protection-state').title = protection.state || '';
+    const displayProtection = orphaned ? 'ORPHANED_DEGRADED' : protection.state;
+    document.getElementById('interactive-instructions').hidden = !status.interactive || orphaned;
+    document.getElementById('protection-state').textContent = label('protection', displayProtection, '확인 필요');
+    document.getElementById('protection-state').title = displayProtection || '';
     const protectionNote = document.getElementById('protection-note');
     const notes = {
       'LAUNCHING': 'Codex 실행을 등록하고 보호 센서를 연결하는 중입니다. 잠시 기다려 주세요.',
@@ -262,20 +278,28 @@ async function poll() {
       'ORPHANED_DEGRADED': 'AIA 보호 연결이 종료되어 현재 보호를 확인할 수 없습니다. 기록된 Agent Root를 확인한 뒤 정리하세요.',
       'ABORTED_BEFORE_LAUNCH': 'Agent를 실행하기 전에 사용자가 보호 실행을 취소했습니다.'
     };
-    const reconciliation = status.runtime_reconciliation || {};
+    const reconciliationNotes = {
+      'STALE_PROCESS_GONE': reconciliation.action === 'RECONCILED'
+        ? '이전 보호 실행의 Agent Root 종료를 확인했습니다. 새 보호 실행을 시작할 수 있습니다.'
+        : '이전 보호 실행의 Agent Root가 종료되어 AIA 보호 연결이 끊겼습니다.',
+      'STALE_PID_REUSED': '이전 보호 실행의 PID가 재사용되어 AIA 보호 연결을 확인할 수 없습니다.',
+      'OWNER_UNVERIFIABLE': '보호 실행의 소유자를 확인할 수 없어 현재 실행을 인수하지 않습니다.'
+    };
     protectionNote.textContent = reconciliation.orphaned
-      ? `${reconciliation.detail || notes[protection.state] || '보호 상태를 확인할 수 없습니다.'} ${reconciliation.action === 'REVIEW_AND_RESTART' ? 'Agent Root가 종료된 뒤 정리 확인을 실행하세요.' : ''}`
-      : (notes[protection.state] || '');
-    protectionNote.hidden = !notes[protection.state];
-    protectionNote.hidden = !notes[protection.state] && !reconciliation.orphaned;
-    document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${label('sensor', key)}: ${label('decision', value)}`).join(' · ');
+      ? `${reconciliationNotes[reconciliation.status] || notes[displayProtection] || '보호 상태를 확인할 수 없습니다.'} ${reconciliation.action === 'REVIEW_AND_RESTART' ? 'Agent Root가 종료된 뒤 정리 확인을 실행하세요.' : ''}`
+      : (notes[displayProtection] || '');
+    protectionNote.hidden = !notes[displayProtection] && !reconciliation.orphaned;
+    document.getElementById('sensor-health').textContent = orphaned
+      ? 'AIA 보호 연결 끊김 · 센서 최종 기록만 표시'
+      : Object.entries(status.sensor_health || {}).map(([key, value]) => `${label('sensor', key)}: ${label('decision', value)}`).join(' · ');
     const sensorHealth = status.sensor_health || {};
     const hookSensorHealth = sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED';
-    document.getElementById('hook-broker-health').textContent = label('decision', hookSensorHealth);
-    document.getElementById('hook-broker-health').title = hookSensorHealth;
-    document.getElementById('sensor-hook').textContent = label('decision', hookSensorHealth);
-    document.getElementById('sensor-file').textContent = label('decision', sensorHealth.FILESYSTEM_WATCHER || 'NOT_STARTED');
-    document.getElementById('sensor-process').textContent = label('decision', sensorHealth.PROCESS_RUNTIME || 'NOT_STARTED');
+    const sensorDisplay = (value) => orphaned ? '연결 끊김 · 최종 기록 확인 필요' : label('decision', value || 'NOT_STARTED');
+    document.getElementById('hook-broker-health').textContent = sensorDisplay(hookSensorHealth);
+    document.getElementById('hook-broker-health').title = orphaned ? 'ORPHANED' : hookSensorHealth;
+    document.getElementById('sensor-hook').textContent = sensorDisplay(hookSensorHealth);
+    document.getElementById('sensor-file').textContent = sensorDisplay(sensorHealth.FILESYSTEM_WATCHER);
+    document.getElementById('sensor-process').textContent = sensorDisplay(sensorHealth.PROCESS_RUNTIME);
     const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session.status);
     renderSafeEvents(status.events || []);
     renderIncident(status.events || [], terminal);
@@ -284,7 +308,6 @@ async function poll() {
     errorBox.hidden = !status.error;
     renderActions(actions.actions || []);
     document.getElementById('result-link').hidden = !status.result_available;
-    const orphaned = Boolean(reconciliation.orphaned);
     stopButton.hidden = terminal || orphaned || Boolean(status.stop?.requested);
     stopButton.disabled = Boolean(status.stop?.requested);
     reconcileButton.hidden = !orphaned || reconciliation.action === 'RECONCILED';

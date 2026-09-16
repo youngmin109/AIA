@@ -1305,6 +1305,35 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     assert 'href="/runs/stale-run/workbench"' not in history.text
 
 
+def test_live_run_prioritizes_orphaned_state_over_stale_running_snapshot() -> None:
+    service = FakeService()
+    original_get_run_status = service.get_run_status
+
+    def orphaned_status(session_id):
+        status = original_get_run_status(session_id)
+        status["runtime_reconciliation"] = {
+            "status": "STALE_PROCESS_GONE",
+            "orphaned": True,
+            "action": "REVIEW_AND_RESTART",
+        }
+        return status
+
+    service.get_run_status = orphaned_status
+    client = TestClient(create_app(service))
+
+    run = client.get("/runs/run-1")
+
+    assert run.status_code == 200
+    assert 'title="ORPHANED">연결 끊김 · 정리 필요</div>' in run.text
+    assert 'title="ORPHANED">AIA 연결 끊김 · 정리 필요</strong>' in run.text
+    assert 'title="ORPHANED">연결 끊김 · 정리 필요</strong>' in run.text
+    assert "연결 끊김 · 최종 기록 확인 필요" in run.text
+    assert 'id="interactive-instructions" class="notice success" hidden' in run.text
+    assert "AIA 보호 연결이 종료되어 현재 보호를 확인할 수 없습니다." in run.text
+    assert "이전 보호 실행의 Agent Root가 종료되어 AIA 보호 연결이 끊겼습니다." in run.text
+    assert "The AIA coordinator is no longer live" not in run.text
+
+
 def test_workbench_disables_input_and_marks_sensors_when_runtime_is_orphaned() -> None:
     service = FakeService()
     original_get_run_status = service.get_run_status
