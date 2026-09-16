@@ -652,6 +652,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 /* Workbench balance: keep the Codex surface compact and give the event feed its own glass tone. */
 .workbench-grid { grid-template-columns: minmax(235px, .95fr) minmax(360px, 1.7fr) minmax(300px, 1.05fr); align-items: start; }
 .workbench-terminal-panel { align-self: start; align-content: start; grid-template-rows: auto auto minmax(280px, auto) max-content max-content max-content max-content; min-height: 0; height: fit-content; }
+.terminal-examples { align-self: start; min-height: 0; height: max-content; }
 .terminal-output { min-height: 280px; }
 .security-events-card {
   border-color: rgba(76, 151, 205, .38);

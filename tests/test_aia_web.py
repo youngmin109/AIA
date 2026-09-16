@@ -243,7 +243,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".ambient-scene" in css.text
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
-    assert "glassbox-ui-2" in dashboard.text
+    assert "glassbox-ui-3" in dashboard.text
     assert 'class="ambient-scene"' in dashboard.text
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
 
