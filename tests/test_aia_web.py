@@ -355,6 +355,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "dashboardReadinessStepElements" in dashboard.text
     assert "dashboardCheckMark" in dashboard.text
     assert "CODEX_HOOK_TRUST_REQUIRED" in dashboard.text
+    assert "먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요." in dashboard.text
     assert "Python 모듈 실행 명령" in dashboard.text
     assert "생성된 <code>aia.exe</code>를 차단하는 환경에서도" in dashboard.text
     assert "dashboard-command-context" in dashboard.text
@@ -1522,7 +1523,7 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-preflight-checks"' in dashboard.text
     assert "dashboardCheckBlocksRun(check, readinessStatus)" in dashboard.text
     assert "dashboardCheckMark(check, readinessStatus)" in dashboard.text
-    assert "dashboardCheckDetailLabel(check)" in dashboard.text
+    assert "dashboardCheckDetailLabel(check, source)" in dashboard.text
     assert "상태는 단계별로 표시됩니다" in dashboard.text
     assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];" in dashboard.text
     assert "if (name === 'codex_hook_trust')" in dashboard.text
