@@ -637,7 +637,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="event-visibility-summary"' in workbench.text
     assert 'id="event-detail-link"' in workbench.text
     assert "전체 실행 흐름 보기 →" in workbench.text
-    assert "최근 ${visibleEventCount}건 표시 · 전체 ${events.length}건" in workbench.text
+    assert "${displayOrderNote}${visibleEventCount}건 표시 · 전체 ${events.length}건" in workbench.text
     assert 'id="event-count"' in workbench.text
     assert "Glass-box 확장 영역" in workbench.text
     assert "실행 흐름" in workbench.text
@@ -842,6 +842,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "증거 흐름 보기 →" in workbench.text
     assert 'class="event-category-label"' in workbench.text
     assert "const orderedEvents = (items) => items" in workbench.text
+    assert "const displayOrderNote = eventFilter === 'ALL' ? '행위 우선 · ' : '';" in workbench.text
+    assert "if (leftIsSensor !== rightIsSensor) return leftIsSensor - rightIsSensor;" in workbench.text
     assert "eventDetailLink?.addEventListener" in workbench.text
     assert "전체 센서 Evidence 보기 →" in workbench.text
     assert "eventFilter === 'ALL'" in workbench.text

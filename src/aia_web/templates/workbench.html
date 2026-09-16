@@ -233,7 +233,7 @@
       <section class="workbench-card security-events-card">
         <div class="panel-heading"><h2>최근 이벤트</h2><span id="event-count" class="badge" aria-live="polite">0건</span></div>
         <p id="incident-summary" class="workbench-card-subtitle">정책 사건 0건</p>
-        <p class="workbench-event-meaning"><strong>판정</strong>은 AIA 정책 결과이고, <strong>실행</strong>은 실제 도구 결과 Evidence입니다. 실행 Evidence가 없으면 성공으로 표시하지 않습니다.</p>
+        <p class="workbench-event-meaning"><strong>판정</strong>은 AIA 정책 결과이고, <strong>실행</strong>은 실제 도구 결과 Evidence입니다. 실행 Evidence가 없으면 성공으로 표시하지 않습니다. 전체 보기에서는 정책·행위 이벤트를 먼저 보여줍니다.</p>
         <div class="workbench-observation-meta">
           <span>마지막 이벤트 <strong id="last-event-time">기록 없음</strong></span>
           <span>화면 갱신 <strong id="last-refresh-time">확인 중</strong></span>
@@ -1847,10 +1847,10 @@ function renderSecurity(status) {
     .sort((left, right) => {
       const leftTime = Date.parse(left.item.observed_at || '') || 0;
       const rightTime = Date.parse(right.item.observed_at || '') || 0;
-      if (leftTime !== rightTime) return rightTime - leftTime;
       const leftIsSensor = isSensorEvent(left.item) ? 1 : 0;
       const rightIsSensor = isSensorEvent(right.item) ? 1 : 0;
       if (leftIsSensor !== rightIsSensor) return leftIsSensor - rightIsSensor;
+      if (leftTime !== rightTime) return rightTime - leftTime;
       return left.index - right.index;
     })
     .map(({ item }) => item);
@@ -1869,9 +1869,10 @@ function renderSecurity(status) {
   ].join('~')).join('|')}`;
   if (eventVisibilitySummary) {
     const visibleEventCount = Math.min(events.length, 12);
+    const displayOrderNote = eventFilter === 'ALL' ? '행위 우선 · ' : '';
     eventVisibilitySummary.textContent = events.length > visibleEventCount
-      ? `최근 ${visibleEventCount}건 표시 · 전체 ${events.length}건`
-      : `전체 ${events.length}건 표시`;
+      ? `${displayOrderNote}${visibleEventCount}건 표시 · 전체 ${events.length}건`
+      : `${displayOrderNote}전체 ${events.length}건 표시`;
     if (eventDetailLink) {
       const hasOverflow = events.length > visibleEventCount;
       const sensorFilter = eventFilter === 'SENSOR';
