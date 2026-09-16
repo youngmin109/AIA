@@ -5,6 +5,103 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
+_INCIDENT_OPERATION_LABELS = {
+    "READ": "파일 읽기",
+    "CREATE": "파일 생성",
+    "MODIFY": "파일 수정",
+    "DELETE": "파일 삭제",
+    "MOVE": "파일 이동",
+    "RENAME": "파일 이름 변경",
+    "EXECUTE": "명령 실행",
+    "RECOVERY": "복구 작업",
+    "INTEGRITY": "무결성 검증",
+    "SENSOR": "센서 상태",
+}
+_INCIDENT_DECISION_LABELS = {
+    "VIOLATION": "정책 위반",
+    "INDETERMINATE": "판정 불가",
+    "COMPLIANT": "정상·허용",
+    "OBSERVED": "관찰됨",
+}
+_INCIDENT_RESULT_LABELS = {
+    "RESTORED": "복원 완료",
+    "RECOVERY_UNAVAILABLE": "복원 불가",
+    "FAILED": "실행 실패",
+}
+_INCIDENT_REASON_LABELS = {
+    "DIRECT_TRUSTED_HOOK": "신뢰된 직접 Hook Evidence가 Agent Tool 사용을 식별했습니다.",
+    "VERIFIED_AGENT_PROCESS": "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다.",
+    "PROCESS_WINDOW_ASSOCIATION": "검증된 Agent Process Tree의 관찰 시간과 파일 행위가 겹칩니다.",
+    "TURN_WINDOW_ASSOCIATION": "행위 시각이 명시된 Agent Turn 구간과 겹칩니다.",
+    "HOOK_INGRESS_UNVERIFIED": "Hook 유입 검증이 완료되지 않았습니다.",
+    "SESSION_MISMATCH": "행위와 AIA Session이 일치하지 않습니다.",
+    "NATIVE_SESSION_MISMATCH": "Hook의 Native Session ID가 예상 값과 일치하지 않습니다.",
+    "TOOL_IDENTIFIER_MISSING": "신뢰된 직접 Hook에 Tool 식별자가 없습니다.",
+    "CONFLICTING_TOOL_IDENTIFIER": "동일 Tool 식별자에 서로 다른 Hook 정보가 있습니다.",
+    "PROCESS_IDENTITY_MISMATCH": "프로세스 식별자를 보호 대상 Agent Root와 검증할 수 없습니다.",
+    "COMPETING_CANDIDATE": "동일 행위와 겹치는 다른 후보가 확인되었습니다.",
+    "AMBIGUOUS_TURN_WINDOW": "둘 이상의 Agent Turn 구간이 행위 시각과 겹칩니다.",
+    "INSUFFICIENT_EVIDENCE": "신뢰할 수 있는 직접 Hook·Process·Turn Evidence가 부족합니다.",
+    "UNSUPPORTED_PROVENANCE": "지원하지 않는 실행 출처입니다.",
+    "MALFORMED_LINEAGE": "Hook Evidence 연결 관계가 예상 형식과 다릅니다.",
+    "TURN_IDENTIFIER_MISMATCH": "Turn 식별자가 예상 값과 일치하지 않습니다.",
+    "Trusted direct Hook Evidence identifies the Agent Tool Use": "신뢰된 직접 Hook Evidence가 Agent Tool 사용을 식별했습니다.",
+    "Process Action does not reference PROCESS_OBSERVED Raw Evidence": "프로세스 행위가 PROCESS_OBSERVED Raw Evidence를 참조하지 않습니다.",
+    "Process Action has no valid observed lifetime": "프로세스 행위의 유효한 관찰 수명이 없습니다.",
+    "Process identity cannot be verified against the protected Agent Root": "프로세스 식별자를 보호 대상 Agent Root와 검증할 수 없습니다.",
+    "Process was observed in the verified Agent Process Tree": "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다.",
+    "Filesystem Action overlaps a verified Agent Process Tree observation window": "검증된 Agent Process Tree의 관찰 시간과 파일 행위가 겹칩니다.",
+    "Action timestamp overlaps one explicit Agent Turn Window": "행위 시각이 명시된 Agent Turn 구간과 겹칩니다.",
+    "hook and process evidence": "Hook과 Process Evidence가 함께 확인되었습니다.",
+}
+
+
+def _incident_reason_label(value: Any, fallback: Any = None) -> str:
+    """Return a Korean reason while retaining the original value separately."""
+
+    raw = value if value is not None and value != "" else fallback
+    if raw is None or raw == "":
+        return "추가 사유 없음"
+    decision = _INCIDENT_DECISION_LABELS.get(str(raw))
+    if decision:
+        return decision
+    return _INCIDENT_REASON_LABELS.get(str(raw), str(raw))
+
+
+def _incident_summary(action: Mapping[str, Any]) -> str:
+    """Build a safe, localized incident label from normalized result fields."""
+
+    operation = _INCIDENT_OPERATION_LABELS.get(
+        str(action.get("operation") or ""), "보호 대상 행위"
+    )
+    policy = _INCIDENT_DECISION_LABELS.get(str(action.get("policy_decision") or ""))
+    if policy:
+        return f"{operation} 요청 · {policy}"
+
+    recovery_data = action.get("recovery")
+    integrity_data = action.get("integrity")
+    recovery = action.get("recovery_status") or (
+        recovery_data.get("recovery_status")
+        if isinstance(recovery_data, Mapping)
+        else None
+    )
+    integrity = action.get("integrity_status") or (
+        integrity_data.get("integrity_status")
+        if isinstance(integrity_data, Mapping)
+        else None
+    )
+    result = action.get("execution_result")
+    if operation == "복구 작업" and recovery:
+        return f"{operation} · {_INCIDENT_RESULT_LABELS.get(str(recovery), '확인 필요')}"
+    if operation == "무결성 검증" and integrity:
+        return f"{operation} · {_INCIDENT_RESULT_LABELS.get(str(integrity), '확인 필요')}"
+    if operation == "센서 상태" and result == "FAILED":
+        return f"{operation} · 실행 실패"
+    if result == "FAILED":
+        return f"{operation} 요청 · 실행 실패"
+    return f"{operation} 요청 · 확인 필요"
+
+
 def safe_event_views(
     actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     *,
@@ -186,13 +283,14 @@ def incident_view(action: Mapping[str, Any]) -> dict[str, Any] | None:
         "policy_decision": policy,
         "operation_effect": action.get("operation_effect"),
         "policy_effect": action.get("operation_effect") or policy,
-        "reason": action.get("attribution_reason") or policy,
-        "proof": "AIA exposes normalized action metadata and evidence identifiers; raw payload values remain in the protected bundle.",
-        "summary": f"{action.get('operation') or 'Action'} was classified as {policy or 'UNKNOWN'}.",
+        "reason": _incident_reason_label(action.get("attribution_reason"), policy),
+        "proof": "정규화된 행위 정보와 Evidence ID를 표시합니다. 원본 payload 값은 보호된 Bundle에 보관됩니다.",
+        "summary": _incident_summary(action),
         "target": safe_target(action.get("target")),
         "observed_at": action.get("observed_at"),
         "recovery_status": recovery.get("recovery_status"),
         "integrity_status": integrity.get("integrity_status"),
+        "attribution_reason_label": _incident_reason_label(action.get("attribution_reason"), policy),
     }
 
 
@@ -226,8 +324,8 @@ def incident_views_for_result(result: Mapping[str, Any]) -> list[dict[str, Any]]
                 "matched_rule_ids": [],
                 "matched_asset_types": [],
                 "reason": recovery.get("reason") or recovery_status,
-                "summary": f"Recovery is {recovery_status}.",
-                "proof": "The Recovery result is displayed from the verified Result Bundle.",
+                "summary": f"복구 작업 · {_INCIDENT_RESULT_LABELS.get(recovery_status, '확인 필요')}",
+                "proof": "검증된 Result Bundle에 기록된 복구 결과를 표시합니다.",
                 "recovery_status": recovery_status,
                 "integrity_status": integrity_status,
             }
@@ -248,8 +346,8 @@ def incident_views_for_result(result: Mapping[str, Any]) -> list[dict[str, Any]]
                 "matched_rule_ids": [],
                 "matched_asset_types": [],
                 "reason": integrity.get("reason") or integrity_status,
-                "summary": "Post-recovery integrity verification failed.",
-                "proof": "The Integrity result is displayed from the verified Result Bundle.",
+                "summary": "무결성 검증 · 실패",
+                "proof": "검증된 Result Bundle에 기록된 무결성 결과를 표시합니다.",
                 "recovery_status": recovery_status,
                 "integrity_status": integrity_status,
             }
@@ -271,8 +369,8 @@ def incident_views_for_result(result: Mapping[str, Any]) -> list[dict[str, Any]]
                     "matched_rule_ids": [],
                     "matched_asset_types": [],
                     "reason": sensor.get("reason") or "SENSOR_RUNTIME_FAILED",
-                    "summary": f"Sensor {sensor.get('sensor', 'unknown')} reported FAILED.",
-                    "proof": "Sensor health is displayed from the finalized Core Result Bundle.",
+                    "summary": "센서 상태 · 실행 실패",
+                    "proof": "최종 Core Result Bundle에 기록된 센서 상태를 표시합니다.",
                     "recovery_status": recovery_status,
                     "integrity_status": integrity_status,
                 }

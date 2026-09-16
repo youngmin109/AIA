@@ -21,6 +21,7 @@ from aia_app.presenters import (
     action_summary,
     evidence_chain_views,
     incident_view,
+    incident_views_for_result,
     result_view,
     safe_event_views,
     evidence_timeline_views,
@@ -986,6 +987,62 @@ def test_presenters_keep_sensitive_target_values_out_of_views() -> None:
     reparsed = action_view(view)
     assert reparsed["attribution_class"] == "EXACT"
     assert reparsed["enforcement_action"] == "CONTAIN"
+
+
+def test_incident_presenter_localizes_summary_without_changing_decision_codes() -> None:
+    view = incident_view(
+        {
+            "action_id": "a1",
+            "operation": "EXECUTE",
+            "policy_decision": "INDETERMINATE",
+            "enforcement_action": "REFUSE",
+            "execution_result": "NOT_ATTEMPTED",
+            "target": {"canonical_path": "C:/workspace/app.py"},
+        }
+    )
+
+    assert view is not None
+    assert view["summary"] == "명령 실행 요청 · 판정 불가"
+    assert view["policy_decision"] == "INDETERMINATE"
+    assert view["reason"] == "판정 불가"
+    assert "was classified" not in repr(view)
+    assert "AIA exposes" not in repr(view)
+
+
+def test_incident_presenter_localizes_attribution_reason_and_keeps_raw_free() -> None:
+    view = incident_view(
+        {
+            "action_id": "a1",
+            "operation": "MODIFY",
+            "policy_decision": "VIOLATION",
+            "attribution_grade": "PROCESS",
+            "attribution_reason": "Process was observed in the verified Agent Process Tree",
+            "enforcement_action": "REFUSE",
+            "execution_result": "NOT_ATTEMPTED",
+            "target": {"canonical_path": "C:/workspace/app.py"},
+        }
+    )
+
+    assert view is not None
+    assert view["attribution_reason_label"] == "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다."
+    assert view["reason"] == "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다."
+
+
+def test_synthetic_incident_summaries_are_localized() -> None:
+    incidents = incident_views_for_result(
+        {
+            "action_outcomes": [],
+            "recovery_result": {"recovery_status": "FAILED"},
+            "integrity_result": {"integrity_status": "FAILED"},
+            "sensor_summary": [{"sensor": "PROCESS_RUNTIME", "runtime_health_before_stop": "FAILED"}],
+        }
+    )
+
+    assert [item["summary"] for item in incidents] == [
+        "복구 작업 · 실행 실패",
+        "무결성 검증 · 실패",
+        "센서 상태 · 실행 실패",
+    ]
 
 
 def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> None:
