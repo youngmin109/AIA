@@ -598,6 +598,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "상태 새로고침" in workbench.text
     assert "terminalSocketConnected" in workbench.text
     assert "terminalSocketEverConnected" in workbench.text
+    assert "terminalProtocolError" in workbench.text
+    assert "function handleTerminalProtocolError(message)" in workbench.text
+    assert "typeof event.data !== 'string'" in workbench.text
+    assert "try {\n      message = JSON.parse(event.data);" in workbench.text
+    assert "알 수 없는 터미널 응답을 받았습니다." in workbench.text
     assert "terminalScreen.reset()" in workbench.text
     assert "transientProgressLine" in workbench.text
     assert "terminalScreen.refresh()" in workbench.text

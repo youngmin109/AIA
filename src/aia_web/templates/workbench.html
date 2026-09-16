@@ -384,6 +384,7 @@ let activityStartedAt = 0;
 let activityTimer = null;
 let lastTerminalOutputAt = 0;
 let terminalConnectionFailed = false;
+let terminalProtocolError = false;
 let terminalClosed = false;
 let terminalRuntimeStatus = 'UNKNOWN';
 let terminalSocketConnected = false;
@@ -1460,6 +1461,17 @@ function appendTerminal(data) {
   }
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
+function handleTerminalProtocolError(message) {
+  terminalProtocolError = true;
+  terminalConnectionFailed = true;
+  terminalSocketConnected = false;
+  terminalOutput.classList.remove('is-loading');
+  setTerminalConnection('응답 오류', 'connection-failed');
+  showTerminalError(`${message} 다시 연결하는 중입니다.`);
+  setTerminalActivity('ACTION', `${message} 잠시 후 터미널을 다시 연결합니다.`);
+  updateTerminalInputState();
+  if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+}
 function scheduleTerminalResize() {
   if (terminalResizeTimer) window.clearTimeout(terminalResizeTimer);
   terminalResizeTimer = window.setTimeout(syncTerminalSize, 120);
@@ -1532,13 +1544,31 @@ function openSocket() {
     terminalConnectionFailed = false;
     terminalReconnectPending = false;
     terminalSocketConnected = true;
+    if (terminalProtocolError) {
+      terminalProtocolError = false;
+      terminalError.hidden = true;
+    }
     terminalOutput.classList.toggle('is-loading', !terminalRunEnded());
     terminalOutput.classList.remove('terminal-closed');
     setTerminalConnection('연결 확인 중', 'connection-pending');
     updateTerminalInputState();
   };
   socket.onmessage = (event) => {
-    const message = JSON.parse(event.data);
+    if (typeof event.data !== 'string') {
+      handleTerminalProtocolError('Workbench 터미널 응답 형식을 확인할 수 없습니다.');
+      return;
+    }
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch (_error) {
+      handleTerminalProtocolError('Workbench 터미널 응답 형식을 확인할 수 없습니다.');
+      return;
+    }
+    if (!message || typeof message !== 'object' || Array.isArray(message) || typeof message.type !== 'string') {
+      handleTerminalProtocolError('Workbench 터미널 응답이 올바르지 않습니다.');
+      return;
+    }
     if (message.type === 'output') appendTerminal(message.data);
     else if (message.type === 'status') setTerminalStatus(message);
     else if (message.type === 'accepted') {
@@ -1556,6 +1586,7 @@ function openSocket() {
       }
     }
     else if (message.type === 'closed') { terminalClosed = true; terminalSocketConnected = false; setTerminalStatus(message); terminalOutput.classList.remove('is-loading'); terminalOutput.classList.add('terminal-closed'); }
+    else handleTerminalProtocolError('알 수 없는 터미널 응답을 받았습니다.');
   };
   socket.onclose = () => {
     terminalReconnectPending = false;
