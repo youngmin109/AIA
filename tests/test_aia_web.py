@@ -1452,6 +1452,9 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-preflight-loading"' in dashboard.text
     assert 'id="dashboard-preflight-loading-elapsed"' in dashboard.text
+    assert "로컬 Codex Hook Trust 응답을 기다리고 있습니다…" in dashboard.text
+    assert "확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…" in dashboard.text
+    assert "dashboardPreflightLoadingMessageTimer" in dashboard.text
     assert 'id="dashboard-preflight-retry"' in dashboard.text
     assert 'id="dashboard-preflight-checks"' in dashboard.text
     assert "dashboardCheckBlocksRun(check, readinessStatus)" in dashboard.text

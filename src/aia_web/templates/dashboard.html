@@ -294,6 +294,7 @@ let dashboardPreflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
 let dashboardPreflightInFlight = false;
 let dashboardPreflightStartedAt = 0;
 let dashboardPreflightElapsedTimer = null;
+let dashboardPreflightLoadingMessageTimer = null;
 const DASHBOARD_PREFLIGHT_REQUEST_TIMEOUT_MS = 30000;
 let dashboardPreflightTimer = null;
 let dashboardRunsLoaded = false;
@@ -309,14 +310,23 @@ function updateDashboardPreflightElapsed() {
 }
 function startDashboardPreflightLoading() {
   if (dashboardPreflightElapsedTimer !== null) window.clearInterval(dashboardPreflightElapsedTimer);
+  if (dashboardPreflightLoadingMessageTimer !== null) window.clearTimeout(dashboardPreflightLoadingMessageTimer);
   dashboardPreflightStartedAt = Date.now();
   if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다…';
   updateDashboardPreflightElapsed();
   dashboardPreflightElapsedTimer = window.setInterval(updateDashboardPreflightElapsed, 1000);
+  dashboardPreflightLoadingMessageTimer = window.setTimeout(() => {
+    if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = '로컬 Codex Hook Trust 응답을 기다리고 있습니다…';
+    dashboardPreflightLoadingMessageTimer = window.setTimeout(() => {
+      if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = '확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…';
+    }, 7000);
+  }, 4000);
 }
 function stopDashboardPreflightLoading() {
   if (dashboardPreflightElapsedTimer !== null) window.clearInterval(dashboardPreflightElapsedTimer);
+  if (dashboardPreflightLoadingMessageTimer !== null) window.clearTimeout(dashboardPreflightLoadingMessageTimer);
   dashboardPreflightElapsedTimer = null;
+  dashboardPreflightLoadingMessageTimer = null;
   dashboardPreflightStartedAt = 0;
 }
 
