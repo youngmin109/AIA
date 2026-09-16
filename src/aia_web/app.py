@@ -8,7 +8,7 @@ import subprocess
 import sys
 import asyncio
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -144,6 +144,30 @@ def _console_cli_prefix() -> str:
     return _console_module_cli_prefix()
 
 
+def _is_console_diagnostic_run(run: dict[str, Any]) -> bool:
+    """Identify known AIA-created probe workspaces for overview display only."""
+
+    workspace = str(run.get("workspace") or "")
+    leaf = PureWindowsPath(workspace.replace("/", "\\")).name.casefold()
+    return leaf.startswith(("aia-hook-verify-", "aia-path-hook-probe-")) or leaf in {
+        "aia-ui-probe",
+        "aia-hook-probe",
+    }
+
+
+def _dashboard_run_view(runs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Prefer user runs on the dashboard while preserving all history records."""
+
+    decorated = [
+        {**run, "dashboard_diagnostic": _is_console_diagnostic_run(run)}
+        for run in runs
+    ]
+    user_runs = [run for run in decorated if not run["dashboard_diagnostic"]]
+    return (user_runs or decorated), sum(
+        1 for run in decorated if run["dashboard_diagnostic"]
+    )
+
+
 def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:
     """Run the existing CLI Hook verification from the local console.
 
@@ -225,6 +249,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         """Render the local product overview without starting an Agent."""
 
         runs = app.state.service.list_runs()
+        dashboard_runs, diagnostic_run_count = _dashboard_run_view(runs)
         return _TEMPLATES.TemplateResponse(
             request,
             "dashboard.html",
@@ -232,6 +257,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "preflight": _dashboard_preflight_placeholder(),
                 "dashboard_preflight_deferred": True,
                 "runs": runs,
+                "dashboard_runs": dashboard_runs,
+                "dashboard_diagnostic_count": diagnostic_run_count,
                 "capabilities": product_capabilities(),
                 "cli_prefix": _console_cli_prefix(),
                 "module_cli_prefix": _console_module_cli_prefix(),

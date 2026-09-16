@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 import importlib
 
-from aia_web.app import _coalesce_terminal_output, _console_cli_prefix, create_app
+from aia_web.app import _coalesce_terminal_output, _console_cli_prefix, _dashboard_run_view, create_app
 from aia_app.service import RunApplicationService
 from aia.codex_installation import CodexHookInstaller
 
@@ -231,6 +231,38 @@ class FakeService:
         return None
 
 
+def test_dashboard_run_view_prioritizes_user_runs_without_dropping_diagnostics() -> None:
+    runs = [
+        {
+            "session_id": "diagnostic",
+            "workspace": "C:\\Users\\tester\\AppData\\Local\\Temp\\aia-hook-verify-abcd",
+        },
+        {
+            "session_id": "user-run",
+            "workspace": "C:\\workspace\\my-project",
+        },
+    ]
+
+    visible, diagnostic_count = _dashboard_run_view(runs)
+
+    assert [run["session_id"] for run in visible] == ["user-run"]
+    assert diagnostic_count == 1
+
+
+def test_dashboard_run_view_falls_back_to_diagnostics_when_no_user_run_exists() -> None:
+    runs = [
+        {
+            "session_id": "diagnostic",
+            "workspace": "C:\\Users\\tester\\AppData\\Local\\Temp\\aia-hook-verify-abcd",
+        },
+    ]
+
+    visible, diagnostic_count = _dashboard_run_view(runs)
+
+    assert visible[0]["dashboard_diagnostic"] is True
+    assert diagnostic_count == 1
+
+
 class UnreadableRunService(FakeService):
     def get_run_status(self, session_id):
         raise ValueError("Evidence Bundle Integrity Failure")
@@ -304,6 +336,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Python 모듈 실행 명령" in dashboard.text
     assert "생성된 <code>aia.exe</code>를 차단하는 환경에서도" in dashboard.text
     assert "dashboard-command-context" in dashboard.text
+    assert "사용자 작업 실행을 우선 표시합니다" in dashboard.text
 
     new_run = client.get("/new")
     assert new_run.status_code == 200
