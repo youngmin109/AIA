@@ -1753,7 +1753,7 @@ def test_live_run_prioritizes_orphaned_state_over_stale_running_snapshot() -> No
     assert "연결 끊김 · 최종 기록 확인 필요" in run.text
     assert 'id="interactive-instructions" class="notice success" hidden' in run.text
     assert "AIA 보호 연결이 종료되어 현재 보호를 확인할 수 없습니다." in run.text
-    assert "이전 보호 실행의 Agent Root가 종료되어 AIA 보호 연결이 끊겼습니다." in run.text
+    assert "이전 보호 실행의 Codex 기준 프로세스가 종료되어 AIA 보호 연결이 끊겼습니다." in run.text
     assert "The AIA coordinator is no longer live" not in run.text
 
 
@@ -1814,6 +1814,8 @@ def test_workbench_hides_input_navigation_when_run_is_ended() -> None:
     assert 'id="terminal-send" class="button primary terminal-send" type="submit" disabled' in workbench.text
     assert 'id="workbench-howto-title">다음 단계</h2>' in workbench.text
     assert 'id="workbench-context-title">실행 정보</h2>' in workbench.text
+    assert '<strong>실행한 Workspace</strong>' in workbench.text
+    assert '<strong>보호 중인 Workspace</strong>' not in workbench.text
     assert 'data-howto-title>결과 확인</strong>' in workbench.text
     assert 'data-howto-title>정책 사건 검토</strong>' in workbench.text
 

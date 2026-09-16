@@ -30,7 +30,7 @@
       <p class="eyebrow">AIA Workbench · 보호 실행</p>
       <h1>Codex 작업 · AIA 보호 상태</h1>
       <p class="muted">가운데에서 작업하고, 오른쪽에서 센서와 차단 결과를 확인합니다.</p>
-      <p class="workbench-context"><strong>보호 중인 Workspace</strong><span class="mono path-value" title="{{ status.session.workspace }}">{{ status.session.workspace }}</span></p>
+      <p class="workbench-context"><strong>{{ '보호 중인 Workspace' if not run_ended and not protection_disconnected else '실행한 Workspace' }}</strong><span class="mono path-value" title="{{ status.session.workspace }}">{{ status.session.workspace }}</span></p>
       <details class="workbench-technical-meta">
         <summary>실행 ID 보기</summary>
         <code class="mono workbench-session-id" title="{{ session_id }}">{{ session_id }}</code>
