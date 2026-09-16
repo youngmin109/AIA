@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}사건 상세 · AIA{% endblock %}
 {% block content %}
-{% set operation_labels = {'READ': '읽기', 'CREATE': '생성', 'MODIFY': '수정', 'DELETE': '삭제', 'MOVE': '이동', 'RENAME': '이름 변경', 'EXECUTE': '명령 실행'} %}
+{% set operation_labels = {'READ': '읽기', 'CREATE': '생성', 'MODIFY': '수정', 'DELETE': '삭제', 'MOVE': '이동', 'RENAME': '이름 변경', 'EXECUTE': '명령 실행', 'RECOVERY': '복구', 'INTEGRITY': '무결성 검증', 'SENSOR': '센서 상태'} %}
 {% set decision_labels = {'VIOLATION': '정책 위반', 'COMPLIANT': '정상·허용', 'INDETERMINATE': '판정 불가', 'OBSERVED': '관찰됨'} %}
 {% set effect_labels = {'DENY': '금지', 'ALLOW': '허용', 'AUDIT': '기록'} %}
 {% set attribution_labels = {'EXACT': '정확히 귀속', 'PROCESS': '프로세스 수준', 'TEMPORAL': '시간적 연관', 'UNKNOWN': '귀속 불가'} %}
@@ -9,8 +9,8 @@
 {% set execution_labels = {'SUCCEEDED': '실행 확인됨', 'FAILED': '실행 실패', 'NOT_ATTEMPTED': '실행 결과 증거 없음', 'NOT_REPORTED': '결과 미확인', 'NONE': '결과 없음'} %}
 {% set recovery_labels = {'RESTORED': '복원 작업 완료', 'FAILED': '복원 작업 실패', 'RECOVERY_UNAVAILABLE': '복원 불가', 'NOT_ATTEMPTED': '복원하지 않음'} %}
 {% set integrity_labels = {'VERIFIED': '무결성 확인', 'FAILED': '무결성 실패', 'NOT_ATTEMPTED': '확인하지 않음', 'NOT_CHECKED': '확인하지 않음'} %}
-{% set status_code = incident.enforcement_action if incident.enforcement_action and incident.enforcement_action != 'NONE' else incident.policy_decision or incident.policy_effect or 'UNKNOWN' %}
-{% set status_label = enforcement_labels.get(status_code, decision_labels.get(status_code, effect_labels.get(status_code, status_code))) %}
+{% set status_code = incident.enforcement_action if incident.enforcement_action and incident.enforcement_action != 'NONE' else incident.policy_decision or incident.policy_effect or (incident.recovery_status if incident.operation == 'RECOVERY' else incident.integrity_status if incident.operation == 'INTEGRITY' else incident.execution_result if incident.operation == 'SENSOR' else 'UNKNOWN') %}
+{% set status_label = enforcement_labels.get(status_code, decision_labels.get(status_code, effect_labels.get(status_code, recovery_labels.get(status_code, integrity_labels.get(status_code, execution_labels.get(status_code, '확인 필요')))))) %}
 {% set policy_decision = incident.policy_decision or incident.policy_effect %}
 {% set policy_decision_label = decision_labels.get(policy_decision, policy_decision or '확인 필요') %}
 {% set enforcement_action = incident.enforcement_action or 'NONE' %}

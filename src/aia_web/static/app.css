@@ -157,6 +157,7 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .event-row:last-child { border-bottom: 0; }
 .event-row > div { display: grid; gap: 2px; flex: 1; }
 .event-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: var(--cyan); }
+.result-event-time { font-variant-numeric: tabular-nums; }
 .severity-warning .event-dot { background: var(--amber); } .severity-critical .event-dot { background: var(--red); }
 .run-header-status { display: grid; justify-items: end; gap: 8px; }
 .run-header-status .dashboard-sync-status { font-size: 11px; }

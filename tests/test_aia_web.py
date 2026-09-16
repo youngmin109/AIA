@@ -797,6 +797,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'href="/new">새 보호 실행</a>' in result.text
     assert 'aria-label="결과 바로가기"' in result.text
     assert 'id="sensor-results"' in result.text
+    assert '<span>정책 사건</span><strong>0건</strong><small>정책 판정 기록 기준</small>' in result.text
+    assert '<span>차단 사건</span><strong>0건</strong>' not in result.text
     assert 'id="event-timeline"' in result.text
     assert 'href="#evidence-chain">증거</a>' in result.text
     assert 'href="#execution-policy">실행 정책</a>' in result.text
@@ -889,6 +891,7 @@ def test_result_event_timeline_localizes_enforcement_decisions() -> None:
             "sensor": "AGENT_HOOK",
             "decision": "CONTINUE",
             "execution_result": "NOT_ATTEMPTED",
+            "observed_at": "2026-09-16T10:20:08+09:00",
         }
     ]
     service.get_result = lambda session_id: result_data
@@ -898,6 +901,8 @@ def test_result_event_timeline_localizes_enforcement_decisions() -> None:
 
     assert result.status_code == 200
     assert '<span class="badge" title="CONTINUE">계속 진행</span>' in result.text
+    assert 'class="result-event-time" datetime="2026-09-16T10:20:08+09:00"' in result.text
+    assert "result-event-time" in result.text
 
 
 def test_result_page_does_not_show_success_when_bundle_is_invalid() -> None:
@@ -946,6 +951,30 @@ def test_incident_page_prioritizes_policy_uncertainty_over_empty_enforcement_act
     assert incident.status_code == 200
     assert 'title="INDETERMINATE">판정 불가</div>' in incident.text
     assert "독립 Evidence가 부족해 정책 판정을 확정하지 못했습니다." in incident.text
+
+
+def test_incident_page_labels_recovery_failure_as_recovery() -> None:
+    service = FakeService()
+    incident_data = service.get_incident("run-1", "a1")
+    incident_data.update(
+        {
+            "operation": "RECOVERY",
+            "policy_effect": None,
+            "policy_decision": None,
+            "enforcement_action": "NONE",
+            "recovery_status": "FAILED",
+            "integrity_status": "NOT_ATTEMPTED",
+            "summary": "복구 작업 · 실패",
+        }
+    )
+    service.get_incident = lambda session_id, action_id: incident_data
+    client = TestClient(create_app(service))
+
+    incident = client.get("/runs/run-1/incidents/a1")
+
+    assert incident.status_code == 200
+    assert "복구 사건" in incident.text
+    assert 'title="FAILED">복원 작업 실패</div>' in incident.text
 
 
 def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
