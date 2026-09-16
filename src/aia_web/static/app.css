@@ -629,6 +629,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 .workbench-sensor { border-color: rgba(132, 166, 204, .35); background: rgba(255, 255, 255, .58); }
 .workbench-sensor.sensor-healthy { border-color: rgba(22, 134, 95, .42); background: rgba(231, 251, 243, .62); }
 .workbench-sensor.sensor-failed { border-color: rgba(200, 78, 94, .5); background: rgba(255, 237, 240, .68); }
+.workbench-sensor.sensor-disconnected { border-color: rgba(169, 108, 12, .48); background: rgba(255, 246, 218, .76); }
+.workbench-sensor.sensor-disconnected b { color: #82520b; }
 .workbench-sensor[role="button"]:hover, .workbench-sensor[role="button"]:focus-visible { border-color: var(--cyan); background: rgba(224, 247, 255, .86); }
 .security-panel-toggle { border-color: rgba(132, 166, 204, .42); background: rgba(255, 255, 255, .74); }
 .security-panel-toggle:hover, .security-panel-toggle:focus-visible { border-color: var(--cyan); background: rgba(224, 247, 255, .86); }

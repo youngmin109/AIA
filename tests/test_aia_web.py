@@ -1085,6 +1085,34 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     assert 'href="/runs/stale-run/workbench"' not in dashboard.text
 
 
+def test_workbench_disables_input_and_marks_sensors_when_runtime_is_orphaned() -> None:
+    service = FakeService()
+    original_get_run_status = service.get_run_status
+
+    def orphaned_status(session_id):
+        status = original_get_run_status(session_id)
+        status["protection"] = {**status["protection"], "state": "ORPHANED_DEGRADED"}
+        status["runtime_reconciliation"] = {
+            "status": "STALE_PROCESS_GONE",
+            "orphaned": True,
+            "action": "REVIEW_AND_RESTART",
+        }
+        return status
+
+    service.get_run_status = orphaned_status
+    client = TestClient(create_app(service))
+
+    workbench = client.get("/runs/run-1/workbench")
+
+    assert workbench.status_code == 200
+    assert "AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다." in workbench.text
+    assert "연결 끊김 · 정리 필요" in workbench.text
+    assert 'id="terminal-input-proxy"' in workbench.text
+    assert 'placeholder="AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다."' in workbench.text
+    assert "sensor-disconnected" in workbench.text
+    assert "!protectionDisconnected" in workbench.text
+
+
 def test_console_maps_validation_errors_to_bad_request() -> None:
     client = TestClient(create_app(FakeService()))
     response = client.post("/api/runs", json={"workspace": "invalid", "task": "inspect"})
