@@ -952,8 +952,13 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-readiness-ready-notice"' in dashboard.text
     assert 'data-dashboard-copy-command' in dashboard.text
     assert dashboard.text.count('class="text-button dashboard-command-copy"') == 3
+    assert 'data-dashboard-step="setup"' in dashboard.text
+    assert 'data-dashboard-step="trust"' in dashboard.text
+    assert 'id="dashboard-next-steps-title"' in dashboard.text
     assert 'id="dashboard-command-status"' in dashboard.text
     assert "copyDashboardCommand" in dashboard.text
+    assert "renderDashboardNextSteps" in dashboard.text
+    assert "checkByName('pretool_hook')" in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-current-meta"' in dashboard.text
     assert 'id="dashboard-run-count"' in dashboard.text
