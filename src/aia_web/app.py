@@ -214,6 +214,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "new_run_preflight_deferred": True,
                 "capabilities": product_capabilities(),
                 "cli_prefix": _console_cli_prefix(),
+                "hook_path": str(CodexHookInstaller().path),
             },
         )
 

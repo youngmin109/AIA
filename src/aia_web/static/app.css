@@ -83,6 +83,20 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .next-steps strong { color: var(--text); }
 .next-steps ol { margin: 8px 0 0 20px; padding: 0; }
 .next-steps li { margin: 5px 0; }
+.preflight-command-help { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.preflight-command-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.preflight-command-heading > div { display: grid; gap: 2px; }
+.preflight-command-heading > .hint { max-width: 52%; overflow-wrap: anywhere; text-align: right; }
+.preflight-command-list { display: grid; gap: 7px; }
+.preflight-command-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.42); }
+.preflight-command-row > span { color: var(--muted); font-size: 11px; }
+.preflight-command-row code { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: 12px; }
+.copy-command { padding: 4px 8px; color: var(--cyan); }
+@media (max-width: 760px) {
+  .preflight-command-heading { display: grid; gap: 8px; }
+  .preflight-command-heading > .hint { max-width: none; text-align: left; }
+  .preflight-command-heading code { display: block; margin-top: 3px; overflow-wrap: anywhere; white-space: normal; }
+}
 .run-recovery-help { display: grid; gap: 9px; }
 .run-recovery-help > div:first-child { display: grid; gap: 4px; }
 .run-recovery-help > div:first-child span { color: var(--muted); font-size: 12px; line-height: 1.5; }

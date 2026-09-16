@@ -187,6 +187,17 @@
       <li>PowerShell에서 <span class="mono">{{ cli_prefix }} hook verify</span>를 실행합니다.</li>
       <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
     </ol>
+    <div class="preflight-command-help" aria-label="PowerShell 명령 도움말">
+      <div class="preflight-command-heading">
+        <div><strong>PowerShell 명령</strong><span class="hint">현재 AIA 실행 환경에서 사용할 명령입니다.</span></div>
+        <span class="hint">Hook 설정: <code class="mono">{{ hook_path }}</code></span>
+      </div>
+      <div class="preflight-command-list">
+        <div class="preflight-command-row"><span>설치</span><code>{{ cli_prefix }} setup</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} setup">복사</button></div>
+        <div class="preflight-command-row"><span>검증</span><code>{{ cli_prefix }} hook verify</code><button class="text-button copy-command" type="button" data-copy-command="{{ cli_prefix }} hook verify">복사</button></div>
+      </div>
+      <span id="preflight-command-status" class="hint" role="status" aria-live="polite">`setup`과 `hook verify`는 같은 AIA 프로젝트 폴더에서 순서대로 실행하세요.</span>
+    </div>
   </div>
   <div class="form-actions">
     <button id="verify-hook" class="button" type="button"{% if preflight_deferred %} disabled{% endif %}>{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
@@ -305,6 +316,8 @@ const jumpToRun = document.getElementById('jump-to-run');
 const preflightNextSteps = document.getElementById('preflight-next-steps');
 const refreshPreflightButton = document.getElementById('refresh-preflight');
 const preflightRefreshStatus = document.getElementById('preflight-refresh-status');
+const copyCommandButtons = [...document.querySelectorAll('[data-copy-command]')];
+const preflightCommandStatus = document.getElementById('preflight-command-status');
 const runNextAction = document.getElementById('run-next-action');
 const runNextActionMark = document.querySelector('.run-next-action-mark');
 const runNextActionTitle = document.getElementById('run-next-action-title');
@@ -411,6 +424,45 @@ function setButtonBusy(button, busy, busyLabel) {
     button.textContent = button.dataset.idleLabel || button.textContent;
   }
 }
+async function copyCommand(button) {
+  const command = button.dataset.copyCommand || '';
+  if (!command) return;
+  const idleLabel = button.dataset.idleLabel || button.textContent;
+  button.disabled = true;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(command);
+    } else {
+      const helper = document.createElement('textarea');
+      helper.value = command;
+      helper.setAttribute('readonly', '');
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      document.body.append(helper);
+      helper.select();
+      const copied = document.execCommand('copy');
+      helper.remove();
+      if (!copied) throw new Error('clipboard unavailable');
+    }
+    button.textContent = '복사됨';
+    if (preflightCommandStatus) {
+      preflightCommandStatus.className = 'hint success-text';
+      preflightCommandStatus.textContent = '명령을 복사했습니다. 같은 AIA 프로젝트 폴더의 PowerShell에 붙여넣으세요.';
+    }
+  } catch (_) {
+    button.textContent = '복사 실패';
+    if (preflightCommandStatus) {
+      preflightCommandStatus.className = 'hint error-text';
+      preflightCommandStatus.textContent = '자동 복사가 막혔습니다. 명령을 직접 선택해 복사하세요.';
+    }
+  } finally {
+    window.setTimeout(() => {
+      button.disabled = false;
+      button.textContent = idleLabel;
+    }, 1400);
+  }
+}
+copyCommandButtons.forEach((button) => button.addEventListener('click', () => copyCommand(button)));
 function hideRunRecoveryHelp() {
   staleRunId = '';
   runRecoveryHelp.hidden = true;
