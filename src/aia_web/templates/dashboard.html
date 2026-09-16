@@ -286,6 +286,7 @@ let dashboardPreflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
 let dashboardPreflightInFlight = false;
 let dashboardPreflightStartedAt = 0;
 let dashboardPreflightElapsedTimer = null;
+const DASHBOARD_PREFLIGHT_REQUEST_TIMEOUT_MS = 30000;
 let dashboardPreflightTimer = null;
 let dashboardRunsLoaded = false;
 let dashboardRefreshInFlight = false;
@@ -647,7 +648,7 @@ async function loadDashboardPreflight() {
   }
   startDashboardPreflightLoading();
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10000);
+  const timeout = window.setTimeout(() => controller.abort(), DASHBOARD_PREFLIGHT_REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch('/api/preflight', {cache: 'no-store', signal: controller.signal});
     if (!response.ok) throw new Error('preflight request failed');
