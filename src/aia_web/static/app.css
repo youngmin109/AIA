@@ -697,6 +697,8 @@ body > header, body > main, body > footer { position: relative; z-index: 1; }
 .dashboard-run-row-has-incidents > td:first-child, .history-run-row-has-incidents > td:first-child { border-left: 3px solid rgba(184, 122, 20, .62); padding-left: 7px; }
 .dashboard-incident-count { display: inline-flex; align-items: center; min-height: 22px; color: var(--muted); }
 .dashboard-incident-count.has-incidents { padding: 3px 8px; border: 1px solid rgba(184, 122, 20, .46); border-radius: 999px; color: #82520b; background: rgba(255, 246, 218, .72); font-weight: 800; }
+.result-hero-incident-link { text-decoration: none; cursor: pointer; }
+.result-hero-incident-link:hover { border-color: rgba(184, 122, 20, .72); background: rgba(255, 246, 218, .96); }
 .history-incident-count { display: inline-flex; align-items: center; min-height: 22px; color: var(--muted); }
 .history-incident-count.has-incidents { padding: 3px 8px; border: 1px solid rgba(184, 122, 20, .46); border-radius: 999px; color: #82520b; background: rgba(255, 246, 218, .72); font-weight: 800; }
 
