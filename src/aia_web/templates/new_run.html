@@ -125,7 +125,7 @@
   <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
     {% for check in preflight.checks %}
     <div class="preflight-row">
-      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인 필요' }}</span>
+      <span class="preflight-mark {{ 'ok' if check.ok else ('optional' if check.optional else 'fail') }}">{{ '통과' if check.ok else ('선택' if check.optional else '확인 필요') }}</span>
       <strong>{{ check.label }}</strong>
       <span class="hint">{{ check.detail }}</span>
     </div>
@@ -173,7 +173,7 @@
     </div>
   </div>
   <div id="preflight-error" class="error" {% if preflight.ready or preflight_deferred %}hidden{% endif %}>
-    <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 항목을 먼저 해결하세요. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
+    <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 필수 항목을 먼저 해결하세요. <span class="mono">선택</span> 항목은 실행을 막지 않지만 관찰 범위를 줄일 수 있습니다. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
   </div>
   <div id="readiness-summary" class="notice {% if preflight.ready %}success{% else %}warning{% endif %}">
     <strong>시스템 준비 상태: <span id="readiness-code">{{ 'CHECKING' if preflight_deferred else preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
@@ -590,8 +590,8 @@ function renderPreflight(payload) {
     const row = document.createElement('div');
     row.className = 'preflight-row';
     const mark = document.createElement('span');
-    mark.className = `preflight-mark ${check.ok ? 'ok' : 'fail'}`;
-    mark.textContent = check.ok ? '통과' : '확인 필요';
+    mark.className = `preflight-mark ${check.ok ? 'ok' : check.optional ? 'optional' : 'fail'}`;
+    mark.textContent = check.ok ? '통과' : check.optional ? '선택' : '확인 필요';
     const label = document.createElement('strong');
     label.textContent = check.label;
     const detail = document.createElement('span');
