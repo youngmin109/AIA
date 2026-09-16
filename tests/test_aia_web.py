@@ -389,7 +389,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalSurfaceInputs" in new_run.text
     assert "runSubmissionInProgress" in new_run.text
     assert 'id="workspace-status"' in new_run.text
-    assert 'id="workspace-input"' in new_run.text and "autofocus" in new_run.text
+    assert 'id="workspace-input"' in new_run.text
+    assert 'id="run-next-action-link"' in new_run.text
+    assert "autofocus" not in new_run.text
     assert 'list="recent-workspaces"' in new_run.text
     assert 'id="recent-workspaces"' in new_run.text
     assert 'id="recent-workspace-hint"' in new_run.text
