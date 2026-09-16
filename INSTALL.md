@@ -14,7 +14,7 @@ PowerShell에서 저장소 폴더로 이동한 뒤 다음을 실행한다.
 uv run --isolated --project . python -m aia.cli <명령>
 ```
 
-아래에서 `uv run aia`가 필요한 기존 예시는 이 형식으로 바꿔 실행해도 된다.
+아래 명령은 저장소 루트에서 실행하며, 모두 생성된 `aia.exe`를 거치지 않는 방식이다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -SetupHook
@@ -31,7 +31,7 @@ Windows 애플리케이션 제어 정책이 `.venv` 실행 파일을 차단해 `
 표시되면 저장소에서 다음 격리 호출을 사용할 수 있다.
 
 ```powershell
-uv run --isolated python -m aia.cli setup
+uv run --isolated --project . python -m aia.cli setup
 ```
 
 이 호출은 임시 Python 경로를 Hook에 저장하지 않고 프로젝트와 `uv.exe`를
@@ -39,12 +39,12 @@ uv run --isolated python -m aia.cli setup
 콘솔을 실행한다.
 
 ```powershell
-uv run --isolated python -m aia.cli hook verify
-uv run --isolated python -m aia.cli doctor
-uv run --isolated python -m aia.cli console --open
+uv run --isolated --project . python -m aia.cli hook verify
+uv run --isolated --project . python -m aia.cli doctor
+uv run --isolated --project . python -m aia.cli console --open
 ```
 
-저장소 폴더 안에서 `uv run aia`를 붙이지 않고 어느 Workspace에서든 `aia`를
+저장소 폴더 안에서 긴 모듈 실행 형식을 붙이지 않고 어느 Workspace에서든 `aia`를
 사용하려면 다음처럼 사용자 도구로도 설치할 수 있다.
 
 ```powershell
@@ -53,7 +53,7 @@ aia --version
 ```
 
 `-InstallTool`은 현재 저장소 내용을 `uv` 사용자 도구로 설치한다. 저장소에서
-개발을 계속하는 경우에는 기본 설치 명령과 `uv run aia` 경로를 사용한다.
+개발을 계속하는 경우에는 기본 설치 명령과 `uv run --isolated --project . python -m aia.cli` 경로를 사용한다.
 새로 설치한 `aia`가 현재 PowerShell의 `PATH`에 아직 반영되지 않은 경우에도 설치
 스크립트는 uv가 설치한 실행 파일을 직접 찾아 Hook 설정을 계속한다. 설치 후
 `aia`를 직접 입력할 때는 새 PowerShell 창을 열거나 사용자 PATH를 갱신한다.
@@ -67,14 +67,14 @@ aia --version
 검토할 항목과 다음 순서를 한 번에 확인하려면 다음 읽기 전용 명령을 실행한다.
 
 ```powershell
-uv run aia hook explain
+uv run --isolated --project . python -m aia.cli hook explain
 ```
 
 그 다음 실제 Hook 연결을 확인한다. 이 명령은 임시 Workspace에서 무해한 Probe를
 실행하고, Probe Workspace는 삭제한다.
 
 ```powershell
-uv run aia hook verify
+uv run --isolated --project . python -m aia.cli hook verify
 ```
 
 `VERIFIED`가 표시될 때 보호 실행을 시작한다. `NOT_VERIFIED`이면 Codex에서
@@ -89,35 +89,35 @@ Control Root를 사용하고 모두 삭제하므로 사용자 Workspace와 Codex
 않는다.
 
 ```powershell
-uv run aia self-test
+uv run --isolated --project . python -m aia.cli self-test
 ```
 
 이 명령의 `PASS`는 정책·Lease·Checkpoint·Raw Evidence 핵심 계약이 정상이라는
-뜻이다. 실제 Codex Hook 연결은 별도로 `/hooks` 신뢰와 `uv run aia hook verify`가
+뜻이다. 실제 Codex Hook 연결은 별도로 `/hooks` 신뢰와 `uv run --isolated --project . python -m aia.cli hook verify`가
 필요하다.
 
 실제 프로젝트를 선택하기 전에 제품 흐름을 확인하려면 다음을 실행한다.
 
 ```powershell
-uv run aia demo
+uv run --isolated --project . python -m aia.cli demo
 ```
 
 실제 Codex 차단 증명은 Hook 검토·신뢰와 `aia hook verify`를 마친 뒤 다음처럼
 실행한다.
 
 ```powershell
-uv run aia demo --live
+uv run --isolated --project . python -m aia.cli demo --live
 ```
 
 `VERIFIED`가 표시된 뒤 다음 명령으로 전체 준비 상태가 `READY`인지 확인할 수
 있다.
 
 ```powershell
-uv run aia doctor
+uv run --isolated --project . python -m aia.cli doctor
 ```
 
 ```powershell
-uv run aia protect C:\workspace\my-project
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project
 ```
 
 대화형 보호 세션을 시작한다는 의미를 분명히 하려면 다음 명령을 사용해도 됩니다.
@@ -128,7 +128,7 @@ AIA가 먼저 보호 준비를 완료하고 Codex를 연 뒤, 열린 Codex 화�
 aia start C:\workspace\my-project
 ```
 
-저장소에서 사용자 도구로 설치하지 않은 경우에는 `uv run aia start
+저장소에서 사용자 도구로 설치하지 않은 경우에는 `uv run --isolated --project . python -m aia.cli start
 C:\workspace\my-project`를 사용합니다. `protect`와 `start`는 동일한 보호 경로를
 사용합니다.
 
@@ -141,7 +141,7 @@ C:\workspace\my-project`를 사용합니다. `protect`와 `start`는 동일한 �
 확정한다. 한 번의 요청만 전달하려면 `--task`를 사용한다.
 
 ```powershell
-uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 결과를 설명해줘"
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project --task "테스트를 실행하고 결과를 설명해줘"
 ```
 
 ## 정책 선택
@@ -149,17 +149,17 @@ uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 결
 기본 정책을 확인하고 편집 가능한 JSON을 만든다.
 
 ```powershell
-uv run aia policy profiles
-uv run aia policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
-uv run aia policy validate C:\workspace\policies\my-policy.json
+uv run --isolated --project . python -m aia.cli policy profiles
+uv run --isolated --project . python -m aia.cli policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
+uv run --isolated --project . python -m aia.cli policy validate C:\workspace\policies\my-policy.json
 ```
 
 ## 실행 기록 확인
 
 ```powershell
-uv run aia runs
-uv run aia status <SESSION_ID>
-uv run aia console --open
+uv run --isolated --project . python -m aia.cli runs
+uv run --isolated --project . python -m aia.cli status <SESSION_ID>
+uv run --isolated --project . python -m aia.cli console --open
 ```
 
 ## Hook 제거

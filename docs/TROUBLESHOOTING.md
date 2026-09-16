@@ -14,7 +14,7 @@ AIA는 입력한 Workspace를 자동으로 만들지 않는다. 사용자가 이
 
 ```powershell
 New-Item -ItemType Directory -Force "C:\workspace\my-project"
-uv run aia protect "C:\workspace\my-project"
+uv run --isolated --project . python -m aia.cli protect "C:\workspace\my-project"
 ```
 
 실제 프로젝트를 보호하기 전에는 복사본이나 disposable Workspace로 확인한다.
@@ -34,7 +34,7 @@ Hook 파일은 설치됐지만 Codex가 AIA `PreToolUse` Hook을 아직 Trust하
 그 후 다시 실행한다.
 
 ```powershell
-uv run aia hook verify
+uv run --isolated --project . python -m aia.cli hook verify
 ```
 
 AIA는 이 Trust를 자동으로 처리하지 않는다. `aia hook verify`가 이 상태에서
@@ -46,7 +46,7 @@ Codex의 현재 Hook 목록에서 AIA PreToolUse Hook을 찾지 못한 상태다
 확인한다.
 
 ```powershell
-uv run aia hook install
+uv run --isolated --project . python -m aia.cli hook install
 ```
 
 그 다음 Codex `/hooks`를 다시 열어 AIA Hook이 보이는지 확인하고 Trust한다.
@@ -62,15 +62,15 @@ uv run aia hook install
 - Result Bundle이 `VALID`가 아님
 
 ```powershell
-uv run aia doctor
-uv run aia hook status
+uv run --isolated --project . python -m aia.cli doctor
+uv run --isolated --project . python -m aia.cli hook status
 ```
 
 처음 설치했고 `/hooks`에서 무엇을 확인해야 하는지 모르겠으면 다음 명령을
 실행한다.
 
 ```powershell
-uv run aia hook explain
+uv run --isolated --project . python -m aia.cli hook explain
 ```
 
 두 명령의 `codex_hook_trust`, `hook_verification`, `activation_status`를 함께
@@ -82,8 +82,8 @@ uv run aia hook explain
 포함된다. 잠시 기다린 뒤 다른 PowerShell에서 상태를 확인한다.
 
 ```powershell
-uv run aia runs
-uv run aia status <SESSION_ID>
+uv run --isolated --project . python -m aia.cli runs
+uv run --isolated --project . python -m aia.cli status <SESSION_ID>
 ```
 
 오류가 표시되면 실행 중인 명령을 `Ctrl+C`로 중지하고, 결과가 `FAILED` 또는
@@ -96,7 +96,7 @@ uv run aia status <SESSION_ID>
 
 ```powershell
 cd "C:\workspace\01_projects\aia-mvp"
-uv run aia self-test
+uv run --isolated --project . python -m aia.cli self-test
 ```
 
 릴리스 wheel을 사용자 명령으로 설치한 경우에는 새 PowerShell 창을 열거나
@@ -144,7 +144,7 @@ PowerShell에서 실행해도 Hook이 `미설치`로 오인되지 않는다. 이
 문제를 재현한 뒤 다음 명령을 실행한다.
 
 ```powershell
-uv run aia support-bundle --output .\aia-support-bundle.json
+uv run --isolated --project . python -m aia.cli support-bundle --output .\aia-support-bundle.json
 ```
 
 진단 파일에는 AIA·Python·Windows·Codex 버전, Hook Trust, Control Root 쓰기 가능
@@ -158,8 +158,8 @@ evidence, tool input, 명령 출력은 포함하지 않는다. 파일을 공유�
 두 단계를 별도로 통과해야 한다.
 
 ```powershell
-uv run aia hook verify
-uv run aia doctor
+uv run --isolated --project . python -m aia.cli hook verify
+uv run --isolated --project . python -m aia.cli doctor
 ```
 
 `VERIFIED`와 `READY`가 확인된 뒤에만 `aia protect`를 실행한다.
@@ -173,14 +173,14 @@ AIA가 갑자기 종료되어 보호 실행의 상태 파일만 남은 경우다
 먼저 상태를 확인한다.
 
 ```powershell
-uv run aia status <SESSION_ID>
+uv run --isolated --project . python -m aia.cli status <SESSION_ID>
 ```
 
 기록된 Agent Root가 아직 살아 있으면 기존 Codex를 먼저 종료한다. Agent Root가
 사라진 것이 확인된 경우에만 다음 명령을 실행한다.
 
 ```powershell
-uv run aia reconcile <SESSION_ID>
+uv run --isolated --project . python -m aia.cli reconcile <SESSION_ID>
 ```
 
 이 명령은 기록을 삭제하거나 보호 성공으로 바꾸지 않는다. Agent Root가 살아
