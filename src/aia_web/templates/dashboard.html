@@ -222,6 +222,8 @@ const dashboardReadinessCode = {{ readiness|tojson }};
 const dashboardHookVerified = {{ 'true' if dashboard_hook_verified else 'false' }};
 let dashboardRefreshInFlight = false;
 let dashboardRefreshBusyTimer = null;
+let dashboardRefreshTimer = null;
+let dashboardCurrentActiveRun = null;
 
 function dashboardActiveRun(runs) {
   return (Array.isArray(runs) ? runs : []).find((run) => dashboardActiveStatuses.includes(run.status) && !run.runtime_reconciliation?.orphaned && run.run_classification !== 'UNVERIFIED_RUNTIME_STATE') || null;
@@ -387,6 +389,7 @@ async function refreshDashboard() {
     const runs = Array.isArray(payload.runs) ? payload.runs : [];
     dashboardRunCount.textContent = `${runs.length}건`;
     const activeRun = dashboardActiveRun(runs);
+    dashboardCurrentActiveRun = activeRun;
     renderDashboardCurrentRun(activeRun);
     renderDashboardReadiness(activeRun);
     renderDashboardSensors(activeRun);
@@ -402,11 +405,25 @@ async function refreshDashboard() {
     dashboardSyncStatus.classList.remove('is-refreshing');
     dashboardSyncStatus.removeAttribute('aria-busy');
     dashboardRefreshInFlight = false;
+    scheduleDashboardRefresh();
   }
 }
 
+function scheduleDashboardRefresh() {
+  if (dashboardRefreshTimer !== null) window.clearTimeout(dashboardRefreshTimer);
+  dashboardRefreshTimer = null;
+  if (document.hidden) return;
+  const delay = dashboardCurrentActiveRun ? 5000 : 15000;
+  dashboardRefreshTimer = window.setTimeout(refreshDashboard, delay);
+}
+
 refreshDashboard();
-window.setInterval(refreshDashboard, 5000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshDashboard(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    if (dashboardRefreshTimer !== null) window.clearTimeout(dashboardRefreshTimer);
+    dashboardRefreshTimer = null;
+    refreshDashboard();
+  }
+});
 </script>
 {% endblock %}
