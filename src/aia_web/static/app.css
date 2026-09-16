@@ -867,3 +867,9 @@ samp,
 .history-attention-link { flex: 0 0 auto; color: var(--text); }
 @media (max-width: 640px) { .run-unavailable-panel { display: block; } .run-unavailable-icon { margin-bottom: 12px; } }
 @media (max-width: 640px) { .history-attention { display: grid; gap: 10px; } .history-attention-link { justify-self: start; } }
+.dashboard-readiness-progress-steps span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 3px 5px; border-radius: 999px; transition: color .2s ease, background .2s ease, box-shadow .2s ease; }
+.dashboard-readiness-progress-steps span::before { display: inline-block; width: 6px; height: 6px; flex: 0 0 6px; border: 1px solid currentColor; border-radius: 50%; content: ''; }
+.dashboard-readiness-progress-steps span.is-complete { color: #19764f; background: rgba(103,229,154,.08); }
+.dashboard-readiness-progress-steps span.is-complete::before { border-color: var(--green); background: var(--green); }
+.dashboard-readiness-progress-steps span.is-current { color: #82520b; background: rgba(245,199,106,.16); box-shadow: 0 0 0 1px rgba(245,199,106,.28); }
+.dashboard-readiness-progress-steps span.is-current::before { border-color: var(--amber); background: var(--amber); box-shadow: 0 0 0 3px rgba(245,199,106,.16); }

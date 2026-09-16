@@ -106,7 +106,7 @@
   <div id="dashboard-readiness-progress" class="dashboard-readiness-progress" data-state="{{ 'checking' if preflight_deferred else 'pending' }}"{% if active_run.item %} hidden{% endif %}>
     <div class="dashboard-readiness-progress-heading"><div><span class="eyebrow">보호 준비 진행</span><strong id="dashboard-readiness-progress-value">확인 중</strong></div><span id="dashboard-readiness-progress-next" class="hint">준비 상태를 확인하는 중입니다.</span></div>
     <div id="dashboard-readiness-progress-track" class="dashboard-readiness-progress-track" role="progressbar" aria-label="보호 실행 준비 단계" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="확인 중"><span id="dashboard-readiness-progress-fill" class="dashboard-readiness-progress-fill"></span></div>
-    <div class="dashboard-readiness-progress-steps" aria-hidden="true"><span>Codex</span><span>Hook 설치</span><span>Trust</span><span>연결 검증</span></div>
+    <div class="dashboard-readiness-progress-steps" role="list" aria-label="보호 실행 준비 단계"><span data-dashboard-readiness-step="codex_executable" role="listitem">Codex</span><span data-dashboard-readiness-step="pretool_hook" role="listitem">Hook 설치</span><span data-dashboard-readiness-step="codex_hook_trust" role="listitem">Trust</span><span data-dashboard-readiness-step="hook_verification" role="listitem">연결 검증</span></div>
   </div>
   <div id="dashboard-preflight-checks" class="preflight-list dashboard-checks"{% if preflight_deferred or active_run.item %} hidden{% endif %}>
     {% for check in preflight.get('checks', []) %}
@@ -267,6 +267,7 @@ const dashboardNextStepItems = [...document.querySelectorAll('[data-dashboard-st
 const dashboardReadinessReadyNotice = document.getElementById('dashboard-readiness-ready-notice');
 const dashboardCommandCopyButtons = [...document.querySelectorAll('[data-dashboard-copy-command]')];
 const dashboardCommandStatus = document.getElementById('dashboard-command-status');
+const dashboardReadinessStepElements = [...document.querySelectorAll('[data-dashboard-readiness-step]')];
 const dashboardSensorHookStatus = document.getElementById('dashboard-sensor-hook-status');
 const dashboardSensorHookDetail = document.getElementById('dashboard-sensor-hook-detail');
 const dashboardSensorFileStatus = document.getElementById('dashboard-sensor-file-status');
@@ -490,6 +491,15 @@ function renderDashboardReadinessProgress(checks, readinessStatus = dashboardRea
   const percent = Math.round((completed / stages.length) * 100);
   dashboardReadinessProgress.hidden = false;
   dashboardReadinessProgress.dataset.state = ready ? 'ready' : 'pending';
+  dashboardReadinessStepElements.forEach((step) => {
+    const name = step.dataset.dashboardReadinessStep;
+    const complete = checkByName(name)?.ok === true;
+    const current = !ready && firstPending?.[0] === name;
+    step.classList.toggle('is-complete', complete);
+    step.classList.toggle('is-current', current);
+    if (current) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
   if (dashboardReadinessProgressValue) dashboardReadinessProgressValue.textContent = ready ? '준비 완료' : `${completed}/${stages.length} 단계 완료`;
   if (dashboardReadinessProgressNext) dashboardReadinessProgressNext.textContent = ready ? '보호 실행을 시작할 수 있습니다.' : `다음: ${firstPending?.[1] || '확인 필요'}`;
   if (dashboardReadinessProgressTrack) {
@@ -502,6 +512,12 @@ function renderDashboardReadinessChecking() {
   if (!dashboardReadinessProgress) return;
   dashboardReadinessProgress.hidden = false;
   dashboardReadinessProgress.dataset.state = 'checking';
+  dashboardReadinessStepElements.forEach((step, index) => {
+    step.classList.remove('is-complete', 'is-current');
+    if (index === 0) step.classList.add('is-current');
+    if (index === 0) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
   if (dashboardReadinessProgressValue) dashboardReadinessProgressValue.textContent = '확인 중';
   if (dashboardReadinessProgressNext) dashboardReadinessProgressNext.textContent = '로컬 환경과 Hook 연결을 확인하고 있습니다.';
   if (dashboardReadinessProgressTrack) {

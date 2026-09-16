@@ -311,8 +311,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".hook-readiness-path" in css.text
     assert ".hook-readiness-step.is-attention" in css.text
     assert ".hook-readiness-step.is-current" in css.text
+    assert ".dashboard-readiness-progress-steps span.is-current" in css.text
     assert ".preflight-scope-complete" in css.text
-    assert "glassbox-ui-25" in dashboard.text
+    assert "glassbox-ui-26" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -336,6 +337,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'class="ambient-scene"' in dashboard.text
     assert "보호 상태를 한눈에 확인하세요" in dashboard.text
     assert "dashboardCheckBlocksRun" in dashboard.text
+    assert 'data-dashboard-readiness-step="codex_executable"' in dashboard.text
+    assert 'data-dashboard-readiness-step="hook_verification"' in dashboard.text
+    assert "dashboardReadinessStepElements" in dashboard.text
     assert "dashboardCheckMark" in dashboard.text
     assert "CODEX_HOOK_TRUST_REQUIRED" in dashboard.text
     assert "Python 모듈 실행 명령" in dashboard.text
