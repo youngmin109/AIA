@@ -312,8 +312,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".hook-readiness-step.is-attention" in css.text
     assert ".hook-readiness-step.is-current" in css.text
     assert ".dashboard-readiness-progress-steps span.is-current" in css.text
+    assert ".history-view-preset.is-active" in css.text
     assert ".preflight-scope-complete" in css.text
-    assert "glassbox-ui-26" in dashboard.text
+    assert "glassbox-ui-27" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -1559,6 +1560,11 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "history-time" in history.text
     assert "Result Bundle 무결성 확인" in history.text
     assert 'id="filter-origin"' in history.text
+    assert 'data-history-quick-filter="all"' in history.text
+    assert 'data-history-quick-filter="user"' in history.text
+    assert 'data-history-quick-filter="diagnostic"' in history.text
+    assert "history-view-presets" in history.text
+    assert "noFilters" in history.text
     assert "사용자 작업" in history.text
     assert "Bundle 유효" in history.text
     assert "유효한 Result Bundle 실행만 보기" in history.text

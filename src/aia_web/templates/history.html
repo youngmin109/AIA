@@ -6,13 +6,13 @@
 {% set bundle_labels = {'VALID': '유효', 'INVALID': '무효', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '없음'} %}
 {% set active_statuses = ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'] %}
 {% set history_runs = history_runs|default(runs) %}
-{% set history_summary = namespace(active=0, incidents=0, valid=0, orphaned=0, diagnostics=0) %}
+{% set history_summary = namespace(active=0, incidents=0, valid=0, orphaned=0, diagnostics=0, user=0) %}
 {% for item in history_runs %}
   {% if item.status in active_statuses and not (item.runtime_reconciliation or {}).get('orphaned') and item.run_classification != 'UNVERIFIED_RUNTIME_STATE' %}{% set history_summary.active = history_summary.active + 1 %}{% endif %}
   {% if item.incident_count %}{% set history_summary.incidents = history_summary.incidents + 1 %}{% endif %}
   {% if item.bundle_status == 'VALID' %}{% set history_summary.valid = history_summary.valid + 1 %}{% endif %}
   {% if (item.runtime_reconciliation or {}).get('orphaned') %}{% set history_summary.orphaned = history_summary.orphaned + 1 %}{% endif %}
-  {% if item.dashboard_diagnostic %}{% set history_summary.diagnostics = history_summary.diagnostics + 1 %}{% endif %}
+  {% if item.dashboard_diagnostic %}{% set history_summary.diagnostics = history_summary.diagnostics + 1 %}{% else %}{% set history_summary.user = history_summary.user + 1 %}{% endif %}
 {% endfor %}
 <section class="hero compact">
   <div>
@@ -23,11 +23,17 @@
   <a class="button primary" href="/new">새 보호 실행</a>
 </section>
 <section class="metric-grid history-summary" aria-label="실행 기록 요약">
-  <div class="metric"><span>전체 실행</span><strong>{{ runs|length }}건</strong><small>로컬에 보존된 보호 실행</small></div>
+  <div class="metric"><span>전체 실행</span><strong>{{ runs|length }}건</strong><small>사용자 작업 {{ history_summary.user }}건 · AIA 자체 진단 {{ history_summary.diagnostics }}건</small></div>
   <button type="button" class="metric metric-status metric-action {{ 'metric-ok' if history_summary.active == 0 else 'metric-warning' }}" data-history-quick-filter="active" aria-label="현재 실행 중인 보호 실행만 보기"{% if history_summary.active == 0 %} disabled{% endif %}><span>현재 진행 중</span><strong>{{ history_summary.active }}건</strong><small>연결된 실행만 집계 · 클릭하여 보기</small></button>
   <button type="button" class="metric metric-action {{ 'metric-warning' if history_summary.incidents else '' }}" data-history-quick-filter="incident" aria-label="정책 사건이 있는 실행만 보기"><span>정책 사건 실행</span><strong>{{ history_summary.incidents }}건</strong><small>정책 판정·실행 실패 기록이 있는 실행 · 실제 차단은 결과에서 확인</small></button>
   <button type="button" class="metric metric-ok metric-action" data-history-quick-filter="valid" aria-label="유효한 Result Bundle 실행만 보기"><span>Bundle 유효</span><strong>{{ history_summary.valid }}건</strong><small>Result Bundle 무결성 확인 · 클릭하여 보기</small></button>
 </section>
+<div class="history-view-presets" role="group" aria-label="실행 기록 빠른 보기">
+  <span class="history-view-presets-label">빠른 보기</span>
+  <button type="button" class="history-view-preset is-active" data-history-quick-filter="all" aria-pressed="true">전체 실행 <b>{{ runs|length }}건</b></button>
+  <button type="button" class="history-view-preset" data-history-quick-filter="user" aria-pressed="false">사용자 작업 <b>{{ history_summary.user }}건</b></button>
+  <button type="button" class="history-view-preset" data-history-quick-filter="diagnostic" aria-pressed="false">AIA 자체 진단 <b>{{ history_summary.diagnostics }}건</b></button>
+</div>
 {% if history_summary.diagnostics %}
 <section class="notice history-diagnostic-note" aria-label="AIA 자체 진단 실행 안내">
   <strong>AIA 자체 진단 실행 {{ history_summary.diagnostics }}건이 포함되어 있습니다.</strong>
@@ -149,8 +155,9 @@ function filterRuns() {
   filterStatus.hidden = activeFilters.length === 0;
   filterStatus.textContent = activeFilters.length ? `현재 조건: ${activeFilters.join(' · ')}` : '';
   historyQuickFilters.forEach((button) => {
-    const quickFilter = button.dataset.historyQuickFilter;
-    const active = (quickFilter === 'active' && activeOnly) || (!activeOnly && quickFilter === 'incident' && incident === 'yes') || (!activeOnly && quickFilter === 'valid' && bundle === 'valid') || (!activeOnly && quickFilter === 'orphaned' && protection === 'orphaned_degraded');
+  const quickFilter = button.dataset.historyQuickFilter;
+  const noFilters = !workspace && !origin && !status && !protection && !incident && !bundle && !date && !activeOnly;
+  const active = (quickFilter === 'all' && noFilters) || (quickFilter === 'active' && activeOnly) || (!activeOnly && quickFilter === 'user' && origin === 'user') || (!activeOnly && quickFilter === 'diagnostic' && origin === 'diagnostic') || (!activeOnly && quickFilter === 'incident' && incident === 'yes') || (!activeOnly && quickFilter === 'valid' && bundle === 'valid') || (!activeOnly && quickFilter === 'orphaned' && protection === 'orphaned_degraded');
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
   });
@@ -171,7 +178,20 @@ historyQuickFilters.forEach((button) => button.addEventListener('click', () => {
   const quickFilter = button.dataset.historyQuickFilter;
   const incidentFilter = document.getElementById('filter-incident');
   const bundleFilter = document.getElementById('filter-bundle');
-  if (quickFilter === 'active') {
+  if (quickFilter === 'all') {
+    activeOnly = false;
+    filterIds.forEach((id) => { document.getElementById(id).value = ''; });
+  } else if (quickFilter === 'user' || quickFilter === 'diagnostic') {
+    activeOnly = false;
+    const originFilter = document.getElementById('filter-origin');
+    originFilter.value = originFilter.value === quickFilter ? '' : quickFilter;
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-protection').value = '';
+    incidentFilter.value = '';
+    bundleFilter.value = '';
+    document.getElementById('filter-date').value = '';
+    originFilter.focus();
+  } else if (quickFilter === 'active') {
     activeOnly = !activeOnly;
     if (activeOnly) {
       document.getElementById('filter-origin').value = '';
