@@ -330,6 +330,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".page-actions { flex-wrap: wrap; gap: 10px 14px; }" in css.text
     assert "#dashboard-recent-table > table { display: block; min-width: 0; }" in css.text
     assert "#dashboard-recent-table > table tbody > tr > td:nth-child(3)::before" in css.text
+    assert ".workbench-header > div:first-child { display: grid; gap: 4px; }" in css.text
+    assert ".workbench-header h1 { margin: 0; font-size: 24px; }" in css.text
+    assert ".workbench-guidance { min-height: 0; margin-bottom: 10px; padding: 9px 11px; }" in css.text
+    assert ".page-shell-workbench { padding-top: 36px; }" in css.text
+    assert ".workbench-header > div:first-child > .muted { margin: 6px 0 0; }" in css.text
     pretendard = client.get("/static/fonts/PretendardVariable.woff2")
     assert pretendard.status_code == 200
     assert pretendard.content.startswith(b"wOF2")

@@ -785,6 +785,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 }
 
 /* Workbench balance: let the Codex surface match the tallest side column without adding an empty row. */
+.page-shell-workbench { padding-top: 36px; }
+.workbench-header { margin-bottom: 14px; }
+.workbench-header > div:first-child > .muted { margin: 6px 0 0; }
+.workbench-context { margin-top: 8px; }
+.workbench-technical-meta { margin-top: 4px; }
 .workbench-grid { grid-template-columns: minmax(235px, .95fr) minmax(360px, 1.7fr) minmax(300px, 1.05fr); align-items: stretch; }
 .workbench-terminal-panel { display: flex; flex-direction: column; align-self: stretch; align-content: initial; min-height: 0; height: auto; }
 .workbench-terminal-panel > * { flex: 0 0 auto; }
@@ -824,6 +829,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 @media (max-width: 760px) {
   .workbench-terminal-panel { min-height: 0; }
   .terminal-output { min-height: 340px; }
+}
+
+/* Narrow Workbench: keep the first viewport focused on the Codex surface. */
+@media (max-width: 760px) {
+  .workbench-header { margin-bottom: 10px; }
+  .workbench-header > div:first-child { display: grid; gap: 4px; }
+  .workbench-header .eyebrow { margin-bottom: 0; font-size: 10px; }
+  .workbench-header h1 { margin: 0; font-size: 24px; }
+  .workbench-header > div:first-child > .muted { margin: 0; font-size: 12px; line-height: 1.35; }
+  .workbench-context { max-width: 100%; margin: 3px 0 0; font-size: 11px; }
+  .workbench-technical-meta { margin-top: 1px; }
+  .workbench-header-actions { margin-top: 8px; gap: 6px; }
+  .workbench-guidance { min-height: 0; margin-bottom: 10px; padding: 9px 11px; }
+  .workbench-guidance-copy strong { font-size: 12px; }
+  .workbench-guidance-copy small { font-size: 10px; line-height: 1.3; }
+  .workbench-jumpbar { margin-bottom: 10px; padding: 6px 8px; }
 }
 
 /* Product typography: use the bundled font across the web console and Workbench terminal surface. */
