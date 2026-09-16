@@ -314,7 +314,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".dashboard-readiness-progress-steps span.is-current" in css.text
     assert ".history-view-preset.is-active" in css.text
     assert ".preflight-scope-complete" in css.text
-    assert "glassbox-ui-27" in dashboard.text
+    assert '.field textarea[aria-invalid="true"]' in css.text
+    assert "glassbox-ui-28" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -477,6 +478,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Workspace를 확인하는 중입니다." in new_run.text
     assert "updateRunSubmitState" in new_run.text
     assert 'id="run-submit-hint"' in new_run.text
+    assert 'id="run-submit-help-link"' in new_run.text
+    assert "taskMissing" in new_run.text
+    assert "작업 요청으로 이동" in new_run.text
+    assert "한 번의 작업 실행을 선택했습니다. Codex에 전달할 작업 요청을 입력하세요." in new_run.text
     assert 'id="run-launch-actions"' in new_run.text
     assert 'id="run-recovery-help"' in new_run.text
     assert 'id="reconcile-stale-run"' in new_run.text

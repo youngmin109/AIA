@@ -83,8 +83,8 @@
         <span class="hint">기존 호환 모드입니다. Codex 작업 화면을 별도 창에서 엽니다.</span>
       </fieldset>
       <label class="field field-wide" id="task-field" hidden>작업 요청
-        <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘"></textarea>
-        <span class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다. 명령을 실행할지 여부는 Codex가 결정하며, AIA는 실제 도구 요청을 관찰·통제합니다.</span>
+        <textarea name="task" id="task-input" rows="6" placeholder="예: README.md를 읽고 현재 프로젝트를 한 문단으로 요약해줘" aria-describedby="task-help" aria-invalid="false"></textarea>
+        <span id="task-help" class="hint">보호 준비가 완료된 뒤 Codex에 전달됩니다. 명령을 실행할지 여부는 Codex가 결정하며, AIA는 실제 도구 요청을 관찰·통제합니다.</span>
       </label>
     </div>
     <div class="notice warning"><strong>로컬 전용:</strong> 이 콘솔은 기본적으로 127.0.0.1에서만 열립니다. 처음에는 테스트용 Workspace를 사용하고 작업 요청에 비밀정보를 넣지 마세요.</div>
@@ -117,7 +117,7 @@
       </dl>
       <p id="run-launch-summary-note" class="hint">존재하는 Workspace 경로를 입력하면 실행 가능 여부를 확인합니다.</p>
     </div>
-    <div id="run-launch-actions" class="form-actions run-launch-actions"><button id="submit-run" class="button primary" type="submit" disabled>보호 실행 시작</button><span id="run-submit-hint" class="hint">실행 전 준비 상태와 Workspace 확인이 필요합니다.</span></div>
+    <div id="run-launch-actions" class="form-actions run-launch-actions"><button id="submit-run" class="button primary" type="submit" disabled>보호 실행 시작</button><span id="run-submit-hint" class="hint">실행 전 준비 상태와 Workspace 확인이 필요합니다.</span><a id="run-submit-help-link" class="text-link run-submit-help-link" href="#workspace-input">Workspace 입력으로 이동 →</a></div>
   </form>
 </section>
 
@@ -398,6 +398,7 @@ const runSummaryPolicy = document.getElementById('run-summary-policy');
 const runSummaryMode = document.getElementById('run-summary-mode');
 const runSummarySurface = document.getElementById('run-summary-surface');
 const runLaunchSummaryNote = document.getElementById('run-launch-summary-note');
+const runSubmitHelpLink = document.getElementById('run-submit-help-link');
 const profileDescriptions = {{ profiles|tojson }};
 const taskField = document.getElementById('task-field');
 const taskInput = document.getElementById('task-input');
@@ -740,13 +741,14 @@ function updateRunMode() {
   const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
   taskField.hidden = interactive;
   taskInput.required = !interactive;
+  taskInput.setAttribute('aria-invalid', !interactive && !taskInput.value.trim() ? 'true' : 'false');
   if (interactive) taskInput.value = '';
   terminalSurfaceInputs.forEach((input) => {
     input.disabled = !interactive;
     input.closest('.choice')?.classList.toggle('choice-disabled', !interactive);
   });
 }
-runModeInputs.forEach((input) => input.addEventListener('change', updateRunMode));
+runModeInputs.forEach((input) => input.addEventListener('change', () => { updateRunMode(); updateRunSubmitState(); }));
 updateRunMode();
 updateRunProgress();
 updateLaunchSummary();
@@ -959,7 +961,10 @@ verifyHookButton.addEventListener('click', async () => {
 });
 function updateRunSubmitState() {
   const preflightChecking = !preflightLoaded || preflightRequestInFlight;
-  const ready = preflightReady && !preflightChecking && workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  const workspaceReady = workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
+  const taskReady = interactive || Boolean(taskInput.value.trim());
+  const ready = preflightReady && !preflightChecking && workspaceReady && taskReady;
   submitRun.disabled = !ready || runSubmissionInProgress;
   readinessConfig.textContent = workspaceValidationInProgress
     ? '현재 실행 설정: Workspace 확인 중…'
@@ -977,9 +982,30 @@ function updateRunSubmitState() {
       ? '실행 전 준비 상태를 먼저 해결하세요.'
       : workspaceValidationInProgress
         ? 'Workspace 확인이 끝나면 실행 버튼이 활성화됩니다.'
-        : !workspaceIsValid
+        : !workspaceReady
           ? '존재하는 Workspace 경로를 확인하면 실행할 수 있습니다.'
+          : !taskReady
+            ? '한 번의 작업 실행을 선택했습니다. Codex에 전달할 작업 요청을 입력하세요.'
           : '실행 설정이 준비되었습니다.';
+  if (runSubmitHelpLink) {
+    if (runSubmissionInProgress) {
+      runSubmitHelpLink.hidden = true;
+    } else if (!workspaceReady) {
+      runSubmitHelpLink.hidden = false;
+      runSubmitHelpLink.href = '#workspace-input';
+      runSubmitHelpLink.textContent = 'Workspace 입력으로 이동 →';
+    } else if (!preflightReady || preflightChecking) {
+      runSubmitHelpLink.hidden = false;
+      runSubmitHelpLink.href = '#preflight-panel';
+      runSubmitHelpLink.textContent = '준비 상태로 이동 →';
+    } else if (!taskReady) {
+      runSubmitHelpLink.hidden = false;
+      runSubmitHelpLink.href = '#task-input';
+      runSubmitHelpLink.textContent = '작업 요청으로 이동 →';
+    } else {
+      runSubmitHelpLink.hidden = true;
+    }
+  }
   updateLaunchSummary(ready);
   updateRunProgress();
 }
@@ -996,16 +1022,20 @@ function updateLaunchSummary(ready = preflightReady && workspaceIsValid && valid
   const policyOption = profile.selectedOptions[0]?.textContent?.trim() || '정책 확인 필요';
   runSummaryPolicy.textContent = policyOption.replace(/\s+·\s+권장$/, '');
   const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
+  const oneShotTaskMissing = !interactive && !taskInput.value.trim();
   runSummaryMode.textContent = interactive ? '대화형 보호 세션' : '한 번의 작업 실행';
   const workbench = form.querySelector('input[name="terminal_surface"]:checked')?.value === 'workbench';
   runSummarySurface.textContent = interactive ? workbench ? 'AIA Workbench' : '별도 Windows 터미널' : 'Codex 기본 실행';
-  const state = runSubmissionInProgress ? 'busy' : ready && preflightLoaded && !preflightRequestInFlight ? 'ready' : 'pending';
+  const configurationReady = preflightReady && preflightLoaded && !preflightRequestInFlight && workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  const state = runSubmissionInProgress ? 'busy' : ready && !oneShotTaskMissing && preflightLoaded && !preflightRequestInFlight ? 'ready' : oneShotTaskMissing && configurationReady ? 'task' : 'pending';
   runLaunchSummary.dataset.state = state;
-  runLaunchSummaryState.className = `badge ${state === 'ready' ? 'badge-ready' : state === 'busy' ? 'badge-running' : ''}`;
+  runLaunchSummaryState.className = `badge ${state === 'ready' ? 'badge-ready' : state === 'busy' ? 'badge-running' : state === 'task' ? 'badge-indeterminate' : ''}`;
   runLaunchSummaryState.textContent = state === 'busy'
     ? '시작 중…'
     : state === 'ready'
       ? '실행 가능'
+      : state === 'task'
+        ? '작업 요청 필요'
       : !workspace
         ? '입력 필요'
         : workspaceValidationInProgress
@@ -1019,6 +1049,8 @@ function updateLaunchSummary(ready = preflightReady && workspaceIsValid && valid
     ? 'AIA가 정책·Checkpoint·센서를 준비하고 보호 실행을 시작합니다.'
     : state === 'ready'
       ? '이 설정으로 보호 실행을 시작할 수 있습니다.'
+      : state === 'task'
+        ? '한 번의 작업 실행을 선택했습니다. Codex에 전달할 작업 요청을 입력하세요.'
       : workspaceValidationInProgress
         ? 'Workspace 경로를 확인하는 중입니다.'
         : !workspace
@@ -1031,6 +1063,8 @@ function updateLaunchSummary(ready = preflightReady && workspaceIsValid && valid
 }
 function updateNextAction() {
   if (!runNextAction) return;
+  const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
+  const taskMissing = !interactive && !taskInput.value.trim();
   let state = 'workspace';
   let mark = '1';
   let title = '보호할 Workspace 경로를 입력하세요.';
@@ -1072,6 +1106,13 @@ function updateNextAction() {
     detail = 'Hook Trust와 현재 연결 증명을 확인한 뒤 보호 실행을 시작할 수 있습니다.';
     link = '#preflight-panel';
     linkLabel = '준비 상태 확인';
+  } else if (taskMissing) {
+    state = 'task';
+    mark = '3';
+    title = 'Codex에 보낼 작업 요청을 입력하세요.';
+    detail = '한 번의 작업 실행에서는 보호 준비가 끝난 뒤 전달할 요청이 필요합니다.';
+    link = '#task-input';
+    linkLabel = '작업 요청으로 이동';
   } else {
     state = 'ready';
     mark = '✓';
@@ -1090,6 +1131,8 @@ function updateNextAction() {
 }
 function updateRunProgress() {
   const workspaceReady = workspaceIsValid && validatedWorkspacePath === workspaceInput.value.trim();
+  const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
+  const taskMissing = !interactive && !taskInput.value.trim();
   const currentStep = !workspaceReady ? 1 : !preflightLoaded || preflightRequestInFlight || !preflightReady ? 2 : 3;
   const stepLabels = {
     1: '작업 폴더 선택',
@@ -1111,7 +1154,9 @@ function updateRunProgress() {
       ? 'Workspace 경로를 입력하세요.'
       : currentStep === 2
         ? preflightLoaded && !preflightRequestInFlight ? '실행 전 준비 상태를 확인하세요.' : '실행 전 준비 상태를 확인하는 중입니다.'
-        : '실행 설정을 확인하고 시작 버튼을 누르세요.';
+        : taskMissing
+          ? '작업 요청을 입력하세요.'
+          : '실행 설정을 확인하고 시작 버튼을 누르세요.';
     runProgressStatus.textContent = `현재 단계 ${currentStep}/4 · ${stepLabels[currentStep]} · ${nextAction}`;
   }
   updateNextAction();
@@ -1201,6 +1246,10 @@ workspaceInput.addEventListener('blur', () => { clearTimeout(workspaceValidation
 form.querySelectorAll('select[name="policy_profile"], select[name="mode"], input[name="run_mode"], input[name="terminal_surface"]').forEach((input) => {
   input.addEventListener('change', () => updateLaunchSummary());
 });
+taskInput.addEventListener('input', () => {
+  taskInput.setAttribute('aria-invalid', taskInput.value.trim() ? 'false' : 'true');
+  updateRunSubmitState();
+});
 function updatePreviewTarget() {
   const command = previewOperation.value === 'EXECUTE';
   previewTarget.placeholder = command ? '예: type .env' : '예: .env';
@@ -1271,6 +1320,14 @@ form.addEventListener('submit', async (event) => {
   }
   if (!preflightReady) {
     showRunStartError('실행 전 준비 상태를 먼저 해결하세요.');
+    return;
+  }
+  const interactive = form.querySelector('input[name="run_mode"]:checked')?.value === 'interactive';
+  if (!interactive && !taskInput.value.trim()) {
+    taskInput.setAttribute('aria-invalid', 'true');
+    showRunStartError('한 번의 작업 실행을 선택했습니다. 작업 요청을 입력하세요.');
+    taskInput.focus();
+    updateRunSubmitState();
     return;
   }
   if (!workspaceIsValid || validatedWorkspacePath !== workspaceInput.value.trim()) {
