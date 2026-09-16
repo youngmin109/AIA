@@ -322,6 +322,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preflight-command-help" in new_run.text
     assert "Windows 실행 파일 오류가 나면" in new_run.text
     assert "preflight-command-note" in new_run.text
+    assert "python -m aia.cli doctor" in new_run.text
     assert "python -m aia.cli setup" in new_run.text
     assert "python -m aia.cli hook verify" in new_run.text
     assert "data-copy-command" in new_run.text

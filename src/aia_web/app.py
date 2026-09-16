@@ -125,7 +125,11 @@ def _console_module_cli_prefix() -> str:
                 "aia.cli",
             ]
         )
-    return "uv run --isolated python -m aia.cli"
+    # An installed AIA has no checkout-level ``pyproject.toml`` to pass to
+    # uv.  Its serving interpreter already contains the package, so use that
+    # interpreter directly instead of displaying a command that depends on a
+    # project directory that does not exist.
+    return subprocess.list2cmdline([sys.executable, "-m", "aia.cli"])
 
 
 def _console_cli_prefix() -> str:

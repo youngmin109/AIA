@@ -225,6 +225,7 @@
         <strong>Windows 실행 파일 오류가 나면</strong>
         <span><code>aia.exe</code>가 애플리케이션 제어 정책으로 차단될 때는 아래 대체 명령을 그대로 실행하세요.</span>
         <div class="preflight-command-list preflight-command-fallback-list">
+          <div class="preflight-command-row"><span>점검</span><code>{{ module_cli_prefix }} doctor</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} doctor">복사</button></div>
           <div class="preflight-command-row"><span>설치</span><code>{{ module_cli_prefix }} setup</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} setup">복사</button></div>
           <div class="preflight-command-row"><span>검증</span><code>{{ module_cli_prefix }} hook verify</code><button class="text-button copy-command" type="button" data-copy-command="{{ module_cli_prefix }} hook verify">복사</button></div>
         </div>
