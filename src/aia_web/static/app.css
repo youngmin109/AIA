@@ -146,6 +146,9 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .preflight-sensor-cards { margin-top: 14px; }
 .preflight-sensor-card { min-height: 128px; }
 .dashboard-sensor-card { min-height: 152px; }
+.run-project-context { display: grid; gap: 5px; margin: 16px 0 20px; padding: 12px 14px; border: 1px solid rgba(101,217,232,.3); border-radius: 10px; background: rgba(101,217,232,.055); color: var(--muted); font-size: 12px; line-height: 1.5; }
+.run-project-context .eyebrow { margin: 0; color: var(--cyan); font-size: 10px; }
+.run-project-context code { overflow-wrap: anywhere; color: var(--text); font-family: "Cascadia Code", Consolas, monospace; }
 .dashboard-sensor-heading { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .dashboard-sensor-heading strong { flex: 1; min-width: 0; }
 .dashboard-sensor-heading .status-badge { flex: 0 0 auto; padding: 3px 8px; font-size: 10px; }

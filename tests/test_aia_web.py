@@ -307,7 +307,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-19" in dashboard.text
+    assert "glassbox-ui-20" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -369,6 +369,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "PowerShell 권장 명령" in new_run.text
     assert "생성된 <code>aia.exe</code>를 거치지 않고" in new_run.text
     assert "preflight-command-context" in new_run.text
+    assert "이 화면의 AIA 실행 기준 폴더" in new_run.text
     assert "Codex 설정에서 신뢰된 Hook이 확인되었습니다." in new_run.text
     assert "Codex Hook Trust 상태를 확인할 수 없습니다." in new_run.text
     assert "preflight-command-help" in new_run.text

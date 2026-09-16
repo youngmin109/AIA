@@ -35,6 +35,7 @@
 
   <section id="run-settings" class="panel form-panel">
   <div class="panel-heading"><div><h2>실행 설정</h2><p class="hint">보호할 Workspace와 작업 방식을 정합니다.</p></div><span class="badge">첫 단계</span></div>
+  {% if cli_project_root %}<div class="run-project-context" role="note"><span class="eyebrow">이 화면의 AIA 실행 기준 폴더</span><code>{{ cli_project_root }}</code><span>아래에 표시되는 PowerShell 명령은 이 폴더에서 실행하세요. 다른 <code>aia-mvp</code> 복사본을 사용하면 Hook 설치·검증 결과가 달라질 수 있습니다.</span></div>{% endif %}
   <form id="new-run-form">
     <div class="form-grid">
       <label class="field field-wide">Workspace 경로
