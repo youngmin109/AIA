@@ -47,7 +47,7 @@
     </div>
   </header>
 
-  <section id="workbench-guidance" class="workbench-guidance guidance-neutral" role="status" aria-live="polite">
+  <section id="workbench-guidance" class="workbench-guidance {% if protection_disconnected %}guidance-danger{% elif run_ended and initial_incident_count > 0 %}guidance-warning{% elif run_ended %}guidance-success{% else %}guidance-neutral{% endif %}" role="status" aria-live="polite">
     <span class="workbench-guidance-mark" aria-hidden="true">•</span>
     <div class="workbench-guidance-copy">
       <span class="workbench-guidance-kicker">현재 상태</span>
@@ -936,7 +936,7 @@ function updateWorkbenchGuidance(status = latestStatus) {
         ? '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.'
         : status?.bundle_status ? `Evidence Bundle: ${bundleLabel(status.bundle_status)}` : '결과 화면에서 센서·정책·무결성 기록을 확인할 수 있습니다.';
       owner = '사용자';
-      kind = phase === 'FAILED' ? 'danger' : 'success';
+      kind = incidentCount > 0 ? 'warning' : phase === 'FAILED' ? 'danger' : 'success';
     } else {
       title = phase === 'FAILED' ? '실행이 실패했습니다. 원인을 확인하세요.' : '실행이 종료되었습니다.';
       detail = '결과 기록이 아직 준비되지 않았거나 확인이 필요합니다.';

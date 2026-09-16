@@ -719,6 +719,7 @@ body > header, body > main, body > footer { position: relative; z-index: 1; }
 
 .workbench-guidance.guidance-active { border-color: rgba(21, 139, 196, .42); background: linear-gradient(135deg, rgba(224, 247, 255, .92), rgba(255, 255, 255, .68)); }
 .workbench-guidance.guidance-success, .workbench-system-alert { background: linear-gradient(135deg, rgba(233, 252, 245, .9), rgba(255, 255, 255, .7)); }
+.workbench-guidance.guidance-warning { background: linear-gradient(135deg, rgba(255, 246, 218, .92), rgba(255, 255, 255, .72)); }
 .workbench-guidance.guidance-warning, .workbench-system-alert { border-color: rgba(169, 108, 12, .36); }
 .workbench-guidance.guidance-danger, .workbench-alert.alert-incident { background: linear-gradient(135deg, rgba(255, 237, 240, .94), rgba(255, 255, 255, .7)); }
 .workbench-alert { background: linear-gradient(135deg, rgba(228, 249, 255, .94), rgba(255, 255, 255, .7)); }
