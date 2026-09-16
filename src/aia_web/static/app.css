@@ -466,11 +466,17 @@ nav { display: flex; gap: 22px; min-width: 0; font-size: 14px; } .topbar nav a {
 .result-event-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
 .result-event-visibility { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .result-event-toolbar-actions .text-button { color: #0878ae; white-space: nowrap; }
+.result-event-row[hidden] { display: none; }
 
 @media (max-width: 760px) {
   .result-event-toolbar { align-items: flex-start; flex-direction: column; }
   .result-event-toolbar-actions { justify-content: space-between; width: 100%; }
   .result-event-visibility { white-space: normal; }
+}
+
+@media (max-width: 760px) {
+  .page-actions { flex-wrap: wrap; gap: 10px 14px; }
+  .page-actions .text-link { flex-basis: 100%; }
 }
 
 /* Glass-box visual system: a bright, local-only glass surface around the existing security UI. */
