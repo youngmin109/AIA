@@ -616,6 +616,7 @@ def test_live_status_exposes_only_filesystem_evidence_counts(tmp_path) -> None:
     try:
         status = service.get_run_status(record.session_id)
         assert status["evidence_summary"]["filesystem_events"] == 1
+        assert status["bundle_status"] == "PENDING"
         assert "C:/private.txt" not in repr(status)
     finally:
         service.shutdown()

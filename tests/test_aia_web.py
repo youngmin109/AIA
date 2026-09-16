@@ -569,6 +569,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-flow"' in workbench.text
     assert 'data-flow-step="1"' in workbench.text
     assert 'data-flow-step="4"' in workbench.text
+    assert "function updateFlow(status = {})" in workbench.text
+    assert "summary.pretool_events" in workbench.text
+    assert "summary.filesystem_events" in workbench.text
+    assert "status?.bundle_status === 'VALID'" in workbench.text
+    assert "let completedThrough = 0" in workbench.text
     assert "statusClass" in workbench.text
     assert "protectionClass" in workbench.text
     assert "protectionNote" in workbench.text

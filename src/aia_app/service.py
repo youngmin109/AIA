@@ -1144,6 +1144,9 @@ class RunApplicationService:
                 "profile": record.policy_profile,
                 "version": record.policy_version,
             },
+            "bundle_status": record.bundle_status or (
+                "PENDING" if record.result_path is None else "UNVERIFIED"
+            ),
             "result_available": bool(record.result_path),
             "evidence_summary": self._evidence_summary(
                 session_id,
@@ -2719,6 +2722,9 @@ class RunApplicationService:
                 "profile": record.policy_profile,
                 "version": record.policy_version,
             },
+            "bundle_status": record.bundle_status or (
+                "PENDING" if record.result_path is None else "UNVERIFIED"
+            ),
             "incident_count": len(record.incidents),
             "latest_actions": record.actions[-20:],
             "sensor_health": dict(record.sensor_health),
@@ -2848,6 +2854,11 @@ class RunApplicationService:
             "protection": protection,
             "stop": stop,
             "policy": policy,
+            "bundle_status": (
+                "UNVERIFIED"
+                if state.get("result_available")
+                else state.get("bundle_status", "PENDING")
+            ),
             "result_available": bool(state.get("result_available")),
             "evidence_summary": self._evidence_summary(
                 str(state.get("session_id")),
@@ -2929,6 +2940,7 @@ class RunApplicationService:
             },
             "stop": {"requested": aborted, "error": None},
             "policy": view["policy"],
+            "bundle_status": view["bundle_status"],
             "result_available": True,
             "evidence_summary": self._evidence_summary(
                 session_id,
