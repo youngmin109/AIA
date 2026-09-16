@@ -347,6 +347,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "생성된 <code>aia.exe</code>를 차단하는 환경에서도" in dashboard.text
     assert "dashboard-command-context" in dashboard.text
     assert "사용자 작업 실행을 우선 표시합니다" in dashboard.text
+    assert 'href="/runs?origin=user"' in dashboard.text
 
     new_run = client.get("/new")
     assert new_run.status_code == 200
@@ -1565,6 +1566,8 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'data-history-quick-filter="diagnostic"' in history.text
     assert "history-view-presets" in history.text
     assert "noFilters" in history.text
+    assert "new URLSearchParams(window.location.search)" in history.text
+    assert "window.history.replaceState" in history.text
     assert "사용자 작업" in history.text
     assert "Bundle 유효" in history.text
     assert "유효한 Result Bundle 실행만 보기" in history.text

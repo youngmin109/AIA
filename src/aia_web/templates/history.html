@@ -116,17 +116,25 @@ function saveHistoryView() {
   } catch (_) {}
 }
 function restoreHistoryView() {
+  let restored = false;
   try {
     const saved = JSON.parse(sessionStorage.getItem(historyStorageKey) || 'null');
-    if (!saved || typeof saved !== 'object') return;
-    for (const id of filterIds) {
-      const value = saved.filters?.[id];
-      if (typeof value === 'string') document.getElementById(id).value = value;
+    if (saved && typeof saved === 'object') {
+      for (const id of filterIds) {
+        const value = saved.filters?.[id];
+        if (typeof value === 'string') document.getElementById(id).value = value;
+      }
+      activeOnly = saved.activeOnly === true;
+      historyPage = Number.isInteger(saved.page) && saved.page > 0 ? saved.page : 1;
+      sessionStorage.removeItem(historyStorageKey);
+      restored = true;
     }
-    activeOnly = saved.activeOnly === true;
-    historyPage = Number.isInteger(saved.page) && saved.page > 0 ? saved.page : 1;
-    sessionStorage.removeItem(historyStorageKey);
   } catch (_) {}
+  if (restored) return;
+  const origin = new URLSearchParams(window.location.search).get('origin');
+  if (!['user', 'diagnostic'].includes(origin)) return;
+  document.getElementById('filter-origin').value = origin;
+  window.history.replaceState({}, '', window.location.pathname);
 }
 function filterRuns() {
   const workspace = values('filter-workspace'); const origin = values('filter-origin'); const status = values('filter-status'); const protection = values('filter-protection'); const incident = values('filter-incident'); const bundle = values('filter-bundle'); const date = document.getElementById('filter-date').value;

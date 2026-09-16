@@ -9,6 +9,7 @@
 {% set cli_project_root = cli_project_root|default(none) %}
 {% set dashboard_runs = dashboard_runs|default(runs) %}
 {% set dashboard_diagnostic_count = dashboard_diagnostic_count|default(0) %}
+{% set dashboard_user_run_count = runs|length - dashboard_diagnostic_count %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
 {% set hook_activation = preflight.get('hook_activation') or {} %}
 {% set hook_verified = hook_activation.get('status') == 'CURRENTLY_VERIFIED' %}
@@ -62,7 +63,7 @@
   <div class="metric">
     <span>보호 실행 기록</span>
     <strong id="dashboard-run-count">{{ runs|length }}건</strong>
-    <small><a href="/runs">전체 기록 보기</a> · <span id="dashboard-sync-status" class="dashboard-sync-status" role="status" aria-live="polite"><i class="dashboard-sync-dot" aria-hidden="true"></i><span id="dashboard-sync-label">자동 갱신 준비</span></span></small>
+    <small>사용자 작업 {{ dashboard_user_run_count }}건 · AIA 자체 진단 {{ dashboard_diagnostic_count }}건<br><a href="/runs?origin=user">사용자 작업만 보기</a> · <a href="/runs">전체 기록 보기</a> · <span id="dashboard-sync-status" class="dashboard-sync-status" role="status" aria-live="polite"><i class="dashboard-sync-dot" aria-hidden="true"></i><span id="dashboard-sync-label">자동 갱신 준비</span></span></small>
   </div>
 </section>
 
