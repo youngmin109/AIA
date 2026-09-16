@@ -898,6 +898,8 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-preflight-checks"' in dashboard.text
     assert "loadDashboardPreflight" in dashboard.text
     assert "PREFLIGHT_TIMEOUT" in dashboard.text
+    assert "dashboardReadinessLabels" in dashboard.text
+    assert "HOOK_VERIFICATION_REQUIRED: '확인 필요'" in dashboard.text
     assert 'id="dashboard-readiness-ready-notice"' in dashboard.text
     assert 'id="dashboard-current-run"' in dashboard.text
     assert 'id="dashboard-current-meta"' in dashboard.text
