@@ -307,7 +307,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-20" in dashboard.text
+    assert "glassbox-ui-21" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -1506,6 +1506,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert "정책 사건" in dashboard.text
     assert "Workbench 열기" in history.text
     assert "전체 실행" in history.text
+    assert "AIA 자체 진단" not in history.text
     assert 'href="/runs"' in history.text
     assert 'class="is-active" aria-current="page" href="/runs"' in history.text
     assert 'id="history-result-count"' in history.text
@@ -1545,6 +1546,29 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     assert 'id="history-next"' in history.text
     assert "historyPageSize = 20" in history.text
     assert "/runs/run-1/result" not in history.text
+
+
+def test_run_history_labels_aia_diagnostic_runs_without_hiding_them() -> None:
+    service = FakeService()
+    service.list_runs = lambda: [{
+        "session_id": "diagnostic-run",
+        "status": "ABORTED",
+        "workspace": "C:/Users/tester/AppData/Local/Temp/aia-hook-verify-demo",
+        "policy": {"id": "basic", "version": "1.0"},
+        "incident_count": 0,
+        "bundle_status": "VALID",
+        "protection_state": "ABORTED_VERIFIED",
+        "launch_mode": "new_terminal",
+        "result_url": "/runs/diagnostic-run/result",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }]
+
+    response = TestClient(create_app(service)).get("/runs")
+
+    assert response.status_code == 200
+    assert "AIA 자체 진단 실행 1건이 포함되어 있습니다." in response.text
+    assert "Hook 연결 검증용 임시 Workspace" in response.text
+    assert 'data-diagnostic="yes"' in response.text
 
 
 def test_history_surfaces_orphaned_runs_with_quick_filter() -> None:

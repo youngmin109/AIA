@@ -155,13 +155,19 @@ def _is_console_diagnostic_run(run: dict[str, Any]) -> bool:
     }
 
 
-def _dashboard_run_view(runs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
-    """Prefer user runs on the dashboard while preserving all history records."""
+def _decorate_console_diagnostic_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add an overview-only label without changing persisted run records."""
 
-    decorated = [
+    return [
         {**run, "dashboard_diagnostic": _is_console_diagnostic_run(run)}
         for run in runs
     ]
+
+
+def _dashboard_run_view(runs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Prefer user runs on the dashboard while preserving all history records."""
+
+    decorated = _decorate_console_diagnostic_runs(runs)
     user_runs = [run for run in decorated if not run["dashboard_diagnostic"]]
     return (user_runs or decorated), sum(
         1 for run in decorated if run["dashboard_diagnostic"]
@@ -285,10 +291,11 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
 
     @app.get("/runs", response_class=HTMLResponse)
     def run_history(request: Request) -> HTMLResponse:
+        runs = app.state.service.list_runs()
         return _TEMPLATES.TemplateResponse(
             request,
             "history.html",
-            {"runs": app.state.service.list_runs()},
+            {"runs": runs, "history_runs": _decorate_console_diagnostic_runs(runs)},
         )
 
     @app.get("/api/runs")
