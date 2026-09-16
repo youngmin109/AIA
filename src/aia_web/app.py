@@ -317,6 +317,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             status = app.state.service.get_run_status(session_id)
         except KeyError:
             return _not_found("Run not found")
+        except ValueError as exc:
+            return _run_unavailable(request, session_id, str(exc))
         return _TEMPLATES.TemplateResponse(
             request, "live_run.html", {"session_id": session_id, "status": status}
         )
@@ -325,8 +327,10 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def workbench(request: Request, session_id: str) -> HTMLResponse:
         try:
             status = app.state.service.get_run_status(session_id)
-        except (KeyError, ValueError):
+        except KeyError:
             return _not_found("Run not found")
+        except ValueError as exc:
+            return _run_unavailable(request, session_id, str(exc))
         return _TEMPLATES.TemplateResponse(
             request,
             "workbench.html",
@@ -459,8 +463,10 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def result(request: Request, session_id: str) -> HTMLResponse:
         try:
             result_data = app.state.service.get_result(session_id)
-        except (KeyError, ValueError) as exc:
-            return _not_found(str(exc))
+        except KeyError:
+            return _not_found("Run not found")
+        except ValueError as exc:
+            return _run_unavailable(request, session_id, str(exc))
         return _TEMPLATES.TemplateResponse(
             request,
             "result.html",
@@ -500,6 +506,22 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
 
 def _not_found(message: str) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=404)
+
+
+def _run_unavailable(request: Request, session_id: str, reason: str) -> HTMLResponse:
+    """Render a safe, actionable state for an unreadable run record."""
+
+    safe_reason = (
+        "Evidence Bundle 무결성 검증 실패"
+        if reason == "Evidence Bundle Integrity Failure"
+        else "실행 기록의 보호 상태를 확인하지 못함"
+    )
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "run_unavailable.html",
+        {"session_id": session_id, "reason": safe_reason},
+        status_code=409,
+    )
 
 
 app = create_app()

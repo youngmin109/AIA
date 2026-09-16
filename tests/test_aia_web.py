@@ -231,6 +231,29 @@ class FakeService:
         return None
 
 
+class UnreadableRunService(FakeService):
+    def get_run_status(self, session_id):
+        raise ValueError("Evidence Bundle Integrity Failure")
+
+    def get_result(self, session_id):
+        raise ValueError("Evidence Bundle Integrity Failure")
+
+
+def test_unreadable_run_record_renders_actionable_integrity_state() -> None:
+    client = TestClient(create_app(UnreadableRunService()))
+
+    for path in ("/runs/run-1", "/runs/run-1/workbench", "/runs/run-1/result"):
+        response = client.get(path)
+        assert response.status_code == 409
+        assert "실행 기록을 안전하게 표시할 수 없습니다" in response.text
+        assert "Evidence 확인이 필요합니다" in response.text
+        assert "확인되지 않은 기록을 정상 실행이나 유효한 결과로 표시하지 않았습니다" in response.text
+        assert "Evidence Bundle 무결성 검증 실패" in response.text
+        assert "Evidence Bundle Integrity Failure" not in response.text
+        assert 'href="/runs"' in response.text
+        assert 'href="/new"' in response.text
+
+
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
     dashboard = client.get("/")
@@ -245,7 +268,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
     assert ".preflight-loading-elapsed" in css.text
-    assert "glassbox-ui-11" in dashboard.text
+    assert "glassbox-ui-12" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
