@@ -121,7 +121,7 @@
     <h2>실행 전 준비 상태</h2>
     <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">{{ '확인 중…' if preflight_deferred else '자동 확인 완료' }}</span></div>
   </div>
-  <div id="preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span>Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span></div>
+  <div id="preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span id="preflight-loading-label">Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span><span id="preflight-loading-elapsed" class="preflight-loading-elapsed">경과 0초</span></div>
   <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
     {% for check in preflight.checks %}
     <div class="preflight-row">
@@ -301,6 +301,8 @@ const recentWorkspaceButtons = document.getElementById('recent-workspace-buttons
 const clearRecentWorkspaces = document.getElementById('clear-recent-workspaces');
 const preflightChecks = document.getElementById('preflight-checks');
 const preflightLoading = document.getElementById('preflight-loading');
+const preflightLoadingLabel = document.getElementById('preflight-loading-label');
+const preflightLoadingElapsed = document.getElementById('preflight-loading-elapsed');
 const preflightTrustSummary = document.getElementById('preflight-trust-summary');
 const preflightError = document.getElementById('preflight-error');
 const readinessSummary = document.getElementById('readiness-summary');
@@ -349,6 +351,8 @@ let preflightReady = {{ preflight.ready|tojson }};
 let preflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
 let preflightRequestInFlight = false;
 let preflightRequestTimer = null;
+let preflightStartedAt = 0;
+let preflightElapsedTimer = null;
 let workspaceValidationRequest = 0;
 let workspaceValidationTimer = null;
 let validatedWorkspacePath = '';
@@ -639,9 +643,27 @@ function renderPreflight(payload) {
   preflightReady = data.ready === true;
   updateRunSubmitState();
 }
+function updatePreflightElapsed() {
+  if (!preflightLoadingElapsed || !preflightStartedAt) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - preflightStartedAt) / 1000));
+  preflightLoadingElapsed.textContent = `경과 ${elapsed}초`;
+}
+function startPreflightLoading() {
+  if (preflightElapsedTimer !== null) window.clearInterval(preflightElapsedTimer);
+  preflightStartedAt = Date.now();
+  if (preflightLoadingLabel) preflightLoadingLabel.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다…';
+  updatePreflightElapsed();
+  preflightElapsedTimer = window.setInterval(updatePreflightElapsed, 1000);
+}
+function stopPreflightLoading() {
+  if (preflightElapsedTimer !== null) window.clearInterval(preflightElapsedTimer);
+  preflightElapsedTimer = null;
+  preflightStartedAt = 0;
+}
 async function loadPreflight({manual = false} = {}) {
   if (preflightRequestInFlight) return;
   preflightRequestInFlight = true;
+  startPreflightLoading();
   if (preflightRequestTimer) window.clearTimeout(preflightRequestTimer);
   const controller = new AbortController();
   preflightRequestTimer = window.setTimeout(() => controller.abort(), 10000);
@@ -670,6 +692,7 @@ async function loadPreflight({manual = false} = {}) {
     preflightRefreshStatus.className = 'hint error-text';
     preflightRefreshStatus.textContent = error?.name === 'AbortError' ? '확인 시간 초과 · 다시 시도할 수 있습니다.' : `확인 실패: ${error.message}`;
   } finally {
+    stopPreflightLoading();
     window.clearTimeout(preflightRequestTimer);
     preflightRequestTimer = null;
     preflightRequestInFlight = false;

@@ -244,6 +244,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".ambient-scene" in css.text
     assert "backdrop-filter" in css.text
     assert "prefers-reduced-motion" in css.text
+    assert ".preflight-loading-elapsed" in css.text
     assert "glassbox-ui-6" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
@@ -287,6 +288,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "preToolUse=MODIFIED" not in new_run.text
     assert 'id="readiness-code">CHECKING' in new_run.text
     assert 'id="preflight-loading"' in new_run.text
+    assert 'id="preflight-loading-elapsed"' in new_run.text
+    assert "startPreflightLoading" in new_run.text
+    assert "updatePreflightElapsed" in new_run.text
     assert 'id="preflight-checks"' in new_run.text
     assert "loadPreflight" in new_run.text
     assert "PREFLIGHT_TIMEOUT" in new_run.text
@@ -465,6 +469,13 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "ABORTED_VERIFIED: '중지 · 검증됨'" in workbench.text
     assert "실행이 중지됐고 수집된 보호 증거와 결과를 검증했습니다." in workbench.text
     assert "현재 Workbench" in workbench.text
+    assert 'id="workbench-howto-title"' in workbench.text
+    assert 'id="workbench-howto-title"' in workbench.text
+    assert 'id="workbench-howto-description"' in workbench.text
+    assert 'id="workbench-howto-steps"' in workbench.text
+    assert "function updateWorkbenchHowTo(status = latestStatus)" in workbench.text
+    assert "이 실행은 끝났습니다. 결과와 센서 Evidence를 확인한 뒤 다음 작업을 시작하세요." in workbench.text
+    assert "보호 연결이 끊긴 실행은 계속 보호되는 것으로 간주하지 않습니다." in workbench.text
     assert 'id="terminal-input-proxy"' in workbench.text
     assert 'aria-describedby="terminal-input-help"' in workbench.text
     assert "Enter 전송 · Shift+Enter 줄바꿈" in workbench.text
@@ -927,9 +938,12 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert 'id="dashboard-readiness-label">실행 준비</span>' in dashboard.text
     assert 'id="dashboard-readiness-title">보호 실행 준비를 확인하는 중입니다.</h2>' in dashboard.text
     assert 'id="dashboard-preflight-loading"' in dashboard.text
+    assert 'id="dashboard-preflight-loading-elapsed"' in dashboard.text
     assert 'id="dashboard-preflight-checks"' in dashboard.text
     assert "check?.optional ? 'optional' : 'fail'" in dashboard.text
     assert "loadDashboardPreflight" in dashboard.text
+    assert "startDashboardPreflightLoading" in dashboard.text
+    assert "updateDashboardPreflightElapsed" in dashboard.text
     assert "PREFLIGHT_TIMEOUT" in dashboard.text
     assert "dashboardReadinessLabels" in dashboard.text
     assert "HOOK_VERIFICATION_REQUIRED: '확인 필요'" in dashboard.text
@@ -1151,6 +1165,35 @@ def test_workbench_hides_input_navigation_when_run_is_ended() -> None:
     assert 'id="terminal-input-proxy"' in workbench.text
     assert 'disabled></textarea>' in workbench.text
     assert 'id="terminal-send" class="button primary terminal-send" type="submit" disabled' in workbench.text
+    assert 'id="workbench-howto-title">다음 단계</h2>' in workbench.text
+    assert 'data-howto-title>결과 확인</strong>' in workbench.text
+    assert 'data-howto-title>사건 검토</strong>' in workbench.text
+
+
+def test_workbench_changes_next_steps_when_runtime_is_orphaned() -> None:
+    service = FakeService()
+    original_get_run_status = service.get_run_status
+
+    def orphaned_status(session_id):
+        status = original_get_run_status(session_id)
+        status["protection"] = {**status["protection"], "state": "ORPHANED_DEGRADED"}
+        status["runtime_reconciliation"] = {
+            "status": "STALE_PROCESS_GONE",
+            "orphaned": True,
+            "action": "REVIEW_AND_RESTART",
+        }
+        return status
+
+    service.get_run_status = orphaned_status
+    client = TestClient(create_app(service))
+
+    workbench = client.get("/runs/run-1/workbench")
+
+    assert workbench.status_code == 200
+    assert 'id="workbench-howto-title">복구 검토</h2>' in workbench.text
+    assert 'data-howto-title>정리 상태 확인</strong>' in workbench.text
+    assert 'data-howto-title>실행 기록 검토</strong>' in workbench.text
+    assert 'data-howto-title>새 보호 실행</strong>' in workbench.text
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:

@@ -2,6 +2,7 @@
 {% block title %}AIA Workbench · 보호 실행{% endblock %}
 {% block content %}
 {% set protection_disconnected = (status.runtime_reconciliation or {}).get('orphaned') %}
+{% set run_ended = status.session.status in ['COMPLETED', 'ABORTED', 'FAILED'] %}
 <div class="workbench-shell">
   <header class="workbench-header">
     <div>
@@ -78,12 +79,22 @@
         </dl>
       </section>
       <section class="workbench-card">
-        <div class="panel-heading"><h2>사용 방법</h2><span class="badge badge-valid">Codex CLI</span></div>
-        <p class="hint">AIA는 실제 Hook·파일·프로세스 관찰 결과를 기준으로 보호 상태를 표시합니다.</p>
-        <div class="workbench-steps">
-          <span>1</span><div><strong>작업 입력</strong><small>가운데 Codex 작업창에 입력</small></div>
-          <span>2</span><div><strong>보호 확인</strong><small>오른쪽 센서와 이벤트 확인</small></div>
-          <span>3</span><div><strong>결과 확인</strong><small>종료 후 결과 보기 선택</small></div>
+        <div class="panel-heading"><h2 id="workbench-howto-title">{{ '다음 단계' if run_ended else '복구 검토' if protection_disconnected else '사용 방법' }}</h2><span class="badge badge-valid">Codex CLI</span></div>
+        <p id="workbench-howto-description" class="hint">{% if protection_disconnected and not run_ended %}보호 연결이 끊긴 실행은 계속 보호되는 것으로 간주하지 않습니다.{% elif run_ended %}이 실행은 끝났습니다. 결과와 센서 Evidence를 확인한 뒤 다음 작업을 시작하세요.{% else %}AIA는 실제 Hook·파일·프로세스 관찰 결과를 기준으로 보호 상태를 표시합니다.{% endif %}</p>
+        <div class="workbench-steps" id="workbench-howto-steps">
+          {% if protection_disconnected and not run_ended %}
+          <span>1</span><div><strong data-howto-title>정리 상태 확인</strong><small data-howto-detail>고아 실행 정리 확인을 선택</small></div>
+          <span>2</span><div><strong data-howto-title>실행 기록 검토</strong><small data-howto-detail>보존된 사건과 마지막 상태 확인</small></div>
+          <span>3</span><div><strong data-howto-title>새 보호 실행</strong><small data-howto-detail>필요하면 새 세션으로 다시 시작</small></div>
+          {% elif run_ended %}
+          <span>1</span><div><strong data-howto-title>결과 확인</strong><small data-howto-detail>실행 결과에서 정책·Evidence·무결성 확인</small></div>
+          <span>2</span><div><strong data-howto-title>사건 검토</strong><small data-howto-detail>차단·주의 사건과 센서 Timeline 열기</small></div>
+          <span>3</span><div><strong data-howto-title>다음 실행</strong><small data-howto-detail>필요하면 새 보호 실행 시작</small></div>
+          {% else %}
+          <span>1</span><div><strong data-howto-title>작업 입력</strong><small data-howto-detail>가운데 Codex 작업창에 입력</small></div>
+          <span>2</span><div><strong data-howto-title>보호 확인</strong><small data-howto-detail>오른쪽 센서와 이벤트 확인</small></div>
+          <span>3</span><div><strong data-howto-title>결과 확인</strong><small data-howto-detail>종료 후 결과 보기 선택</small></div>
+          {% endif %}
         </div>
       </section>
       <section class="workbench-card glassbox-slot">
@@ -292,6 +303,12 @@ const terminalReconnect = document.getElementById('terminal-reconnect');
 const terminalError = document.getElementById('terminal-error');
 const terminalExamples = document.getElementById('terminal-examples');
 const terminalFocusLink = document.querySelector('[data-terminal-focus]');
+const workbenchHowToTitle = document.getElementById('workbench-howto-title');
+const workbenchHowToDescription = document.getElementById('workbench-howto-description');
+const workbenchHowToSteps = [...document.querySelectorAll('#workbench-howto-steps [data-howto-title]')].map((title) => ({
+  title,
+  detail: title.parentElement?.querySelector('[data-howto-detail]'),
+}));
 const workbenchGuidance = document.getElementById('workbench-guidance');
 const workbenchGuidanceTitle = document.getElementById('workbench-guidance-title');
 const workbenchGuidanceDetail = document.getElementById('workbench-guidance-detail');
@@ -712,6 +729,42 @@ const protectionClass = (value) => ['ACTIVE_VERIFIED', 'COMPLETED_VERIFIED', 'AB
 const chainStatusLabel = (value) => ({LINKED: '연결됨', RUN_OBSERVED: '실행 중 관찰', PARTIAL: '부분 연결', NOT_REPORTED: '기록 없음', RUN_LEVEL: '실행 단위', VIOLATION: '정책 위반', COMPLIANT: '정상·허용', INDETERMINATE: '판정 불가', EXACT: '정확히 귀속', PROCESS: '프로세스 수준', TEMPORAL: '시간적 연관', UNKNOWN: '귀속 불가', CONTINUE: '계속 진행', CONTAIN: '차단 판단', REFUSE: '자동 조치 보류', BLOCKED: '차단됨', TERMINATED: '프로세스 종료', NONE: '조치 없음', SUCCEEDED: '실행 확인됨', FAILED: '실행 실패', NOT_ATTEMPTED: '실행 확인 전', RESTORED: '복원 완료', RECOVERY_UNAVAILABLE: '복원 불가', VERIFIED: '검증됨', NOT_CHECKED: '확인 전'})[value] || value || '확인 필요';
 const chainStageClass = (stage) => ['LINKED', 'COMPLIANT', 'SUCCEEDED', 'RESTORED', 'VERIFIED', 'CONTINUE', 'BLOCKED', 'TERMINATED'].includes(stage) ? 'chain-success' : ['PARTIAL', 'NOT_REPORTED', 'NOT_ATTEMPTED', 'RUN_LEVEL', 'INDETERMINATE', 'CONTAIN', 'REFUSE'].includes(stage) ? 'chain-warning' : ['VIOLATION', 'FAILED'].includes(stage) ? 'chain-danger' : '';
 const guidanceClass = (kind) => ({success: 'guidance-success', warning: 'guidance-warning', danger: 'guidance-danger', active: 'guidance-active'})[kind] || 'guidance-neutral';
+function updateWorkbenchHowTo(status = latestStatus) {
+  if (!workbenchHowToTitle || !workbenchHowToDescription || workbenchHowToSteps.length !== 3) return;
+  const phase = status?.session?.status || status?.phase || 'UNKNOWN';
+  const orphaned = Boolean(status?.runtime_reconciliation?.orphaned);
+  const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(phase);
+  let title = '사용 방법';
+  let description = 'AIA는 실제 Hook·파일·프로세스 관찰 결과를 기준으로 보호 상태를 표시합니다.';
+  let steps = [
+    ['작업 입력', '가운데 Codex 작업창에 입력'],
+    ['보호 확인', '오른쪽 센서와 이벤트 확인'],
+    ['결과 확인', '종료 후 결과 보기 선택'],
+  ];
+  if (orphaned && !ended) {
+    title = '복구 검토';
+    description = '보호 연결이 끊긴 실행은 계속 보호되는 것으로 간주하지 않습니다.';
+    steps = [
+      ['정리 상태 확인', '고아 실행 정리 확인을 선택'],
+      ['실행 기록 검토', '보존된 사건과 마지막 상태 확인'],
+      ['새 보호 실행', '필요하면 새 세션으로 다시 시작'],
+    ];
+  } else if (ended) {
+    title = '다음 단계';
+    description = '이 실행은 끝났습니다. 결과와 센서 Evidence를 확인한 뒤 다음 작업을 시작하세요.';
+    steps = [
+      ['결과 확인', '실행 결과에서 정책·Evidence·무결성 확인'],
+      ['사건 검토', '차단·주의 사건과 센서 Timeline 열기'],
+      ['다음 실행', '필요하면 새 보호 실행 시작'],
+    ];
+  }
+  workbenchHowToTitle.textContent = title;
+  workbenchHowToDescription.textContent = description;
+  workbenchHowToSteps.forEach((step, index) => {
+    step.title.textContent = steps[index][0];
+    if (step.detail) step.detail.textContent = steps[index][1];
+  });
+}
 const terminalActivitySummaryLabel = (mode) => ({
   IDLE: '상태 확인 중',
   STARTING: '작업창 준비 중',
@@ -1480,6 +1533,7 @@ function renderSecurity(status) {
   runStatus.className = `status-badge ${orphaned && !ended ? 'status-danger' : statusClass(sessionStatus)}`;
   runStatus.textContent = orphaned && !ended ? '보호 연결 끊김' : sessionLabel(sessionStatus);
   updateFlow(status.phase || sessionStatus);
+  updateWorkbenchHowTo(status);
   protectionState.textContent = protectionLabel(status.protection?.state);
   protectionState.className = `badge ${protectionClass(status.protection?.state)}`;
   protectionState.title = status.protection?.state || '';

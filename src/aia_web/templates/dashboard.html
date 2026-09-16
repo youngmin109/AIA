@@ -95,7 +95,7 @@
     </div>
     <span id="dashboard-readiness-status" class="status-badge {{ 'status-active' if active_run.item else ('status-success' if readiness_ok else 'status-warning') }}" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '현재 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness) }}</span>
   </div>
-  <div id="dashboard-preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred or active_run.item %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span>Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span></div>
+  <div id="dashboard-preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred or active_run.item %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span id="dashboard-preflight-loading-label">Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span><span id="dashboard-preflight-loading-elapsed" class="preflight-loading-elapsed">경과 0초</span></div>
   <div id="dashboard-preflight-checks" class="preflight-list dashboard-checks"{% if preflight_deferred or active_run.item %} hidden{% endif %}>
     {% for check in preflight.get('checks', []) %}
     <div class="preflight-row">
@@ -201,6 +201,8 @@ const dashboardHookTrustValue = document.getElementById('dashboard-hook-trust-va
 const dashboardHookTrustDetail = document.getElementById('dashboard-hook-trust-detail');
 const dashboardSensorsStatus = document.getElementById('dashboard-sensors-status');
 const dashboardPreflightLoading = document.getElementById('dashboard-preflight-loading');
+const dashboardPreflightLoadingLabel = document.getElementById('dashboard-preflight-loading-label');
+const dashboardPreflightLoadingElapsed = document.getElementById('dashboard-preflight-loading-elapsed');
 const dashboardPreflightChecks = document.getElementById('dashboard-preflight-checks');
 const dashboardReadinessActiveNotice = document.getElementById('dashboard-readiness-active-notice');
 const dashboardReadinessActiveLink = document.getElementById('dashboard-readiness-active-link');
@@ -229,12 +231,32 @@ let dashboardReadinessCode = {{ readiness|tojson }};
 let dashboardHookVerified = {{ 'true' if dashboard_hook_verified else 'false' }};
 let dashboardPreflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
 let dashboardPreflightInFlight = false;
+let dashboardPreflightStartedAt = 0;
+let dashboardPreflightElapsedTimer = null;
 let dashboardPreflightTimer = null;
 let dashboardRunsLoaded = false;
 let dashboardRefreshInFlight = false;
 let dashboardRefreshBusyTimer = null;
 let dashboardRefreshTimer = null;
 let dashboardCurrentActiveRun = null;
+
+function updateDashboardPreflightElapsed() {
+  if (!dashboardPreflightLoadingElapsed || !dashboardPreflightStartedAt) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - dashboardPreflightStartedAt) / 1000));
+  dashboardPreflightLoadingElapsed.textContent = `경과 ${elapsed}초`;
+}
+function startDashboardPreflightLoading() {
+  if (dashboardPreflightElapsedTimer !== null) window.clearInterval(dashboardPreflightElapsedTimer);
+  dashboardPreflightStartedAt = Date.now();
+  if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다…';
+  updateDashboardPreflightElapsed();
+  dashboardPreflightElapsedTimer = window.setInterval(updateDashboardPreflightElapsed, 1000);
+}
+function stopDashboardPreflightLoading() {
+  if (dashboardPreflightElapsedTimer !== null) window.clearInterval(dashboardPreflightElapsedTimer);
+  dashboardPreflightElapsedTimer = null;
+  dashboardPreflightStartedAt = 0;
+}
 
 function dashboardActiveRun(runs) {
   return (Array.isArray(runs) ? runs : []).find((run) => dashboardActiveStatuses.includes(run.status) && !run.runtime_reconciliation?.orphaned && run.run_classification !== 'UNVERIFIED_RUNTIME_STATE') || null;
@@ -362,6 +384,7 @@ function renderDashboardPreflightChecks(checks) {
 
 function renderDashboardPreflight(payload) {
   const data = payload && typeof payload === 'object' ? payload : {};
+  stopDashboardPreflightLoading();
   dashboardPreflightLoaded = true;
   dashboardReadinessOk = data.ready === true;
   dashboardReadinessCode = String(data.readiness_code || 'UNKNOWN');
@@ -391,6 +414,7 @@ function scheduleDashboardPreflight() {
 async function loadDashboardPreflight() {
   if (dashboardPreflightInFlight || document.hidden) return;
   dashboardPreflightInFlight = true;
+  startDashboardPreflightLoading();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10000);
   try {

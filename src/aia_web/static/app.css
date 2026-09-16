@@ -736,3 +736,6 @@ samp,
 #terminal-input-proxy {
   font-family: var(--font-ui);
 }
+/* Keep slow local preflight checks visibly alive without implying a fake percentage. */
+.preflight-loading-elapsed { margin-left: auto; color: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 760px) { .preflight-loading-elapsed { margin-left: 0; } }
