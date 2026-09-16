@@ -892,6 +892,35 @@ def test_new_run_hides_redundant_launcher_fallback(monkeypatch) -> None:
     assert "Windows 실행 파일 오류가 나면" not in response.text
 
 
+def test_dashboard_shows_launcher_fallback_only_when_paths_differ(monkeypatch) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    monkeypatch.setattr(web_module, "_console_cli_prefix", lambda: "uv run aia")
+    monkeypatch.setattr(
+        web_module,
+        "_console_module_cli_prefix",
+        lambda: "uv run --isolated python -m aia.cli",
+    )
+
+    response = TestClient(create_app(FakeService())).get("/")
+
+    assert response.status_code == 200
+    assert "Windows에서 aia.exe가 차단되면" in response.text
+    assert "uv run --isolated python -m aia.cli doctor" in response.text
+    assert "uv run --isolated python -m aia.cli setup" in response.text
+    assert "uv run --isolated python -m aia.cli hook verify" in response.text
+
+
+def test_dashboard_hides_redundant_launcher_fallback(monkeypatch) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    monkeypatch.setattr(web_module, "_console_cli_prefix", lambda: "same command")
+    monkeypatch.setattr(web_module, "_console_module_cli_prefix", lambda: "same command")
+
+    response = TestClient(create_app(FakeService())).get("/")
+
+    assert response.status_code == 200
+    assert "Windows에서 aia.exe가 차단되면" not in response.text
+
+
 def test_dashboard_reuses_one_run_snapshot_for_readiness_and_history() -> None:
     service = FakeService()
     original_list_runs = service.list_runs

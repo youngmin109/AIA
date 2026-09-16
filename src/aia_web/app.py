@@ -229,6 +229,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 "runs": runs,
                 "capabilities": product_capabilities(),
                 "cli_prefix": _console_cli_prefix(),
+                "module_cli_prefix": _console_module_cli_prefix(),
             },
         )
 

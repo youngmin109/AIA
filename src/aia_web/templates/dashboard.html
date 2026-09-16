@@ -5,6 +5,7 @@
 {% set readiness_ok = preflight.get('ready', False) %}
 {% set preflight_deferred = dashboard_preflight_deferred|default(False) %}
 {% set cli_prefix = cli_prefix|default('uv run aia') %}
+{% set module_cli_prefix = module_cli_prefix|default('uv run --isolated python -m aia.cli') %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
 {% set hook_activation = preflight.get('hook_activation') or {} %}
 {% set hook_verified = hook_activation.get('status') == 'CURRENTLY_VERIFIED' %}
@@ -142,11 +143,22 @@
     <strong id="dashboard-next-steps-title">다음 단계</strong>
     <p id="dashboard-next-steps-intro" class="hint">저장소에서는 아래에 표시된 명령을 사용하고, 설치된 도구는 앞부분을 생략하세요.</p>
     <ol class="dashboard-next-steps-list">
-      <li class="dashboard-command-step" data-dashboard-step="setup"><span><span class="mono">{{ cli_prefix }} setup</span>으로 AIA Hook을 설치합니다. <span class="muted">(설치형: <span class="mono">aia setup</span>)</span></span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} setup">복사</button></li>
-      <li class="dashboard-command-step" data-dashboard-step="explain"><span><span class="mono">{{ cli_prefix }} hook explain</span>으로 검토할 matcher와 command를 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook explain</span>)</span></span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook explain">복사</button></li>
+      <li class="dashboard-command-step" data-dashboard-step="setup"><span><span class="mono">{{ cli_prefix }} setup</span>으로 AIA Hook을 설치합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia setup</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} setup">복사</button></li>
+      <li class="dashboard-command-step" data-dashboard-step="explain"><span><span class="mono">{{ cli_prefix }} hook explain</span>으로 검토할 matcher와 command를 확인합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia hook explain</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook explain">복사</button></li>
       <li data-dashboard-step="trust">Codex에서 <span class="mono">/hooks</span>를 열고 AIA PreToolUse Hook을 검토·신뢰합니다.</li>
-      <li class="dashboard-command-step" data-dashboard-step="verify"><span><span class="mono">{{ cli_prefix }} hook verify</span>로 실제 연결을 확인합니다. <span class="muted">(설치형: <span class="mono">aia hook verify</span>)</span></span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook verify">복사</button></li>
+      <li class="dashboard-command-step" data-dashboard-step="verify"><span><span class="mono">{{ cli_prefix }} hook verify</span>로 실제 연결을 확인합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia hook verify</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook verify">복사</button></li>
     </ol>
+    {% if module_cli_prefix != cli_prefix %}
+    <div class="dashboard-command-note" role="note">
+      <strong>Windows에서 aia.exe가 차단되면</strong>
+      <span>애플리케이션 제어 정책으로 생성된 실행 파일이 차단된 경우에는 아래 명령을 그대로 사용하세요.</span>
+      <div class="dashboard-command-fallback-list">
+        <div class="dashboard-command-step"><span class="mono">{{ module_cli_prefix }} doctor</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ module_cli_prefix }} doctor">복사</button></div>
+        <div class="dashboard-command-step"><span class="mono">{{ module_cli_prefix }} setup</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ module_cli_prefix }} setup">복사</button></div>
+        <div class="dashboard-command-step"><span class="mono">{{ module_cli_prefix }} hook verify</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ module_cli_prefix }} hook verify">복사</button></div>
+      </div>
+    </div>
+    {% endif %}
     <span id="dashboard-command-status" class="hint" role="status" aria-live="polite" hidden></span>
   </div>
   <div id="dashboard-readiness-ready-notice" class="notice success"{% if active_run.item or preflight_deferred or not readiness_ok %} hidden{% endif %}>AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
