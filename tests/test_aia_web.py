@@ -1011,6 +1011,10 @@ def test_result_page_explains_degraded_protection_separately_from_valid_bundle()
     assert result.status_code == 200
     assert "Evidence Bundle은 유효 · 검증됨이지만 보호 상태가 완전히 검증되지 않았습니다." in result.text
     assert "완료 · 일부 확인" in result.text
+    assert 'class="result-hero-status" aria-label="결과 상태"' in result.text
+    assert 'class="status-badge status-success" title="VALID">Bundle 유효</div>' in result.text
+    assert 'class="status-badge status-warning" title="COMPLETED_DEGRADED">보호 상태 확인 필요</div>' in result.text
+    assert "유효 · 보호 확인 필요" not in result.text
 
 
 def test_result_page_labels_policy_events_without_claiming_confirmed_block() -> None:
@@ -1046,7 +1050,9 @@ def test_result_page_surfaces_degraded_codex_policy_before_the_summary() -> None
     assert 'aria-label="Codex 실행 정책 경고"' in result.text
     assert "보호 수준이 낮아진 상태로 실행되었습니다." in result.text
     assert "Evidence Bundle이 유효해도" in result.text
-    assert 'class="status-badge status-warning" title="VALID">유효 · 보호 확인 필요</div>' in result.text
+    assert 'class="status-badge status-success" title="VALID">Bundle 유효</div>' in result.text
+    assert 'class="status-badge status-warning" title="DEGRADED">실행 정책 확인 필요</div>' in result.text
+    assert "유효 · 보호 확인 필요" not in result.text
     assert 'href="#execution-policy"' in result.text
     assert result.text.index("Codex 실행 정책 경고") < result.text.index("이번 보호 실행에서 확인된 내용")
 
