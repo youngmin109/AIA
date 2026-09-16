@@ -641,6 +641,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "Codex 작업창을 준비하고 있습니다." in workbench.text
     assert "입력창이 활성화될 때까지 잠시 기다려 주세요." in workbench.text
     assert "실행이 끝났습니다. 결과를 확인하세요." in workbench.text
+    assert "실행이 중지되었습니다. 결과를 확인하세요." in workbench.text
+    assert "실행이 실패했습니다. 결과를 확인하세요." in workbench.text
+    assert "중지 검증 여부와 센서 Evidence" in workbench.text
+    assert "실패 원인과 보호 Evidence" in workbench.text
     assert "updateWorkbenchGuidance" in workbench.text
     assert "statusPollFailures >= 2" in workbench.text
     assert "updateWorkbenchGuidance();" in workbench.text
@@ -1952,7 +1956,7 @@ def test_workbench_ended_guidance_surfaces_incident_count() -> None:
     assert ">정책 사건 확인 →</a>" in workbench.text
     assert "실행 기록 확인 가능 · 정책 사건 2건" in workbench.text
     assert "incidentCount > 0" in workbench.text
-    assert "kind = incidentCount > 0 ? 'warning'" in workbench.text
+    assert "kind = phase === 'FAILED' ? 'danger' : phase === 'ABORTED' || incidentCount > 0 ? 'warning' : 'success'" in workbench.text
 
 
 def test_workbench_changes_next_steps_when_runtime_is_orphaned() -> None:

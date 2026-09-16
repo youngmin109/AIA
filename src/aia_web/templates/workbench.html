@@ -25,6 +25,22 @@
 {% set bundle_names = {'VALID': '유효 · 검증됨', 'INVALID': '검증 실패', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '확인 불가'} %}
 {% set initial_bundle_status = status.bundle_status or 'PENDING' %}
 {% set initial_incident_count = status.incident_count or 0 %}
+{% if protection_disconnected %}
+  {% set initial_guidance_title = 'AIA 보호 연결이 끊겼습니다.' %}
+  {% set initial_guidance_detail = '이 실행은 보호된 상태로 간주하지 않습니다. 연결 끊긴 실행을 정리하거나 실행 기록을 검토하세요.' %}
+{% elif not run_ended %}
+  {% set initial_guidance_title = '보호된 Codex 작업을 관찰하고 있습니다.' %}
+  {% set initial_guidance_detail = '오른쪽 센서와 이벤트에서 실제 관찰 결과를 확인할 수 있습니다.' %}
+{% elif initial_session_status == 'ABORTED' %}
+  {% set initial_guidance_title = '실행이 중지되었습니다. 정책 사건 ' ~ initial_incident_count ~ '건을 확인하세요.' if initial_incident_count else '실행이 중지되었습니다. 결과를 확인하세요.' %}
+  {% set initial_guidance_detail = '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.' if initial_incident_count else '결과 보기에서 중지 검증 여부와 센서 Evidence를 확인하세요.' %}
+{% elif initial_session_status == 'FAILED' %}
+  {% set initial_guidance_title = '실행이 실패했습니다. 정책 사건 ' ~ initial_incident_count ~ '건을 확인하세요.' if initial_incident_count else '실행이 실패했습니다. 결과를 확인하세요.' %}
+  {% set initial_guidance_detail = '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.' if initial_incident_count else '결과 보기에서 실패 원인과 보호 Evidence를 확인하세요.' %}
+{% else %}
+  {% set initial_guidance_title = '실행이 끝났습니다. 정책 사건 ' ~ initial_incident_count ~ '건을 확인하세요.' if initial_incident_count else '실행이 끝났습니다. 결과를 확인하세요.' %}
+  {% set initial_guidance_detail = '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.' if initial_incident_count else '결과 보기에서 정책·센서 Evidence·무결성 상태를 확인하세요.' %}
+{% endif %}
 <div class="workbench-shell">
   <header class="workbench-header">
     <div>
@@ -47,15 +63,15 @@
     </div>
   </header>
 
-  <section id="workbench-guidance" class="workbench-guidance {% if protection_disconnected %}guidance-danger{% elif run_ended and initial_incident_count > 0 %}guidance-warning{% elif run_ended %}guidance-success{% else %}guidance-neutral{% endif %}" role="status" aria-live="polite">
+  <section id="workbench-guidance" class="workbench-guidance {% if protection_disconnected or initial_session_status == 'FAILED' %}guidance-danger{% elif initial_session_status == 'ABORTED' or (run_ended and initial_incident_count > 0) %}guidance-warning{% elif run_ended %}guidance-success{% else %}guidance-neutral{% endif %}" role="status" aria-live="polite">
     <span class="workbench-guidance-mark" aria-hidden="true">•</span>
     <div class="workbench-guidance-copy">
       <span class="workbench-guidance-kicker">현재 상태</span>
-    <strong id="workbench-guidance-title">{{ 'AIA 보호 연결이 끊겼습니다.' if protection_disconnected else '보호된 Codex 작업을 관찰하고 있습니다.' if not run_ended else '실행이 끝났습니다. 정책 사건 ' ~ initial_incident_count ~ '건을 확인하세요.' if initial_incident_count else '실행이 끝났습니다. 결과를 확인하세요.' }}</strong>
-    <small id="workbench-guidance-detail">{{ '이 실행은 보호된 상태로 간주하지 않습니다. 연결 끊긴 실행을 정리하거나 실행 기록을 검토하세요.' if protection_disconnected else '오른쪽 센서와 이벤트에서 실제 관찰 결과를 확인할 수 있습니다.' if not run_ended else '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.' if initial_incident_count else '결과 보기에서 정책·센서 Evidence·무결성 상태를 확인하세요.' }}</small>
+    <strong id="workbench-guidance-title">{{ initial_guidance_title }}</strong>
+    <small id="workbench-guidance-detail">{{ initial_guidance_detail }}</small>
     </div>
     <a id="workbench-guidance-link" class="text-link workbench-guidance-link" href="/runs/{{ session_id }}/result"{% if not run_ended or not status.result_available %} hidden{% endif %}>{{ '정책 사건 확인 →' if initial_incident_count else '실행 결과 확인 →' }}</a>
-    <span id="workbench-guidance-owner" class="badge">AIA</span>
+    <span id="workbench-guidance-owner" class="badge">{{ '사용자' if run_ended else 'AIA' }}</span>
   </section>
   <section id="workbench-system-alert" class="workbench-system-alert" role="alert" aria-live="assertive" hidden>
     <span class="workbench-system-alert-mark" aria-hidden="true">!</span>
@@ -931,12 +947,24 @@ function updateWorkbenchGuidance(status = latestStatus) {
     kind = 'danger';
   } else if (ended) {
     if (status?.result_available) {
-      title = incidentCount > 0 ? `실행이 끝났습니다. 정책 사건 ${incidentCount}건을 확인하세요.` : '실행이 끝났습니다. 결과를 확인하세요.';
-      detail = incidentCount > 0
-        ? '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.'
-        : status?.bundle_status ? `Evidence Bundle: ${bundleLabel(status.bundle_status)}` : '결과 화면에서 센서·정책·무결성 기록을 확인할 수 있습니다.';
+      if (phase === 'ABORTED') {
+        title = incidentCount > 0 ? `실행이 중지되었습니다. 정책 사건 ${incidentCount}건을 확인하세요.` : '실행이 중지되었습니다. 결과를 확인하세요.';
+        detail = incidentCount > 0
+          ? '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.'
+          : '결과 보기에서 중지 검증 여부와 센서 Evidence를 확인하세요.';
+      } else if (phase === 'FAILED') {
+        title = incidentCount > 0 ? `실행이 실패했습니다. 정책 사건 ${incidentCount}건을 확인하세요.` : '실행이 실패했습니다. 결과를 확인하세요.';
+        detail = incidentCount > 0
+          ? '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.'
+          : '결과 보기에서 실패 원인과 보호 Evidence를 확인하세요.';
+      } else {
+        title = incidentCount > 0 ? `실행이 끝났습니다. 정책 사건 ${incidentCount}건을 확인하세요.` : '실행이 끝났습니다. 결과를 확인하세요.';
+        detail = incidentCount > 0
+          ? '결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요.'
+          : status?.bundle_status ? `Evidence Bundle: ${bundleLabel(status.bundle_status)}` : '결과 화면에서 센서·정책·무결성 기록을 확인할 수 있습니다.';
+      }
       owner = '사용자';
-      kind = incidentCount > 0 ? 'warning' : phase === 'FAILED' ? 'danger' : 'success';
+      kind = phase === 'FAILED' ? 'danger' : phase === 'ABORTED' || incidentCount > 0 ? 'warning' : 'success';
     } else {
       title = phase === 'FAILED' ? '실행이 실패했습니다. 원인을 확인하세요.' : '실행이 종료되었습니다.';
       detail = '결과 기록이 아직 준비되지 않았거나 확인이 필요합니다.';
