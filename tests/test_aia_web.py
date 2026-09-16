@@ -542,6 +542,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "terminalScreen.refresh()" in workbench.text
     assert "terminalOutput.classList.remove('terminal-closed')" in workbench.text
     assert "terminalOutput.classList.remove('is-loading')" in workbench.text
+    assert "function terminalRunEnded()" in workbench.text
+    assert "if (terminalRunEnded())" in workbench.text
+    assert "terminalOutput.classList.toggle('is-loading', !terminalRunEnded())" in workbench.text
+    assert "if (ended) terminalOutput.classList.remove('is-loading');" in workbench.text
     assert "stopButton.hidden = terminalEnded || orphaned;" in workbench.text
     assert "button.classList.add('is-busy')" in workbench.text
     assert "button.setAttribute('aria-busy', 'true')" in workbench.text

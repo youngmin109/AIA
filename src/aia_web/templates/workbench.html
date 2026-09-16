@@ -1248,6 +1248,9 @@ function setTerminalStatus(status) {
   const orphaned = Boolean(latestStatus?.runtime_reconciliation?.orphaned);
   stopButton.hidden = terminalEnded || orphaned;
 }
+function terminalRunEnded() {
+  return ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
+}
 function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
   const protectionDisconnected = Boolean(latestStatus?.runtime_reconciliation?.orphaned);
@@ -1421,6 +1424,16 @@ function restorePendingSubmission(message) {
 }
 function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
+  // Completed runs have no live terminal to attach to.  Avoid opening a
+  // needless socket and, more importantly, avoid showing a connection loader
+  // over the ended-run explanation after a page reload.
+  if (terminalRunEnded()) {
+    terminalClosed = true;
+    terminalSocketConnected = false;
+    terminalOutput.classList.remove('is-loading');
+    updateTerminalInputState();
+    return;
+  }
   terminalClosed = false;
   terminalSocketConnected = false;
   terminalComposerReady = false;
@@ -1442,7 +1455,7 @@ function openSocket() {
     terminalConnectionFailed = false;
     terminalReconnectPending = false;
     terminalSocketConnected = true;
-    terminalOutput.classList.add('is-loading');
+    terminalOutput.classList.toggle('is-loading', !terminalRunEnded());
     terminalOutput.classList.remove('terminal-closed');
     setTerminalConnection('연결 확인 중', 'connection-pending');
     updateTerminalInputState();
@@ -1535,6 +1548,7 @@ function renderSecurity(status) {
   const orphaned = Boolean(reconciliation.orphaned);
   const ended = ['COMPLETED', 'ABORTED', 'FAILED'].includes(sessionStatus);
   runStatus.dataset.status = sessionStatus;
+  if (ended) terminalOutput.classList.remove('is-loading');
   runStatus.className = `status-badge ${orphaned && !ended ? 'status-danger' : statusClass(sessionStatus)}`;
   runStatus.textContent = orphaned && !ended ? '보호 연결 끊김' : sessionLabel(sessionStatus);
   updateFlow(status.phase || sessionStatus);
