@@ -1676,7 +1676,7 @@ def test_ended_valid_runs_open_result_bundle_from_primary_session_link() -> None
 
     assert 'href="/runs/ended-run/result" title="전체 Session ID: ended-run"' in dashboard.text
     assert 'href="/runs/ended-run/result" title="결과 보기"' in history.text
-    assert 'title="전체 Session ID: ended-run">결과 Bundle</span>' in history.text
+    assert 'title="전체 Session ID: ended-run">사용자 작업 · 결과</span>' in history.text
     assert "Workbench 열기" not in history.text
     assert "결과 보기" in dashboard.text
 
