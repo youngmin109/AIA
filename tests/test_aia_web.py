@@ -343,6 +343,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "new-run-page" in new_run.text
     assert 'id="jump-to-run"' in new_run.text
     assert 'id="run-settings"' in new_run.text
+    assert new_run.text.index('id="run-settings"') < new_run.text.index('id="preflight-panel"')
     assert new_run.text.index("} else if (workspaceValidationInProgress)") < new_run.text.index("} else if (!preflightLoaded || preflightRequestInFlight)")
     assert 'id="preflight-next-steps"' in new_run.text
     assert 'id="preflight-refresh-status"' in new_run.text

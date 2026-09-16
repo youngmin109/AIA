@@ -29,84 +29,6 @@
   <p id="run-progress-status" class="run-progress-status" role="status" aria-live="polite">현재 단계 1/4 · 작업 폴더 선택</p>
 </section>
 
-<section id="preflight-panel" class="panel preflight-panel">
-  <div class="panel-heading">
-    <h2>실행 전 준비 상태</h2>
-    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">{{ '확인 중…' if preflight_deferred else '자동 확인 완료' }}</span></div>
-  </div>
-  <div id="preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span>Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span></div>
-  <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
-    {% for check in preflight.checks %}
-    <div class="preflight-row">
-      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인 필요' }}</span>
-      <strong>{{ check.label }}</strong>
-      <span class="hint">{{ check.detail }}</span>
-    </div>
-    {% endfor %}
-  </div>
-  {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
-  {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
-  <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust" id="preflight-trust-summary">{{ 'Codex Hook Trust 상태를 확인하고 있습니다.' if preflight_deferred else preflight.hook_trust.detail }}</div>
-  <div id="codex-hook-trust" class="notice {{ 'success' if preflight_trust_ok else 'warning' }}">
-    <strong>Codex 설정 Trust 상태:</strong>
-    {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
-    {% if trust_hooks %}
-      {% for hook in trust_hooks %}{{ hook.event }}={{ hook.trust_status }}{% if not loop.last %} · {% endif %}{% endfor %}
-    {% else %}
-      {{ '확인 중' if preflight_deferred else '확인할 수 없음' }}
-    {% endif %}
-    <small class="hint">Codex 설정의 신뢰 상태입니다. 현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다.</small>
-  </div>
-  <div class="notice preflight-claim">
-    <strong>보호 성공 판정 규칙:</strong>
-    {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
-  </div>
-  <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}success{% else %}warning{% endif %}">
-    <strong>현재 연결 증명:</strong> {{ '실제 Hook 연결 상태를 확인하고 있습니다.' if preflight_deferred else (preflight.get('hook_activation') or {}).get('detail', '아직 현재 환경의 실제 Hook Event가 관찰되지 않았습니다.') }}
-  </div>
-  {% set preflight_hook_verified = (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}
-  <div class="preflight-sensor-summary" id="preflight-sensor-summary">
-    <div class="panel-heading">
-      <div><h3>이번 실행에서 활성화되는 센서</h3><p class="hint">세 센서가 서로 다른 실행 증거를 수집합니다.</p></div>
-      <span class="badge">3개</span>
-    </div>
-    <div class="sensor-cards preflight-sensor-cards">
-      <div class="sensor-card preflight-sensor-card">
-        <div class="sensor-card-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="preflight-sensor-hook-status" class="status-badge {{ 'status-success' if preflight_hook_verified else 'status-warning' }}" title="{{ (preflight.get('hook_activation') or {}).get('status', 'UNKNOWN') }}">{{ '검증됨' if preflight_hook_verified else ('확인 중' if preflight_deferred else '확인 필요') }}</span></div>
-        <small>Codex의 지원되는 도구 요청을 실행 전에 관찰합니다.</small>
-      </div>
-      <div class="sensor-card preflight-sensor-card">
-        <div class="sensor-card-heading"><span class="sensor-icon file">F</span><strong>File Sensor</strong><span class="status-badge status-active">실행 시 시작</span></div>
-        <small>선택한 Workspace의 파일 변화를 기록합니다.</small>
-      </div>
-      <div class="sensor-card preflight-sensor-card">
-        <div class="sensor-card-heading"><span class="sensor-icon process">P</span><strong>Process Sensor</strong><span class="status-badge status-active">실행 시 시작</span></div>
-        <small>Codex와 관리 대상 자식 프로세스를 관찰합니다.</small>
-      </div>
-    </div>
-  </div>
-  <div id="preflight-error" class="error" {% if preflight.ready or preflight_deferred %}hidden{% endif %}>
-    <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 항목을 먼저 해결하세요. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
-  </div>
-  <div id="readiness-summary" class="notice {% if preflight.ready %}success{% else %}warning{% endif %}">
-    <strong>시스템 준비 상태: <span id="readiness-code">{{ 'CHECKING' if preflight_deferred else preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
-    <span id="readiness-config" class="readiness-config">현재 실행 설정: Workspace 입력 필요</span>
-    <span id="readiness-next-step">{{ 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다.' if preflight_deferred else preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
-  </div>
-  <div id="preflight-next-steps" class="next-steps"{% if preflight.ready or preflight_deferred %} hidden{% endif %}>
-    <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
-    <ol>
-      {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
-      <li>PowerShell에서 <span class="mono">{{ cli_prefix }} hook verify</span>를 실행합니다.</li>
-      <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
-    </ol>
-  </div>
-  <div class="form-actions">
-    <button id="verify-hook" class="button" type="button"{% if preflight_deferred %} disabled{% endif %}>{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
-    <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else ('준비 상태 확인이 끝난 뒤 Hook 연결을 검증할 수 있습니다.' if preflight_deferred else 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.') }}</span>
-  </div>
-</section>
-
   <section id="run-settings" class="panel form-panel">
   <div class="panel-heading"><div><h2>실행 설정</h2><p class="hint">보호할 Workspace와 작업 방식을 정합니다.</p></div><span class="badge">첫 단계</span></div>
   <form id="new-run-form">
@@ -192,6 +114,84 @@
     </div>
     <div id="run-launch-actions" class="form-actions run-launch-actions"><button id="submit-run" class="button primary" type="submit" disabled>보호 실행 시작</button><span id="run-submit-hint" class="hint">실행 전 준비 상태와 Workspace 확인이 필요합니다.</span></div>
   </form>
+</section>
+
+<section id="preflight-panel" class="panel preflight-panel">
+  <div class="panel-heading">
+    <h2>실행 전 준비 상태</h2>
+    <div class="panel-heading-actions"><a id="jump-to-run" class="button primary" href="#run-settings"{% if not preflight.ready %} hidden{% endif %}>실행 설정으로 이동</a><button id="refresh-preflight" class="button" type="button">다시 검사</button><span id="preflight-refresh-status" class="hint" role="status" aria-live="polite">{{ '확인 중…' if preflight_deferred else '자동 확인 완료' }}</span></div>
+  </div>
+  <div id="preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span>Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span></div>
+  <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
+    {% for check in preflight.checks %}
+    <div class="preflight-row">
+      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인 필요' }}</span>
+      <strong>{{ check.label }}</strong>
+      <span class="hint">{{ check.detail }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% set preflight_trust_status = (preflight.get('hook_trust') or {}).get('status') %}
+  {% set preflight_trust_ok = preflight_trust_status in ['TRUSTED', 'MANAGED'] %}
+  <div class="notice {{ 'success' if preflight_trust_ok else 'warning' }} preflight-trust" id="preflight-trust-summary">{{ 'Codex Hook Trust 상태를 확인하고 있습니다.' if preflight_deferred else preflight.hook_trust.detail }}</div>
+  <div id="codex-hook-trust" class="notice {{ 'success' if preflight_trust_ok else 'warning' }}">
+    <strong>Codex 설정 Trust 상태:</strong>
+    {% set trust_hooks = preflight.get('codex_hook_trust', {}).get('hooks', []) %}
+    {% if trust_hooks %}
+      {% for hook in trust_hooks %}{{ hook.event }}={{ hook.trust_status }}{% if not loop.last %} · {% endif %}{% endfor %}
+    {% else %}
+      {{ '확인 중' if preflight_deferred else '확인할 수 없음' }}
+    {% endif %}
+    <small class="hint">Codex 설정의 신뢰 상태입니다. 현재 Protected Run에 Hook이 연결됐다는 증명과는 별개입니다.</small>
+  </div>
+  <div class="notice preflight-claim">
+    <strong>보호 성공 판정 규칙:</strong>
+    {{ (preflight.get('protection_claim') or {}).get('detail', '각 실행에서 Hook Event가 확인된 뒤 보호 상태를 검증합니다.') }}
+  </div>
+  <div id="hook-activation" class="notice {% if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}success{% else %}warning{% endif %}">
+    <strong>현재 연결 증명:</strong> {{ '실제 Hook 연결 상태를 확인하고 있습니다.' if preflight_deferred else (preflight.get('hook_activation') or {}).get('detail', '아직 현재 환경의 실제 Hook Event가 관찰되지 않았습니다.') }}
+  </div>
+  {% set preflight_hook_verified = (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' %}
+  <div class="preflight-sensor-summary" id="preflight-sensor-summary">
+    <div class="panel-heading">
+      <div><h3>이번 실행에서 활성화되는 센서</h3><p class="hint">세 센서가 서로 다른 실행 증거를 수집합니다.</p></div>
+      <span class="badge">3개</span>
+    </div>
+    <div class="sensor-cards preflight-sensor-cards">
+      <div class="sensor-card preflight-sensor-card">
+        <div class="sensor-card-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="preflight-sensor-hook-status" class="status-badge {{ 'status-success' if preflight_hook_verified else 'status-warning' }}" title="{{ (preflight.get('hook_activation') or {}).get('status', 'UNKNOWN') }}">{{ '검증됨' if preflight_hook_verified else ('확인 중' if preflight_deferred else '확인 필요') }}</span></div>
+        <small>Codex의 지원되는 도구 요청을 실행 전에 관찰합니다.</small>
+      </div>
+      <div class="sensor-card preflight-sensor-card">
+        <div class="sensor-card-heading"><span class="sensor-icon file">F</span><strong>File Sensor</strong><span class="status-badge status-active">실행 시 시작</span></div>
+        <small>선택한 Workspace의 파일 변화를 기록합니다.</small>
+      </div>
+      <div class="sensor-card preflight-sensor-card">
+        <div class="sensor-card-heading"><span class="sensor-icon process">P</span><strong>Process Sensor</strong><span class="status-badge status-active">실행 시 시작</span></div>
+        <small>Codex와 관리 대상 자식 프로세스를 관찰합니다.</small>
+      </div>
+    </div>
+  </div>
+  <div id="preflight-error" class="error" {% if preflight.ready or preflight_deferred %}hidden{% endif %}>
+    <strong>아직 실행할 수 없습니다.</strong> 아래에서 <span class="mono">확인 필요</span>로 표시된 항목을 먼저 해결하세요. Hook이 설치되어 있어도 Codex에서 직접 검토·신뢰하고 실제 Probe 검증을 통과해야 합니다.
+  </div>
+  <div id="readiness-summary" class="notice {% if preflight.ready %}success{% else %}warning{% endif %}">
+    <strong>시스템 준비 상태: <span id="readiness-code">{{ 'CHECKING' if preflight_deferred else preflight.get('readiness_code', 'UNKNOWN') }}</span></strong>
+    <span id="readiness-config" class="readiness-config">현재 실행 설정: Workspace 입력 필요</span>
+    <span id="readiness-next-step">{{ 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다.' if preflight_deferred else preflight.get('next_step', '위의 확인 필요 항목을 해결하세요.') }}</span>
+  </div>
+  <div id="preflight-next-steps" class="next-steps"{% if preflight.ready or preflight_deferred %} hidden{% endif %}>
+    <strong>{{ '다음 확인 단계' if preflight_trust_ok else '처음 사용하는 경우' }}</strong>
+    <ol>
+      {% if not preflight_trust_ok %}<li>Codex 화면에서 <span class="mono">/hooks</span>를 열고 AIA Hook을 검토·신뢰합니다.</li>{% endif %}
+      <li>PowerShell에서 <span class="mono">{{ cli_prefix }} hook verify</span>를 실행합니다.</li>
+      <li>이 화면에서 <strong>다시 검사</strong>를 누른 뒤 보호 실행을 시작합니다.</li>
+    </ol>
+  </div>
+  <div class="form-actions">
+    <button id="verify-hook" class="button" type="button"{% if preflight_deferred %} disabled{% endif %}>{{ 'Hook 연결 다시 검증' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '실제 Hook 연결 검증' }}</button>
+    <span id="verify-hook-status" class="hint {{ 'success-text' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else '' }}">{{ '현재 Session-bound Hook Event가 확인되었습니다.' if (preflight.get('hook_activation') or {}).get('status') == 'CURRENTLY_VERIFIED' else ('준비 상태 확인이 끝난 뒤 Hook 연결을 검증할 수 있습니다.' if preflight_deferred else 'Codex에서 /hooks를 검토·Trust한 뒤 AIA Hook 연결을 검증하세요.') }}</span>
+  </div>
 </section>
 
 <section class="panel preview-panel">
