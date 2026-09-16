@@ -529,7 +529,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "정책상 허용" in workbench.text
     assert "실행 Evidence가 없으면 성공으로 표시하지 않습니다" in workbench.text
     assert "센서가 관찰하면 여기에 표시됩니다" in workbench.text
-    assert "eventSummaryLabel(incident.summary)" in workbench.text
+    assert "eventTitleLabel(incident)" in workbench.text
+    assert "eventTitleLabel(candidate)" in workbench.text
     assert "statusPollFailures" in workbench.text
     assert "연결 확인 필요" in workbench.text
     assert 'id="refresh-status"' in workbench.text

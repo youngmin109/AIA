@@ -289,6 +289,7 @@ def incident_view(action: Mapping[str, Any]) -> dict[str, Any] | None:
         "matched_asset_types": list(action.get("matched_asset_types") or []),
         "matched_rule_ids": list(action.get("matched_rule_ids") or []),
         "operation": action.get("operation"),
+        "tool_name": safe_tool_name(action.get("tool_name") or action.get("tool")),
         "policy": policy,
         "policy_decision": policy,
         "operation_effect": action.get("operation_effect"),

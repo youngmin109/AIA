@@ -1040,6 +1040,7 @@ def test_incident_presenter_localizes_summary_without_changing_decision_codes() 
     assert view["summary"] == "명령 실행 요청 · 판정 불가"
     assert view["policy_decision"] == "INDETERMINATE"
     assert view["reason"] == "판정 불가"
+    assert view["tool_name"] is None
     assert "was classified" not in repr(view)
     assert "AIA exposes" not in repr(view)
 
@@ -1052,6 +1053,7 @@ def test_incident_presenter_localizes_attribution_reason_and_keeps_raw_free() ->
             "policy_decision": "VIOLATION",
             "attribution_grade": "PROCESS",
             "attribution_reason": "Process was observed in the verified Agent Process Tree",
+            "tool_name": "Bash",
             "enforcement_action": "REFUSE",
             "execution_result": "NOT_ATTEMPTED",
             "target": {"canonical_path": "C:/workspace/app.py"},
@@ -1061,6 +1063,7 @@ def test_incident_presenter_localizes_attribution_reason_and_keeps_raw_free() ->
     assert view is not None
     assert view["attribution_reason_label"] == "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다."
     assert view["reason"] == "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다."
+    assert view["tool_name"] == "Bash"
 
 
 def test_synthetic_incident_summaries_are_localized() -> None:

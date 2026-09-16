@@ -725,6 +725,7 @@ const executionLabel = (value) => ({SUCCEEDED: '실행 확인됨', FAILED: '실�
 const executionDisplayLabel = (value, ended = false, observed = false) => observed && value === 'NOT_ATTEMPTED' ? '실행 관찰됨' : ended && value === 'NOT_ATTEMPTED' ? '실행 결과 증거 없음' : value === 'NOT_ATTEMPTED' ? '실행 결과 대기' : executionLabel(value);
 const sensorNameLabel = (value) => ({AGENT_HOOK: 'Hook Sensor', FILESYSTEM_WATCHER: 'File Sensor', PROCESS_RUNTIME: 'Process Sensor', RUNTIME: 'Runtime Sensor', MULTI_SENSOR: '복수 센서'})[value] || value || 'AIA';
 const toolNameLabel = (value) => ({Bash: 'Bash', apply_patch: 'apply_patch', Edit: 'Edit', Write: 'Write'})[value] || '';
+const eventTitleLabel = (event) => [toolNameLabel(event?.tool_name), eventSummaryLabel(event?.summary)].filter(Boolean).join(' · ') || '보호 대상 행위';
 const operationLabel = (value) => ({READ: '읽기', CREATE: '생성', MODIFY: '수정', DELETE: '삭제', MOVE: '이동', RENAME: '이름 변경', EXECUTE: '명령 실행'})[value] || value || '행위';
 const eventSummaryLabel = (value) => String(value || '이벤트').replace(/^(READ|CREATE|MODIFY|DELETE|MOVE|RENAME|EXECUTE) 행위 관찰$/, (_, operation) => `${operationLabel(operation)} 요청`);
 const eventCategoryLabel = (event) => event?.category === 'SENSOR' ? '센서 상태' : '행위 요청';
@@ -991,7 +992,7 @@ function announceNewSecurityEvents(events, ended = false) {
   workbenchAlert.className = `workbench-alert ${isIncident ? 'alert-incident' : 'alert-observation'}`;
   workbenchAlertMark.textContent = isIncident ? '!' : '•';
   workbenchAlertKicker.textContent = isIncident ? '새 보안 사건' : '새 행위 관찰';
-  workbenchAlertTitle.textContent = eventSummaryLabel(candidate.summary || '행위 관찰');
+  workbenchAlertTitle.textContent = eventTitleLabel(candidate);
   const detail = [decisionLabel(candidate.decision || 'OBSERVED'), candidate.execution_result ? executionDisplayLabel(candidate.execution_result, ended, Boolean(candidate.execution_observed)) : ''].filter(Boolean).join(' · ');
   workbenchAlertDetail.textContent = detail || 'AIA가 새 실행 증거를 기록했습니다.';
   if (candidate.incident_action_id) {
@@ -1685,7 +1686,7 @@ function renderSecurity(status) {
             event.target_label || '',
             sensorNameLabel(event.sensor || 'AIA'),
           ].filter(Boolean).join(' · ');
-          return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><div class="workbench-event-title"><span class="event-category-label">${esc(eventCategoryLabel(event))}</span><strong>${esc(eventSummaryLabel(event.summary))}</strong></div><small>${esc(formatTime(event.observed_at))} · ${esc(contextLabel)}</small>${detailHint}</div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`;
+          return `<div class="workbench-event severity-${esc(event.severity || 'INFO').toLowerCase()}${isNew ? ' event-new' : ''}"${chainAttribute}><span class="event-dot"></span><div><div class="workbench-event-title"><span class="event-category-label">${esc(eventCategoryLabel(event))}</span><strong>${esc(eventTitleLabel(event))}</strong></div><small>${esc(formatTime(event.observed_at))} · ${esc(contextLabel)}</small>${detailHint}</div><span class="event-badges">${isNew ? '<span class="event-new-label">새로 관찰</span>' : ''}${badge(event.decision || 'OBSERVED', decisionLabel(event.decision || 'OBSERVED'))}${executionValue && executionValue !== 'NOT_REPORTED' ? badge(executionValue, executionDisplayLabel(event.execution_result, ended, event.execution_observed)) : ''}</span></div>`;
         }).join('')
       : `<div class="empty">${emptyMessage}</div>`;
     bindChainSelectors();
@@ -1718,7 +1719,7 @@ function renderSecurity(status) {
   const incidentNote = document.getElementById('incident-note');
   if (incident) {
     incidentCard.hidden = false;
-    document.getElementById('incident-title').textContent = `${eventSummaryLabel(incident.summary) || '보호 대상 행위'} · ${incident.target_label || '대상'}`;
+    document.getElementById('incident-title').textContent = `${eventTitleLabel(incident)} · ${incident.target_label || '대상'}`;
     document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? '정책 위반' : decisionLabel(incident.decision);
     document.getElementById('incident-decision').textContent = decisionLabel(incident.decision);
     const blockedConfirmed = incident.decision === 'CONTAIN' && incident.execution_result === 'SUCCEEDED';
