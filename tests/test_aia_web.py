@@ -603,6 +603,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "is-loading" in workbench.text
     assert 'id="terminal-connection"' in workbench.text
     assert 'id="terminal-last-output-meta"' in workbench.text
+    assert 'id="terminal-last-output-label"' in workbench.text
     assert 'id="terminal-last-output"' in workbench.text
     assert "재연결 중" in workbench.text
     assert "terminalClosed" in workbench.text
@@ -717,6 +718,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert workbench.text.index('id="terminal-closed-card"') < workbench.text.index('id="terminal-output"')
     assert "updateTerminalClosedCard" in workbench.text
     assert "Codex 작업창 출력은 보안을 위해 저장하지 않습니다." in workbench.text
+    assert "작업창 출력" in workbench.text
     assert "terminal-ended" in workbench.text
     assert "chain-sensor-link" in workbench.text
     assert "RUN_OBSERVED" in workbench.text

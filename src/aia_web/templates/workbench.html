@@ -137,7 +137,7 @@
           <span id="terminal-status" class="hint{% if protection_disconnected %} error-text{% endif %}" aria-live="polite">{{ 'AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다.' if protection_disconnected else '터미널 연결을 기다리는 중입니다.' }}</span>
           <div class="terminal-live-meta" role="status" aria-live="polite">
             <span id="terminal-connection" class="terminal-connection {% if protection_disconnected %}connection-failed{% else %}connection-pending{% endif %}"><i aria-hidden="true"></i>{{ '보호 연결 끊김' if protection_disconnected else '연결 확인 중' }}</span>
-            <span id="terminal-last-output-meta">마지막 출력 수신 <strong id="terminal-last-output">기록 없음</strong></span>
+            <span id="terminal-last-output-meta"><span id="terminal-last-output-label">{{ '작업창 출력' if run_ended else '마지막 출력 수신' }}</span> <strong id="terminal-last-output">{{ '저장하지 않음' if run_ended else '기록 없음' }}</strong></span>
           </div>
           <div id="terminal-activity" class="terminal-activity" role="status" aria-live="polite" hidden>
             <span class="terminal-activity-bar" aria-hidden="true"></span>
@@ -319,6 +319,7 @@ const terminalScrollLatest = document.getElementById('terminal-scroll-latest');
 const terminalConnection = document.getElementById('terminal-connection');
 const protectionStateNote = document.getElementById('protection-state-note');
 const terminalLastOutputMeta = document.getElementById('terminal-last-output-meta');
+const terminalLastOutputLabel = document.getElementById('terminal-last-output-label');
 const terminalLastOutput = document.getElementById('terminal-last-output');
 const terminalActivity = document.getElementById('terminal-activity');
 const terminalActivityLabel = document.getElementById('terminal-activity-label');
@@ -686,6 +687,15 @@ const formatOutputAge = (timestamp) => {
   return formatTime(new Date(timestamp).toISOString());
 };
 function updateTerminalOutputAge() {
+  const ended = terminalRunEnded();
+  if (ended) {
+    terminalLastOutputLabel.textContent = '작업창 출력';
+    terminalLastOutput.textContent = '저장하지 않음';
+    terminalLastOutputMeta.classList.remove('output-aging', 'output-stale');
+    terminalLastOutputMeta.title = 'Codex 작업창 출력은 보안을 위해 저장하지 않습니다.';
+    return;
+  }
+  terminalLastOutputLabel.textContent = '마지막 출력 수신';
   terminalLastOutput.textContent = formatOutputAge(lastTerminalOutputAt);
   const waitingForOutput = awaitingResponse && ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode);
   const elapsed = lastTerminalOutputAt ? Math.max(0, Math.floor((Date.now() - lastTerminalOutputAt) / 1000)) : 0;
