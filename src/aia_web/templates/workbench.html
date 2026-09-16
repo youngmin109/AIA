@@ -1423,7 +1423,8 @@ function setTerminalAction(action) {
 }
 function updateFlow(status = {}) {
   const phase = status?.phase || status?.session?.status || 'UNKNOWN';
-  const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status?.session?.status || phase);
+  const sessionStatus = status?.session?.status || phase;
+  const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(sessionStatus);
   const reconciliation = status?.runtime_reconciliation || {};
   const summary = status?.evidence_summary || {};
   const hookEvidence = Number(summary.pretool_events || 0) + Number(summary.posttool_events || 0);
@@ -1431,20 +1432,25 @@ function updateFlow(status = {}) {
   const fileEvidence = Number(summary.filesystem_events || 0);
   const actionEvidence = hookEvidence > 0 || processEvidence > 0;
   const resultVerified = terminal && status?.result_available && status?.bundle_status === 'VALID';
+  const completedSuccessfully = sessionStatus === 'COMPLETED' && resultVerified;
   let currentStep = 1;
   let completedThrough = 0;
   let progressText = '현재 단계를 확인하는 중입니다.';
   if (phase === 'CREATED' || phase === 'PREPARING') {
     currentStep = 1;
     progressText = '보호 준비 단계 · Workspace·정책·체크포인트를 준비합니다.';
-  } else if (resultVerified) {
+  } else if (completedSuccessfully) {
     currentStep = 0;
     completedThrough = 4;
     progressText = '모든 단계 완료 · Evidence Bundle이 검증되었습니다.';
   } else if (terminal) {
     currentStep = 4;
     completedThrough = 3;
-    progressText = '결과 검증 단계 · 실행 기록과 Evidence Bundle을 확인하세요.';
+    progressText = sessionStatus === 'FAILED'
+      ? '실행 실패 단계 · 결과와 보호 Evidence를 확인하세요.'
+      : sessionStatus === 'ABORTED' && resultVerified
+        ? '실행 중지 단계 · 결과와 보호 Evidence를 확인하세요.'
+        : '결과 검증 단계 · 실행 기록과 Evidence Bundle을 확인하세요.';
   } else if (fileEvidence > 0) {
     currentStep = 3;
     completedThrough = 2;

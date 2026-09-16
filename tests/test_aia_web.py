@@ -665,6 +665,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-flow-status"' in workbench.text
     assert "현재 단계를 확인하는 중입니다." in workbench.text
     assert "모든 단계 완료 · Evidence Bundle이 검증되었습니다." in workbench.text
+    assert "실행 중지 단계 · 결과와 보호 Evidence를 확인하세요." in workbench.text
+    assert "실행 실패 단계 · 결과와 보호 Evidence를 확인하세요." in workbench.text
     assert "File Sensor가 ${fileEvidence}건을 기록했습니다." in workbench.text
     assert 'data-flow-step="1"' in workbench.text
     assert 'data-flow-step="4"' in workbench.text
@@ -673,6 +675,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "summary.filesystem_events" in workbench.text
     assert "status?.bundle_status === 'VALID'" in workbench.text
     assert "let completedThrough = 0" in workbench.text
+    assert "const completedSuccessfully = sessionStatus === 'COMPLETED' && resultVerified" in workbench.text
     assert "statusClass" in workbench.text
     assert "protectionClass" in workbench.text
     assert "protectionNote" in workbench.text
