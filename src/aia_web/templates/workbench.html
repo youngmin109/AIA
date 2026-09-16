@@ -79,7 +79,7 @@
     <span id="workbench-sticky-status" class="workbench-sticky-status" role="status" aria-live="polite">
       <i id="workbench-sticky-status-mark" aria-hidden="true"></i>
       <strong id="workbench-sticky-status-label">{{ initial_status_label }}</strong>
-      <small id="workbench-sticky-status-detail">{{ '결과 확인 가능' if run_ended else '터미널 연결 확인 중' }}</small>
+      <small id="workbench-sticky-status-detail">{{ ('실행 기록 확인 가능' ~ (' · 정책 사건 ' ~ initial_incident_count ~ '건' if initial_incident_count else '')) if run_ended else '터미널 연결 확인 중' }}</small>
     </span>
     <span class="workbench-jumpbar-label">바로가기</span>
     <a class="workbench-jump-link is-active" data-workbench-jump="terminal-panel" href="#terminal-panel">Codex 작업창</a>
@@ -891,10 +891,12 @@ function updateStickyStatus(status = latestStatus) {
       ? '터미널 종료됨'
       : terminalSocketEverConnected
         ? '터미널 재연결 대기'
-        : '터미널 연결 확인 중';
+      : '터미널 연결 확인 중';
+  const incidentCount = Number(status?.incident_count || 0);
+  const incidentDetail = incidentCount > 0 ? ` · 정책 사건 ${incidentCount}건` : '';
   stickyStatusLabel.textContent = sessionLabel(sessionValue);
   const activityLabel = terminalActivityIsDelayed() ? '응답 지연 확인 필요' : terminalActivitySummaryLabel(activityMode);
-  stickyStatusDetail.textContent = ended ? '실행 기록 확인 가능' : `${activityLabel} · ${connectionDetail}`;
+  stickyStatusDetail.textContent = ended ? `실행 기록 확인 가능${incidentDetail}` : `${activityLabel} · ${connectionDetail}${incidentDetail}`;
   stickyStatus.className = `workbench-sticky-status ${statusClass(sessionValue)}`;
   stickyStatusMark.className = `workbench-sticky-status-mark ${statusClass(sessionValue)}`;
 }

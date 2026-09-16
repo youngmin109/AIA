@@ -598,6 +598,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-guidance-title"' in workbench.text
     assert 'id="workbench-guidance-detail"' in workbench.text
     assert 'id="workbench-guidance-owner"' in workbench.text
+    assert "const incidentDetail = incidentCount > 0" in workbench.text
+    assert "${activityLabel} · ${connectionDetail}${incidentDetail}" in workbench.text
     assert 'id="workbench-system-alert"' in workbench.text
     assert "renderRuntimeAlert(status)" in workbench.text
     assert "RUNTIME_STATE_PERSIST_FAILED" in workbench.text
@@ -1883,6 +1885,7 @@ def test_workbench_ended_guidance_surfaces_incident_count() -> None:
     assert "결과 보기에서 사건별 실제 실행 결과와 센서 Evidence를 확인하세요." in workbench.text
     assert 'id="workbench-guidance-link"' in workbench.text
     assert ">정책 사건 확인 →</a>" in workbench.text
+    assert "실행 기록 확인 가능 · 정책 사건 2건" in workbench.text
     assert "incidentCount > 0" in workbench.text
 
 
