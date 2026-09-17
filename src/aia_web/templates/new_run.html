@@ -130,7 +130,21 @@
   <div id="preflight-checks" class="preflight-list"{% if preflight_deferred %} hidden{% endif %}>
     {% for check in preflight.checks %}
     {% set check_blocks_run = (not check.optional) or (check.name == 'codex_hook_trust' and preflight.get('readiness_code') == 'CODEX_HOOK_TRUST_REQUIRED') %}
-    {% set check_display_detail = 'Codex 설정에서 신뢰된 Hook이 확인되었습니다.' if check.name == 'codex_hook_trust' and check.ok else 'Codex Hook Trust 상태를 확인할 수 없습니다.' if check.name == 'codex_hook_trust' and '확인할 수 없음' in check.detail else 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.' if check.name == 'codex_hook_trust' else '먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요.' if check.name == 'hook_verification' and not check.ok and not preflight.get('hook_trust', {}).get('status') in ['TRUSTED', 'MANAGED'] else check.detail %}
+    {% set check_display_detail = (
+      '이전 AIA Hook 경로를 현재 환경에 맞게 갱신하세요.' if check.name == 'pretool_hook' and check.stale else
+      'AIA Hook 설치 명령을 실행하세요.' if check.name == 'pretool_hook' and not check.ok else
+      'Codex /hooks Trust가 확인되었습니다.' if check.name == 'pretool_hook' and 'Trust 확인됨' in check.detail else
+      'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.' if check.name == 'pretool_hook' else
+      '실행 결과 확인 가능' if check.name == 'posttool_hook' and check.ok else
+      '선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦' if check.name == 'posttool_hook' else
+      'Codex 설정에서 신뢰된 Hook이 확인되었습니다.' if check.name == 'codex_hook_trust' and check.ok else
+      'Codex Hook Trust 상태를 확인할 수 없습니다.' if check.name == 'codex_hook_trust' and '확인할 수 없음' in check.detail else
+      'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.' if check.name == 'codex_hook_trust' else
+      '먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요.' if check.name == 'hook_verification' and not check.ok and not preflight.get('hook_trust', {}).get('status') in ['TRUSTED', 'MANAGED'] else
+      '아래 검증 명령으로 실제 Hook 연결을 확인하세요.' if check.name == 'hook_verification' and not check.ok else
+      'Session-bound Hook Event가 확인되었습니다.' if check.name == 'hook_verification' else
+      check.detail
+    ) %}
     {% set check_status = (
       '설치됨' if check.name in ['pretool_hook', 'posttool_hook'] and check.ok else
       '갱신 필요' if check.name == 'pretool_hook' and check.stale else
@@ -452,13 +466,21 @@ const hookVerificationResultLabel = (payload) => {
   return '현재 Hook 연결을 확인하지 못했습니다. 준비 상태와 Codex Hook 설정을 확인한 뒤 다시 시도하세요.';
 };
 const preflightCheckDetailLabel = (check, checks = []) => {
-  if (check?.name === 'pretool_hook' && !check?.ok) return check?.stale ? '이전 AIA Hook 경로가 남아 있습니다. 아래 명령으로 현재 환경에 맞게 갱신하세요.' : 'AIA Hook 설치가 필요합니다. 아래 설치 명령을 실행하세요.';
+  if (check?.name === 'pretool_hook') {
+    if (check?.stale) return '이전 AIA Hook 경로를 현재 환경에 맞게 갱신하세요.';
+    if (!check?.ok) return 'AIA Hook 설치 명령을 실행하세요.';
+    return String(check?.detail || '').includes('Trust 확인됨') ? 'Codex /hooks Trust가 확인되었습니다.' : 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';
+  }
+  if (check?.name === 'posttool_hook') return check?.ok ? '실행 결과 확인 가능' : '선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦';
   const trustCheck = checks.find((item) => item?.name === 'codex_hook_trust');
+  if (check?.name === 'codex_hook_trust') {
+    if (check?.ok) return 'Codex 설정에서 신뢰된 Hook이 확인되었습니다.';
+    if (String(check?.detail || '').includes('확인할 수 없음')) return 'Codex Hook Trust 상태를 확인할 수 없습니다.';
+    return 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';
+  }
   if (check?.name === 'hook_verification' && !check?.ok) return trustCheck?.ok === true ? '아래 검증 명령을 실행해 실제 Hook 연결을 확인하세요.' : '먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요.';
-  if (check?.name !== 'codex_hook_trust') return String(check?.detail || '상세 정보 없음');
-  if (check?.ok) return 'Codex 설정에서 신뢰된 Hook이 확인되었습니다.';
-  if (String(check?.detail || '').includes('확인할 수 없음')) return 'Codex Hook Trust 상태를 확인할 수 없습니다.';
-  return 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';
+  if (check?.name === 'hook_verification') return 'Session-bound Hook Event가 확인되었습니다.';
+  return String(check?.detail || '상세 정보 없음');
 };
 const preflightCheckBlocksRun = (check, readinessStatus) => !check?.optional || (check?.name === 'codex_hook_trust' && readinessStatus === 'CODEX_HOOK_TRUST_REQUIRED');
 function updatePreflightRequirementSummary(checks, readinessStatus = 'UNKNOWN') {

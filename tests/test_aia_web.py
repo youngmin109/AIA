@@ -403,7 +403,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "setAttribute('aria-current', 'step')" in new_run.text
     assert "CODEX_HOOK_TRUST_REQUIRED" in new_run.text
     assert "preflightCheckMark" in new_run.text
-    assert "아래 설치 명령을 실행하세요." in new_run.text
+    assert "AIA Hook 설치 명령을 실행하세요." in new_run.text
     assert "아래 검증 명령을 실행해 실제 Hook 연결을 확인하세요." in new_run.text
     assert "먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요." in new_run.text
     assert "PowerShell 권장 명령" in new_run.text
@@ -412,6 +412,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "이 화면의 AIA 실행 기준 폴더" in new_run.text
     assert "Codex 설정에서 신뢰된 Hook이 확인되었습니다." in new_run.text
     assert "Codex Hook Trust 상태를 확인할 수 없습니다." in new_run.text
+    assert "Codex /hooks Trust가 확인되었습니다." in new_run.text
+    assert "실행 결과 확인 가능" in new_run.text
+    assert "선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦" in new_run.text
+    assert "Session-bound Hook Event가 확인되었습니다." in new_run.text
     assert "preflight-command-help" in new_run.text
     assert "python -m aia.cli setup" in new_run.text
     assert "python -m aia.cli hook verify" in new_run.text
