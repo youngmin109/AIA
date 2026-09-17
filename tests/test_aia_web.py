@@ -316,7 +316,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".history-view-preset.is-active" in css.text
     assert ".preflight-scope-complete" in css.text
     assert '.field textarea[aria-invalid="true"]' in css.text
-    assert "glassbox-ui-33" in dashboard.text
+    assert "glassbox-ui-34" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
