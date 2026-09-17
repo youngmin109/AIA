@@ -749,6 +749,11 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="terminal-action"' in workbench.text
     assert "신뢰하고 계속" in workbench.text
     assert "TRUST_DIRECTORY" in workbench.text
+    assert "COMMAND_APPROVAL" in workbench.text
+    assert "Would you like to run the following command\\?" in workbench.text
+    assert "명령 실행 승인을 기다리고 있습니다" in workbench.text
+    assert "terminalAction === 'COMMAND_APPROVAL'" in workbench.text
+    assert "명령 승인 대기 중 · y 또는 번호 입력 후 Enter로 확인" in workbench.text
     assert "Workspace 신뢰 확인을 기다리고 있습니다." in workbench.text
     assert "차단 응답 전송" in workbench.text
     assert "실행 결과 대기" in workbench.text
@@ -896,7 +901,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "responseStartedAt" in workbench.text
     assert "const hadPendingResponse = awaitingResponse" in workbench.text
     assert "!responseStartedAt" in workbench.text
-    assert "terminalAction !== 'TRUST_DIRECTORY'" in workbench.text
+    assert "!['TRUST_DIRECTORY', 'COMMAND_APPROVAL'].includes(terminalAction)" in workbench.text
     assert "먼저 “신뢰하고 계속”을 눌러주세요." in workbench.text
     assert "응답 완료 · 다음 작업을 입력할 수 있습니다." in workbench.text
     assert "이번 작업에는 파일·명령 도구 요청이 없어 Hook 이벤트가 없습니다." in workbench.text

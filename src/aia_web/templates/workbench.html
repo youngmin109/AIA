@@ -999,6 +999,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = '프로세스 종료와 Evidence Bundle 검증이 끝날 때까지 기다려 주세요.';
     owner = 'AIA';
     kind = 'warning';
+  } else if (terminalAction === 'COMMAND_APPROVAL') {
+    title = 'Codex가 명령 실행 승인을 기다리고 있습니다.';
+    detail = '명령 내용을 확인한 뒤 y 또는 번호를 입력하고 Enter를 눌러 계속하세요.';
+    owner = '사용자';
+    kind = 'warning';
   } else if (terminalAction === 'TRUST_DIRECTORY') {
     title = 'Workspace 신뢰 확인이 필요합니다.';
     detail = 'Codex 작업창의 “신뢰하고 계속”을 눌러 작업을 시작하세요.';
@@ -1406,6 +1411,7 @@ function terminalRunEnded() {
 }
 function updateTerminalInputState() {
   const trustRequired = terminalAction === 'TRUST_DIRECTORY';
+  const commandApprovalRequired = terminalAction === 'COMMAND_APPROVAL';
   const protectionDisconnected = Boolean(latestStatus?.runtime_reconciliation?.orphaned);
   const terminalReady = terminalRuntimeStatus === 'RUNNING' && terminalSocketConnected && terminalComposerReady && !trustRequired && !protectionDisconnected;
   const runEnded = ['COMPLETED', 'ABORTED', 'FAILED'].includes(runStatus.dataset.status);
@@ -1418,7 +1424,9 @@ function updateTerminalInputState() {
         ? 'AIA 보호 연결이 끊겼습니다 · 실행 기록에서 상태를 확인하세요.'
         : terminalClosed || ['EXITED', 'FAILED'].includes(terminalRuntimeStatus)
           ? 'Codex 작업창이 종료되었습니다 · 다시 연결하거나 실행 기록을 확인하세요.'
-          : trustRequired
+      : commandApprovalRequired
+        ? '명령 승인 대기 중 · y 또는 번호 입력 후 Enter로 확인'
+      : trustRequired
             ? 'Codex 작업창에서 “신뢰하고 계속”을 눌러주세요.'
             : awaitingResponse
               ? '응답을 기다리는 중입니다 · 완료될 때까지 다시 전송하지 마세요.'
@@ -1427,11 +1435,13 @@ function updateTerminalInputState() {
                 : 'Codex 작업창 연결 후 입력할 수 있습니다.';
   }
   terminalInput.disabled = !terminalReady;
-  terminalSend.disabled = !terminalReady || awaitingResponse;
-  terminalSend.textContent = awaitingResponse
+  terminalSend.disabled = !terminalReady || (awaitingResponse && !commandApprovalRequired);
+  terminalSend.textContent = commandApprovalRequired
+    ? '승인 전송'
+    : awaitingResponse
     ? activityMode === 'OUTPUTTING' ? '응답 수신 중' : '응답 대기 중'
     : '전송';
-  terminalSend.setAttribute('aria-busy', String(awaitingResponse));
+  terminalSend.setAttribute('aria-busy', String(awaitingResponse && !commandApprovalRequired));
   const interruptVisible = ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode) && !terminalClosed && !protectionDisconnected;
   terminalInterrupt.hidden = !interruptVisible;
   terminalInterrupt.disabled = !terminalReady || interruptPending;
@@ -1446,21 +1456,23 @@ function updateTerminalInputState() {
   terminalReconnect.textContent = terminalReconnectPending ? '연결 중…' : '터미널 다시 연결';
   terminalInput.placeholder = protectionDisconnected
     ? 'AIA 보호 연결이 끊겨 작업창을 사용할 수 없습니다.'
+    : commandApprovalRequired
+    ? 'y 또는 1·2·3 입력 · Enter로 승인'
     : trustRequired
     ? '먼저 “신뢰하고 계속”을 눌러주세요.'
     : terminalRuntimeStatus === 'RUNNING' && !terminalComposerReady
       ? 'Codex 작업창이 준비되는 중입니다…'
     : '여기에 입력하세요 · 한글 입력 지원 · Enter로 전송';
-  terminalExamples.hidden = !terminalReady || awaitingResponse;
+  terminalExamples.hidden = !terminalReady || (awaitingResponse && !commandApprovalRequired);
   const actionButton = document.getElementById('terminal-action');
-  actionButton.disabled = terminalRuntimeStatus !== 'RUNNING' || !terminalSocketConnected || terminalAction !== 'TRUST_DIRECTORY';
+  actionButton.disabled = terminalRuntimeStatus !== 'RUNNING' || !terminalSocketConnected || !['TRUST_DIRECTORY', 'COMMAND_APPROVAL'].includes(terminalAction);
 }
 function showTerminalError(message) { terminalError.hidden = false; terminalError.textContent = message; }
 function setTerminalAction(action) {
   terminalAction = action;
   const actionButton = document.getElementById('terminal-action');
-  actionButton.hidden = action !== 'TRUST_DIRECTORY';
-  actionButton.textContent = action === 'TRUST_DIRECTORY' ? '신뢰하고 계속' : '';
+  actionButton.hidden = !['TRUST_DIRECTORY', 'COMMAND_APPROVAL'].includes(action);
+  actionButton.textContent = action === 'TRUST_DIRECTORY' ? '신뢰하고 계속' : action === 'COMMAND_APPROVAL' ? 'y로 승인' : '';
   updateTerminalInputState();
 }
 function updateFlow(status = {}) {
@@ -1558,6 +1570,10 @@ function appendTerminal(data) {
   }
   const trustPromptVisible = /Do you trust the contents of this directory\?/i.test(terminalDetectionBuffer) || /Press enter to continue/i.test(terminalDetectionBuffer);
   terminalScreen.consume(text);
+  const currentScreen = terminalScreen.text();
+  const commandApprovalVisible = /Would you like to run the following command\?/i.test(currentScreen)
+    && /Yes, proceed \(y\)/i.test(currentScreen)
+    && /Press enter to confirm or esc to cancel/i.test(currentScreen);
   const visibleLines = terminalScreen.text().split('\n').filter((line) => line.trim()).slice(-10);
   const tailLines = visibleLines.slice(-4);
   const workingAtTail = tailLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
@@ -1574,6 +1590,10 @@ function appendTerminal(data) {
     terminalComposerReady = false;
     setTerminalAction('TRUST_DIRECTORY');
     setTerminalActivity('ACTION', 'Codex가 Workspace 신뢰 확인을 기다리고 있습니다. “신뢰하고 계속”을 눌러주세요.');
+  } else if (commandApprovalVisible) {
+    terminalComposerReady = true;
+    setTerminalAction('COMMAND_APPROVAL');
+    setTerminalActivity('ACTION', 'Codex가 명령 실행 승인을 기다리고 있습니다.');
   } else if (responseOutputReceived && !(composerAtTail && !workingAtTail)) {
     setTerminalActivity('OUTPUTTING', 'Codex 응답을 수신하는 중입니다.');
   } else if (workingAtTail && ['SUBMITTING', 'WORKING', 'OUTPUTTING', 'WAITING'].includes(activityMode)) {
@@ -2154,6 +2174,21 @@ function submitTerminalLine() {
     continueTerminalAction();
     return;
   }
+  if (terminalAction === 'COMMAND_APPROVAL') {
+    const approval = terminalInput.value.trim();
+    if (!approval) return;
+    if (!send({type:'input', data: approval})) {
+      showTerminalError('Codex 터미널이 연결되지 않아 승인 내용을 전송하지 못했습니다. 연결 상태를 확인하세요.');
+      return;
+    }
+    terminalInput.value = '';
+    resizeTerminalInput();
+    terminalError.hidden = true;
+    setTerminalAction(null);
+    setTerminalActivity('WORKING', 'Codex에 명령 승인 내용을 전달하는 중입니다.');
+    window.setTimeout(() => send({type:'input', data:'\r'}), 80);
+    return;
+  }
   if (awaitingResponse) return;
   const value = terminalInput.value;
   if (!value.length) return;
@@ -2181,6 +2216,11 @@ function submitTerminalLine() {
   }, SUBMIT_SETTLE_MS);
 }
 function continueTerminalAction() {
+  if (terminalAction === 'COMMAND_APPROVAL') {
+    terminalInput.value = 'y';
+    submitTerminalLine();
+    return;
+  }
   if (terminalAction !== 'TRUST_DIRECTORY') return;
   if (!send({type:'input', data:'\r'})) {
     showTerminalError('Codex에 계속 진행 신호를 보내지 못했습니다. 터미널 연결을 확인하세요.');
