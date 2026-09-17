@@ -295,7 +295,7 @@ def test_unreadable_run_record_renders_actionable_integrity_state() -> None:
 
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
-    dashboard = client.get("/")
+    dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
     assert 'rel="icon" type="image/svg+xml"' in dashboard.text
     favicon = client.get("/static/favicon.svg")
@@ -316,7 +316,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".history-view-preset.is-active" in css.text
     assert ".preflight-scope-complete" in css.text
     assert '.field textarea[aria-invalid="true"]' in css.text
-    assert "glassbox-ui-34" in dashboard.text
+    assert "three-page-ui-01" in dashboard.text
     assert '@font-face' in css.text
     assert 'font-family: "Pretendard"' in css.text
     assert 'PretendardVariable.woff2' in css.text
@@ -579,6 +579,10 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert workbench.status_code == 200
     assert "page-shell-workbench" in workbench.text
     assert "topbar-workbench" in workbench.text
+    assert "workbench-simple-shell" in workbench.text
+    assert 'id="security-details-toggle"' in workbench.text
+    assert "setSecurityDetailsVisible" in workbench.text
+    assert ".workbench-simple-shell .workbench-sidebar" in client.get("/static/app.css").text
     assert "Codex 작업창" in workbench.text
     assert "보안 관찰" in workbench.text
     assert 'class="workbench-card security-events-card"' in workbench.text
@@ -1044,6 +1048,24 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "SUPER_SECRET" not in result.text
 
 
+def test_simple_setup_is_the_primary_first_page() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    for path in ("/", "/start"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "안전하게 작업을 시작하세요" in response.text
+        assert 'id="simple-setup-form"' in response.text
+        assert 'id="setup-workspace"' in response.text
+        assert 'id="setup-submit"' in response.text
+        assert 'data-default-policy="PROTECTED_DEVELOPMENT"' in response.text
+        assert 'value="ENFORCE"' in response.text
+        assert 'value="web_terminal"' in response.text
+        assert 'id="setup-readiness"' in response.text
+        assert "고급 설정 보기" in response.text
+        assert "Hook·File·Process Sensor" in response.text
+
+
 def test_dashboard_highlights_policy_incidents_in_recent_runs() -> None:
     service = FakeService()
     service.list_runs = lambda: [{
@@ -1059,7 +1081,7 @@ def test_dashboard_highlights_policy_incidents_in_recent_runs() -> None:
         "created_at": "2026-01-01T00:00:00+00:00",
     }]
 
-    dashboard = TestClient(create_app(service)).get("/")
+    dashboard = TestClient(create_app(service)).get("/dashboard")
 
     assert dashboard.status_code == 200
     assert '<tr class="dashboard-run-row dashboard-run-row-has-incidents">' in dashboard.text
@@ -1104,7 +1126,7 @@ def test_dashboard_shows_launcher_fallback_only_when_paths_differ(monkeypatch) -
         lambda: "uv run --isolated python -m aia.cli",
     )
 
-    response = TestClient(create_app(FakeService())).get("/")
+    response = TestClient(create_app(FakeService())).get("/dashboard")
 
     assert response.status_code == 200
     assert "Windows에서 aia.exe가 차단되면" in response.text
@@ -1118,7 +1140,7 @@ def test_dashboard_hides_redundant_launcher_fallback(monkeypatch) -> None:
     monkeypatch.setattr(web_module, "_console_cli_prefix", lambda: "same command")
     monkeypatch.setattr(web_module, "_console_module_cli_prefix", lambda: "same command")
 
-    response = TestClient(create_app(FakeService())).get("/")
+    response = TestClient(create_app(FakeService())).get("/dashboard")
 
     assert response.status_code == 200
     assert "Windows에서 aia.exe가 차단되면" not in response.text
@@ -1135,7 +1157,7 @@ def test_dashboard_reuses_one_run_snapshot_for_readiness_and_history() -> None:
         return original_list_runs()
 
     service.list_runs = counted_list_runs
-    response = TestClient(create_app(service)).get("/")
+    response = TestClient(create_app(service)).get("/dashboard")
 
     assert response.status_code == 200
     assert calls == 1
@@ -1628,7 +1650,7 @@ def test_run_history_and_dashboard_link_workbench_runs_to_workbench() -> None:
     }]
     client = TestClient(create_app(service))
 
-    dashboard = client.get("/")
+    dashboard = client.get("/dashboard")
     history = client.get("/runs")
 
     assert 'href="/runs/run-1/workbench"' in dashboard.text
@@ -1801,7 +1823,7 @@ def test_ended_valid_runs_open_result_bundle_from_primary_session_link() -> None
     }]
     client = TestClient(create_app(service))
 
-    dashboard = client.get("/")
+    dashboard = client.get("/dashboard")
     history = client.get("/runs")
 
     assert 'href="/runs/ended-run/result" title="전체 Session ID: ended-run"' in dashboard.text
@@ -1833,7 +1855,7 @@ def test_dashboard_does_not_present_orphaned_runtime_as_current_run() -> None:
     }]
     client = TestClient(create_app(service))
 
-    dashboard = client.get("/")
+    dashboard = client.get("/dashboard")
     history = client.get("/runs")
 
     assert "현재 실행 중인 보호 세션이 없습니다" in dashboard.text

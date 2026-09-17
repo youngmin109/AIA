@@ -250,6 +250,33 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("/start", response_class=HTMLResponse)
+    def setup(request: Request) -> HTMLResponse:
+        """Render the simple first-run setup surface.
+
+        The setup page only changes presentation.  Readiness, Workspace
+        validation, policy resolution, and run creation continue to use the
+        existing service and API contracts.
+        """
+
+        runs = app.state.service.list_runs()
+        recent_runs, _diagnostic_run_count = _dashboard_run_view(runs)
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "setup.html",
+            {
+                "profiles": app.state.service.policy_profiles(),
+                "preflight": _dashboard_preflight_placeholder(),
+                "setup_preflight_deferred": True,
+                "recent_runs": recent_runs[:5],
+                "capabilities": product_capabilities(),
+                "cli_prefix": _console_cli_prefix(),
+                "module_cli_prefix": _console_module_cli_prefix(),
+                "cli_project_root": _console_project_root(),
+                "is_setup": True,
+            },
+        )
+
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request) -> HTMLResponse:
         """Render the local product overview without starting an Agent."""

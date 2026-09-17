@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}AIA 시작 · 쉬운 세팅{% endblock %}
+{% set profile = profiles[0] if profiles else {'value': 'PROTECTED_DEVELOPMENT', 'label': '보호 우선 개발형', 'description': '민감정보와 대표적인 파괴 행위를 우선 통제합니다.'} %}
+{% block content %}
+<div class="setup-page">
+  <section class="setup-hero">
+    <p class="eyebrow">AIA Protected Run</p>
+    <h1>안전하게 작업을 시작하세요</h1>
+    <p class="lede">Workspace를 선택하면 AIA가 Codex 작업을 관찰하고, 위험한 행위는 정책에 따라 통제합니다.</p>
+  </section>
+
+  <section class="setup-progress" aria-label="보호 실행 흐름">
+    <div class="setup-progress-step is-current"><span>1</span><strong>세팅</strong><small>Workspace 선택</small></div>
+    <div class="setup-progress-line" aria-hidden="true"></div>
+    <div class="setup-progress-step"><span>2</span><strong>작업</strong><small>Codex에서 작업</small></div>
+    <div class="setup-progress-line" aria-hidden="true"></div>
+    <div class="setup-progress-step"><span>3</span><strong>결과</strong><small>보호 결과 확인</small></div>
+  </section>
+
+  <section class="setup-card setup-main-card">
+    <div class="setup-card-heading">
+      <div><p class="eyebrow">첫 번째 단계</p><h2>어디에서 작업할까요?</h2><p class="hint">이미 만들어 둔 프로젝트 폴더를 선택하세요. AIA가 Workspace를 대신 만들지는 않습니다.</p></div>
+      <span class="setup-card-number">01</span>
+    </div>
+    <form id="simple-setup-form" data-default-policy="PROTECTED_DEVELOPMENT">
+      <label class="setup-field">Workspace 경로
+        <input id="setup-workspace" name="workspace" required placeholder="C:\\workspace\\my-project" autocomplete="off" aria-describedby="setup-workspace-help setup-workspace-status" aria-invalid="false">
+        <span id="setup-workspace-help" class="hint">보호할 기존 프로젝트 폴더의 전체 경로를 입력하세요.</span>
+        <span id="setup-workspace-status" class="setup-field-status" role="status" aria-live="polite">폴더 경로를 입력하면 확인합니다.</span>
+      </label>
+
+      <div class="setup-policy-summary">
+        <div class="setup-policy-icon" aria-hidden="true">✓</div>
+        <div><span class="eyebrow">권장 보호 설정</span><strong id="setup-policy-label">{{ profile.label }}</strong><p id="setup-policy-description">{{ profile.description }}</p></div>
+        <span class="badge badge-succeeded">기본값</span>
+      </div>
+
+      <details class="setup-advanced">
+        <summary>고급 설정 보기</summary>
+        <div class="setup-advanced-grid">
+          <label class="setup-field">보호 정책
+            <select id="setup-policy" name="policy_profile">
+              {% for item in profiles %}<option value="{{ item.value }}" data-description="{{ item.description }}"{% if item.value == 'PROTECTED_DEVELOPMENT' or (item.value != 'PROTECTED_DEVELOPMENT' and loop.first and not profiles|selectattr('value', 'equalto', 'PROTECTED_DEVELOPMENT')|list) %} selected{% endif %}>{{ item.label }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="setup-field">보호 모드
+            <select id="setup-mode" name="mode"><option value="ENFORCE" selected>ENFORCE · 위반 차단</option><option value="AUDIT">AUDIT · 관찰만</option></select>
+          </label>
+          <label class="setup-field">Codex 작업창
+            <select id="setup-launch-mode" name="launch_mode"><option value="web_terminal" selected>AIA Workbench · 권장</option><option value="new_terminal">별도 Windows 터미널</option></select>
+          </label>
+          <label class="setup-field">모델 (선택)
+            <input id="setup-model" name="model" placeholder="Codex 기본 모델 사용">
+          </label>
+        </div>
+        <p class="setup-advanced-note">고급 설정을 바꿔도 Hook·File·Process Sensor와 Evidence 기록은 계속 준비됩니다.</p>
+      </details>
+
+      <section id="setup-readiness" class="setup-readiness" aria-live="polite">
+        <div class="setup-readiness-mark" aria-hidden="true">…</div>
+        <div class="setup-readiness-copy"><strong id="setup-readiness-title">AIA 준비 상태를 확인하고 있습니다.</strong><span id="setup-readiness-detail">Codex Hook과 로컬 보호 환경을 확인합니다.</span></div>
+        <span id="setup-readiness-badge" class="badge">확인 중</span>
+      </section>
+      <details class="setup-help-details">
+        <summary>준비가 안 될 때 확인할 내용</summary>
+        <p id="setup-readiness-help">AIA는 실제 Hook 연결이 확인된 뒤에만 보호 실행을 허용합니다. Codex에서 Hook을 검토·신뢰한 뒤 다시 검사하세요.</p>
+        <code id="setup-cli-help" class="setup-cli-help">{{ module_cli_prefix }} hook verify</code>
+      </details>
+
+      <div id="setup-error" class="error" hidden role="alert"></div>
+      <div class="setup-action-row"><button id="setup-submit" class="button primary setup-submit" type="submit" disabled>보호 작업 시작</button><span id="setup-submit-hint" class="hint">Workspace와 보호 준비 상태를 확인하고 있습니다.</span></div>
+    </form>
+  </section>
+
+  {% if recent_runs %}
+  <section class="setup-recent">
+    <div class="setup-section-heading"><div><h2>최근 보호 실행</h2><p class="hint">이전 결과는 필요할 때 다시 열어볼 수 있습니다.</p></div><a class="text-link" href="/runs">전체 기록 보기 →</a></div>
+    <div class="setup-recent-list">
+      {% for run in recent_runs[:3] %}
+      {% set ended = run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}
+      <a class="setup-recent-item" href="{{ run.result_url if ended and run.result_url else '/runs/' ~ run.session_id ~ ('/workbench' if run.launch_mode == 'web_terminal' else '') }}">
+        <span class="setup-recent-status {{ 'is-success' if ended else 'is-active' }}" aria-hidden="true"></span><span class="setup-recent-copy"><strong>{{ '결과 확인' if ended else '실행 열기' }}</strong><small title="{{ run.workspace }}">{{ run.workspace }}</small></span><span aria-hidden="true">→</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+<script>
+const setupForm = document.getElementById('simple-setup-form');
+const workspaceInput = document.getElementById('setup-workspace');
+const workspaceStatus = document.getElementById('setup-workspace-status');
+const readiness = document.getElementById('setup-readiness');
+const readinessMark = readiness.querySelector('.setup-readiness-mark');
+const readinessTitle = document.getElementById('setup-readiness-title');
+const readinessDetail = document.getElementById('setup-readiness-detail');
+const readinessBadge = document.getElementById('setup-readiness-badge');
+const readinessHelp = document.getElementById('setup-readiness-help');
+const submitButton = document.getElementById('setup-submit');
+const submitHint = document.getElementById('setup-submit-hint');
+const errorBox = document.getElementById('setup-error');
+const policySelect = document.getElementById('setup-policy');
+const policyLabel = document.getElementById('setup-policy-label');
+const policyDescription = document.getElementById('setup-policy-description');
+let preflightReady = false;
+let workspaceReady = false;
+let workspaceRequest = 0;
+let submitInProgress = false;
+let workspaceTimer = null;
+
+function setWorkspaceMessage(message, state = '') {
+  workspaceStatus.textContent = message;
+  workspaceStatus.className = `setup-field-status ${state}`;
+  workspaceInput.setAttribute('aria-invalid', state === 'is-invalid' ? 'true' : 'false');
+}
+
+function updateSubmitState() {
+  const canStart = preflightReady && workspaceReady && !submitInProgress;
+  submitButton.disabled = !canStart;
+  if (submitInProgress) submitHint.textContent = '보호 실행을 준비하고 있습니다…';
+  else if (!workspaceReady) submitHint.textContent = '먼저 실제 Workspace 폴더를 입력하세요.';
+  else if (!preflightReady) submitHint.textContent = 'AIA 준비 상태를 해결한 뒤 시작할 수 있습니다.';
+  else submitHint.textContent = '준비가 끝났습니다. 보호된 Codex 작업창을 엽니다.';
+}
+
+function renderPreflight(payload) {
+  preflightReady = payload?.ready === true;
+  const code = payload?.readiness_code || 'UNKNOWN';
+  readiness.className = `setup-readiness ${preflightReady ? 'is-ready' : code === 'CHECKING' ? 'is-checking' : 'is-attention'}`;
+  readinessMark.textContent = preflightReady ? '✓' : code === 'CHECKING' ? '…' : '!';
+  readinessTitle.textContent = preflightReady ? '보호 실행을 시작할 수 있습니다.' : payload?.next_step || 'AIA 준비 상태를 확인하세요.';
+  readinessDetail.textContent = preflightReady ? 'Hook·File·Process Sensor를 보호 실행과 함께 준비합니다.' : (payload?.hook_trust?.detail || '필수 준비를 완료한 뒤 다시 검사하세요.');
+  readinessBadge.textContent = preflightReady ? '준비 완료' : code === 'CHECKING' ? '확인 중' : '확인 필요';
+  readinessBadge.className = `badge ${preflightReady ? 'badge-succeeded' : code === 'CHECKING' ? '' : 'badge-warning'}`;
+  readinessHelp.textContent = preflightReady ? 'AIA는 보호 실행마다 실제 Session-bound Hook Event를 확인한 뒤 보호 상태를 검증합니다.' : (payload?.next_step || 'Codex에서 AIA Hook을 검토·신뢰한 뒤 다시 검사하세요.');
+  updateSubmitState();
+}
+
+async function loadPreflight() {
+  try {
+    renderPreflight({readiness_code: 'CHECKING'});
+    const response = await fetch('/api/preflight', {cache: 'no-store'});
+    const payload = await response.json();
+    renderPreflight(payload);
+  } catch (error) {
+    renderPreflight({readiness_code: 'PREFLIGHT_UNAVAILABLE', next_step: 'AIA 준비 상태를 확인하지 못했습니다. 잠시 후 다시 시도하세요.'});
+  }
+}
+
+async function validateWorkspace() {
+  const value = workspaceInput.value.trim();
+  const requestId = ++workspaceRequest;
+  workspaceReady = false;
+  if (!value) { setWorkspaceMessage('폴더 경로를 입력하면 확인합니다.'); updateSubmitState(); return; }
+  setWorkspaceMessage('Workspace 폴더를 확인하는 중입니다…', 'is-checking');
+  try {
+    const response = await fetch(`/api/workspaces/validate?path=${encodeURIComponent(value)}`, {cache: 'no-store'});
+    const payload = await response.json();
+    if (requestId !== workspaceRequest) return;
+    workspaceReady = response.ok && payload.valid === true && payload.is_directory === true;
+    setWorkspaceMessage(workspaceReady ? '사용 가능한 Workspace입니다.' : (payload.error || '폴더 경로를 확인할 수 없습니다.'), workspaceReady ? 'is-valid' : 'is-invalid');
+  } catch (error) {
+    if (requestId !== workspaceRequest) return;
+    setWorkspaceMessage('Workspace 확인에 실패했습니다. 경로와 AIA 콘솔 연결을 확인하세요.', 'is-invalid');
+  }
+  updateSubmitState();
+}
+
+workspaceInput.addEventListener('input', () => { clearTimeout(workspaceTimer); workspaceTimer = setTimeout(validateWorkspace, 260); });
+workspaceInput.addEventListener('blur', validateWorkspace);
+policySelect.addEventListener('change', () => { const option = policySelect.selectedOptions[0]; policyLabel.textContent = option?.textContent || '보호 정책'; policyDescription.textContent = option?.dataset.description || '선택한 정책이 보호 실행에 적용됩니다.'; });
+setupForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (submitButton.disabled) return;
+  submitInProgress = true; errorBox.hidden = true; updateSubmitState();
+  const payload = {workspace: workspaceInput.value.trim(), agent: 'Codex', interactive: true, launch_mode: document.getElementById('setup-launch-mode').value, policy_profile: policySelect.value, mode: document.getElementById('setup-mode').value, model: document.getElementById('setup-model').value.trim() || null};
+  try {
+    const response = await fetch('/api/runs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '보호 실행을 시작하지 못했습니다.');
+    window.location.assign(result.redirect_url || `/runs/${encodeURIComponent(result.session_id)}/workbench`);
+  } catch (error) {
+    submitInProgress = false; errorBox.textContent = error.message; errorBox.hidden = false; updateSubmitState();
+  }
+});
+loadPreflight();
+</script>
+{% endblock %}
