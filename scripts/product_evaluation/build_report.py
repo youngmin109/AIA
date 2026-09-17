@@ -70,6 +70,9 @@ BOOLEAN_OR_NA_FIELDS = {
     "secret_leaked",
     "decision_consistent",
     "over_attributed",
+    "hook_sensor_observed",
+    "file_sensor_observed",
+    "process_sensor_observed",
 }
 
 
@@ -284,6 +287,23 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
             field="secret_leaked",
         ),
     }
+    sensors = {
+        "hook_sensor_success_rate": _metric_by_condition(
+            rows,
+            lambda row: row.get("hook_sensor_observed") is True,
+            field="hook_sensor_observed",
+        ),
+        "file_sensor_success_rate": _metric_by_condition(
+            rows,
+            lambda row: row.get("file_sensor_observed") is True,
+            field="file_sensor_observed",
+        ),
+        "process_sensor_success_rate": _metric_by_condition(
+            rows,
+            lambda row: row.get("process_sensor_observed") is True,
+            field="process_sensor_observed",
+        ),
+    }
     timings = {
         field: _timing_by_condition(rows, field)
         for field in (
@@ -393,6 +413,7 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "scenario_count": len({row["scenario_id"] for row in rows}),
         "not_realized_count": not_realized_count,
         "security": security,
+        "sensors": sensors,
         "risk_reduction_rate": risk_reduction,
         "timings": timings,
         "timing_deltas": timing_deltas,
@@ -615,6 +636,59 @@ def _performance_table(summary: dict[str, Any]) -> str:
     )
 
 
+_SENSOR_ROWS = (
+    (
+        "hook_sensor_success_rate",
+        "Hook Sensor 성공률",
+        "예상 Hook Evidence가 기록된 AIA ON 실행 비율",
+    ),
+    (
+        "file_sensor_success_rate",
+        "File Sensor 성공률",
+        "파일 변화가 예상된 실행에서 File Evidence가 기록된 비율",
+    ),
+    (
+        "process_sensor_success_rate",
+        "Process Sensor 성공률",
+        "프로세스 변화가 예상된 실행에서 Process Evidence가 기록된 비율",
+    ),
+)
+
+
+def _rate_cell(metric: dict[str, Any] | None) -> str:
+    if not metric:
+        return '<span class="na">미측정</span>'
+    return (
+        f"<div><b>N={metric['n']}</b></div>"
+        f"<div>성공 {metric['successes']}건</div>"
+        f"<div>성공률 {metric['rate'] * 100:.1f}%</div>"
+    )
+
+
+def _sensor_table(summary: dict[str, Any]) -> str:
+    rows: list[str] = []
+    sensors = summary.get("sensors", {})
+    for field, label, definition in _SENSOR_ROWS:
+        metric = sensors.get(field, {})
+        rows.append(
+            "<tr>"
+            f"<th scope=\"row\">{escape(label)}<small>{escape(definition)}</small></th>"
+            f"<td>{_rate_cell(metric.get('AIA_OFF'))}</td>"
+            f"<td>{_rate_cell(metric.get('AIA_ON'))}</td>"
+            "</tr>"
+        )
+    return (
+        '<section class="performance">'
+        '<h2>센서 성공률</h2>'
+        '<p class="table-note">분모는 해당 센서가 예상된 실행만 포함합니다. '
+        'AIA OFF는 센서를 실행하지 않으므로 미측정입니다. Fixture 수치는 합성 Evidence 경로이며 Actual Codex 센서 성공률과 분리합니다.</p>'
+        '<div class="table-wrap"><table class="performance-table">'
+        '<thead><tr><th>측정 항목</th><th>AIA OFF</th><th>AIA ON</th></tr></thead>'
+        f"<tbody>{''.join(rows)}</tbody>"
+        '</table></div></section>'
+    )
+
+
 def _rate_value(summary: dict[str, Any], metric: str, condition: str) -> float | None:
     item = summary["security"][metric].get(condition)
     return item["rate"] if item else None
@@ -728,6 +802,7 @@ h1 {{ margin: 0 0 8px; font-size: 30px; }}
 <div class="subtitle">평가 ID: {escape(str(summary['evaluation_id']))} · 실행 {summary['run_count']}건 · 시나리오 {summary['scenario_count']}개</div>
 <section class="cards">{card_html}</section>
 {_performance_table(summary)}
+{_sensor_table(summary)}
 <section class="chart">{chart_html[0]}</section>
 <section class="chart">{chart_html[1]}</section>
 <section class="chart">{chart_html[2]}</section>
@@ -780,6 +855,10 @@ def write_report(input_path: Path, output_path: Path, summary_path: Path | None 
             indent=2,
         )
         + "\n",
+        encoding="utf-8",
+    )
+    (charts_path / "sensor-metrics.json").write_text(
+        json.dumps(summary["sensors"], ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     (charts_path / "evidence-funnel.json").write_text(

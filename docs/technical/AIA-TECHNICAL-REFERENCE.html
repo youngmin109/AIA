@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AIA Runtime Security 기술 문서">
+  <link rel="icon" href="../../src/aia_web/static/favicon.svg">
+  <title>AIA 기술 문서</title>
+  <style>
+    @font-face {
+      font-family: "Pretendard AIA";
+      src: url("../../src/aia_web/static/fonts/PretendardVariable.woff2") format("woff2");
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    :root {
+      --ink: #19252b; --muted: #627178; --subtle: #8d9ba0; --line: #dbe6e6;
+      --surface-teal: #e8f6f4; --teal: #147d73; --teal-dark: #0d5e58;
+      --blue: #286b9a; --blue-soft: #eaf4fb; --amber: #9b6717; --amber-soft: #fff6df;
+      --red: #a94751; --red-soft: #fff0f1; --shadow: 0 18px 50px rgba(25,54,59,.08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: #f3f7f7; font-family: "Pretendard AIA", Pretendard, "Malgun Gothic", sans-serif; font-size: 15px; line-height: 1.72; }
+    a { color: var(--teal-dark); }
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: 278px minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 30px 20px 28px; background: rgba(255,255,255,.92); border-right: 1px solid var(--line); backdrop-filter: blur(14px); }
+    .brand { display: flex; gap: 11px; align-items: center; padding: 0 8px 22px; border-bottom: 1px solid var(--line); }
+    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; color: #fff; background: linear-gradient(145deg,#64c9bd,#1b8b82); border-radius: 10px; font-weight: 800; letter-spacing: -.05em; box-shadow: 0 7px 15px rgba(20,125,115,.2); }
+    .brand strong { display: block; font-size: 15px; line-height: 1.2; }
+    .brand small { color: var(--muted); font-size: 11px; }
+    .side-meta { padding: 16px 8px 18px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .side-meta b { color: var(--ink); font-weight: 650; }
+    .nav-group { margin: 13px 0 20px; }
+    .nav-label { padding: 0 8px 7px; color: var(--subtle); font-size: 10px; font-weight: 800; letter-spacing: .13em; }
+    .nav-link { display: block; padding: 7px 9px; color: var(--muted); border-left: 2px solid transparent; border-radius: 0 8px 8px 0; font-size: 13px; text-decoration: none; transition: .18s ease; }
+    .nav-link:hover { color: var(--teal-dark); background: var(--surface-teal); }
+    .nav-link.active { color: var(--teal-dark); background: #e1f2f0; border-left-color: var(--teal); font-weight: 700; }
+    .main { min-width: 0; background: radial-gradient(circle at 90% 3%,rgba(107,195,185,.12),transparent 28rem), linear-gradient(180deg,#f9fbfb 0%,#f1f6f6 100%); }
+    .content { width: min(1040px,calc(100% - 72px)); margin: 0 auto; padding: 70px 0 110px; }
+    .hero { padding: 0 0 52px; }
+    .eyebrow { margin: 0 0 9px; color: var(--teal); font-size: 11px; font-weight: 850; letter-spacing: .16em; }
+    h1,h2,h3,h4 { margin: 0; color: var(--ink); line-height: 1.23; letter-spacing: -.035em; }
+    h1 { max-width: 720px; font-size: clamp(34px,4.5vw,54px); }
+    h2 { padding-top: 8px; font-size: 30px; }
+    h3 { font-size: 20px; }
+    h4 { font-size: 15px; letter-spacing: -.01em; }
+    p { margin: 12px 0; }
+    .lead { max-width: 730px; margin-top: 18px; color: #4a5a60; font-size: 17px; line-height: 1.8; }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .pill { display: inline-flex; align-items: center; min-height: 29px; padding: 3px 11px; color: var(--teal-dark); background: var(--surface-teal); border: 1px solid #b8e0dc; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .pill.blue { color: var(--blue); background: var(--blue-soft); border-color: #c8deef; }
+    .pill.amber { color: var(--amber); background: var(--amber-soft); border-color: #f1dca9; }
+    .hero-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 28px; }
+    .mini-card,.card { background: rgba(255,255,255,.84); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+    .mini-card { padding: 17px 18px; }
+    .mini-card b { display: block; margin-bottom: 4px; font-size: 12px; color: var(--teal-dark); }
+    .mini-card span { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .section { scroll-margin-top: 24px; margin-top: 58px; padding-top: 28px; border-top: 1px solid var(--line); }
+    .section-intro { max-width: 760px; margin: 14px 0 24px; color: var(--muted); }
+    .section-kicker { margin-bottom: 8px; color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+    .callout { margin: 22px 0; padding: 18px 20px; background: var(--surface-teal); border: 1px solid #b8e0dc; border-left: 4px solid var(--teal); border-radius: 10px; }
+    .callout strong { color: var(--teal-dark); }
+    .callout.warning { background: var(--amber-soft); border-color: #f1dca9; border-left-color: #d3942d; }
+    .callout.warning strong { color: var(--amber); }
+    .callout.danger { background: var(--red-soft); border-color: #f1c9cd; border-left-color: var(--red); }
+    .callout.danger strong { color: var(--red); }
+    .pipeline { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 0; margin: 26px 0; }
+    .pipeline-item { position: relative; min-height: 94px; padding: 17px 14px 14px; background: #fff; border: 1px solid var(--line); border-right: 0; }
+    .pipeline-item:first-child { border-radius: 12px 0 0 12px; }
+    .pipeline-item:last-child { border-right: 1px solid var(--line); border-radius: 0 12px 12px 0; }
+    .pipeline-item:not(:last-child)::after { position: absolute; z-index: 1; top: 38px; right: -8px; content: "→"; color: var(--teal); background: #fff; font-size: 18px; font-weight: 800; }
+    .pipeline-item b { display: block; margin-bottom: 5px; color: var(--teal-dark); font-size: 12px; }
+    .pipeline-item span { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .architecture { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 12px; margin: 25px 0; align-items: stretch; }
+    .arch-column { padding: 19px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.8); }
+    .arch-column.core { background: #eaf7f5; border-color: #b6ded9; }
+    .arch-column h4 { margin-bottom: 13px; color: var(--teal-dark); }
+    .arch-column.core h4 { color: #0a645c; }
+    .arch-item { padding: 9px 10px; margin-top: 7px; border-radius: 8px; background: #fff; border: 1px solid rgba(219,230,230,.9); color: #536268; font-size: 12px; line-height: 1.45; }
+    .arch-item b { display: block; color: var(--ink); font-size: 13px; }
+    .numbered { display: grid; gap: 10px; margin: 24px 0; }
+    .step { display: grid; grid-template-columns: 42px 1fr; gap: 14px; padding: 16px 17px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .step-no { width: 29px; height: 29px; display: grid; place-items: center; margin-top: 1px; color: #fff; background: var(--teal); border-radius: 50%; font-size: 12px; font-weight: 800; }
+    .step p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .note { margin-top: 7px; padding: 9px 11px; color: #68777d; background: #f7fafa; border-radius: 7px; font-size: 12px; }
+    .note::before { content: "주석  "; color: var(--teal); font-weight: 800; }
+    .sensor-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 23px; }
+    .sensor-card { overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 13px; }
+    .sensor-head { display: flex; justify-content: space-between; gap: 10px; padding: 16px 17px 12px; background: var(--surface-teal); border-bottom: 1px solid #cfe8e5; }
+    .sensor-head h3 { font-size: 17px; color: var(--teal-dark); }
+    .sensor-status { align-self: start; padding: 3px 7px; color: var(--teal-dark); background: #d5efeb; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .sensor-body { padding: 14px 17px 17px; }
+    .sensor-body p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+    .sensor-body ul { margin: 0; padding-left: 17px; color: #596970; font-size: 12px; }
+    .sensor-body li + li { margin-top: 5px; }
+    table { width: 100%; margin: 23px 0; border-collapse: collapse; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; }
+    th,td { padding: 12px 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { color: var(--teal-dark); background: var(--surface-teal); font-size: 12px; }
+    tr:last-child td { border-bottom: 0; }
+    td { color: var(--muted); }
+    td b { color: var(--ink); }
+    .code-wrap { margin: 21px 0; overflow: hidden; background: #1e3035; border: 1px solid #385257; border-radius: 12px; box-shadow: 0 12px 28px rgba(25,54,59,.12); }
+    .code-label { padding: 8px 13px; color: #a7cfca; background: #273d42; font-size: 11px; font-weight: 700; }
+    pre { margin: 0; padding: 15px 16px; overflow-x: auto; color: #e6f4f2; font: 12px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    code { padding: 2px 5px; color: #215d5a; background: #e9f4f2; border-radius: 4px; font: 12px ui-monospace,SFMono-Regular,Consolas,monospace; }
+    pre code { padding: 0; color: inherit; background: transparent; }
+    .flow-vertical { display: grid; gap: 0; max-width: 720px; margin: 24px auto; }
+    .flow-node { padding: 12px 16px; text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); font-weight: 700; }
+    .flow-node small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; }
+    .flow-arrow { height: 24px; display: grid; place-items: center; color: var(--teal); font-weight: 800; }
+    .case-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 23px; }
+    .case { padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: 13px; }
+    .case .case-id { color: var(--teal); font-size: 11px; font-weight: 850; letter-spacing: .1em; }
+    .case h3 { margin-top: 5px; font-size: 18px; }
+    .case p { min-height: 68px; color: var(--muted); font-size: 13px; }
+    .result { padding: 9px 10px; color: var(--teal-dark); background: var(--surface-teal); border-radius: 7px; font-size: 12px; font-weight: 750; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 23px 0; }
+    .metric { padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: 11px; }
+    .metric strong { display: block; color: var(--teal-dark); font-size: 23px; letter-spacing: -.04em; }
+    .metric span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .claim-list { display: grid; gap: 8px; margin: 23px 0; }
+    .claim { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; padding: 12px 14px; background: #fff; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 13px; }
+    .claim .mark { color: var(--teal); font-weight: 900; }
+    .claim.no .mark { color: var(--red); }
+    footer { margin-top: 64px; padding-top: 22px; color: var(--subtle); border-top: 1px solid var(--line); font-size: 12px; }
+    @media (max-width:900px) {
+      .app-shell { grid-template-columns: 220px minmax(0,1fr); }
+      .content { width: min(calc(100% - 40px),800px); }
+      .pipeline { grid-template-columns: 1fr; gap: 8px; }
+      .pipeline-item,.pipeline-item:last-child,.pipeline-item:first-child { border: 1px solid var(--line); border-radius: 10px; }
+      .pipeline-item:not(:last-child)::after { top: auto; right: 50%; bottom: -17px; transform: translateX(50%) rotate(90deg); }
+      .sensor-grid,.case-grid { grid-template-columns: 1fr; }
+      .case p { min-height: auto; }
+    }
+    @media (max-width:650px) {
+      .app-shell { display: block; }
+      .sidebar { position: static; height: auto; padding: 16px 15px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .side-meta { padding: 12px 8px; }
+      .nav-group { display: inline-block; width: 49%; vertical-align: top; margin: 5px 0 12px; }
+      .content { width: calc(100% - 30px); padding-top: 39px; }
+      .hero-grid,.architecture,.metric-grid { grid-template-columns: 1fr 1fr; }
+      .architecture { grid-template-columns: 1fr; }
+      h2 { font-size: 26px; }
+      .lead { font-size: 15px; }
+    }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="문서 목차">
+      <div class="brand"><div class="brand-mark">A</div><div><strong>AIA</strong><small>Runtime Security</small></div></div>
+      <div class="side-meta"><div><b>문서 유형</b> 기술 레퍼런스</div><div><b>대상</b> 개발자 · 심사 · 발표</div><div><b>범위</b> Windows 11 · Codex CLI</div></div>
+      <nav>
+        <div class="nav-group"><div class="nav-label">PART 0 · 시작하기</div><a class="nav-link active" href="#start" data-target="start">0.1 이 문서를 보는 법</a><a class="nav-link" href="#terms" data-target="terms">0.2 핵심 용어</a></div>
+        <div class="nav-group"><div class="nav-label">PART 1 · 무엇을 보호하는가</div><a class="nav-link" href="#overview" data-target="overview">1.1 문제와 보호 경계</a><a class="nav-link" href="#architecture" data-target="architecture">1.2 시스템 구조</a></div>
+        <div class="nav-group"><div class="nav-label">PART 2 · 실행 전 방어</div><a class="nav-link" href="#run" data-target="run">2.1 Protected Run</a><a class="nav-link" href="#policy" data-target="policy">2.2 정책 판정</a></div>
+        <div class="nav-group"><div class="nav-label">PART 3 · 센서와 증거</div><a class="nav-link" href="#sensors" data-target="sensors">3.1 세 센서의 역할</a><a class="nav-link" href="#evidence" data-target="evidence">3.2 Evidence 흐름</a></div>
+        <div class="nav-group"><div class="nav-label">PART 4 · 검증</div><a class="nav-link" href="#demo" data-target="demo">4.1 시연 케이스</a><a class="nav-link" href="#evaluation" data-target="evaluation">4.2 정량 평가</a><a class="nav-link" href="#limits" data-target="limits">4.3 한계와 주장 범위</a><a class="nav-link" href="#runbook" data-target="runbook">4.4 실행 명령</a></div>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="content">
+        <header class="hero" id="start">
+          <div class="eyebrow">LOCAL TECHNICAL REFERENCE</div>
+          <h1>AIA 기술 문서</h1>
+          <p class="lead">PreTool 정책 관문부터 Hook·File·Process Sensor, 실행 증거, 집행, 복구와 무결성 검증까지 AIA가 실제 시스템에서 무엇을 관찰하고 어떻게 결과를 남기는지 코드와 실행 흐름으로 설명한다.</p>
+          <div class="pills"><span class="pill">Windows 11</span><span class="pill">Codex CLI</span><span class="pill blue">AIA 0.1.29</span><span class="pill">Hook · File · Process</span><span class="pill amber">현재 구현 기준</span></div>
+          <div class="hero-grid"><div class="mini-card"><b>이 문서의 질문</b><span>AI가 무슨 생각을 했는지가 아니라, 실제로 어떤 Runtime Action을 수행했는가?</span></div><div class="mini-card"><b>보안 책임 단위</b><span>사용자가 선택한 Workspace에 묶인 AIA Protected Run Session</span></div><div class="mini-card"><b>결과의 기준</b><span>검증 가능한 Evidence와 VALID Result Bundle</span></div></div>
+        </header>
+
+        <section class="section" id="overview">
+          <div class="section-kicker">PART 1 · SCOPE</div><h2>무엇을 보호하는가</h2>
+          <p class="section-intro">AIA는 Codex CLI의 실행을 대신하는 Agent가 아니다. 사용자가 이미 만든 Workspace를 보호 범위로 정하고, 지원된 Codex 실행 경로에서 관찰 가능한 행위를 수집·판정·집행한다.</p>
+          <div class="callout"><strong>핵심 원칙</strong><br>Agent의 자기 보고나 내부 추론은 보안 증거로 사용하지 않는다. AIA가 근거로 삼는 것은 Codex Hook, Windows 파일시스템, 관리 대상 Process Tree에서 관찰한 제한된 Runtime Evidence다.</div>
+          <div class="pipeline" aria-label="AIA runtime chain"><div class="pipeline-item"><b>Agent Request</b><span>Codex Tool 요청</span></div><div class="pipeline-item"><b>Evidence</b><span>Hook · File · Process 관찰</span></div><div class="pipeline-item"><b>Decision</b><span>정규화 · 정책 · 귀속</span></div><div class="pipeline-item"><b>Enforcement</b><span>CONTINUE · CONTAIN · REFUSE</span></div><div class="pipeline-item"><b>Result</b><span>Recovery · Integrity · Audit</span></div></div>
+        </section>
+
+        <section class="section" id="architecture">
+          <div class="section-kicker">1.2 · SYSTEM MAP</div><h2>시스템 구조를 한눈에 보기</h2>
+          <p class="section-intro">화면은 상태와 결과를 보여주는 Application Layer이고, 보안 권한은 AIA Core에 있다. Control Root는 Workspace 밖에서 증거와 결과를 보존한다.</p>
+          <div class="architecture"><div class="arch-column"><h4>Application Layer</h4><div class="arch-item"><b>Local Security Console</b>Workspace와 실행 상태 표시</div><div class="arch-item"><b>Run Service</b>Protected Run 시작·상태 조회</div><div class="arch-item"><b>Result Reader</b>완료된 VALID Bundle 읽기</div></div><div class="arch-column core"><h4>AIA Core · Security Authority</h4><div class="arch-item"><b>Session · Policy · Lease</b>보호 책임 단위와 정책 고정</div><div class="arch-item"><b>Hook · File · Process Sensor</b>관찰 가능한 실행 사실 수집</div><div class="arch-item"><b>Normalize · Evaluate · Attribute</b>Canonical Action과 판정 생성</div><div class="arch-item"><b>Gate · Enforce · Recover · Verify</b>집행, 복구, 무결성, 최종화</div></div><div class="arch-column"><h4>Control Root</h4><div class="arch-item"><b>Raw Evidence Store</b>원시 관찰 기록과 Evidence ID</div><div class="arch-item"><b>Result Bundle</b>result.json · report · manifest</div><div class="arch-item"><b>Workspace와 분리</b>Agent가 편집하는 파일과 보안 기록 분리</div></div></div>
+          <div class="callout warning"><strong>화면의 역할</strong><br>UI가 위험하다고 추측해서 프로세스를 종료하지 않는다. UI는 Core가 만든 상태·판정·Evidence 연결을 읽어 보여주는 Evidence Viewer다.</div>
+        </section>
+
+        <section class="section" id="run">
+          <div class="section-kicker">PART 2 · PROTECTED RUN</div><h2>Protected Run은 어떻게 시작되는가</h2>
+          <p class="section-intro">AIA는 먼저 보호 환경을 준비하고, 준비가 통과된 뒤에만 지원된 Codex CLI를 자식 프로세스로 시작한다. Workspace는 AIA가 만들지 않고 사용자가 선택한 기존 폴더만 사용한다.</p>
+          <div class="numbered">
+            <div class="step"><div class="step-no">1</div><div><h3>Workspace와 정책을 확정한다</h3><p>사용자가 지정한 기존 Workspace가 존재하는지 확인하고, 정책 Profile과 버전을 읽어 이번 Session에 고정한다.</p><div class="note">정책 파일이 실행 중 바뀌어도 현재 Run은 시작 시점의 Active Policy Freeze를 사용한다.</div></div></div>
+            <div class="step"><div class="step-no">2</div><div><h3>Lease와 Safe Checkpoint를 준비한다</h3><p>Workspace Lease로 동시에 두 실행이 같은 Workspace를 점유하지 않게 하고, Recovery·Integrity에 사용할 기준 상태를 기록한다.</p><div class="note">Checkpoint는 복구의 기준선이며, 모든 변경이 반드시 복구된다는 보장은 아니다.</div></div></div>
+            <div class="step"><div class="step-no">3</div><div><h3>세 센서와 Readiness를 확인한다</h3><p>Hook Sensor, File Sensor, Process Sensor를 준비하고 필수 사전 조건이 충족되었는지 Readiness Barrier에서 확인한다.</p><div class="note">Hook 설치와 Codex에서의 Trust, 실제 Session-bound Event 관찰은 서로 다른 상태다.</div></div></div>
+            <div class="step"><div class="step-no">4</div><div><h3>Codex를 보호된 자식 프로세스로 실행한다</h3><p>AIA가 지원된 실행 경로를 직접 시작하고 Root PID와 생성 시각을 등록한다. 이후 Process Sensor는 등록된 관리 트리만 관찰한다.</p><div class="note">Windows 전체 프로세스를 AIA가 소유한다고 주장하지 않는다.</div></div></div>
+            <div class="step"><div class="step-no">5</div><div><h3>관찰·판정·집행을 연결한다</h3><p>Raw Evidence를 Normalized Action으로 변환하고, Policy Evaluation과 Attribution을 거쳐 Enforcement Gate가 결과를 결정한다.</p><div class="note">Process Sensor 관찰만으로 특정 파일을 어느 도구가 썼다고 단정하지 않는다.</div></div></div>
+            <div class="step"><div class="step-no">6</div><div><h3>종료 후 복구·무결성·감사를 확정한다</h3><p>필요한 Recovery를 수행하고 Integrity를 별도로 검증한 뒤, 해시와 manifest를 포함한 Result Bundle을 확정한다.</p><div class="note><code>RESTORED</code>는 복구 수행 결과이고, <code>VERIFIED</code>가 함께 있어야 검증된 복구로 설명한다.</div></div></div>
+          </div>
+        </section>
+
+        <section class="section" id="sensors">
+          <div class="section-kicker">PART 3 · SENSOR EVIDENCE</div><h2>Hook · File · Process Sensor</h2>
+          <p class="section-intro">세 센서는 서로 다른 관찰 지점을 담당한다. 하나의 센서가 시스템 전체의 사실을 대신 증명하지 않으며, AIA는 각 Evidence Source와 한계를 분리해서 기록한다.</p>
+          <div class="sensor-grid">
+            <article class="sensor-card"><div class="sensor-head"><h3>Hook Sensor</h3><span class="sensor-status">사전 관찰·관문</span></div><div class="sensor-body"><p>Codex <code>PreToolUse</code> 요청을 받아 제한하고, 검증된 정책에 따라 실행 전 응답을 반환한다.</p><ul><li><code>AGENT_HOOK</code> Raw Evidence 기록</li><li>정책 위반은 deny 또는 contain 경로</li><li>Trust와 Session-bound Event를 별도 검증</li><li>deny 응답만으로 실제 부작용 없음은 주장하지 않음</li></ul></div></article>
+            <article class="sensor-card"><div class="sensor-head"><h3>File Sensor</h3><span class="sensor-status">변화 관찰</span></div><div class="sensor-body"><p>보호 Workspace에서 보이는 파일시스템 변화를 관찰하고 Checkpoint와 결과를 연결한다.</p><ul><li>CREATE · MODIFY · DELETE · MOVE · RENAME</li><li><code>FILESYSTEM_WATCHER</code> Evidence</li><li>관찰과 Recovery를 분리</li><li>복구 뒤 Integrity를 별도로 검증</li></ul></div></article>
+            <article class="sensor-card"><div class="sensor-head"><h3>Process Sensor</h3><span class="sensor-status">관리 트리 관찰</span></div><div class="sensor-body"><p>AIA가 등록한 Root와 자식 Process Tree를 PID·생성 시각과 함께 관찰한다.</p><ul><li><code>PROCESS_RUNTIME</code> Evidence</li><li>PID 재사용을 생성 시각으로 구분</li><li>unrelated 프로세스는 관리 대상 밖</li><li>관찰 사실과 정확한 파일 작성자 귀속을 분리</li></ul></div></article>
+          </div>
+          <div class="callout"><strong>센서의 관계</strong><br>Hook은 실행 전 요청을 보고, File은 실제로 보이는 파일 변화를 보고, Process는 관리 트리의 실행 상태를 본다. AIA는 이 세 가지를 Evidence ID와 시간·Session 정보로 연결해 사건을 설명한다.</div>
+        </section>
+
+        <section class="section" id="policy">
+          <div class="section-kicker">2.2 · POLICY DECISION</div><h2>정책 판정은 어떻게 만들어지는가</h2>
+          <p class="section-intro">정책은 행위의 의미를 추측하는 규칙이 아니라, 정규화된 Operation·Asset Type·Path 또는 Command Pattern을 비교하는 결정 규칙이다.</p>
+          <table><thead><tr><th>단계</th><th>입력</th><th>결과</th><th>의미</th></tr></thead><tbody>
+            <tr><td><b>Normalize</b></td><td>Hook·File·Process Raw Evidence</td><td>Canonical Action</td><td>관찰된 값을 공통 Operation과 Target으로 정리한다.</td></tr>
+            <tr><td><b>Evaluate</b></td><td>Operation · Asset Type · Pattern · Priority</td><td>ALLOW / DENY 등</td><td>시작 시 고정한 정책의 Rule과 비교한다.</td></tr>
+            <tr><td><b>Attribute</b></td><td>Session · PID · Evidence ID</td><td>EXACT / PARTIAL / INDETERMINATE</td><td>행위를 AIA Session에 어느 수준까지 연결할 수 있는지 표시한다.</td></tr>
+            <tr><td><b>Gate</b></td><td>Policy + Attribution + Readiness</td><td>CONTINUE / CONTAIN / REFUSE</td><td>허용, 제한, 보수적 거부 중 하나를 결정한다.</td></tr>
+          </tbody></table>
+          <div class="code-wrap"><div class="code-label">보안 결과를 읽는 두 단계</div><pre><code>Enforcement Gate
+  → VIOLATION / CONTAIN / PRETOOL_BLOCK
+
+실제 실행 결과 확인
+  → BLOCKED / SUCCEEDED
+
+// Gate 결과만으로 외부 도구가 실행되지 않았다고 단정하지 않는다.</code></pre></div>
+        </section>
+
+        <section class="section" id="evidence">
+          <div class="section-kicker">3.2 · AUDIT LINEAGE</div><h2>Evidence는 어떻게 결과가 되는가</h2>
+          <p class="section-intro">원시 관찰, 정규화된 행위, 정책 판정, 귀속, 집행을 한 값으로 덮어쓰지 않는다. 각 단계의 근거를 연결해 나중에 결과를 다시 설명할 수 있게 한다.</p>
+          <div class="flow-vertical" aria-label="Evidence processing flow"><div class="flow-node">Raw Evidence<small>센서가 관찰한 원시 사실 · Evidence ID</small></div><div class="flow-arrow">↓</div><div class="flow-node">Canonical Action<small>Operation · Target · Source · Completeness</small></div><div class="flow-arrow">↓</div><div class="flow-node">Policy Evaluation + Attribution<small>Rule 결과와 Session 연결 수준</small></div><div class="flow-arrow">↓</div><div class="flow-node">Enforcement + Recovery<small>PreTool deny · Process termination · Restore</small></div><div class="flow-arrow">↓</div><div class="flow-node">Integrity + Audit<small>검증 결과 · manifest · Result Bundle</small></div></div>
+          <div class="callout"><strong>Result Bundle이 권위 있는 종료 결과다.</strong><br>Session binding, 필수 산출물, 해시, Evidence 참조를 확인한 뒤에만 <code>VALID</code> 결과로 표시한다. 실행 중 화면의 상태 스냅샷과 완료된 Bundle은 같은 의미가 아니다.</div>
+        </section>
+
+        <section class="section" id="demo">
+          <div class="section-kicker">PART 4 · DEMONSTRATION</div><h2>시연 케이스</h2>
+          <p class="section-intro">발표에서는 먼저 결정론적 Fixture로 세 센서와 결과 흐름을 보여주고, Actual Codex Hook 검증 결과와 구분해서 설명한다. Fixture는 제품 흐름을 재현하지만 Actual Codex 실행으로 포장하지 않는다.</p>
+          <div class="case-grid">
+            <article class="case"><div class="case-id">CASE 01</div><h3>Process 가드레일</h3><p>정책 위반 요청과 관리 대상 Process Tree를 연결해 종료 결과를 기록한다.</p><div class="result">CONTAIN · TERMINATED<br>unrelated 프로세스 보존</div></article>
+            <article class="case"><div class="case-id">CASE 02</div><h3>Hook 사전 차단</h3><p>PreToolUse 요청 단계에서 정책 위반을 감지하고 실제 실행 확인 결과를 분리한다.</p><div class="result">VIOLATION · CONTAIN<br>BLOCKED / SUCCEEDED</div></article>
+            <article class="case"><div class="case-id">CASE 03</div><h3>File 복구</h3><p>중요 파일 삭제를 File Evidence로 확인하고 Checkpoint 복구와 무결성 검증을 보여준다.</p><div class="result">RESTORED · VERIFIED<br>Bundle VALID</div></article>
+          </div>
+          <div class="code-wrap"><div class="code-label">발표용 Fixture 실행</div><pre><code>uv run --isolated --project . python -m aia.cli demo
+  --scenario file-rollback
+  --workspace C:\workspace\aia-demo-fixture
+  --control-root C:\workspace\aia-demo-control-fixture
+  --open</code></pre></div>
+          <p class="section-intro">시나리오 값은 <code>process-kill</code>, <code>hook-block</code>, <code>file-rollback</code>이다. 전용 Workspace와 Control Root를 사용해야 하며, 기존 프로젝트를 시연용으로 재사용하지 않는다.</p>
+        </section>
+
+        <section class="section" id="evaluation">
+          <div class="section-kicker">4.2 · QUANTITATIVE EVALUATION</div><h2>정량 평가는 무엇을 비교하는가</h2>
+          <p class="section-intro">같은 시나리오를 AIA OFF와 AIA ON으로 실행해 보안 효과, 정상 작업 보존, 성능 비용, 증거 품질을 분리해서 본다. 하나의 종합점수로 서로 다른 의미를 숨기지 않는다.</p>
+          <div class="metric-grid"><div class="metric"><strong>780</strong><span>결정론적 Fixture 실행 수<br>12개 시나리오 × 조건 × 반복</span></div><div class="metric"><strong>100% → 0%</strong><span>위험 행위 부작용률<br>AIA OFF → AIA ON</span></div><div class="metric"><strong>100%</strong><span>정상 작업 성공률<br>AIA OFF와 AIA ON 모두</span></div><div class="metric"><strong>0.35 ms</strong><span>PreTool 판단 중앙값<br>결정론적 Fixture 기준</span></div></div>
+          <table><thead><tr><th>영역</th><th>대표 지표</th><th>함께 기록하는 값</th></tr></thead><tbody>
+            <tr><td><b>보안 효과</b></td><td>위험 행위 성공률, 위험 감소율, 사전 차단 성공률</td><td>실제 부작용 여부, 차단 확인, unrelated 프로세스 영향</td></tr>
+            <tr><td><b>정상 개발</b></td><td>정상 작업 성공률, 실패율, 재시도</td><td>AIA 보호로 인한 중단과 오차단</td></tr>
+            <tr><td><b>성능 비용</b></td><td>준비·Checkpoint·Recovery·Integrity·Finalization 시간</td><td>반복 수, 최소값, 중앙값, P95, 최대값</td></tr>
+            <tr><td><b>센서 품질</b></td><td>Hook · File · Process Sensor 성공률</td><td>센서별 N과 Fixture/Actual Codex 구분</td></tr>
+          </tbody></table>
+          <div class="callout warning"><strong>수치의 해석 범위</strong><br>위의 780건과 0.35ms는 결정론적 Fixture 결과다. Actual Codex 모델 지연시간이나 모든 OS Writer 보호 범위를 의미하지 않는다. 실현되지 않은 Actual Codex 시나리오는 PASS가 아니라 제한사항으로 기록한다.</div>
+        </section>
+
+        <section class="section" id="limits">
+          <div class="section-kicker">4.3 · CLAIM BOUNDARY</div><h2>현재 구현과 주장 범위</h2>
+          <p class="section-intro">오픈소스 제품의 신뢰성은 되는 일을 크게 말하는 데서 나오지 않는다. 현재 실제로 검증된 것과 아직 지원하지 않는 것을 같은 화면에서 분리해 보여준다.</p>
+          <div class="claim-list">
+            <div class="claim"><div class="mark">✓</div><div><b>현재 구현</b><br>Codex CLI Protected Run, 정책 고정·판정, Hook Sensor, File Sensor, Process Sensor, Evidence Bundle, Recovery·Integrity 결과, 로컬 콘솔을 제공한다.</div></div>
+            <div class="claim"><div class="mark">✓</div><div><b>현재 확인 가능한 보호</b><br>지원된 Codex PreToolUse 경로에서 정책 위반을 사전 차단하고, 실제 도구 실행 여부가 확인된 경우에만 <code>BLOCKED / SUCCEEDED</code>로 표시한다.</div></div>
+            <div class="claim no"><div class="mark">×</div><div><b>지원하지 않는 범위</b><br>MCP, Claude, 임의의 외부 Agent, 네트워크 보안, OS 전체 모니터링, 보호 범위 밖 도구는 현재 제품 보호 대상으로 주장하지 않는다.</div></div>
+            <div class="claim no"><div class="mark">×</div><div><b>의도 해석 금지</b><br>AI의 Chain-of-Thought, 내부 의도, scheming 여부를 분석하거나 LLM으로 보안 판정을 만들지 않는다.</div></div>
+            <div class="claim no"><div class="mark">×</div><div><b>귀속 한계</b><br>Process Sensor가 프로세스를 관찰했다는 사실만으로 특정 프로세스가 특정 파일을 작성했다고 증명하지 않는다.</div></div>
+          </div>
+        </section>
+
+        <section class="section" id="terms">
+          <div class="section-kicker">0.2 · GLOSSARY</div><h2>핵심 용어</h2>
+          <table><thead><tr><th>용어</th><th>의미</th></tr></thead><tbody>
+            <tr><td><b>Workspace</b></td><td>사용자가 선택한 보호 대상 프로젝트 디렉터리</td></tr>
+            <tr><td><b>Protected Run</b></td><td>정책·Lease·Checkpoint·센서·Codex 실행·최종 결과를 묶는 AIA 보안 책임 단위</td></tr>
+            <tr><td><b>Raw Evidence</b></td><td>센서가 관찰한 원시 기록. 정규화·판정과 분리해 보존</td></tr>
+            <tr><td><b>Canonical Action</b></td><td>여러 증거를 공통 Operation·Target 구조로 정리한 파생 행위</td></tr>
+            <tr><td><b>Attribution</b></td><td>행위를 AIA Session 또는 관리 대상에 연결할 수 있는 수준</td></tr>
+            <tr><td><b>Result Bundle</b></td><td>결과·Evidence index·manifest·report를 묶고 검증하는 완료 산출물</td></tr>
+          </tbody></table>
+        </section>
+
+        <section class="section" id="runbook">
+          <div class="section-kicker">4.4 · REPRODUCIBILITY</div><h2>실행 명령</h2>
+          <p class="section-intro">저장소 루트에서 아래 순서로 Core 자체 점검, Hook 검증, 제품 시연을 수행한다.</p>
+          <div class="code-wrap"><div class="code-label">PowerShell · 저장소 루트</div><pre><code>uv sync
+uv run --isolated --project . python -m pytest -q --tb=no --disable-warnings
+uv run --isolated --project . python -m aia.cli self-test
+uv run --isolated --project . python -m aia.cli hook verify
+uv run --isolated --project . python -m aia.cli doctor
+
+# 실제 프로젝트를 보호 실행할 때
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project
+
+# 기술 문서 파일을 직접 열 때
+Start-Process .\docs\technical\AIA-TECHNICAL-REFERENCE.html</code></pre></div>
+          <div class="callout danger"><strong>운영 주의</strong><br>실제 프로젝트를 처음 보호하기 전에 <code>aia demo</code>로 별도 Fixture 흐름을 확인한다. Control Root·로그·Evidence는 개인 Workspace와 분리하고, 로컬 콘솔을 외부 Network에 노출하지 않는다.</div>
+        </section>
+
+        <footer>AIA Runtime Security · 현재 저장소 구현을 기준으로 작성된 기술 레퍼런스 · 문서 자체는 외부 네트워크나 CDN에 의존하지 않는다.</footer>
+      </div>
+    </main>
+  </div>
+  <script>
+    const links = [...document.querySelectorAll('.nav-link[data-target]')];
+    const sections = links.map(link => document.getElementById(link.dataset.target)).filter(Boolean);
+    const setActive = (id) => links.forEach(link => link.classList.toggle('active', link.dataset.target === id));
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a,b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setActive(visible.target.id);
+    }, { rootMargin: '-12% 0px -72% 0px', threshold: [0,.2,.5,1] });
+    sections.forEach(section => observer.observe(section));
+    links.forEach(link => link.addEventListener('click', () => setActive(link.dataset.target)));
+  </script>
+</body>
+</html>

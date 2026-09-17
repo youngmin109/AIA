@@ -180,9 +180,27 @@ def _parser() -> argparse.ArgumentParser:
             "block-apply-patch",
             "block-env",
             "block-windows-delete",
+            "process-kill",
+            "hook-block",
+            "file-rollback",
         ),
         default="block-canary",
-        help="live proof scenario when --live is used",
+        help="live proof scenario or deterministic presentation scenario",
+    )
+    demo.add_argument(
+        "--workspace",
+        type=Path,
+        help="dedicated Workspace for a deterministic presentation scenario",
+    )
+    demo.add_argument(
+        "--control-root",
+        type=Path,
+        help="dedicated Control Root for a deterministic presentation scenario",
+    )
+    demo.add_argument(
+        "--open",
+        action="store_true",
+        help="open the local Workbench console after a deterministic demo",
     )
     demo.add_argument(
         "--output",
@@ -371,6 +389,16 @@ def _parser() -> argparse.ArgumentParser:
         "--open",
         action="store_true",
         help="open the local console in the default browser",
+    )
+    console.add_argument(
+        "--control-root",
+        type=Path,
+        help="AIA control root to display in the local console",
+    )
+    console.add_argument(
+        "--open-path",
+        default="/",
+        help="local console path to open when --open is used",
     )
 
     protect = commands.add_parser(
@@ -965,6 +993,44 @@ def _demo(args: argparse.Namespace) -> int:
     user's reviewed Hook trust state.
     """
 
+    from aia.demo import (
+        DEFAULT_DEMO_CONTROL_ROOT,
+        DEFAULT_DEMO_WORKSPACE,
+        DEMO_SCENARIOS,
+        run_demo,
+    )
+
+    if args.scenario in DEMO_SCENARIOS:
+        if args.live:
+            raise ApplicationValidationError(
+                "deterministic presentation scenarios cannot be combined with --live"
+            )
+        result = run_demo(
+            args.scenario,
+            workspace=args.workspace or DEFAULT_DEMO_WORKSPACE,
+            control_root=args.control_root or DEFAULT_DEMO_CONTROL_ROOT,
+        )
+        print("AIA 시연용 Result Bundle 생성")
+        print(f"시나리오: {result['title']} ({result['scenario']})")
+        print(f"Session: {result['session_id']}")
+        print(f"Workspace: {result['workspace']}")
+        print(f"Control Root: {result['control_root']}")
+        print(f"Bundle: {result['bundle_status']}")
+        print("주의: DEMO_FIXTURE 결과이며 Actual Codex 실행 증명이 아닙니다.")
+        if args.open:
+            _run_console(
+                argparse.Namespace(
+                    host=os.environ.get("AIA_WEB_HOST", "127.0.0.1"),
+                    port=int(os.environ.get("AIA_WEB_PORT", "8787")),
+                    open=True,
+                    control_root=Path(result["control_root"]),
+                    open_path=f"/runs/{result['session_id']}/workbench",
+                )
+            )
+        else:
+            print(f"[다음] {result['next_step']}")
+        return 0
+
     print("AIA 제품 데모")
     print("실제 프로젝트를 건드리지 않는 임시 Workspace에서 보호 흐름을 확인합니다.")
     print()
@@ -1182,6 +1248,10 @@ def _setup(args: argparse.Namespace) -> int:
 def _run_console(args: argparse.Namespace) -> int:
     """Start the local console through the same product CLI as other commands."""
 
+    if args.control_root is not None:
+        os.environ["AIA_CONTROL_ROOT"] = str(
+            Path(args.control_root).expanduser().resolve(strict=False)
+        )
     from aia_web.__main__ import run, validate_local_bind
 
     try:
@@ -1189,7 +1259,10 @@ def _run_console(args: argparse.Namespace) -> int:
     except ValueError as error:
         raise ApplicationValidationError(str(error)) from error
 
-    url = f"http://{args.host}:{args.port}"
+    open_path = getattr(args, "open_path", "/") or "/"
+    if not open_path.startswith("/"):
+        open_path = "/" + open_path
+    url = f"http://{args.host}:{args.port}{open_path}"
     print(f"AIA 로컬 보안 콘솔: {url}")
     if args.open:
         # Let uvicorn bind the loopback port before asking the browser to load

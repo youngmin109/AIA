@@ -16,3 +16,8 @@ evaluation/product-e2e/
 # sensitive agent output. Keep generated runs local unless they are reviewed
 # and promoted as a sanitized validation fixture.
 evaluation/product-before-after/actual-codex-*/
+# Local QA renders and generated evaluation output are not source artifacts.
+docs/generated/qa-*/
+docs/generated/*.pdf
+evaluation/product-before-after/eval-*/
+evaluation/product-before-after/fixture-*/

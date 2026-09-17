@@ -36,6 +36,8 @@ Windows 애플리케이션 제어 정책이 가상환경에서 생성된 `aia.ex
 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조한다.
 
 시스템 전체 구성은 [AIA 시스템 구성도](docs/SYSTEM-OVERVIEW.md)에서 확인할 수 있다.
+Hook·File·Process Sensor의 기술 원리는 [AIA Runtime Security Technical Paper](docs/technical/AIA-RUNTIME-SECURITY-WHITEPAPER.md),
+처음 사용하는 절차는 [AIA Protected Run 사용자 가이드](docs/wikidocs/AIA-사용자-가이드.md)에서 확인할 수 있다.
 
 ## 개발 환경
 
@@ -59,9 +61,27 @@ uv run --isolated --project . python -m aia.cli demo
 뒤 `uv run --isolated --project . python -m aia.cli demo --live`로 별도 실행한다. 이 명령은 disposable Workspace를
 사용한다.
 
+발표용 시연 결과를 만들 때는 기존 프로젝트와 분리된 Workspace와 Control Root를 지정한다.
+`process-kill`, `hook-block`, `file-rollback`은 검증 가능한 `ENGINEERING_FIXTURE` Result Bundle을 생성하며,
+Actual Codex 실행 증명으로 해석하지 않는다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli demo `
+  --scenario process-kill `
+  --workspace C:\workspace\aia-demo-fixture `
+  --control-root C:\workspace\aia-demo-control-fixture `
+  --open
+```
+
+`--open`을 붙이면 서버가 시작된 뒤 해당 Demo Session의 Workbench 화면을 바로 엽니다.
+
 평가 산출물은 `evaluation/mvp-1.0/<evaluation-id>/` 아래에 보존한다. 평가 기준, 허용된 주장, 제한사항, 위협 모델은 `docs/validation/`과 `docs/`에 함께 고정한다.
 
 최신 결정론적 AIA OFF/AIA ON 비교 결과는 [제품 전후 평가](docs/validation/PRODUCT-EVALUATION.md)와 [오프라인 대시보드](evaluation/product-before-after/fixture-20260911-001/report.html)에서 확인할 수 있다. 대시보드는 외부 인터넷 없이 열리며, 보안 효과·정상 작업 보존·성능 단계·증거 품질을 하나의 점수로 합치지 않고 분리해 보여준다.
+
+현재 구현을 발표나 코드 리뷰에서 순서대로 설명하려면 [AIA 기술 문서](docs/technical/AIA-TECHNICAL-REFERENCE.html)를 연다. 이 문서는 외부 CDN 없이 저장소에서 바로 열리며, 왼쪽 목차에서 Protected Run, Hook·File·Process Sensor, Evidence, 시연 케이스, 정량 평가와 한계를 따라갈 수 있다.
+
+센서와 정책 가드레일의 구현 원리를 기술적으로 학습하려면 [AIA 센서·정책 기술 원리 PDF](output/pdf/AIA-Sensor-Policy-Technical-Principles.pdf)를 참조한다. PDF 생성 스크립트는 [build_sensor_principles_pdf.py](scripts/docs/build_sensor_principles_pdf.py)이다.
 
 ## 로컬 보안 콘솔 (EPIC-019)
 

@@ -455,6 +455,16 @@ def _aia_on_record(
         matched_rule_ids=list(policy.matched_rule_ids),
         operation_effect=(policy.operation_effect.value if policy.operation_effect is not None else "NOT_APPLICABLE"),
         active_policy_fingerprint=context.active_policy.sha256,
+        sensor_evidence_mode="FIXTURE_SYNTHETIC",
+        hook_sensor_observed=(
+            True if "hook" in scenario.expected_sensors else "NOT_APPLICABLE"
+        ),
+        file_sensor_observed=(
+            True if "file" in scenario.expected_sensors else "NOT_APPLICABLE"
+        ),
+        process_sensor_observed=(
+            True if "process" in scenario.expected_sensors else "NOT_APPLICABLE"
+        ),
     )
 
 
@@ -501,6 +511,10 @@ def _aia_off_record(
         attribution_count="NOT_APPLICABLE",
         enforcement_count="NOT_APPLICABLE",
         audit_count="NOT_APPLICABLE",
+        sensor_evidence_mode="NOT_APPLICABLE",
+        hook_sensor_observed="NOT_APPLICABLE",
+        file_sensor_observed="NOT_APPLICABLE",
+        process_sensor_observed="NOT_APPLICABLE",
     )
 
 
@@ -612,6 +626,10 @@ def _recovery_record(
         attribution_count=1,
         enforcement_count=1,
         audit_count=1,
+        sensor_evidence_mode="FIXTURE_SYNTHETIC",
+        hook_sensor_observed="NOT_APPLICABLE",
+        file_sensor_observed=True,
+        process_sensor_observed="NOT_APPLICABLE",
     )
 
 
@@ -650,6 +668,10 @@ def _recovery_off_record(
         attribution_count="NOT_APPLICABLE",
         enforcement_count="NOT_APPLICABLE",
         audit_count="NOT_APPLICABLE",
+        sensor_evidence_mode="NOT_APPLICABLE",
+        hook_sensor_observed="NOT_APPLICABLE",
+        file_sensor_observed="NOT_APPLICABLE",
+        process_sensor_observed="NOT_APPLICABLE",
     )
 
 

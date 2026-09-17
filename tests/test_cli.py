@@ -169,6 +169,97 @@ def test_demo_live_parser_selects_real_codex_proof() -> None:
     assert args.scenario == "block-env"
 
 
+def test_demo_parser_supports_presentation_scenario_roots(tmp_path) -> None:
+    args = _parser().parse_args(
+        [
+            "demo",
+            "--scenario",
+            "process-kill",
+            "--workspace",
+            str(tmp_path / "workspace"),
+            "--control-root",
+            str(tmp_path / "control"),
+            "--open",
+        ]
+    )
+
+    assert args.scenario == "process-kill"
+    assert args.workspace == tmp_path / "workspace"
+    assert args.control_root == tmp_path / "control"
+    assert args.open is True
+
+
+def test_demo_presentation_scenario_prints_fixture_boundary(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr(
+        "aia.demo.run_demo",
+        lambda scenario, *, workspace, control_root: {
+            "scenario": scenario,
+            "title": "Process Sensor 관리 트리 종료",
+            "session_id": "demo-process-kill",
+            "workspace": str(workspace),
+            "control_root": str(control_root),
+            "bundle_status": "VALID",
+            "next_step": "open",
+        },
+    )
+
+    assert (
+        main(
+            [
+                "demo",
+                "--scenario",
+                "process-kill",
+                "--workspace",
+                str(tmp_path / "workspace"),
+                "--control-root",
+                str(tmp_path / "control"),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "Bundle: VALID" in output
+    assert "DEMO_FIXTURE" in output
+
+
+def test_demo_open_targets_the_created_session_workbench(monkeypatch, tmp_path) -> None:
+    console_calls = []
+    monkeypatch.setattr(
+        "aia.demo.run_demo",
+        lambda scenario, *, workspace, control_root: {
+            "scenario": scenario,
+            "title": "Hook Sensor PreToolUse 사전 차단",
+            "session_id": "demo-hook-block",
+            "workspace": str(workspace),
+            "control_root": str(control_root),
+            "bundle_status": "VALID",
+            "next_step": "open",
+        },
+    )
+    monkeypatch.setattr(
+        "aia.cli._run_console",
+        lambda args: console_calls.append(args) or 0,
+    )
+
+    assert (
+        main(
+            [
+                "demo",
+                "--scenario",
+                "hook-block",
+                "--workspace",
+                str(tmp_path / "workspace"),
+                "--control-root",
+                str(tmp_path / "control"),
+                "--open",
+            ]
+        )
+        == 0
+    )
+
+    assert console_calls[0].open_path == "/runs/demo-hook-block/workbench"
+
+
 def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
     calls: list[bool] = []
     monkeypatch.setattr(
@@ -558,6 +649,15 @@ def test_console_parser_supports_explicit_bind_values() -> None:
     assert args.host == "127.0.0.1"
     assert args.port == 8799
     assert args.open is True
+
+
+def test_console_parser_supports_explicit_control_root(tmp_path) -> None:
+    args = _parser().parse_args(
+        ["console", "--control-root", str(tmp_path / "control")]
+    )
+
+    assert args.control_root == tmp_path / "control"
+    assert args.open_path == "/"
 
 
 def test_console_rejects_non_loopback_host() -> None:
