@@ -1539,6 +1539,10 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "dashboardCheckBlocksRun(check, readinessStatus)" in dashboard.text
     assert "dashboardCheckMark(check, readinessStatus)" in dashboard.text
     assert "dashboardCheckDetailLabel(check, source)" in dashboard.text
+    assert "Codex /hooks에서 AIA Hook을 검토·신뢰하세요." in dashboard.text
+    assert "실행 결과 확인 가능" in dashboard.text
+    assert "PreToolUse Trust가 확인되었습니다." in dashboard.text
+    assert "Session-bound Hook Event가 확인되었습니다." in dashboard.text
     assert "상태는 단계별로 표시됩니다" in dashboard.text
     assert "if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];" in dashboard.text
     assert "if (name === 'codex_hook_trust')" in dashboard.text
