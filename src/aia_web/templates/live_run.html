@@ -125,7 +125,7 @@
   <tbody id="actions"><tr><td colspan="6" class="empty">실행 증거를 기다리는 중입니다…</td></tr></tbody></table></div>
 </section>
 
-<div class="page-actions"><button class="button secondary" id="refresh-run" type="button">상태 새로고침</button><button class="button danger" id="stop-run" type="button">보호 실행 중지</button><button class="button" id="reconcile-run" type="button" hidden>고아 실행 정리 확인</button><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a><a class="text-link" href="/new">새 보호 실행</a></div>
+<div class="page-actions"><button class="button secondary" id="refresh-run" type="button">상태 새로고침</button><button class="button danger" id="stop-run" type="button">보호 실행 중지</button><button class="button" id="reconcile-run" type="button" hidden>고아 실행 정리 확인</button><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a><a class="text-link" href="/start">새 보호 실행</a></div>
 <script>
 const sessionId = {{ session_id|tojson }};
 const actionsEl = document.getElementById('actions');

@@ -1063,3 +1063,11 @@ samp,
   .workbench-simple-shell .workbench-security-panel { order: 2; display: grid; grid-template-columns: 1fr; }
   .workbench-simple-shell .security-panel-content { display: grid; gap: 14px; }
 }
+
+/* Result page default view: present the conclusion and sensor outcome first.
+   Detailed evidence stays available behind one explicit control. */
+.result-simple-shell .result-section-nav { display: none; }
+.result-simple-shell .result-advanced-content { display: none; }
+.result-simple-shell.show-advanced-details .result-advanced-content { display: block; }
+.result-simple-shell .result-advanced-content > * { margin-bottom: 14px; }
+.result-simple-shell .result-details-toggle { width: 100%; justify-content: center; margin: 14px 0; }

@@ -16,7 +16,7 @@
 {% set support = capabilities.get('support', {}) %}
 {% set agents = support.get('agent') or ['Codex CLI'] %}
 {% set platforms = support.get('operating_system') or ['Windows 11'] %}
-{% set dashboard_empty_action_href = '#dashboard-readiness' if preflight_deferred or not readiness_ok else '/new' %}
+{% set dashboard_empty_action_href = '#dashboard-readiness' if preflight_deferred or not readiness_ok else '/start' %}
 {% set dashboard_empty_action_label = '준비 상태 확인 중…' if preflight_deferred else ('새 보호 실행' if readiness_ok else '준비 방법 확인') %}
 {% set trust_labels = {'TRUSTED': '신뢰됨', 'MANAGED': '관리됨', 'MANUAL_REVIEW_REQUIRED': '검토 필요', 'MODIFIED': '변경됨 · 검토 필요', 'UNTRUSTED': '신뢰되지 않음 · 검토 필요'} %}
 {% set readiness_labels = {'READY': '준비 완료', 'HOOK_VERIFICATION_REQUIRED': '확인 필요', 'CODEX_HOOK_TRUST_REQUIRED': 'Hook 검토 필요', 'CODEX_HOOK_NOT_INSTALLED': 'Hook 설치 필요', 'CODEX_EXECUTABLE_UNAVAILABLE': 'Codex 확인 필요', 'PREFLIGHT_TIMEOUT': '확인 시간 초과', 'PREFLIGHT_UNAVAILABLE': '확인 실패', 'CHECKING': '확인 중', 'UNKNOWN': '확인 필요'} %}
@@ -156,7 +156,7 @@
   <p class="preflight-legend hint">상태는 단계별로 표시됩니다: <strong>설치됨</strong>은 설정 파일, <strong>신뢰됨</strong>은 Codex 승인, <strong>검증됨</strong>은 실제 Hook Event 확인을 뜻합니다.</p>
   <div id="dashboard-readiness-active-notice" class="notice dashboard-readiness-active-notice"{% if not active_run.item %} hidden{% endif %}>
     <strong>현재 보호 세션을 계속하세요.</strong>
-    <a id="dashboard-readiness-active-link" class="text-link" href="{% if active_run.item %}{% if active_run.item.launch_mode == 'web_terminal' %}/runs/{{ active_run.item.session_id }}/workbench{% else %}/runs/{{ active_run.item.session_id }}{% endif %}{% else %}/new{% endif %}">{% if active_run.item and active_run.item.launch_mode == 'web_terminal' %}Workbench 열기 →{% elif active_run.item %}상태 보기 →{% else %}현재 실행 열기 →{% endif %}</a>
+    <a id="dashboard-readiness-active-link" class="text-link" href="{% if active_run.item %}{% if active_run.item.launch_mode == 'web_terminal' %}/runs/{{ active_run.item.session_id }}/workbench{% else %}/runs/{{ active_run.item.session_id }}{% endif %}{% else %}/start{% endif %}">{% if active_run.item and active_run.item.launch_mode == 'web_terminal' %}Workbench 열기 →{% elif active_run.item %}상태 보기 →{% else %}현재 실행 열기 →{% endif %}</a>
   </div>
   <div id="dashboard-readiness-next-steps" class="next-steps"{% if active_run.item or preflight_deferred or readiness_ok %} hidden{% endif %}>
     <strong id="dashboard-next-steps-title">다음 단계</strong>
@@ -214,7 +214,7 @@
 
 <div class="dashboard-columns">
   <section class="panel">
-    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/new" class="text-link">정책 미리보기 →</a></div>
+    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/start" class="text-link">정책 미리보기 →</a></div>
     <div class="scope-list">
       <div><strong>PreToolUse</strong><span>실행 전 정책 판정과 차단</span></div>
       <div><strong>도구</strong><span>{{ (support.get('pretool_matchers') or [])|join(', ') }}</span></div>
@@ -239,7 +239,7 @@
   <div id="dashboard-recent-table" class="table-wrap"{% if not dashboard_runs %} hidden{% endif %}><table><thead><tr><th>세션</th><th>상태</th><th>작업 폴더</th><th>정책 사건</th><th>결과 검증</th><th></th></tr></thead>
     <tbody id="dashboard-recent-runs">{% for run in dashboard_runs[:5] %}{% set result_ready = run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}{% set orphaned = run.runtime_reconciliation and run.runtime_reconciliation.orphaned %}{% set incident_count = run.incident_count or 0 %}{% set execution_label = 'AIA 자체 진단' if run.dashboard_diagnostic else '사용자 작업 · 결과' if result_ready else '사용자 작업 · 연결 끊김' if orphaned else '사용자 작업 · Workbench' if run.launch_mode == 'web_terminal' else '사용자 작업 · CLI' %}<tr class="dashboard-run-row{{ ' dashboard-run-row-has-incidents' if incident_count > 0 else '' }}"><td class="mono">{% if result_ready %}<a class="run-link" href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}" title="전체 Session ID: {{ run.session_id }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% elif run.launch_mode == 'web_terminal' and not orphaned %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="전체 Session ID: {{ run.session_id }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="{{ '연결 끊긴 실행 검토' if orphaned else '실행 상태 열기' }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% endif %}<br><span class="muted">{{ execution_label }}</span></td><td><span class="badge badge-{{ 'disconnected' if orphaned else (run.status or 'unknown')|lower }}" title="{{ run.status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '연결 끊김' if orphaned else status_labels.get(run.status, run.status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">보호 경계 끊김 · 정리 필요</span>{% elif run.protection_state %}<br><span class="muted" title="{{ run.protection_state }}">{{ protection_labels.get(run.protection_state, run.protection_state) }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ 'Hook 연결 검증용 임시 Workspace' if run.dashboard_diagnostic else run.workspace }}</td><td><span class="dashboard-incident-count{{ ' has-incidents' if incident_count > 0 else '' }}" title="{{ '정책 사건 · 결과에서 확인' if incident_count > 0 else '확인된 정책 사건 없음' }}">{{ incident_count }}건</span></td><td><span class="badge badge-{{ 'disconnected' if orphaned else (run.bundle_status or 'unknown')|lower }}" title="{{ run.bundle_status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '확인 필요' if orphaned else bundle_labels.get(run.bundle_status, run.bundle_status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">결과 Bundle을 확인할 수 없습니다</span>{% elif run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td>{% if result_ready %}<a href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}">결과 보기</a>{% elif orphaned %}<a href="/runs/{{ run.session_id }}">정리 검토</a>{% elif run.launch_mode == 'web_terminal' %}<a href="/runs/{{ run.session_id }}/workbench">Workbench 열기</a>{% else %}<a href="/runs/{{ run.session_id }}">상태 보기</a>{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
-  <div id="dashboard-recent-empty" class="empty dashboard-empty"{% if dashboard_runs %} hidden{% endif %}>아직 보호 실행 기록이 없습니다. <a href="/new">첫 보호 실행을 시작하세요.</a></div>
+  <div id="dashboard-recent-empty" class="empty dashboard-empty"{% if dashboard_runs %} hidden{% endif %}>아직 보호 실행 기록이 없습니다. <a href="/start">첫 보호 실행을 시작하세요.</a></div>
 </section>
 
 <section class="notice warning dashboard-limits"><strong>현재 제품의 경계:</strong> Windows 11·Codex CLI·AIA Protected Run·지원되는 PreToolUse 도구에 한정됩니다. Hook을 우회한 실행이나 지원 범위 밖 도구를 AIA가 보호했다고 표시하지 않습니다.</section>
@@ -354,7 +354,7 @@ function renderDashboardEmptyAction() {
   if (!dashboardCurrentAction || dashboardCurrentActiveRun) return;
   const loading = !dashboardPreflightLoaded;
   const ready = dashboardPreflightLoaded && dashboardReadinessOk;
-  const href = ready ? '/new' : '#dashboard-readiness';
+  const href = ready ? '/start' : '#dashboard-readiness';
   const label = loading ? '준비 상태 확인 중…' : ready ? '새 보호 실행' : '준비 방법 확인';
   dashboardCurrentAction.href = href;
   dashboardCurrentAction.textContent = label;

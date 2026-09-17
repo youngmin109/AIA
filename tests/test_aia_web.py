@@ -286,7 +286,7 @@ def test_unreadable_run_record_renders_actionable_integrity_state() -> None:
         assert "Evidence Bundle 무결성 검증 실패" in response.text
         assert "Evidence Bundle Integrity Failure" not in response.text
         assert 'href="/runs"' in response.text
-        assert 'href="/new"' in response.text
+        assert 'href="/start"' in response.text
 
     actions = client.get("/api/runs/run-1/actions")
     assert actions.status_code == 409
@@ -841,7 +841,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "setTerminalActivity('STOPPED', 'Codex 작업창이 종료되었습니다.')" in workbench.text
     assert 'id="terminal-closed-card"' in workbench.text
     assert 'id="terminal-closed-result"' in workbench.text
-    assert 'href="/new">새 보호 실행</a>' in workbench.text
+    assert 'href="/start">새 보호 실행</a>' in workbench.text
     assert workbench.text.index('id="terminal-closed-card"') < workbench.text.index('id="terminal-output"')
     assert "updateTerminalClosedCard" in workbench.text
     assert "Codex 작업창 출력은 보안을 위해 저장하지 않습니다." in workbench.text
@@ -1016,8 +1016,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "실행 결과 증거 없음" in result.text
     assert "도구가 실행되지 않았다는 뜻이 아닙니다" in result.text
     assert "집행 조치 없음" in result.text
-    assert 'href="/new">새 보호 실행</a>' in result.text
+    assert 'href="/start">새 보호 실행</a>' in result.text
     assert 'aria-label="결과 바로가기"' in result.text
+    assert 'class="result-simple-shell"' in result.text
+    assert 'id="result-details-toggle"' in result.text
+    assert 'id="result-advanced-content"' in result.text
+    assert 'setResultDetailsVisible' in result.text
     assert 'id="sensor-results"' in result.text
     assert '<span>정책 사건</span><strong>0건</strong><small>정책 판정 기록 기준</small>' in result.text
     assert '<span>차단 사건</span><strong>0건</strong>' not in result.text
@@ -1038,6 +1042,7 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="sensor-evidence-timeline"' in result.text
     assert 'id="decision-summary"' in result.text
     assert 'class="result-section-nav"' in result.text
+    assert '.result-simple-shell .result-advanced-content' in client.get("/static/app.css").text
     assert 'setResultSectionActive' in result.text
     assert 'resultSectionObserver' in result.text
     assert 'id="recovery-results"' in result.text
