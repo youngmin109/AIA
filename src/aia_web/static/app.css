@@ -944,3 +944,17 @@ samp,
 .result-event-row[data-result-event-category="SENSOR"] { opacity: .84; }
 .dashboard-preflight-loading { flex-wrap: wrap; }
 .preflight-loading-help { flex: 1 0 100%; margin-left: 24px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+/* Keep the history table scannable on laptop-sized desktop windows. */
+@media (min-width: 761px) {
+  .history-table { min-width: 1080px; table-layout: fixed; }
+  .history-table th:nth-child(1), .history-table td:nth-child(1) { width: 125px; }
+  .history-table th:nth-child(2), .history-table td:nth-child(2) { width: 150px; }
+  .history-table th:nth-child(3), .history-table td:nth-child(3) { width: 175px; }
+  .history-table th:nth-child(4), .history-table td:nth-child(4) { width: 240px; }
+  .history-table th:nth-child(5), .history-table td:nth-child(5) { width: 130px; }
+  .history-table th:nth-child(6), .history-table td:nth-child(6) { width: 75px; }
+  .history-table th:nth-child(7), .history-table td:nth-child(7) { width: 105px; }
+  .history-table th:nth-child(8), .history-table td:nth-child(8) { width: 80px; }
+  .history-table td:last-child, .history-table td:last-child a, .history-table .run-link { white-space: nowrap; }
+}
