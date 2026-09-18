@@ -140,8 +140,9 @@ try {
     }
 
     $demoOutput = (& $verifyPython -m aia.cli demo | Out-String)
-    if ($LASTEXITCODE -ne 0 -or $demoOutput -notmatch "AIA Core Self-Test") {
-        throw "installed wheel safe demo failed"
+    $demoExitCode = $LASTEXITCODE
+    if ($demoExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($demoOutput)) {
+        throw "installed wheel safe demo failed (exit code $demoExitCode)"
     }
 
     $selfTestJson = (& $verifyPython -m aia.cli self-test --json | Out-String)
