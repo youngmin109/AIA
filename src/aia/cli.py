@@ -83,6 +83,21 @@ def _module_cli_prefix() -> str:
     return subprocess.list2cmdline([sys.executable, "-m", "aia.cli"])
 
 
+def _configure_console_encoding() -> None:
+    """Keep CLI diagnostics usable on Windows consoles with a legacy code page."""
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            # Embedded callers and redirected streams may reject reconfiguration.
+            # Their existing stream configuration remains usable in that case.
+            continue
+
+
 def _cli_prefix(installer: CodexHookInstaller) -> str:
     """Return a user-facing launcher that avoids a blocked console-script EXE."""
 
@@ -2449,6 +2464,7 @@ def _run_protected(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    _configure_console_encoding()
     args = _parser().parse_args(argv)
     try:
         if args.command == "capabilities":
