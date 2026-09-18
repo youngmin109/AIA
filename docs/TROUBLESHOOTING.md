@@ -143,6 +143,11 @@ PyInstaller로 만든 `dist\\windows\\AIA\\AIA.exe` 또는 설치된 `AIA.exe`�
 오류로 차단되는 경우에는 개발용 unsigned EXE가 Windows Code Integrity 정책을
 통과하지 못한 것이다. 다음으로 서명 상태를 확인한다.
 
+현재 제품 빌드에서는 `AIA.exe`가 Workbench 서버를 내부에서 시작하므로,
+`AIA.exe`가 실행되고 이 창이 나타난 뒤의 `aia-cli.exe` 차단은 화면 시작
+실패 원인이 아니다. `aia-cli.exe`는 Hook 검증과 명령줄 진단처럼 별도 CLI가
+필요한 기능에서만 사용된다.
+
 ```powershell
 Get-AuthenticodeSignature .\\dist\\windows\\AIA\\AIA.exe
 Get-AuthenticodeSignature .\\dist\\windows\\aia-cli\\aia-cli.exe

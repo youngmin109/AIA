@@ -7,6 +7,7 @@ the existing local web application.
 
 from __future__ import annotations
 
+import asyncio
 import ctypes
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -128,8 +130,85 @@ def _desktop_server_command(host: str, port: int) -> list[str]:
     return [sys.executable, "-m", "aia.cli", *arguments]
 
 
-def _start_server_process(host: str, port: int) -> subprocess.Popen[bytes]:
-    """Start the local server outside the WebView2 process and UI event loop."""
+class _EmbeddedServer:
+    """Own a loopback Uvicorn server inside the already-approved AIA process.
+
+    The packaged desktop shell used to spawn ``aia-cli.exe`` for this job.
+    Windows application-control policy may allow the already-started AIA.exe
+    while blocking that unsigned sibling executable.  Keeping the server in a
+    daemon thread removes that unnecessary executable boundary; the server is
+    still loopback-only and is shut down with the desktop window.
+    """
+
+    def __init__(self, host: str, port: int) -> None:
+        import uvicorn
+
+        from aia_web.app import app
+
+        self._server = uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host=host,
+                port=port,
+                log_level="warning",
+                access_log=False,
+            )
+        )
+        self._exit_code: int | None = None
+        self._error: BaseException | None = None
+        self._thread = threading.Thread(
+            target=self._run,
+            name="aia-embedded-console",
+            daemon=True,
+        )
+
+    def _run(self) -> None:
+        try:
+            asyncio.run(self._server.serve())
+            self._exit_code = 0
+        except BaseException as error:  # pragma: no cover - platform startup
+            self._error = error
+            self._exit_code = 1
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def poll(self) -> int | None:
+        if self._thread.is_alive():
+            return None
+        return self._exit_code if self._exit_code is not None else 1
+
+    def terminate(self) -> None:
+        self._server.should_exit = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        self._thread.join(timeout)
+        if self._thread.is_alive():
+            raise subprocess.TimeoutExpired("aia-embedded-console", timeout)
+        return self.poll() or 0
+
+    def kill(self) -> None:
+        self._server.force_exit = True
+        self._server.should_exit = True
+
+
+def _start_embedded_server(host: str, port: int) -> _EmbeddedServer:
+    server = _EmbeddedServer(host, port)
+    server.start()
+    return server
+
+
+def _start_server_process(host: str, port: int) -> Any:
+    """Start the local server without spawning a blocked packaged CLI.
+
+    Source mode keeps the separate module process for development isolation.
+    The frozen desktop build embeds the server in AIA.exe so the application
+    does not require Windows to authorize a second unsigned executable merely
+    to render its local Workbench.
+    """
+
+    if getattr(sys, "frozen", False):
+        return _start_embedded_server(host, port)
 
     process_kwargs: dict[str, Any] = {
         "stdin": subprocess.DEVNULL,
@@ -229,7 +308,7 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
     import webview
 
     port = choose_loopback_port(preferred_port)
-    server_process: subprocess.Popen[bytes] | None = None
+    server_process: Any | None = None
     webview_storage_path = _webview_storage_path()
     bridge = DesktopBridge()
     try:
