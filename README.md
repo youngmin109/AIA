@@ -2,19 +2,13 @@
 
 AIA는 Codex와 같은 Agent의 보호 실행을 위한 독립적인 제품형 MVP Repository다. MVP는 실행 증거를 수집하고, 정규화·귀속·정책 평가·집행·복구·무결성 검증·감사를 연결한다.
 
-## 한눈에 보기
-
-- **보호 실행 준비**: Workspace와 정책을 검증하고, 실행 중 변경되지 않는 정책·Lease·Checkpoint를 준비한다.
-- **독립적 관찰**: Agent의 도구 요청, 실제 프로세스, Workspace 파일 변화를 각각 수집해 하나의 행위로 연결한다.
-- **판단·대응·감사**: 정책 결과에 따라 실행을 허용하거나 차단하고, 실제 대응 결과와 증거를 확인 가능한 감사 기록으로 남긴다.
-
-> AIA는 Agent의 내부 사고나 의도를 판정하지 않는다. AIA가 검증하는 대상은 실행 요청, 실제 프로세스, 파일 시스템 변화 및 이들 사이의 불일치다.
-
-현재 구현 상태와 지원 범위는 [제품 상태](docs/PRODUCT-STATUS.md)와 [제한사항](docs/LIMITATIONS.md)에 기록되어 있다. 실제 Codex 검증에서는 Bash와 `apply_patch`의 사전 차단을 확인했다. MCP는 현재 제품 범위에서 제외하며, 파괴적 PROCESS 시나리오는 별도 제한사항으로 남아 있다.
+EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.md)과 [제한사항](docs/LIMITATIONS.md)에 기록되어 있다. 최신 Actual Codex 검증에서는 Bash와 `apply_patch`의 사전 차단을 확인했다. MCP는 현재 제품 범위에서 제외하며, 파괴적 PROCESS 시나리오는 별도 제한사항으로 남아 있다.
 
 제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
 
-현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run aia capabilities`로 확인할 수 있다.
+현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.29 릴리스 기준](docs/RELEASE-0.1.29.md)에서 확인할 수 있다.
+현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run --isolated --project . python -m aia.cli capabilities`로 확인할 수 있다.
+현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
 현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
 공개 버전별 변경 사항은 [변경 이력](CHANGELOG.md)에서 확인할 수 있다.
 릴리스 wheel·sdist와 SHA-256 manifest 생성 방법은 [배포 패키지 가이드](docs/DISTRIBUTION.md)를 참조한다.
@@ -25,14 +19,25 @@ AIA는 Codex와 같은 Agent의 보호 실행을 위한 독립적인 제품형 M
 처음 사용하는 사람은 [사용자 가이드](docs/USER-GUIDE.md)를 먼저 읽는다.
 
 릴리스 ZIP을 사용하는 경우에는 압축을 푼 폴더에서 포함된 `install.ps1`을 실행하면
-wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는
-`uv run aia` 경로를 사용한다.
+wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는 아래의
+Python 모듈 실행 경로를 권장한다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli doctor
+```
+
+Windows 애플리케이션 제어 정책이 가상환경에서 생성된 `aia.exe`를 차단하면
+`uv run aia`는 `os error 4551`로 시작하지 못할 수 있다. 위 모듈 실행 경로는
+생성된 콘솔 실행 파일을 거치지 않으므로 같은 환경에서 사용할 수 있다. 자세한
+순서는 [설치 가이드](INSTALL.md)에 정리되어 있다.
 
 사용자 지원 범위와 상태 해석은 [제품 지원 범위](docs/PRODUCT-SUPPORT.md),
 보안 문제 보고 절차는 [SECURITY.md](SECURITY.md), 기여 규칙은
 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조한다.
 
 시스템 전체 구성은 [AIA 시스템 구성도](docs/SYSTEM-OVERVIEW.md)에서 확인할 수 있다.
+Hook·File·Process Sensor의 기술 원리는 [AIA Runtime Security Technical Paper](docs/technical/AIA-RUNTIME-SECURITY-WHITEPAPER.md),
+처음 사용하는 절차는 [AIA Protected Run 사용자 가이드](docs/wikidocs/AIA-사용자-가이드.md)에서 확인할 수 있다.
 
 ## 개발 환경
 
@@ -49,21 +54,41 @@ uv run pytest
 실행한다.
 
 ```powershell
-uv run aia demo
+uv run --isolated --project . python -m aia.cli demo
 ```
 
-실제 Codex 차단 증명은 Hook을 검토·신뢰하고 `uv run aia hook verify`를 완료한
-뒤 `uv run aia demo --live`로 별도 실행한다. 이 명령은 disposable Workspace를
+실제 Codex 차단 증명은 Hook을 검토·신뢰하고 `uv run --isolated --project . python -m aia.cli hook verify`를 완료한
+뒤 `uv run --isolated --project . python -m aia.cli demo --live`로 별도 실행한다. 이 명령은 disposable Workspace를
 사용한다.
 
-평가 실행 결과와 원본 Evidence는 개인 Workspace와 비밀정보가 포함될 수 있으므로 저장소에 넣지 않는다. 재현 가능한 성능 측정 스크립트와 데이터 형식은 [평가 도구 안내](scripts/product_evaluation/README.md)에서 확인할 수 있으며, 실행 결과는 로컬의 무시된 디렉터리에 저장한다.
+발표용 시연 결과를 만들 때는 기존 프로젝트와 분리된 Workspace와 Control Root를 지정한다.
+`process-kill`, `hook-block`, `file-rollback`은 검증 가능한 `ENGINEERING_FIXTURE` Result Bundle을 생성하며,
+Actual Codex 실행 증명으로 해석하지 않는다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli demo `
+  --scenario process-kill `
+  --workspace C:\workspace\aia-demo-fixture `
+  --control-root C:\workspace\aia-demo-control-fixture `
+  --open
+```
+
+`--open`을 붙이면 서버가 시작된 뒤 해당 Demo Session의 Workbench 화면을 바로 엽니다.
+
+평가 산출물은 `evaluation/mvp-1.0/<evaluation-id>/` 아래에 보존한다. 평가 기준, 허용된 주장, 제한사항, 위협 모델은 `docs/validation/`과 `docs/`에 함께 고정한다.
+
+최신 결정론적 AIA OFF/AIA ON 비교 결과는 [제품 전후 평가](docs/validation/PRODUCT-EVALUATION.md)와 [오프라인 대시보드](evaluation/product-before-after/fixture-20260911-001/report.html)에서 확인할 수 있다. 대시보드는 외부 인터넷 없이 열리며, 보안 효과·정상 작업 보존·성능 단계·증거 품질을 하나의 점수로 합치지 않고 분리해 보여준다.
+
+현재 구현을 발표나 코드 리뷰에서 순서대로 설명하려면 [AIA 기술 문서](docs/technical/AIA-TECHNICAL-REFERENCE.html)를 연다. 이 문서는 외부 CDN 없이 저장소에서 바로 열리며, 왼쪽 목차에서 Protected Run, Hook·File·Process Sensor, Evidence, 시연 케이스, 정량 평가와 한계를 따라갈 수 있다.
+
+센서와 정책 가드레일의 구현 원리를 기술적으로 학습하려면 [AIA 센서·정책 기술 원리 PDF](output/pdf/AIA-Sensor-Policy-Technical-Principles.pdf)를 참조한다. PDF 생성 스크립트는 [build_sensor_principles_pdf.py](scripts/docs/build_sensor_principles_pdf.py)이다.
 
 ## 로컬 보안 콘솔 (EPIC-019)
 
 선택적으로 로컬 콘솔을 실행할 수 있다.
 
 ```powershell
-uv run aia console --open
+uv run --isolated --project . python -m aia.cli console --open
 ```
 
 기본 주소는 [http://127.0.0.1:8787](http://127.0.0.1:8787)이다. `--open`을 지정하면 기본 브라우저에서 이 로컬 주소를 연다. 화면에서 Workspace, Codex 작업 요청, Policy Profile, ENFORCE/AUDIT 모드를 입력하면 AIA Core의 보호 실행 흐름을 시작하고, Live Run과 Result Bundle을 확인할 수 있다. 기본 Control Root는 `%USERPROFILE%\.aia\control`이며 `AIA_CONTROL_ROOT` 환경 변수로 바꿀 수 있다. 기존의 `uv run aia-web` 명령도 계속 사용할 수 있다.
@@ -72,7 +97,7 @@ uv run aia console --open
 Protected Run을 보여주는 대시보드다. 대시보드는 실행을 자동으로 시작하지 않으며,
 `새 보호 실행`(`/new`) 화면에서 사용자가 명시적으로 시작한다.
 
-콘솔은 로컬 단일 사용자 도구다. 외부 bind/로그인/원격 접근/Database를 제공하지 않으며, Core의 보안 판정과 Result Bundle을 화면에 표시하는 역할만 한다. 화면에는 raw command와 evidence payload 값이 노출되지 않는다.
+콘솔은 로컬 단일 사용자 P1 도구다. 외부 bind/로그인/원격 접근/Database를 제공하지 않으며, Core의 보안 판정과 Result Bundle을 화면에 표시하는 역할만 한다. 화면에는 raw command와 evidence payload 값이 노출되지 않는다. 자세한 범위와 HTTP 계약은 [EPIC-019 문서](docs/epics/EPIC-019-LOCAL-SECURITY-CONSOLE.md)를 참조한다.
 
 새 보호 실행 화면의 `정책 미리보기`에서는 실제 실행 전에 파일 경로 또는 명령을
 넣어 선택한 정책의 판정·Effect·보안 자산·적용 Rule을 확인할 수 있다. 미리보기는
@@ -80,12 +105,25 @@ Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
 
 외부 Network에 노출하지 마십시오.
 
+Windows 11에서 일반 사용자는 Python·uv·포트를 직접 입력하지 않고 `AIA.exe`로
+같은 Workbench를 시작할 수 있다. 개발 빌드와 사용자 권한 설치 프로그램은
+[Windows Desktop 가이드](docs/WINDOWS-DESKTOP.md)를 따른다. 실행 파일은 기존 AIA
+Core와 센서를 재사용하며, WebView2 Runtime과 Codex CLI는 별도로 설치되어 있어야
+한다.
+
+공개 Windows 배포본은 Authenticode 코드 서명과 SHA-256 manifest를 포함해야 한다.
+서명 인증서 준비와 릴리스 패키징은 [Windows 코드 서명 가이드](docs/WINDOWS-SIGNING.md)를
+따른다.
+
 콘솔에서 `새 보호 실행`을 시작하면 AIA가 사용자가 이미 만든 Workspace를 확인한
-뒤 보호 준비를 수행하고, `별도 Windows 터미널에서 Codex 열기`를 선택한 경우
-Codex를 별도 창의 자식 프로세스로 실행한다. 실행 화면에는 Hook·File·Process
-Sensor 상태와 민감정보를 숨긴 안전한 이벤트 요약이 1초마다 갱신된다. 위험 행위가
-차단되면 Codex 세션은 종료하지 않고 사건 카드에 `VIOLATION → CONTAIN →
-BLOCKED / SUCCEEDED`를 실제 확인된 경우에만 표시한다.
+뒤 기본적으로 AIA Workbench 화면에서 Codex를 보호된 작업창으로 실행한다. Workbench는
+Codex 작업창, Hook·File·Process Sensor 상태, 안전한 이벤트 요약, 차단 사건을 한 화면에
+표시한다. 기존 `별도 Windows 터미널에서 Codex 열기`는 호환 모드로 계속 제공한다.
+작업창 아래 입력란에 질문을 입력한 뒤 Enter 또는 `전송`을 누르면 Codex에 요청이
+제출된다. 응답을 기다리는 동안 작업창에 처리 중 상태가 표시된다.
+위험 행위가 차단되면 Codex 세션은 종료하지 않고 사건 카드에 `VIOLATION → CONTAIN →
+BLOCKED / SUCCEEDED`를 실제 확인된 경우에만 표시한다. Workbench 터미널 출력은
+Result Bundle이나 Evidence에 저장하지 않고 연결된 브라우저 화면에만 전달한다.
 
 `새 보호 실행` 화면의 `정책 만들기`에서 현재 한국어 Strict Schema에 맞는 File Rule
 또는 Command Rule을 작성하고 검증할 수 있다. Validation을 통과한 정책만
@@ -103,13 +141,13 @@ BLOCKED / SUCCEEDED`를 실제 확인된 경우에만 표시한다.
 처음 설치한 뒤에는 환경 점검부터 실행합니다.
 
 ```powershell
-uv run aia doctor
+uv run --isolated --project . python -m aia.cli doctor
 ```
 
 Hook 설치·Trust·검증의 차이가 헷갈리면 다음 읽기 전용 안내를 먼저 실행합니다.
 
 ```powershell
-uv run aia hook explain
+uv run --isolated --project . python -m aia.cli hook explain
 ```
 
 이 명령은 Codex 설정이나 Trust 상태를 변경하지 않고, Codex `/hooks`에서 검토할
@@ -124,14 +162,14 @@ AIA 설치와 Core 자체가 정상인지 먼저 확인하려면 다음 명령�
 않습니다. 따라서 `PASS`여도 실제 Codex Hook 연결이 증명된 것은 아닙니다.
 
 ```powershell
-uv run aia self-test
+uv run --isolated --project . python -m aia.cli self-test
 ```
 
 문제 보고가 필요하면 전체 경로·Workspace 내용·raw evidence·명령 출력이 빠진
 진단 번들을 만들 수 있습니다.
 
 ```powershell
-uv run aia support-bundle --output .\aia-support-bundle.json
+uv run --isolated --project . python -m aia.cli support-bundle --output .\aia-support-bundle.json
 ```
 
 이 파일은 AIA 버전, Python·Windows·Codex 상태, Hook Trust 상태와 최근 실행의
@@ -140,7 +178,7 @@ uv run aia support-bundle --output .\aia-support-bundle.json
 처음 설치하는 사용자는 다음 한 명령으로 AIA Hook을 추가할 수 있습니다.
 
 ```powershell
-uv run aia setup
+uv run --isolated --project . python -m aia.cli setup
 ```
 
 그다음 Codex에서 `/hooks`를 열어 AIA Hook을 직접 검토·신뢰합니다. `aia protect`는 PreToolUse Hook이 설치되지
@@ -149,7 +187,7 @@ uv run aia setup
 확인할 수 있습니다.
 
 ```powershell
-uv run aia hook status
+uv run --isolated --project . python -m aia.cli hook status
 ```
 
 `PreToolUse 설치: YES`는 설정 파일이 있다는 뜻이고, `Hook 관찰 상태:
@@ -165,7 +203,7 @@ OBSERVED_IN_PAST`일 때만 과거 실행에서 AIA Session에 연결된 Hook이
 사용자 정책을 직접 작성했다면 보호 실행 전에 Strict Validation을 실행합니다.
 
 ```powershell
-uv run aia policy validate C:\workspace\policies\protected-policy.json
+uv run --isolated --project . python -m aia.cli policy validate C:\workspace\policies\protected-policy.json
 ```
 
 실제 Agent를 시작하기 전에 정책 결과를 미리 확인할 수도 있습니다. 이 명령은
@@ -173,17 +211,17 @@ uv run aia policy validate C:\workspace\policies\protected-policy.json
 매칭 Rule을 보여줍니다.
 
 ```powershell
-uv run aia policy evaluate --operation READ --path .env
-uv run aia policy evaluate --operation EXECUTE --command "python build.py"
-uv run aia policy evaluate --policy C:\workspace\policies\my-policy.json --operation DELETE --path protected\main.py
+uv run --isolated --project . python -m aia.cli policy evaluate --operation READ --path .env
+uv run --isolated --project . python -m aia.cli policy evaluate --operation EXECUTE --command "python build.py"
+uv run --isolated --project . python -m aia.cli policy evaluate --policy C:\workspace\policies\my-policy.json --operation DELETE --path protected\main.py
 ```
 
 처음 정책을 만드는 사용자는 검증된 기본 프로필을 복사해서 시작할 수 있습니다.
 
 ```powershell
-uv run aia policy profiles
-uv run aia policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
-uv run aia policy validate C:\workspace\policies\my-policy.json
+uv run --isolated --project . python -m aia.cli policy profiles
+uv run --isolated --project . python -m aia.cli policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
+uv run --isolated --project . python -m aia.cli policy validate C:\workspace\policies\my-policy.json
 ```
 
 `policy init`은 기존 파일을 덮어쓰지 않으며, 다시 생성하려면 명시적으로
@@ -197,7 +235,7 @@ PostToolUse 항목을 추가합니다. PreToolUse는 실행 전 정책 관문이
 사용할 수도 있습니다.
 
 ```powershell
-uv run aia hook install
+uv run --isolated --project . python -m aia.cli hook install
 ```
 
 실제 사용 전에 현재 Codex가 AIA Hook을 실행할 수 있는지 확인하려면 다음을
@@ -205,7 +243,7 @@ uv run aia hook install
 Control Root에 보존하며 임시 Workspace는 삭제합니다.
 
 ```powershell
-uv run aia hook verify
+uv run --isolated --project . python -m aia.cli hook verify
 ```
 
 `VERIFIED`와 Session-bound Hook Event가 확인될 때만 일반 보호 실행을 검증된
@@ -218,12 +256,12 @@ uv run aia hook verify
 검토·신뢰한 뒤 다시 실행합니다. 이 점검은 Hook을 자동으로 신뢰하지 않으며,
 신뢰된 경우에도 실제 Session-bound Hook Event가 확인될 때만 `VERIFIED`가 됩니다.
 
-`VERIFIED`가 된 뒤 `uv run aia doctor`를 다시 실행하면 `READY`가 되어야 합니다.
+`VERIFIED`가 된 뒤 `uv run --isolated --project . python -m aia.cli doctor`를 다시 실행하면 `READY`가 되어야 합니다.
 검증 파일은 현재 Hook 설정과 Codex 실행 파일에 묶여 있으므로, 둘 중 하나가
 바뀌면 다시 `aia hook verify`를 실행해야 합니다.
 
 ```powershell
-uv run aia protect C:\workspace\my-project
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project
 ```
 
 위 명령은 먼저 AIA Protected Run을 만들고 Workspace, 정책, Lease, Checkpoint, 센서를 준비한 뒤 Codex 대화형 세션을 엽니다. Codex 화면에서 여러 작업을 입력하고 Codex를 종료하면 AIA가 Evidence, Recovery, Integrity, Audit 결과를 확정합니다. 실행 화면의 `ACTIVE_VERIFIED`는 실제 Hook Evidence가 AIA Session과 연결됐다는 뜻이고, `ACTIVE_UNVERIFIED`는 아직 Hook 이벤트가 확인되지 않았다는 뜻입니다.
@@ -236,22 +274,22 @@ uv run aia protect C:\workspace\my-project
 aia start C:\workspace\my-project
 ```
 
-저장소에서 `uv run`으로 실행할 때는 `uv run aia start C:\workspace\my-project`를
+저장소에서 `uv run`으로 실행할 때는 `uv run --isolated --project . python -m aia.cli start C:\workspace\my-project`를
 사용합니다. 기존 `protect` 명령도 같은 보안 경로로 계속 지원됩니다.
 
 한 번의 작업만 자동으로 실행하려면 다음처럼 초기 작업을 전달할 수 있습니다.
 
 ```powershell
-uv run aia protect C:\workspace\my-project --task "작업 내용을 입력"
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project --task "작업 내용을 입력"
 ```
 
 종료된 실행을 다시 확인할 때는 로컬 Control Root의 기록을 조회합니다.
 
 ```powershell
-uv run aia runs
-uv run aia status <SESSION_ID>
-uv run aia status <SESSION_ID> --json
-uv run aia stop <SESSION_ID>
+uv run --isolated --project . python -m aia.cli runs
+uv run --isolated --project . python -m aia.cli status <SESSION_ID>
+uv run --isolated --project . python -m aia.cli status <SESSION_ID> --json
+uv run --isolated --project . python -m aia.cli stop <SESSION_ID>
 ```
 
 실행 중인 Session은 Control Root에 안전한 상태 스냅샷을 보존하므로, 보호 실행을
@@ -267,7 +305,7 @@ PID·생성 시각을 확인한 뒤 Agent Root가 실제로 사라진 경우에�
 이전 실행의 정리 확인을 남깁니다.
 
 ```powershell
-uv run aia reconcile <SESSION_ID>
+uv run --isolated --project . python -m aia.cli reconcile <SESSION_ID>
 ```
 
 이 명령은 Evidence를 삭제하지 않고, 고아 실행을 성공한 보호 실행으로 바꾸지
@@ -284,12 +322,11 @@ uv run aia reconcile <SESSION_ID>
 정책 위반 집행용 `process_termination_result`와 별도입니다.
 
 AIA를 업데이트한 뒤 matcher가 바뀌어 `aia doctor`가 `NOT_READY`를 보여주면
-`uv run aia hook install`을 다시 실행하고 Codex `/hooks`에서 변경된 Hook을
+`uv run --isolated --project . python -m aia.cli hook install`을 다시 실행하고 Codex `/hooks`에서 변경된 Hook을
 다시 검토·신뢰합니다. 검증된 Hook Event가 하나도 없는 실행은
 `COMPLETED_DEGRADED`로 기록되며 보호 성공으로 표시하지 않습니다.
 
-Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 사전 차단 증명 절차는
-[빠른 시작](docs/QUICKSTART.md)과 [제품 지원 범위](docs/PRODUCT-SUPPORT.md)를 참고한다.
+Hook을 Codex에서 검토·신뢰한 뒤 보호 실행을 시작한다. 실제 사전 차단 증명은 [docs/ACTUAL-CODEX-PROOF.md](docs/ACTUAL-CODEX-PROOF.md)를 참고한다.
 
 현재 제품이 보장하는 보호 경계는 Windows 11, Codex CLI, AIA Protected Run,
 그리고 지원되는 `PreToolUse` matcher입니다. 현재 실제로 검증된 matcher에는
@@ -303,7 +340,7 @@ OS 전체 Writer를 보호한다고 주장하지 않으며, 제한사항은 [doc
 실행한다. 이 명령은 실제 Codex 실행을 시작하므로 일반 회귀 테스트에는 포함하지 않는다.
 
 ```powershell
-uv run aia proof
+uv run --isolated --project . python -m aia.cli proof
 ```
 
 기본값은 실제 `Bash PreToolUse → deny → Canary 미생성`을 확인하는 차단 증명이다.
@@ -316,7 +353,7 @@ uv run aia proof
 명시적으로 요청한다.
 
 ```powershell
-uv run aia proof --json
+uv run --isolated --project . python -m aia.cli proof --json
 ```
 
 ```powershell
@@ -333,7 +370,7 @@ uv run python scripts/product_e2e_smoke.py --scenario block-apply-patch
 `.env` 비밀정보 읽기 차단까지 실제로 확인하려면 다음을 실행합니다.
 
 ```powershell
-uv run aia proof --scenario block-env
+uv run --isolated --project . python -m aia.cli proof --scenario block-env
 ```
 
 이 시나리오는 disposable Workspace의 `.env` 읽기 시도를 실제 Codex가 실행하기
@@ -355,26 +392,7 @@ Hook 신뢰가 적용되지 않은 환경에서는
 `COMPLETED_DEGRADED`가 기록되며 파일이 생성되지 않았다는 사실만으로 성공
 처리하지 않습니다.
 
-결정론적 전후 성능·보안 평가는 `scripts/product_evaluation/run_fixture_evaluation.py`로
-생성한다. 결과는 기본적으로 저장소 밖 또는 `.gitignore` 대상 디렉터리에 보존하며,
-Actual Codex 결과와 섞지 않는다.
-
-## 현재 구현과 지원 범위
-
-현재 실제로 구현된 기능은 다음과 같다.
-
-- Windows 11과 Codex CLI를 위한 Protected Run
-- Codex PreToolUse Hook Sensor
-- Workspace 파일 변경을 관찰하는 File Sensor
-- AIA가 시작한 Codex 프로세스 트리를 관찰하는 Process Sensor
-- 한국어 정책 프로필과 Strict Validation
-- 정책 판정, PreTool 차단, Evidence Bundle, Checkpoint·Recovery·Integrity 결과
-- 로컬 콘솔과 실행 결과 확인
-
-현재 지원하지 않거나 설계·평가 범위로만 남아 있는 기능은 다음과 같다.
-
-- MCP, Claude 및 외부 Agent
-- 네트워크 보안
-- OS 전체 프로세스·Writer 보호
-- AIA Protected Run 밖의 실행 보호
-- 서명된 자동 업데이트와 원격 관리
+결정론적 전후 성능·보안 평가 결과는
+[fixture 평가 대시보드](evaluation/product-before-after/fixture-20260911-001/report.html)에서
+확인할 수 있다. 이 결과는 12개 시나리오의 AIA OFF/AIA ON 반복 실행을 포함하며,
+Actual Codex 결과와 섞지 않고 별도 평가로 표시한다.

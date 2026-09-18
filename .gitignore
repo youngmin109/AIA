@@ -1,4 +1,6 @@
 .venv/
+.tmp-build/
+tmp/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -9,33 +11,6 @@ build/
 *.egg-info/
 .coverage
 htmlcov/
-
-# Local secrets and credentials
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.p12
-
-# Runtime state and generated evidence
-.aia/
-.codex/
-*.log
-logs/
-*.db
-*.sqlite
-*.sqlite3
-*.sqlite-*
-*.jsonl
-evaluation/
-**/workspace/
-**/workspaces/
-
-# Temporary local verification output
-.tmp-build/
-.verify-debug-*/
-aia-support-bundle*.json
 evaluation/actual-codex/
 evaluation/product-e2e-live/
 evaluation/product-e2e/
@@ -43,9 +18,21 @@ evaluation/product-e2e/
 # sensitive agent output. Keep generated runs local unless they are reviewed
 # and promoted as a sanitized validation fixture.
 evaluation/product-before-after/actual-codex-*/
-
-# 교수 제출용 산출물은 상위 RedLine/산출물 폴더에서 관리한다.
-# 코드 저장소에는 검토된 Markdown·웹 자산만 포함한다.
-docs/AIA_요구사항_정의서_v0.2.docx
-docs/AIA_제품_요구사항_정의서_v0.2.docx
-docs/기능흐름도_v0.2.png
+# Runtime and local secret artifacts must never become new source files.
+*.env
+*.env.*
+*.jsonl
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.pfx
+.aia/
+.codex/
+# Local QA renders and generated evaluation output are not source artifacts.
+docs/generated/qa-*/
+docs/generated/*.pdf
+evaluation/product-before-after/eval-*/
+evaluation/product-before-after/fixture-*/

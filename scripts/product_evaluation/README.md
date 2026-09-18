@@ -22,6 +22,20 @@ uv sync --group evaluation
 `evidence_coverage`, `lineage_completeness`, `audit_reconstruction_ms`를 함께 기록한다.
 시간 요약에는 AIA ON 중앙값·P95와 AIA OFF 대비 변화량이 포함된다.
 
+센서 경로를 기록하는 실행은 다음 선택 필드를 사용한다.
+
+```json
+{
+  "sensor_evidence_mode": "FIXTURE_SYNTHETIC",
+  "hook_sensor_observed": true,
+  "file_sensor_observed": "NOT_APPLICABLE",
+  "process_sensor_observed": "NOT_APPLICABLE"
+}
+```
+
+세 센서 필드는 해당 센서가 예상된 실행만 성공률의 분모에 포함한다. AIA OFF처럼 센서를 실행하지 않은 조건은 `NOT_APPLICABLE`로 기록한다. 결정론적 Fixture의 성공률은 합성 Evidence 경로 측정이며 Actual Codex 또는 Windows Sensor 통합 성공률을 대신하지 않는다.
+Actual Codex 평가에서는 `sensor_evidence_mode`가 `ACTUAL_CODEX`이고, 확인된 PreToolUse 증명만 `hook_sensor_observed=true`로 기록한다. 구조화된 File·Process Sensor 경로를 실제로 실현하지 못한 경우에는 해당 필드를 `NOT_APPLICABLE`로 남긴다.
+
 고정 시나리오 목록은 `scenarios.py`에 있다. `R-01`은 `RESTORED_VERIFIED`와 `RESTORED_FAILED` 변형을 사용한다.
 
 ## 보고서 생성
@@ -41,13 +55,15 @@ charts/summary-metrics.json
 charts/scenario-outcomes.json
 charts/latency.json
 charts/performance-table.json
+charts/sensor-metrics.json
 charts/evidence-funnel.json
 ```
 
 `report.html`은 Plotly JavaScript를 문서 안에 포함하므로 네트워크 없이 브라우저에서 열 수 있다.
 보고서에는 전체 작업, 보호 준비, Checkpoint, PreTool 판단, Recovery, Integrity,
 결과 확정의 성능 평가 항목별로 AIA OFF/AIA ON의 N·최소값·중앙값·P95·최대값과
-변화량을 표로 표시한다.
+변화량을 표로 표시한다. 별도 센서 표에는 Hook·File·Process Sensor 성공률과 각 N을
+표시한다.
 
 ## 결정론적 Fixture 실행
 

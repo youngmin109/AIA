@@ -8,8 +8,24 @@ from uuid import uuid4
 
 import pytest
 
+from aia.evidence import (
+    EvidenceRecordType,
+    EvidenceSource,
+    ObservationStage,
+    RawEvidenceRecord,
+    RawEvidenceStore,
+)
 from aia_app.dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
-from aia_app.presenters import action_view, action_summary, incident_view, result_view, safe_event_views
+from aia_app.presenters import (
+    action_view,
+    action_summary,
+    evidence_chain_views,
+    incident_view,
+    incident_views_for_result,
+    result_view,
+    safe_event_views,
+    evidence_timeline_views,
+)
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
@@ -24,11 +40,14 @@ from aia import (
     ProcessIdentity,
     ProcessIdentityStatus,
     SessionStatus,
+    CodexHookInstaller,
 )
 from aia_app.service import (
     ApplicationValidationError,
+    _aia_cli_prefix,
     RunApplicationService,
     _sensor_summary_is_verified,
+    _event_tool_name,
     _product_sensor_set_present,
     _sensors_runtime_healthy,
 )
@@ -74,6 +93,25 @@ def test_create_request_can_explicitly_open_interactive_session() -> None:
     assert request.task == ""
 
 
+def test_create_request_accepts_protected_paths_and_normalizes_to_tuple() -> None:
+    request = CreateRunRequest.from_mapping(
+        {
+            "workspace": ".",
+            "protected_paths": [".env", "data/customers.db"],
+        }
+    )
+
+    assert request.protected_paths == (".env", "data/customers.db")
+    assert request.to_mapping()["protected_paths"] == [".env", "data/customers.db"]
+
+
+def test_create_request_rejects_invalid_protected_paths() -> None:
+    with pytest.raises(DTOValidationError, match="protected_paths"):
+        CreateRunRequest.from_mapping({"workspace": ".", "protected_paths": ".env"})
+    with pytest.raises(DTOValidationError, match="protected_paths"):
+        CreateRunRequest.from_mapping({"workspace": ".", "protected_paths": [""]})
+
+
 def test_create_request_supports_separate_windows_terminal_only_for_interactive() -> None:
     request = CreateRunRequest.from_mapping(
         {"workspace": ".", "interactive": True, "launch_mode": "new_terminal"}
@@ -82,6 +120,17 @@ def test_create_request_supports_separate_windows_terminal_only_for_interactive(
     with pytest.raises(DTOValidationError, match="requires interactive"):
         CreateRunRequest.from_mapping(
             {"workspace": ".", "task": "inspect", "launch_mode": "new_terminal"}
+        )
+
+
+def test_create_request_supports_workbench_terminal_only_for_interactive() -> None:
+    request = CreateRunRequest.from_mapping(
+        {"workspace": ".", "interactive": True, "launch_mode": "web_terminal"}
+    )
+    assert request.launch_mode == "web_terminal"
+    with pytest.raises(DTOValidationError, match="requires interactive"):
+        CreateRunRequest.from_mapping(
+            {"workspace": ".", "task": "inspect", "launch_mode": "web_terminal"}
         )
 
 
@@ -109,8 +158,368 @@ def test_safe_event_view_never_copies_command_or_secret() -> None:
         ]
     )
     assert events[0]["target_label"] == "명령 실행"
+    assert events[0]["chain_action_id"] == "a1"
+    assert events[0]["tool_name"] is None
     assert "SUPER_SECRET" not in repr(events)
     assert "type SUPER_SECRET" not in repr(events)
+
+
+def test_safe_event_view_does_not_treat_observation_stage_as_hook_sensor() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "observation_stage": "POST_ACTION",
+                "evidence_ids": ["process-1"],
+                "target": {"target_kind": "PROCESS"},
+            }
+        ],
+        evidence_metadata=[
+            {
+                "evidence_id": "process-1",
+                "source": "PROCESS_RUNTIME",
+                "record_type": "PROCESS_OBSERVED",
+            }
+        ],
+    )
+
+    assert events[0]["sensor"] == "PROCESS_RUNTIME"
+    assert events[0]["event_origin"] == "PROCESS_OBSERVATION"
+    assert events[0]["origin_label"] == "프로세스 관찰"
+    assert events[0]["display_summary"] == "프로세스 실행 관찰"
+    assert events[0]["display_target_label"] == "프로세스"
+    assert events[0]["display_decision"] == "OBSERVED"
+
+
+def test_safe_event_view_labels_filesystem_observation_separately_from_hook_request() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "DELETE",
+                "evidence_ids": ["file-1"],
+                "target": {"target_kind": "FILE"},
+            },
+            {
+                "action_id": "a2",
+                "operation": "MODIFY",
+                "sensor": "AGENT_HOOK",
+                "target": {"target_kind": "FILE"},
+            },
+        ],
+        evidence_metadata=[
+            {
+                "evidence_id": "file-1",
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+            }
+        ],
+    )
+
+    assert events[0]["event_origin"] == "FILESYSTEM_OBSERVATION"
+    assert events[0]["display_summary"] == "파일 삭제 관찰"
+    assert events[0]["display_target_label"] == "파일 변화"
+    assert events[0]["display_decision"] == "OBSERVED"
+    assert events[1]["event_origin"] == "HOOK_REQUEST"
+    assert events[1]["display_summary"] == "수정 요청"
+    assert events[1]["origin_label"] == "Hook 요청"
+    assert events[1]["display_decision"] == "OBSERVED"
+
+
+def test_safe_event_view_uses_runtime_when_sensor_evidence_is_not_linked() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "observation_stage": "POST_ACTION",
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["sensor"] == "RUNTIME"
+
+
+def test_safe_event_view_keeps_only_allowlisted_tool_labels() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "tool_name": "Bash",
+                "target": {"target_kind": "COMMAND", "raw_command": "echo SECRET"},
+            },
+            {
+                "action_id": "a2",
+                "operation": "EXECUTE",
+                "tool_name": "mcp__unknown__write_file",
+                "target": {"target_kind": "COMMAND"},
+            },
+        ]
+    )
+
+    assert events[0]["tool_name"] == "Bash"
+    assert events[1]["tool_name"] is None
+    assert "SECRET" not in repr(events)
+
+
+def test_event_tool_name_reads_allowlisted_hook_evidence_only() -> None:
+    assert _event_tool_name(
+        SimpleNamespace(records=(SimpleNamespace(payload={"tool_name": "Bash"}),))
+    ) == "Bash"
+    assert _event_tool_name(
+        SimpleNamespace(records=(SimpleNamespace(payload={"tool_name": "mcp__unknown"}),))
+    ) is None
+    assert _event_tool_name(None) is None
+
+
+def test_evidence_chain_links_sensor_metadata_without_copying_payload() -> None:
+    chains = evidence_chain_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "VIOLATION",
+                "matched_rule_ids": ["deny-dangerous-command"],
+                "matched_asset_types": ["CRITICAL_CODE"],
+                "attribution_grade": "EXACT",
+                "enforcement_decision": "CONTAIN",
+                "enforcement_action": "BLOCKED",
+                "execution_result": "SUCCEEDED",
+                "evidence_ids": ["hook-1", "file-1", "process-1"],
+                "target": {
+                    "target_kind": "COMMAND",
+                    "raw_command": "type SUPER_SECRET",
+                },
+            }
+        ],
+        evidence_metadata=[
+            {
+                "evidence_id": "hook-1",
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "captured_at": "2026-09-15T05:00:00+00:00",
+            },
+            {
+                "evidence_id": "file-1",
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+                "captured_at": "2026-09-15T05:00:01+00:00",
+            },
+            {
+                "evidence_id": "process-1",
+                "source": "PROCESS_RUNTIME",
+                "record_type": "PROCESS_OBSERVED",
+                "captured_at": "2026-09-15T05:00:02+00:00",
+            },
+        ],
+        recovery={"recovery_status": "RESTORED"},
+        integrity={"integrity_status": "VERIFIED"},
+    )
+
+    assert len(chains) == 1
+    chain = chains[0]
+    assert chain["evidence_link_status"] == "LINKED"
+    assert chain["linked_evidence_count"] == 3
+    assert {
+        item["sensor"]: item["evidence_count"]
+        for item in chain["sensor_links"]
+    } == {
+        "AGENT_HOOK": 1,
+        "FILESYSTEM_WATCHER": 1,
+        "PROCESS_RUNTIME": 1,
+    }
+    assert [stage["stage"] for stage in chain["stages"]] == [
+        "RAW_EVIDENCE",
+        "CANONICAL_ACTION",
+        "POLICY",
+        "ATTRIBUTION",
+        "ENFORCEMENT",
+        "RECOVERY",
+        "INTEGRITY",
+    ]
+    assert chain["stages"][2]["asset_types"] == ["CRITICAL_CODE"]
+    assert chain["stages"][5]["status"] == "RESTORED"
+    assert chain["stages"][6]["status"] == "VERIFIED"
+    assert "SUPER_SECRET" not in repr(chains)
+
+
+def test_evidence_chain_marks_missing_sensor_link_as_partial() -> None:
+    chains = evidence_chain_views(
+        [{"action_id": "a1", "operation": "MODIFY", "evidence_ids": ["known", "missing"]}],
+        evidence_metadata=[{"evidence_id": "known", "source": "AGENT_HOOK"}],
+    )
+
+    assert chains[0]["evidence_link_status"] == "PARTIAL"
+    assert chains[0]["linked_evidence_count"] == 1
+    assert chains[0]["stages"][0]["evidence_count"] == 2
+
+
+def test_evidence_chain_distinguishes_run_observed_sensor_from_action_link() -> None:
+    chains = evidence_chain_views(
+        [{"action_id": "a1", "operation": "EXECUTE", "evidence_ids": ["h1"]}],
+        evidence_metadata=[
+            {"evidence_id": "h1", "source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+            {"evidence_id": "f1", "source": "FILESYSTEM_WATCHER", "record_type": "FILESYSTEM_EVENT"},
+            {"evidence_id": "p1", "source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+            {"evidence_id": "health", "source": "PROCESS_RUNTIME", "record_type": "SENSOR_HEALTH"},
+        ],
+    )
+
+    links = {item["sensor"]: item for item in chains[0]["sensor_links"]}
+    assert links["AGENT_HOOK"]["status"] == "LINKED"
+    assert links["FILESYSTEM_WATCHER"]["status"] == "RUN_OBSERVED"
+    assert links["FILESYSTEM_WATCHER"]["run_evidence_count"] == 1
+    assert links["PROCESS_RUNTIME"]["status"] == "RUN_OBSERVED"
+    assert links["PROCESS_RUNTIME"]["run_evidence_count"] == 1
+
+
+def test_attribution_supporting_evidence_can_link_process_sensor() -> None:
+    chains = evidence_chain_views(
+        [{"action_id": "a1", "operation": "MODIFY", "evidence_ids": ["h1"]}],
+        evidence_metadata=[
+            {"evidence_id": "h1", "source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+            {"evidence_id": "p1", "source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+        ],
+        attribution_results=[
+            {"action_id": "a1", "supporting_evidence_ids": ["h1", "p1"]},
+        ],
+    )
+
+    links = {item["sensor"]: item for item in chains[0]["sensor_links"]}
+    assert links["PROCESS_RUNTIME"]["status"] == "LINKED"
+    assert chains[0]["linked_evidence_count"] == 2
+
+
+def test_evidence_timeline_links_sensor_records_to_action_without_payload() -> None:
+    timeline = evidence_timeline_views(
+        [
+            {
+                "evidence_id": "h1",
+                "captured_at": "2026-09-15T05:00:00+00:00",
+                "line": 1,
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "payload_keys": ["raw_command", "secret"],
+            },
+            {
+                "evidence_id": "f1",
+                "captured_at": "2026-09-15T05:00:01+00:00",
+                "line": 2,
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+            },
+        ],
+        actions=[
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "evidence_ids": ["h1"],
+                "target": {"target_kind": "COMMAND", "raw_command": "type SECRET"},
+            }
+        ],
+    )
+
+    assert timeline[0]["linked_action_id"] == "a1"
+    assert timeline[0]["link_status"] == "LINKED"
+    assert timeline[1]["link_status"] == "UNLINKED"
+    assert "SECRET" not in repr(timeline)
+
+
+def test_safe_event_view_preserves_containment_decision_before_block_confirmation() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "VIOLATION",
+                "enforcement_action": "NONE",
+                "enforcement_decision": "CONTAIN",
+                "enforcement_route": "PRETOOL_BLOCK",
+                "execution_result": "NOT_ATTEMPTED",
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["category"] == "ENFORCEMENT"
+    assert events[0]["decision"] == "CONTAIN"
+    assert events[0]["execution_result"] == "NOT_ATTEMPTED"
+
+
+def test_safe_event_view_exposes_observation_time_for_live_timeline() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "COMPLIANT",
+                "execution_result": "SUCCEEDED",
+                "observed_at": "2026-09-15T05:00:00+00:00",
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["observed_at"] == "2026-09-15T05:00:00+00:00"
+
+
+def test_safe_event_view_exposes_posttool_execution_observation() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "a1",
+                "operation": "EXECUTE",
+                "policy_decision": "COMPLIANT",
+                "execution_result": "NOT_ATTEMPTED",
+                "execution_observed": True,
+                "target": {"target_kind": "COMMAND"},
+            }
+        ]
+    )
+
+    assert events[0]["execution_result"] == "NOT_ATTEMPTED"
+    assert events[0]["execution_observed"] is True
+
+
+def test_result_view_reconnects_pretool_action_to_posttool_evidence(tmp_path) -> None:
+    session_id = "session-posttool"
+    store = RawEvidenceStore.for_session(tmp_path / "control", session_id)
+    captured_at = datetime.now(timezone.utc)
+    pretool = store.append(
+        RawEvidenceRecord(
+            session_id=session_id,
+            source=EvidenceSource.AGENT_HOOK,
+            record_type=EvidenceRecordType.PRETOOL_REQUEST,
+            captured_at=captured_at,
+            observation_stage=ObservationStage.PRE_ACTION,
+            payload={"tool_use_id": "tool-1"},
+            evidence_id="pretool-1",
+        )
+    )
+    store.append(
+        RawEvidenceRecord(
+            session_id=session_id,
+            source=EvidenceSource.AGENT_HOOK,
+            record_type=EvidenceRecordType.POSTTOOL_OBSERVED,
+            captured_at=captured_at,
+            observation_stage=ObservationStage.POST_ACTION,
+            payload={"tool_use_id": "tool-1"},
+            evidence_id="posttool-1",
+        )
+    )
+    view = {"actions": [{"evidence_ids": [pretool.evidence_id]}]}
+
+    service_module._annotate_execution_observations(
+        view,
+        control_root=tmp_path / "control",
+        session_id=session_id,
+    )
+
+    assert view["actions"][0]["execution_observed"] is True
+    assert view["events"][0]["execution_observed"] is True
 
 
 def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:
@@ -137,6 +546,28 @@ def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path)
     )
     assert saved["path"].endswith("user-policy.json")
     assert (tmp_path / "user-policy.json").is_file()
+
+
+def test_workspace_protected_paths_create_high_priority_deny_policy(tmp_path, monkeypatch) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    protected = workspace / ".env"
+    protected.write_text("SECRET=redacted\n", encoding="utf-8")
+    monkeypatch.setattr(service_module.Path, "home", staticmethod(lambda: tmp_path / "home"))
+
+    path = RunApplicationService._workspace_policy_path(
+        workspace,
+        "PROTECTED_DEVELOPMENT",
+        (str(protected),),
+    )
+
+    assert path is not None
+    document = json.loads(path.read_text(encoding="utf-8"))
+    selected = next(rule for rule in document["rules"] if rule["rule_id"] == "aia-user-protected-path-1")
+    assert selected["path_patterns"] == [".env"]
+    assert selected["asset_type"] == "WORKSPACE"
+    assert selected["operation_effects"]["DELETE"] == "DENY"
+    assert RunApplicationService.validate_policy_document(document)["rule_count"] >= 1
 
 
 def test_policy_preview_request_validates_target_shape_and_unknown_fields() -> None:
@@ -226,6 +657,7 @@ def test_live_status_exposes_only_filesystem_evidence_counts(tmp_path) -> None:
     try:
         status = service.get_run_status(record.session_id)
         assert status["evidence_summary"]["filesystem_events"] == 1
+        assert status["bundle_status"] == "PENDING"
         assert "C:/private.txt" not in repr(status)
     finally:
         service.shutdown()
@@ -422,6 +854,30 @@ def test_product_sensor_set_requires_hook_file_and_process() -> None:
     ) is False
 
 
+def test_refresh_sensors_includes_process_sensor_after_launch_registration(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    sensors = tuple(
+        SimpleNamespace(
+            health=SimpleNamespace(
+                status=SimpleNamespace(value="HEALTHY"),
+                sensor=SimpleNamespace(value=sensor),
+            ),
+        )
+        for sensor in ("AGENT_HOOK", "FILESYSTEM_WATCHER", "PROCESS_RUNTIME")
+    )
+    try:
+        service._refresh_sensors(record, sensors)
+
+        assert record.sensor_health == {
+            "AGENT_HOOK": "HEALTHY",
+            "FILESYSTEM_WATCHER": "HEALTHY",
+            "PROCESS_RUNTIME": "HEALTHY",
+        }
+    finally:
+        service.shutdown()
+
+
 def test_running_state_degrades_when_product_process_sensor_is_missing(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
@@ -531,9 +987,18 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
         "verification",
         lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
     )
-    monkeypatch.setattr(service.reader, "hook_event_count", lambda _session_id: 1)
+    monkeypatch.setattr(
+        service,
+        "_evidence_metadata",
+        lambda _session_id, *, require_valid=True: [
+            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
+        ],
+    )
+    monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
     try:
-        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_VERIFIED"
+        status = service._status_from_completed_bundle("session-1")
+        assert status["protection"]["state"] == "COMPLETED_VERIFIED"
+        assert status["checkpoint"] == "READY"
         base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
         assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
         base["sensor_summary"][0]["final_sensor_state"] = "STOPPED"
@@ -636,6 +1101,69 @@ def test_presenters_keep_sensitive_target_values_out_of_views() -> None:
     incident = incident_view(action)
     assert incident is not None
     assert incident["attribution_class"] == "EXACT"
+
+    reparsed = action_view(view)
+    assert reparsed["attribution_class"] == "EXACT"
+    assert reparsed["enforcement_action"] == "CONTAIN"
+
+
+def test_incident_presenter_localizes_summary_without_changing_decision_codes() -> None:
+    view = incident_view(
+        {
+            "action_id": "a1",
+            "operation": "EXECUTE",
+            "policy_decision": "INDETERMINATE",
+            "enforcement_action": "REFUSE",
+            "execution_result": "NOT_ATTEMPTED",
+            "target": {"canonical_path": "C:/workspace/app.py"},
+        }
+    )
+
+    assert view is not None
+    assert view["summary"] == "명령 실행 요청 · 판정 불가"
+    assert view["policy_decision"] == "INDETERMINATE"
+    assert view["reason"] == "판정 불가"
+    assert view["tool_name"] is None
+    assert "was classified" not in repr(view)
+    assert "AIA exposes" not in repr(view)
+
+
+def test_incident_presenter_localizes_attribution_reason_and_keeps_raw_free() -> None:
+    view = incident_view(
+        {
+            "action_id": "a1",
+            "operation": "MODIFY",
+            "policy_decision": "VIOLATION",
+            "attribution_grade": "PROCESS",
+            "attribution_reason": "Process was observed in the verified Agent Process Tree",
+            "tool_name": "Bash",
+            "enforcement_action": "REFUSE",
+            "execution_result": "NOT_ATTEMPTED",
+            "target": {"canonical_path": "C:/workspace/app.py"},
+        }
+    )
+
+    assert view is not None
+    assert view["attribution_reason_label"] == "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다."
+    assert view["reason"] == "검증된 Agent Process Tree에서 프로세스가 관찰되었습니다."
+    assert view["tool_name"] == "Bash"
+
+
+def test_synthetic_incident_summaries_are_localized() -> None:
+    incidents = incident_views_for_result(
+        {
+            "action_outcomes": [],
+            "recovery_result": {"recovery_status": "FAILED"},
+            "integrity_result": {"integrity_status": "FAILED"},
+            "sensor_summary": [{"sensor": "PROCESS_RUNTIME", "runtime_health_before_stop": "FAILED"}],
+        }
+    )
+
+    assert [item["summary"] for item in incidents] == [
+        "복구 작업 · 실행 실패",
+        "무결성 검증 · 실패",
+        "센서 상태 · 실행 실패",
+    ]
 
 
 def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> None:
@@ -857,6 +1385,37 @@ def test_result_presenter_marks_action_incidents_for_result_links() -> None:
     assert view["actions"][0]["incident"] is True
 
 
+def test_result_presenter_preserves_attribution_in_evidence_chain() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "policy": {"policy_id": "p1", "policy_version": "1.0"},
+            "action_outcomes": [
+                {
+                    "action_id": "a1",
+                    "operation": "MODIFY",
+                    "policy_decision": "COMPLIANT",
+                    "attribution_grade": "EXACT",
+                    "enforcement_action": "NONE",
+                    "execution_result": "SUCCEEDED",
+                    "evidence_ids": ["h1"],
+                },
+            ],
+            "attribution_results": [
+                {
+                    "action_id": "a1",
+                    "grade": "EXACT",
+                    "supporting_evidence_ids": ["h1"],
+                },
+            ],
+        },
+        "VALID",
+    )
+
+    assert view["evidence_chains"][0]["stages"][3]["status"] == "EXACT"
+
+
 def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_path) -> None:
     reader = ResultBundleReader(tmp_path)
     with pytest.raises(ValueError, match="invalid session_id"):
@@ -889,6 +1448,64 @@ def test_result_bundle_reader_can_read_live_metadata_without_valid_bundle(tmp_pa
     assert "secret command" not in repr(metadata)
 
 
+def test_result_bundle_reader_reports_verified_checkpoint_status(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    session_id = "session-1"
+    checkpoint_id = "checkpoint-1"
+    session_dir = tmp_path / "sessions" / session_id
+    checkpoint_dir = session_dir / "checkpoints" / checkpoint_id
+    result_dir = session_dir / "result"
+    checkpoint_dir.mkdir(parents=True)
+    result_dir.mkdir()
+    (checkpoint_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    (checkpoint_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": checkpoint_id,
+                "schema_version": "1.0",
+                "session_id": session_id,
+                "validity": "VALID",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (result_dir / "evidence-manifest.json").write_text(
+        json.dumps(
+            {
+                "artifacts": [
+                    {
+                        "artifact_type": "CHECKPOINT_MANIFEST",
+                        "relative_path": f"checkpoints/{checkpoint_id}/manifest.json",
+                    },
+                    {
+                        "artifact_type": "CHECKPOINT_METADATA",
+                        "relative_path": f"checkpoints/{checkpoint_id}/metadata.json",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(reader, "_require_valid", lambda _session_id: None)
+    assert reader.checkpoint_status(session_id) == "READY"
+
+    (checkpoint_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": checkpoint_id,
+                "schema_version": "1.0",
+                "session_id": session_id,
+                "validity": "INVALID",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert reader.checkpoint_status(session_id) == "UNKNOWN"
+
+
 def test_result_bundle_reader_preserves_protection_downgrade_in_history(
     tmp_path,
     monkeypatch,
@@ -898,25 +1515,30 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
     session_dir.mkdir(parents=True)
     monkeypatch.setattr(
         reader,
-        "read_result",
-        lambda _session_id: {
-            "session_status": "COMPLETED",
-            "session_end_reason": "AGENT_EXITED",
-            "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
-            "action_outcomes": [],
-        },
+        "_read_verified_result",
+        lambda _session_id: (
+            {
+                "session_status": "COMPLETED",
+                "session_end_reason": "AGENT_EXITED",
+                "launch_mode": "web_terminal",
+                "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+                "action_outcomes": [],
+            },
+            SimpleNamespace(status=SimpleNamespace(value="VALID")),
+        ),
     )
     monkeypatch.setattr(
         reader,
-        "verification",
-        lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
+        "read_evidence_metadata",
+        lambda _session_id, *, require_valid=True: [
+            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
+        ],
     )
-    monkeypatch.setattr(reader, "hook_event_count", lambda _session_id: 1)
-    monkeypatch.setattr(reader, "posttool_event_count", lambda _session_id: 0)
 
     runs = reader.list_completed()
 
     assert runs[0]["protection_state"] == "COMPLETED_DEGRADED"
+    assert runs[0]["launch_mode"] == "web_terminal"
 
 
 def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
@@ -994,11 +1616,37 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         assert result["protection_claim"]["status"] == "CLAIM_ALLOWED_AFTER_SESSION_EVENT"
         checks = {item["name"]: item for item in result["checks"]}
         assert checks["pretool_hook"]["ok"] is True
+        assert "검토 필요" in checks["pretool_hook"]["detail"]
         assert checks["posttool_hook"]["optional"] is True
         assert checks["posttool_hook"]["ok"] is False
         assert checks["codex_hook_trust"]["optional"] is True
         assert checks["codex_hook_trust"]["ok"] is False
         assert result["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
+    finally:
+        service.shutdown()
+
+
+def test_application_preflight_explains_stale_hook_path(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    monkeypatch.setattr(
+        "aia_app.service.CodexAdapter.discover",
+        lambda _adapter: tmp_path / "codex.exe",
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.is_installed",
+        lambda _installer: False,
+    )
+    monkeypatch.setattr(
+        "aia_app.service.CodexHookInstaller.has_aia_runtime",
+        lambda _installer, event="PreToolUse": True,
+    )
+    try:
+        result = service.preflight()
+        checks = {item["name"]: item for item in result["checks"]}
+        assert result["readiness_code"] == "NOT_READY"
+        assert checks["pretool_hook"]["stale"] is True
+        assert "기존 AIA Hook 경로" in checks["pretool_hook"]["detail"]
+        assert "갱신" in result["next_step"]
     finally:
         service.shutdown()
 
@@ -1037,6 +1685,8 @@ def test_application_preflight_reports_actual_trusted_hook_status(tmp_path, monk
         result = service.preflight()
         assert result["hook_trust"]["status"] == "TRUSTED"
         assert "신뢰된 상태" in result["hook_trust"]["detail"]
+        checks = {item["name"]: item for item in result["checks"]}
+        assert checks["pretool_hook"]["detail"] == "설치됨 · Trust 확인됨"
     finally:
         service.shutdown()
 
@@ -1083,7 +1733,10 @@ def test_application_preflight_requires_live_hook_verification_when_enabled(
         assert "hook verify" in result["next_step"]
         checks = {item["name"]: item for item in result["checks"]}
         assert checks["hook_verification"]["ok"] is False
-        assert "hook verify" in checks["hook_verification"]["detail"]
+        expected_cli_prefix = _aia_cli_prefix(CodexHookInstaller())
+        assert checks["hook_verification"]["detail"] == (
+            f"{expected_cli_prefix} hook verify 필요"
+        )
     finally:
         service.shutdown()
 
@@ -1124,7 +1777,26 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         assert result["ready"] is False
         assert result["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
         assert "/hooks" in result["next_step"]
-        assert "aia hook verify" in result["next_step"]
+        expected_cli_prefix = _aia_cli_prefix(CodexHookInstaller())
+        assert f"{expected_cli_prefix} hook verify" in result["next_step"]
+    finally:
+        service.shutdown()
+
+
+def test_frozen_preflight_points_to_packaged_cli(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(
+        tmp_path / "control",
+        require_hook_verification=True,
+    )
+    fake_aia = tmp_path / "AIA" / "AIA.exe"
+    packaged_cli = tmp_path / "AIA" / "aia-cli" / "aia-cli.exe"
+    packaged_cli.parent.mkdir(parents=True)
+    fake_aia.write_bytes(b"")
+    packaged_cli.write_bytes(b"")
+    monkeypatch.setattr("aia_app.service.sys.executable", str(fake_aia))
+    monkeypatch.setattr("aia_app.service.sys.frozen", True, raising=False)
+    try:
+        assert _aia_cli_prefix(CodexHookInstaller()) == str(packaged_cli)
     finally:
         service.shutdown()
 
@@ -1297,6 +1969,67 @@ def test_list_runs_includes_runtime_state_from_another_service_process(tmp_path)
     finally:
         reader.shutdown()
         writer.shutdown()
+
+
+def test_list_runs_preserves_workbench_launch_mode_when_bundle_omits_it(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    runtime_state = {
+        "session_id": "session-1",
+        "launch_mode": "web_terminal",
+        "result_available": False,
+        "session": {
+            "status": "RUNNING",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "workspace": str(tmp_path),
+            "agent": "codex",
+        },
+        "policy": {"id": "basic", "version": "1.0"},
+        "protection": {"state": "ACTIVE_VERIFIED", "hook_events": 1},
+    }
+    monkeypatch.setattr(service, "_list_runtime_states", lambda: [runtime_state])
+    monkeypatch.setattr(
+        service.reader,
+        "list_completed",
+        lambda: [{
+            "session_id": "session-1",
+            "status": "COMPLETED",
+            "launch_mode": "inherit",
+        }],
+    )
+    try:
+        runs = service.list_runs()
+        assert runs[0]["launch_mode"] == "web_terminal"
+    finally:
+        service.shutdown()
+
+
+def test_completed_status_preserves_workbench_launch_mode_from_runtime_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    monkeypatch.setattr(
+        service,
+        "_status_from_completed_bundle",
+        lambda _session_id: {
+            "launch_mode": "inherit",
+            "session": {"status": "ABORTED"},
+        },
+    )
+    monkeypatch.setattr(
+        service,
+        "_read_runtime_state",
+        lambda _session_id: {"launch_mode": "web_terminal"},
+    )
+    try:
+        status = service.get_run_status("session-1")
+        assert status["launch_mode"] == "web_terminal"
+        assert status["session"]["launch_mode"] == "web_terminal"
+    finally:
+        service.shutdown()
 
 
 def test_request_stop_marks_pending_run_without_exposing_runtime(tmp_path) -> None:
@@ -1596,6 +2329,32 @@ def test_new_run_refuses_workspace_with_unresolved_orphaned_agent(
     try:
         with pytest.raises(ApplicationValidationError, match="정리되지 않은 이전 Protected Run"):
             service.create_protected_run({"workspace": str(tmp_path), "task": "inspect"})
+    finally:
+        service.shutdown()
+
+
+def test_validate_workspace_exposes_orphan_recovery_action(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    state = _orphaned_runtime_state()
+    state["session"]["workspace"] = str(tmp_path)
+    monkeypatch.setattr(
+        "aia_app.service.verify_process_identity",
+        lambda identity: ProcessIdentityStatus.PROCESS_GONE,
+    )
+    service._write_runtime_state_payload("session-1", state)
+    try:
+        result = service.validate_workspace(str(tmp_path))
+        assert result["recovery"] == {
+            "required": True,
+            "session_id": "session-1",
+            "status": "STALE_PROCESS_GONE",
+            "action": "REVIEW_AND_RESTART",
+            "agent_process_status": "PROCESS_GONE",
+        }
     finally:
         service.shutdown()
 

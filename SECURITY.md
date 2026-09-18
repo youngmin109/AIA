@@ -37,7 +37,6 @@ Repository 관리자가 지정한 비공개 보안 연락처로 보고한다.
 uv run python scripts/actual_codex_pretool_smoke.py
 ```
 
-이 증명 스크립트는 결과를 로컬의 무시된 디렉터리에 저장할 수 있으며,
+이 증명 스크립트는 결과를 `evaluation/actual-codex/` 아래에 저장할 수 있으며,
 Checkpoint에 테스트용 `.env`가 포함될 수 있다. 해당 산출물을 외부에 공유하기
-전에 secret marker와 사용자 Workspace 경로를 확인한다. 원본 Evidence와 JSONL
-감사 기록은 GitHub에 커밋하지 않는다.
+전에 secret marker와 사용자 Workspace 경로를 확인한다.

@@ -1,10 +1,50 @@
 # AIA 배포 패키지
 
 현재 저장소는 Windows 11, Python 3.13, `uv`, Codex CLI를 대상으로 하는 오픈소스
-소스 배포와 Python wheel을 제공한다. AIA가 모든 Agent와 운영체제를 보호하는
+소스 배포와 Python wheel을 제공하며, Windows 데스크톱 설치 프로그램을 만드는
+패키징 경로도 제공한다. 공개 Windows 릴리스는 코드 서명 게이트를 통과한
+설치 프로그램만 배포한다. AIA가 모든 Agent와 운영체제를 보호하는
 범용 제품이라는 의미는 아니다. 지원 범위와 제한사항은
 [PRODUCT-SUPPORT.md](PRODUCT-SUPPORT.md)와 [LIMITATIONS.md](LIMITATIONS.md)에
 고정되어 있다.
+
+현재 작업 폴더에는 내부 재현·평가 기록이 함께 남을 수 있으므로 저장소 전체를
+그대로 공개하지 않는다. 공개용 소스 트리는 선별 내보내기와 안전성 검사를 거쳐
+만든다. 기존 평가 기록은 삭제하지 않고 내부 보관한다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\export-public-tree.ps1 `
+  -OutputPath .\dist\public-source -Force
+```
+
+이 명령은 `src`, `tests`, `scripts`, `policies`, `packaging`, `.github`, 공개 문서와
+설정 파일만 복사한다. `.env`, API 키·개인 경로, 캐시, 로그, SQLite/DB, JSONL
+감사·증거 기록, `evaluation` 실행 결과와 생성 문서는 제외하고,
+`verify-public-tree.ps1`로 파일명·경로·내용을 검사한다. 검사에 실패한 트리는
+GitHub에 올리지 않는다.
+
+팀에 전달할 공개 소스 ZIP과 SHA-256 manifest가 필요하면 다음을 사용한다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-public-source.ps1 `
+  -OutputRoot .\dist\public-source-release -Force
+```
+
+이 명령은 먼저 같은 공개 트리 검사를 통과한 뒤
+`aia-<version>-source.zip`과 `SHA256SUMS.txt`를 만든다. `source` 폴더에는 검토용
+공개 트리도 함께 남기며, 내부 평가 실행 결과는 포함하지 않는다.
+
+기존 내부 평가 이력을 가진 작업 폴더에서 GitHub 기본 브랜치에 올릴 공개 기준선을
+만들 때는 별도 Git 저장소를 생성한다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-public-repository.ps1 `
+  -OutputPath .\dist\public-repository -Force
+```
+
+생성된 폴더는 평가 기록이 없는 새 `main` 초기 커밋을 가진 독립 저장소다. 원본
+작업 폴더의 Git 이력과 평가 산출물은 변경하지 않는다. 생성 후 원격 주소를 확인하고
+해당 폴더에서만 GitHub 원격을 추가해 검토·업로드한다.
 
 ## 릴리스 패키지 생성
 
@@ -57,12 +97,47 @@ Core self-test까지 실행한다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
-  -BundlePath .\dist\release\aia-0.1.28
+  -BundlePath .\dist\release\aia-0.1.29
 ```
 
 검증 결과에 `SHA-256: PASS`, `Clean wheel install: PASS`, `Local console assets: PASS`가
 모두 없는 bundle은 배포하지 않는다. 검증이 끝나면 임시 가상환경은 자동으로
 삭제된다.
+
+## Windows 데스크톱 패키지
+
+개발용 Windows 패키지는 다음으로 만든다. 이 결과는 서명되지 않을 수 있으므로
+Enterprise Code Integrity가 적용된 PC의 공개 배포물로 사용하지 않는다.
+
+```powershell
+uv sync --locked
+.\scripts\package-windows.ps1 -Clean
+```
+
+서명된 공개 릴리스는 Windows SDK의 `signtool.exe`와 릴리스 인증서가 필요하다.
+PFX 비밀번호는 환경 변수로만 전달한다.
+
+```powershell
+$env:AIA_SIGNING_CERT_PASSWORD = Read-Host "PFX password"
+.\scripts\package-windows.ps1 `
+  -Clean `
+  -CertificatePath C:\secure\aia-release.pfx `
+  -SignRuntimeBinaries `
+  -RequireSignature
+```
+
+생성 결과는 `dist\windows\installer\AIA-<version>-Setup.exe`이며, 설치 후
+`AIA.exe`, `aia-cli.exe`, 문서, 언인스톨러를 포함한다. 릴리스 전에는 다음을
+순서대로 실행한다.
+
+```powershell
+.\scripts\verify-windows-package.ps1 -RequireSignature -RequireNativeSignature
+.\scripts\windows-smoke.ps1 -RequireSignature -RequireNativeSignature
+.\scripts\windows-installer-smoke.ps1 -RequireSignature -RequireNativeSignature
+```
+
+자세한 인증서와 GitHub Actions Secrets 설정은
+[Windows 코드 서명 가이드](WINDOWS-SIGNING.md)를 따른다.
 
 ## Wheel 설치
 
@@ -74,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
 완료한다. 설치 후 터미널에서 `aia`를 직접 입력할 때는 새 PowerShell 창을 연다.
 
 ```powershell
-uv tool install --force .\packages\aia_mvp-0.1.28-py3-none-any.whl
+uv tool install --force .\packages\aia_mvp-0.1.29-py3-none-any.whl
 aia --version
 aia setup
 ```
@@ -122,7 +197,7 @@ aia proof --scenario block-env
 업데이트는 다음처럼 수행한다.
 
 ```powershell
-uv tool install --force .\packages\aia_mvp-0.1.28-py3-none-any.whl
+uv tool install --force .\packages\aia_mvp-0.1.29-py3-none-any.whl
 ```
 
 재설치 과정에서 AIA가 설치한 이전 Python 경로의 Hook이 남아 있으면 새 AIA
@@ -158,7 +233,6 @@ powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -RemoveTool
 
 ## 아직 제공하지 않는 배포 기능
 
-- 서명된 Windows MSI 또는 EXE 설치 관리자
 - 자동 업데이트와 자동 롤백. 이전 릴리스 번들을 사용자가 지정하는 검증된 수동
   롤백만 제공한다.
 - 중앙 관리 서버나 원격 콘솔

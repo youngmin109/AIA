@@ -3,29 +3,57 @@
 {% block content %}
 {% set readiness = preflight.get('readiness_code', 'UNKNOWN') %}
 {% set readiness_ok = preflight.get('ready', False) %}
+{% set preflight_deferred = dashboard_preflight_deferred|default(False) %}
+{% set cli_prefix = cli_prefix|default('uv run --isolated python -m aia.cli') %}
+{% set module_cli_prefix = module_cli_prefix|default('uv run --isolated python -m aia.cli') %}
+{% set cli_project_root = cli_project_root|default(none) %}
+{% set dashboard_runs = dashboard_runs|default(runs) %}
+{% set dashboard_diagnostic_count = dashboard_diagnostic_count|default(0) %}
+{% set dashboard_user_run_count = runs|length - dashboard_diagnostic_count %}
 {% set trust = (preflight.get('hook_trust') or {}).get('status', 'UNKNOWN') %}
+{% set hook_activation = preflight.get('hook_activation') or {} %}
+{% set hook_verified = hook_activation.get('status') == 'CURRENTLY_VERIFIED' %}
 {% set support = capabilities.get('support', {}) %}
 {% set agents = support.get('agent') or ['Codex CLI'] %}
 {% set platforms = support.get('operating_system') or ['Windows 11'] %}
+{% set dashboard_empty_action_href = '#dashboard-readiness' if preflight_deferred or not readiness_ok else '/start' %}
+{% set dashboard_empty_action_label = '준비 상태 확인 중…' if preflight_deferred else ('새 보호 실행' if readiness_ok else '준비 방법 확인') %}
+{% set trust_labels = {'TRUSTED': '신뢰됨', 'MANAGED': '관리됨', 'MANUAL_REVIEW_REQUIRED': '검토 필요', 'MODIFIED': '변경됨 · 검토 필요', 'UNTRUSTED': '신뢰되지 않음 · 검토 필요'} %}
+{% set readiness_labels = {'READY': '준비 완료', 'HOOK_VERIFICATION_REQUIRED': '확인 필요', 'CODEX_HOOK_TRUST_REQUIRED': 'Hook 검토 필요', 'CODEX_HOOK_NOT_INSTALLED': 'Hook 설치 필요', 'CODEX_EXECUTABLE_UNAVAILABLE': 'Codex 확인 필요', 'PREFLIGHT_TIMEOUT': '확인 시간 초과', 'PREFLIGHT_UNAVAILABLE': '확인 실패', 'CHECKING': '확인 중', 'UNKNOWN': '확인 필요'} %}
+{% set status_labels = {'CREATED': '생성됨', 'PREPARING': '보호 준비 중', 'READY': '실행 준비 완료', 'LAUNCHING': 'Codex 시작 중', 'RUNNING': '실행 중', 'COMPLETED': '정상 완료', 'ABORTED': '사용자 중지', 'FAILED': '실패'} %}
+{% set protection_labels = {'ACTIVE_VERIFIED': '보호 검증됨', 'ACTIVE_UNVERIFIED': '행위 관찰 전', 'ACTIVE_DEGRADED': '보호 상태 저하', 'COMPLETED_VERIFIED': '완료 · 검증됨', 'COMPLETED_DEGRADED': '완료 · 일부 확인', 'ABORTED_VERIFIED': '중지 · 검증됨', 'ABORTED_DEGRADED': '중지 · 일부 확인', 'ORPHANED_DEGRADED': '보호 연결 끊김 · 정리 필요'} %}
+{% set bundle_labels = {'VALID': '유효', 'INVALID': '무효', 'UNVERIFIED': '검증 전', 'PENDING': '검증 중', 'NOT_FOUND': '없음'} %}
+{% set active_run = namespace(item=None) %}
+{% set stale_run = namespace(item=None) %}
+{% for candidate in runs %}
+  {% if active_run.item is none and candidate.status in ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'] and (not candidate.runtime_reconciliation or candidate.runtime_reconciliation.status == 'LIVE_MATCH') and candidate.run_classification != 'UNVERIFIED_RUNTIME_STATE' %}{% set active_run.item = candidate %}{% endif %}
+  {% if stale_run.item is none and candidate.runtime_reconciliation and candidate.runtime_reconciliation.orphaned %}{% set stale_run.item = candidate %}{% endif %}
+{% endfor %}
+{% set dashboard_hook_verified = hook_verified %}
+{% if active_run.item %}{% set dashboard_hook_verified = active_run.item.protection_state == 'ACTIVE_VERIFIED' %}{% endif %}
 <section class="hero compact dashboard-hero">
   <div>
-    <p class="eyebrow">AIA PROTECTED EXECUTION · 제품 대시보드</p>
+    <p class="eyebrow">AIA 보호 실행 · 제품 대시보드</p>
     <h1>보호 상태를 한눈에 확인하세요.</h1>
     <p class="lede">AIA는 사용자가 선택한 Workspace에서 Codex를 보호 실행하고, 지원되는 도구 요청을 실행 전에 평가합니다.</p>
   </div>
-  <a class="button primary" href="/new">새 보호 실행</a>
+  {% if active_run.item %}
+  <a id="dashboard-primary-action" class="button primary" href="{% if active_run.item.launch_mode == 'web_terminal' %}/runs/{{ active_run.item.session_id }}/workbench{% else %}/runs/{{ active_run.item.session_id }}{% endif %}">{% if active_run.item.launch_mode == 'web_terminal' %}Workbench 열기{% else %}상태 보기{% endif %}</a>
+  {% else %}
+  <a id="dashboard-primary-action" class="button primary" href="{{ dashboard_empty_action_href }}">{{ dashboard_empty_action_label }}</a>
+  {% endif %}
 </section>
 
 <section class="metric-grid dashboard-metrics" aria-label="현재 제품 상태">
-  <div class="metric metric-status {{ 'metric-ok' if readiness_ok else 'metric-warning' }}">
-    <span>실행 준비</span>
-    <strong>{{ '준비 완료' if readiness_ok else '확인 필요' }}</strong>
-    <small>{{ readiness }}</small>
+  <div id="dashboard-readiness-metric" class="metric metric-status {{ 'metric-ok' if readiness_ok else 'metric-warning' }}">
+    <span id="dashboard-readiness-label">{{ '현재 보호 실행' if active_run.item else '실행 준비' }}</span>
+    <strong id="dashboard-readiness-value">{{ '실행 중' if active_run.item else ('준비 완료' if readiness_ok else ('확인 중' if preflight_deferred else '확인 필요')) }}</strong>
+    <small id="dashboard-readiness-code" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '보호 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness_labels.get(readiness, '확인 필요')) }}</small>
   </div>
   <div class="metric">
-    <span>Codex Hook Trust</span>
-    <strong>{{ trust }}</strong>
-    <small>PreToolUse 실행 전 관문</small>
+    <span>Codex Hook 신뢰 상태</span>
+    <strong id="dashboard-hook-trust-value" title="{{ trust }}">{{ '확인 중' if preflight_deferred else trust_labels.get(trust, '확인 필요') }}</strong>
+    <small id="dashboard-hook-trust-detail">{{ 'Codex Hook Trust 상태를 확인하고 있습니다.' if preflight_deferred else ('Codex /hooks에서 AIA Hook을 검토·신뢰하세요.' if trust in ['MANUAL_REVIEW_REQUIRED', 'MODIFIED', 'UNTRUSTED'] else 'PreToolUse 실행 전 관문 · ' ~ trust_labels.get(trust, '확인 필요')) }}</small>
   </div>
   <div class="metric">
     <span>지원 Agent</span>
@@ -34,75 +62,855 @@
   </div>
   <div class="metric">
     <span>보호 실행 기록</span>
-    <strong>{{ runs|length }}건</strong>
-    <small><a href="/runs">전체 기록 보기</a></small>
+    <strong id="dashboard-run-count">{{ runs|length }}건</strong>
+    <small>사용자 작업 {{ dashboard_user_run_count }}건 · AIA 자체 진단 {{ dashboard_diagnostic_count }}건<br><a href="/runs?origin=user">사용자 작업만 보기</a> · <a href="/runs">전체 기록 보기</a> · <span id="dashboard-sync-status" class="dashboard-sync-status" role="status" aria-live="polite"><i class="dashboard-sync-dot" aria-hidden="true"></i><span id="dashboard-sync-label">자동 갱신 준비</span></span></small>
   </div>
 </section>
 
-<section class="panel dashboard-readiness {{ 'panel-ready' if readiness_ok else 'panel-attention' }}">
+<section id="dashboard-current-run" class="active-run-card panel {{ 'active-run-present' if active_run.item else 'active-run-empty' }}">
+  <div class="active-run-indicator" aria-hidden="true"></div>
+  <div class="active-run-copy">
+    <p class="eyebrow">현재 보호 실행</p>
+    {% if active_run.item %}
+    <h2 id="dashboard-current-title">보호 실행이 진행 중입니다.</h2>
+    <p id="dashboard-current-detail" class="hint"><span class="badge badge-{{ (active_run.item.status or 'unknown')|lower }}">{{ status_labels.get(active_run.item.status, active_run.item.status or '확인 필요') }}</span> · <span class="mono active-run-workspace" title="{{ active_run.item.workspace }}">{{ active_run.item.workspace }}</span></p>
+    <small id="dashboard-current-meta" class="active-run-meta">{{ protection_labels.get(active_run.item.protection_state, active_run.item.protection_state or '보호 상태 확인 중') }} · 사건 {{ active_run.item.incident_count or 0 }}건</small>
+    {% else %}
+    <h2 id="dashboard-current-title">현재 실행 중인 보호 세션이 없습니다.</h2>
+    <p id="dashboard-current-detail" class="hint">Workspace와 정책을 선택하면 AIA가 보호된 Codex 세션을 시작합니다.</p>
+    <small id="dashboard-current-meta" class="active-run-meta">새 보호 실행을 시작하면 현재 상태가 여기에 표시됩니다.</small>
+    {% endif %}
+  </div>
+  {% if active_run.item %}
+    <a id="dashboard-current-action" class="button primary" href="{% if active_run.item.launch_mode == 'web_terminal' %}/runs/{{ active_run.item.session_id }}/workbench{% else %}/runs/{{ active_run.item.session_id }}{% endif %}">{% if active_run.item.launch_mode == 'web_terminal' %}Workbench 열기{% else %}상태 보기{% endif %}</a>
+  {% else %}
+    <a id="dashboard-current-action" class="button primary" href="{{ dashboard_empty_action_href }}">{{ dashboard_empty_action_label }}</a>
+  {% endif %}
+</section>
+
+{% if not active_run.item and stale_run.item %}
+<section id="dashboard-stale-run" class="notice warning dashboard-stale-run">
+  <div><strong>이전 보호 실행이 현재 연결되어 있지 않습니다.</strong><span>AIA 프로세스가 종료되어 현재 보호 상태로 간주하지 않습니다. 실행 기록은 보존되어 있습니다.</span></div>
+  <a class="text-link" href="/runs/{{ stale_run.item.session_id }}">상태 검토 →</a>
+</section>
+{% endif %}
+
+<section id="dashboard-readiness" class="panel dashboard-readiness {{ 'panel-active' if active_run.item else ('panel-ready' if readiness_ok else 'panel-attention') }}">
   <div class="panel-heading">
     <div>
-      <h2>{{ '보호 실행을 시작할 수 있습니다.' if readiness_ok else '보호 실행 전에 확인이 필요합니다.' }}</h2>
-      <p class="hint">{{ preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}</p>
+      <h2 id="dashboard-readiness-title">{{ '현재 보호 세션이 실행 중입니다.' if active_run.item else ('보호 실행을 시작할 수 있습니다.' if readiness_ok else ('보호 실행 준비를 확인하는 중입니다.' if preflight_deferred else '보호 실행 전에 확인이 필요합니다.')) }}</h2>
+      <p id="dashboard-readiness-hint" class="hint" data-default-text="{{ preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}">{{ '현재 작업은 Workbench에서 계속하세요.' if active_run.item else preflight.get('next_step', '사전 점검 결과를 확인하세요.') }}</p>
     </div>
-    <span class="status-badge">{{ readiness }}</span>
+    <div class="panel-heading-actions"><span id="dashboard-readiness-status" class="status-badge {{ 'status-active' if active_run.item else ('status-success' if readiness_ok else 'status-warning') }}" title="{{ 'ACTIVE' if active_run.item else readiness }}">{{ '현재 실행 중' if active_run.item else ('확인 중' if preflight_deferred else readiness) }}</span><button id="dashboard-preflight-retry" class="button" type="button" hidden>다시 확인</button></div>
   </div>
-  <div class="preflight-list dashboard-checks">
+  <div id="dashboard-preflight-loading" class="dashboard-preflight-loading" role="status" aria-live="polite"{% if not preflight_deferred or active_run.item %} hidden{% endif %}><span class="dashboard-loading-spinner" aria-hidden="true"></span><span id="dashboard-preflight-loading-label">Codex Hook과 로컬 실행 환경을 확인하고 있습니다…</span><span id="dashboard-preflight-loading-elapsed" class="preflight-loading-elapsed">경과 0초</span><small id="dashboard-preflight-loading-help" class="preflight-loading-help" hidden>Codex의 /hooks에서 AIA Hook을 검토·신뢰한 뒤, 확인이 끝나면 다시 검사할 수 있습니다.</small></div>
+  <div id="dashboard-readiness-progress" class="dashboard-readiness-progress" data-state="{{ 'checking' if preflight_deferred else 'pending' }}"{% if active_run.item %} hidden{% endif %}>
+    <div class="dashboard-readiness-progress-heading"><div><span class="eyebrow">보호 준비 진행</span><strong id="dashboard-readiness-progress-value">확인 중</strong></div><span id="dashboard-readiness-progress-next" class="hint">준비 상태를 확인하는 중입니다.</span></div>
+    <div id="dashboard-readiness-progress-track" class="dashboard-readiness-progress-track" role="progressbar" aria-label="보호 실행 준비 단계" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="확인 중"><span id="dashboard-readiness-progress-fill" class="dashboard-readiness-progress-fill"></span></div>
+    <div class="dashboard-readiness-progress-steps" role="list" aria-label="보호 실행 준비 단계"><span data-dashboard-readiness-step="codex_executable" role="listitem">Codex</span><span data-dashboard-readiness-step="pretool_hook" role="listitem">Hook 설치</span><span data-dashboard-readiness-step="codex_hook_trust" role="listitem">Trust</span><span data-dashboard-readiness-step="hook_verification" role="listitem">연결 검증</span></div>
+  </div>
+  <div id="dashboard-preflight-checks" class="preflight-list dashboard-checks"{% if preflight_deferred or active_run.item %} hidden{% endif %}>
     {% for check in preflight.get('checks', []) %}
+    {% set dashboard_hook_trust_ready = (preflight.get('hook_trust') or {}).get('status') in ['TRUSTED', 'MANAGED'] %}
+    {% set check_blocks_run = (not check.optional) or (check.name == 'codex_hook_trust' and readiness == 'CODEX_HOOK_TRUST_REQUIRED') %}
+    {% set check_status = (
+      '설치됨' if check.name in ['pretool_hook', 'posttool_hook'] and check.ok else
+      '갱신 필요' if check.name == 'pretool_hook' and check.stale else
+      '설치 필요' if check.name == 'pretool_hook' else
+      '신뢰됨' if check.name == 'codex_hook_trust' and check.ok else
+      '신뢰 필요' if check.name == 'codex_hook_trust' and check_blocks_run else
+      '확인 전' if check.name == 'codex_hook_trust' else
+      '검증됨' if check.name == 'hook_verification' and check.ok else
+      '검증 필요' if check.name == 'hook_verification' else
+      '발견됨' if check.name == 'codex_executable' and check.ok else
+      '사용 가능' if check.name == 'control_root' and check.ok else
+      '통과' if check.ok else
+      '확인 필요' if check_blocks_run else '선택'
+    ) %}
+    {% set check_mark_class = (
+      'info' if check.name in ['codex_executable', 'pretool_hook', 'posttool_hook', 'control_root'] and check.ok else
+      'ok' if check.ok else
+      'attention' if check.name in ['codex_hook_trust', 'hook_verification'] and check_blocks_run else
+      'attention' if check.name == 'pretool_hook' and check.stale else
+      'optional' if not check_blocks_run else 'fail'
+    ) %}
+    {% set check_display_detail = (
+      '이전 AIA Hook 경로를 현재 환경에 맞게 갱신하세요.' if check.name == 'pretool_hook' and check.stale else
+      'AIA Hook 설치 명령을 실행하세요.' if check.name == 'pretool_hook' and not check.ok else
+      'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.' if check.name == 'pretool_hook' and not dashboard_hook_trust_ready else
+      'Codex /hooks Trust가 확인되었습니다.' if check.name == 'pretool_hook' else
+      '실행 결과 확인 가능' if check.name == 'posttool_hook' and check.ok else
+      '선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦' if check.name == 'posttool_hook' else
+      'PreToolUse Trust가 확인되었습니다.' if check.name == 'codex_hook_trust' and check.ok else
+      ('먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요.' if not dashboard_hook_trust_ready else check.detail) if check.name == 'hook_verification' and not check.ok else
+      'Session-bound Hook Event가 확인되었습니다.' if check.name == 'hook_verification' else
+      check.detail
+    ) %}
     <div class="preflight-row">
-      <span class="preflight-mark {{ 'ok' if check.ok else 'fail' }}">{{ '통과' if check.ok else '확인' }}</span>
+      <span class="preflight-mark {{ check_mark_class }}">{{ check_status }}</span>
       <strong>{{ check.label }}</strong>
-      <span class="hint">{{ check.detail }}</span>
+      <span class="hint">{{ check_display_detail }}</span>
     </div>
     {% endfor %}
   </div>
-  {% if not readiness_ok %}
-  <div class="next-steps">
-    <strong>다음 단계</strong>
-    <ol>
-      <li><span class="mono">aia setup</span>으로 AIA Hook을 설치합니다.</li>
-      <li><span class="mono">aia hook explain</span>으로 검토할 matcher와 command를 확인합니다.</li>
-      <li>Codex에서 <span class="mono">/hooks</span>를 열고 AIA PreToolUse Hook을 검토·신뢰합니다.</li>
-      <li><span class="mono">aia hook verify</span>로 실제 연결을 확인합니다.</li>
-    </ol>
+  <p class="preflight-legend hint">상태는 단계별로 표시됩니다: <strong>설치됨</strong>은 설정 파일, <strong>신뢰됨</strong>은 Codex 승인, <strong>검증됨</strong>은 실제 Hook Event 확인을 뜻합니다.</p>
+  <div id="dashboard-readiness-active-notice" class="notice dashboard-readiness-active-notice"{% if not active_run.item %} hidden{% endif %}>
+    <strong>현재 보호 세션을 계속하세요.</strong>
+    <a id="dashboard-readiness-active-link" class="text-link" href="{% if active_run.item %}{% if active_run.item.launch_mode == 'web_terminal' %}/runs/{{ active_run.item.session_id }}/workbench{% else %}/runs/{{ active_run.item.session_id }}{% endif %}{% else %}/start{% endif %}">{% if active_run.item and active_run.item.launch_mode == 'web_terminal' %}Workbench 열기 →{% elif active_run.item %}상태 보기 →{% else %}현재 실행 열기 →{% endif %}</a>
   </div>
-  {% else %}
-  <div class="notice success">AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
-  {% endif %}
+  <div id="dashboard-readiness-next-steps" class="next-steps"{% if active_run.item or preflight_deferred or readiness_ok %} hidden{% endif %}>
+    <strong id="dashboard-next-steps-title">다음 단계</strong>
+    <p id="dashboard-next-steps-intro" class="hint">저장소에서는 아래의 Python 모듈 실행 명령을 사용하세요. Windows가 생성된 <code>aia.exe</code>를 차단하는 환경에서도 이 명령은 그대로 사용할 수 있습니다.</p>
+    {% if cli_project_root %}<div class="dashboard-command-context" role="note"><strong>이 화면의 AIA 기준 폴더</strong><code>{{ cli_project_root }}</code><em>다른 aia-mvp 복사본에서 실행하면 Hook 설치와 검증 결과가 달라질 수 있습니다.</em></div>{% endif %}
+    <ol class="dashboard-next-steps-list">
+      <li class="dashboard-command-step" data-dashboard-step="setup"><span><span class="mono">{{ cli_prefix }} setup</span>으로 AIA Hook을 설치합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia setup</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} setup">복사</button></li>
+      <li class="dashboard-command-step" data-dashboard-step="explain"><span><span class="mono">{{ cli_prefix }} hook explain</span>으로 검토할 matcher와 command를 확인합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia hook explain</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook explain">복사</button></li>
+      <li data-dashboard-step="trust">Codex에서 <span class="mono">/hooks</span>를 열고 AIA PreToolUse Hook을 검토·신뢰합니다.</li>
+      <li class="dashboard-command-step" data-dashboard-step="verify"><span><span class="mono">{{ cli_prefix }} hook verify</span>로 실제 연결을 확인합니다.{% if module_cli_prefix != cli_prefix %} <span class="muted">(설치형: <span class="mono">aia hook verify</span>)</span>{% endif %}</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ cli_prefix }} hook verify">복사</button></li>
+    </ol>
+    {% if module_cli_prefix != cli_prefix %}
+    <div class="dashboard-command-note" role="note">
+      <strong>Windows에서 aia.exe가 차단되면</strong>
+      <span>애플리케이션 제어 정책으로 생성된 실행 파일이 차단된 경우에는 아래 명령을 그대로 사용하세요.</span>
+      <div class="dashboard-command-fallback-list">
+        <div class="dashboard-command-step"><span class="mono">{{ module_cli_prefix }} doctor</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ module_cli_prefix }} doctor">복사</button></div>
+        <div class="dashboard-command-step"><span class="mono">{{ module_cli_prefix }} setup</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ module_cli_prefix }} setup">복사</button></div>
+        <div class="dashboard-command-step"><span class="mono">{{ module_cli_prefix }} hook verify</span><button class="text-button dashboard-command-copy" type="button" data-dashboard-copy-command="{{ module_cli_prefix }} hook verify">복사</button></div>
+      </div>
+    </div>
+    {% endif %}
+    <span id="dashboard-command-status" class="hint" role="status" aria-live="polite" hidden></span>
+  </div>
+  <div id="dashboard-readiness-ready-notice" class="notice success"{% if active_run.item or preflight_deferred or not readiness_ok %} hidden{% endif %}>AIA가 보호된 Codex 세션을 시작할 수 있습니다. 작업 폴더와 정책을 선택해 실행하세요.</div>
+</section>
+
+<section id="dashboard-sensors" class="panel dashboard-sensor-panel">
+  <div class="panel-heading">
+    <div>
+      <h2>보호 센서</h2>
+      <p class="hint">AIA는 모델의 설명이 아니라 실제 실행 증거를 세 센서에서 확인합니다.</p>
+    </div>
+    <span id="dashboard-sensors-status" class="status-badge {{ 'status-success' if hook_verified else 'status-warning' }}" title="{{ hook_activation.get('status', 'UNKNOWN') }}">{{ 'Hook 검증됨' if hook_verified else ('확인 중' if preflight_deferred else '실행 전 확인') }}</span>
+  </div>
+  <div class="sensor-cards dashboard-sensors">
+    <div class="sensor-card dashboard-sensor-card">
+      <div class="dashboard-sensor-heading"><span class="sensor-icon hook">H</span><strong>Hook Sensor</strong><span id="dashboard-sensor-hook-status" class="status-badge {{ 'status-success' if dashboard_hook_verified else 'status-warning' }}">{% if active_run.item %}{{ '검증됨' if dashboard_hook_verified else '관찰 중' }}{% else %}{{ '검증됨' if hook_verified else ('확인 중' if preflight_deferred else '확인 필요') }}{% endif %}</span></div>
+      <small>Codex의 지원되는 도구 요청을 실행 전에 관찰하고 정책 관문으로 전달합니다.</small>
+      <span id="dashboard-sensor-hook-detail" class="hint">{% if active_run.item %}{% if active_run.item.hook_event_count %}현재 실행에서 Hook Event {{ active_run.item.hook_event_count }}건을 확인했습니다.{% else %}현재 실행에서 Hook Event를 확인하는 중입니다.{% endif %}{% else %}{{ '실제 Session-bound Hook Event 확인됨' if hook_verified else '보호 실행 전에 Codex Hook 연결을 확인해야 합니다' }}{% endif %}</span>
+    </div>
+    <div class="sensor-card dashboard-sensor-card">
+      <div class="dashboard-sensor-heading"><span class="sensor-icon file">F</span><strong>File Sensor</strong><span id="dashboard-sensor-file-status" class="status-badge status-active">{{ '관찰 중' if active_run.item else '실행 시 활성화' }}</span></div>
+      <small>선택한 Workspace에서 파일 생성·수정·삭제·이동 변화를 기록합니다.</small>
+      <span id="dashboard-sensor-file-detail" class="hint">{{ '현재 Workbench에서 Workspace 변화를 확인합니다.' if active_run.item else 'Protected Run이 시작되면 Workspace 관찰을 시작합니다.' }}</span>
+    </div>
+    <div class="sensor-card dashboard-sensor-card">
+      <div class="dashboard-sensor-heading"><span class="sensor-icon process">P</span><strong>Process Sensor</strong><span id="dashboard-sensor-process-status" class="status-badge status-active">{{ '관찰 중' if active_run.item else '실행 시 활성화' }}</span></div>
+      <small>Codex와 관리 대상 자식 프로세스의 실행·종료를 관찰합니다.</small>
+      <span id="dashboard-sensor-process-detail" class="hint">{{ '현재 Workbench에서 실행 트리를 확인합니다.' if active_run.item else 'Protected Run이 시작되면 실행 트리를 관찰합니다.' }}</span>
+    </div>
+  </div>
+  <p class="muted dashboard-sensor-note">실행 중에는 Workbench에서 각 센서의 상태와 Evidence 건수를 확인하고, 종료 후 결과 화면에서 검증 결과를 확인합니다.</p>
 </section>
 
 <div class="dashboard-columns">
   <section class="panel">
-    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/new" class="text-link">정책 미리보기 →</a></div>
+    <div class="panel-heading"><div><h2>보호 범위</h2><p class="hint">AIA가 현재 제품 계약으로 해석하는 실행 경로입니다.</p></div><a href="/start" class="text-link">정책 미리보기 →</a></div>
     <div class="scope-list">
       <div><strong>PreToolUse</strong><span>실행 전 정책 판정과 차단</span></div>
       <div><strong>도구</strong><span>{{ (support.get('pretool_matchers') or [])|join(', ') }}</span></div>
       <div><strong>별칭</strong><span>Edit·Write → apply_patch</span></div>
-      <div><strong>결과</strong><span>Evidence Bundle·Checkpoint·Integrity·Audit</span></div>
+      <div><strong>결과</strong><span>Evidence Bundle·체크포인트·무결성·감사 기록</span></div>
     </div>
   </section>
 
   <section class="panel">
     <div class="panel-heading"><div><h2>제품 사용 순서</h2><p class="hint">처음 사용할 때의 최소 흐름입니다.</p></div></div>
     <ol class="product-steps">
-      <li><span>1</span><div><strong>Core 확인</strong><code>aia demo</code></div></li>
-      <li><span>2</span><div><strong>Hook 연결 확인</strong><code>aia hook verify</code></div></li>
-      <li><span>3</span><div><strong>보호 실행</strong><code>aia start &lt;workspace&gt;</code></div></li>
-      <li><span>4</span><div><strong>결과 확인</strong><code>aia runs</code></div></li>
+      <li><span>1</span><div><strong>준비 상태 확인</strong><code>{{ cli_prefix }} doctor</code></div></li>
+      <li><span>2</span><div><strong>보호 실행 시작</strong><code>새 보호 실행</code></div></li>
+      <li><span>3</span><div><strong>Workbench에서 작업</strong><code>가운데 Codex 작업창</code></div></li>
+      <li><span>4</span><div><strong>센서·결과 확인</strong><code>오른쪽 보안 관찰 · 결과 보기</code></div></li>
     </ol>
   </section>
 </div>
 
 <section class="panel">
-  <div class="panel-heading"><div><h2>최근 보호 실행</h2><p class="hint">검증된 Bundle 상태를 기준으로 표시합니다.</p></div><a href="/runs" class="text-link">실행 기록 전체 →</a></div>
-  {% if runs %}
-  <div class="table-wrap"><table><thead><tr><th>Session</th><th>상태</th><th>Workspace</th><th>사건</th><th>Bundle</th></tr></thead>
-    <tbody>{% for run in runs[:5] %}<tr><td class="mono">{{ run.session_id }}</td><td><span class="badge badge-{{ (run.status or 'unknown')|lower }}">{{ run.status }}</span>{% if run.protection_state %}<br><span class="muted">{{ run.protection_state }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ run.workspace }}</td><td>{{ run.incident_count }}</td><td><span class="badge badge-{{ (run.bundle_status or 'unknown')|lower }}">{{ run.bundle_status }}</span></td></tr>{% endfor %}</tbody>
+  <div class="panel-heading"><div><h2>최근 보호 실행</h2><p class="hint">사용자 작업 실행을 우선 표시합니다. {% if dashboard_diagnostic_count %}AIA 자체 진단 {{ dashboard_diagnostic_count }}건은 실행 기록 전체에서 확인할 수 있습니다.{% else %}검증된 Bundle 상태를 기준으로 표시합니다.{% endif %}</p></div><a href="/runs" class="text-link">실행 기록 전체 →</a></div>
+  <div id="dashboard-recent-table" class="table-wrap"{% if not dashboard_runs %} hidden{% endif %}><table><thead><tr><th>세션</th><th>상태</th><th>작업 폴더</th><th>정책 사건</th><th>결과 검증</th><th></th></tr></thead>
+    <tbody id="dashboard-recent-runs">{% for run in dashboard_runs[:5] %}{% set result_ready = run.status in ['COMPLETED', 'ABORTED', 'FAILED'] and run.bundle_status == 'VALID' %}{% set orphaned = run.runtime_reconciliation and run.runtime_reconciliation.orphaned %}{% set incident_count = run.incident_count or 0 %}{% set execution_label = 'AIA 자체 진단' if run.dashboard_diagnostic else '사용자 작업 · 결과' if result_ready else '사용자 작업 · 연결 끊김' if orphaned else '사용자 작업 · Workbench' if run.launch_mode == 'web_terminal' else '사용자 작업 · CLI' %}<tr class="dashboard-run-row{{ ' dashboard-run-row-has-incidents' if incident_count > 0 else '' }}"><td class="mono">{% if result_ready %}<a class="run-link" href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}" title="전체 Session ID: {{ run.session_id }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% elif run.launch_mode == 'web_terminal' and not orphaned %}<a class="run-link" href="/runs/{{ run.session_id }}/workbench" title="전체 Session ID: {{ run.session_id }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% else %}<a class="run-link" href="/runs/{{ run.session_id }}" title="{{ '연결 끊긴 실행 검토' if orphaned else '실행 상태 열기' }}"><strong>#{{ run.session_id[:8] }}</strong></a>{% endif %}<br><span class="muted">{{ execution_label }}</span></td><td><span class="badge badge-{{ 'disconnected' if orphaned else (run.status or 'unknown')|lower }}" title="{{ run.status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '연결 끊김' if orphaned else status_labels.get(run.status, run.status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">보호 경계 끊김 · 정리 필요</span>{% elif run.protection_state %}<br><span class="muted" title="{{ run.protection_state }}">{{ protection_labels.get(run.protection_state, run.protection_state) }}</span>{% endif %}{% if run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td class="mono target-cell">{{ 'Hook 연결 검증용 임시 Workspace' if run.dashboard_diagnostic else run.workspace }}</td><td><span class="dashboard-incident-count{{ ' has-incidents' if incident_count > 0 else '' }}" title="{{ '정책 사건 · 결과에서 확인' if incident_count > 0 else '확인된 정책 사건 없음' }}">{{ incident_count }}건</span></td><td><span class="badge badge-{{ 'disconnected' if orphaned else (run.bundle_status or 'unknown')|lower }}" title="{{ run.bundle_status }}{% if orphaned %} · 연결 끊김{% endif %}">{{ '확인 필요' if orphaned else bundle_labels.get(run.bundle_status, run.bundle_status or '확인 필요') }}</span>{% if orphaned %}<br><span class="error-text">결과 Bundle을 확인할 수 없습니다</span>{% elif run.run_classification == 'UNVERIFIED_RUNTIME_STATE' %}<br><span class="error-text">검증되지 않은 실행</span>{% endif %}</td><td>{% if result_ready %}<a href="{{ run.result_url or '/runs/' ~ run.session_id ~ '/result' }}">결과 보기</a>{% elif orphaned %}<a href="/runs/{{ run.session_id }}">정리 검토</a>{% elif run.launch_mode == 'web_terminal' %}<a href="/runs/{{ run.session_id }}/workbench">Workbench 열기</a>{% else %}<a href="/runs/{{ run.session_id }}">상태 보기</a>{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
-  {% else %}
-  <div class="empty dashboard-empty">아직 보호 실행 기록이 없습니다. <a href="/new">첫 보호 실행을 시작하세요.</a></div>
-  {% endif %}
+  <div id="dashboard-recent-empty" class="empty dashboard-empty"{% if dashboard_runs %} hidden{% endif %}>아직 보호 실행 기록이 없습니다. <a href="/start">첫 보호 실행을 시작하세요.</a></div>
 </section>
 
 <section class="notice warning dashboard-limits"><strong>현재 제품의 경계:</strong> Windows 11·Codex CLI·AIA Protected Run·지원되는 PreToolUse 도구에 한정됩니다. Hook을 우회한 실행이나 지원 범위 밖 도구를 AIA가 보호했다고 표시하지 않습니다.</section>
+<script>
+const dashboardRunCount = document.getElementById('dashboard-run-count');
+const dashboardCurrentRun = document.getElementById('dashboard-current-run');
+const dashboardCurrentTitle = document.getElementById('dashboard-current-title');
+const dashboardCurrentDetail = document.getElementById('dashboard-current-detail');
+const dashboardCurrentMeta = document.getElementById('dashboard-current-meta');
+const dashboardCurrentAction = document.getElementById('dashboard-current-action');
+const dashboardPrimaryAction = document.getElementById('dashboard-primary-action');
+const dashboardReadiness = document.getElementById('dashboard-readiness');
+const dashboardReadinessLabel = document.getElementById('dashboard-readiness-label');
+const dashboardReadinessMetric = document.getElementById('dashboard-readiness-metric');
+const dashboardReadinessValue = document.getElementById('dashboard-readiness-value');
+const dashboardReadinessCodeElement = document.getElementById('dashboard-readiness-code');
+const dashboardReadinessTitle = document.getElementById('dashboard-readiness-title');
+const dashboardReadinessHint = document.getElementById('dashboard-readiness-hint');
+const dashboardReadinessStatus = document.getElementById('dashboard-readiness-status');
+const dashboardPreflightRetry = document.getElementById('dashboard-preflight-retry');
+const dashboardHookTrustValue = document.getElementById('dashboard-hook-trust-value');
+const dashboardHookTrustDetail = document.getElementById('dashboard-hook-trust-detail');
+const dashboardSensorsStatus = document.getElementById('dashboard-sensors-status');
+const dashboardPreflightLoading = document.getElementById('dashboard-preflight-loading');
+const dashboardPreflightLoadingLabel = document.getElementById('dashboard-preflight-loading-label');
+const dashboardPreflightLoadingElapsed = document.getElementById('dashboard-preflight-loading-elapsed');
+const dashboardPreflightLoadingHelp = document.getElementById('dashboard-preflight-loading-help');
+const dashboardReadinessProgress = document.getElementById('dashboard-readiness-progress');
+const dashboardReadinessProgressValue = document.getElementById('dashboard-readiness-progress-value');
+const dashboardReadinessProgressNext = document.getElementById('dashboard-readiness-progress-next');
+const dashboardReadinessProgressTrack = document.getElementById('dashboard-readiness-progress-track');
+const dashboardReadinessProgressFill = document.getElementById('dashboard-readiness-progress-fill');
+const dashboardPreflightChecks = document.getElementById('dashboard-preflight-checks');
+const dashboardReadinessActiveNotice = document.getElementById('dashboard-readiness-active-notice');
+const dashboardReadinessActiveLink = document.getElementById('dashboard-readiness-active-link');
+const dashboardReadinessNextSteps = document.getElementById('dashboard-readiness-next-steps');
+const dashboardNextStepsTitle = document.getElementById('dashboard-next-steps-title');
+const dashboardNextStepsIntro = document.getElementById('dashboard-next-steps-intro');
+const dashboardNextStepItems = [...document.querySelectorAll('[data-dashboard-step]')];
+const dashboardReadinessReadyNotice = document.getElementById('dashboard-readiness-ready-notice');
+const dashboardCommandCopyButtons = [...document.querySelectorAll('[data-dashboard-copy-command]')];
+const dashboardCommandStatus = document.getElementById('dashboard-command-status');
+const dashboardReadinessStepElements = [...document.querySelectorAll('[data-dashboard-readiness-step]')];
+const dashboardSensorHookStatus = document.getElementById('dashboard-sensor-hook-status');
+const dashboardSensorHookDetail = document.getElementById('dashboard-sensor-hook-detail');
+const dashboardSensorFileStatus = document.getElementById('dashboard-sensor-file-status');
+const dashboardSensorFileDetail = document.getElementById('dashboard-sensor-file-detail');
+const dashboardSensorProcessStatus = document.getElementById('dashboard-sensor-process-status');
+const dashboardSensorProcessDetail = document.getElementById('dashboard-sensor-process-detail');
+const dashboardSyncStatus = document.getElementById('dashboard-sync-status');
+const dashboardSyncLabel = document.getElementById('dashboard-sync-label');
+const dashboardStaleRun = document.getElementById('dashboard-stale-run');
+const dashboardRecentTable = document.getElementById('dashboard-recent-table');
+const dashboardRecentRuns = document.getElementById('dashboard-recent-runs');
+const dashboardRecentEmpty = document.getElementById('dashboard-recent-empty');
+const dashboardStatusLabels = {CREATED: '생성됨', PREPARING: '보호 준비 중', READY: '실행 준비 완료', LAUNCHING: 'Codex 시작 중', RUNNING: '실행 중', COMPLETED: '완료', ABORTED: '사용자 중지', FAILED: '실패'};
+const dashboardReadinessLabels = {READY: '준비 완료', HOOK_VERIFICATION_REQUIRED: '확인 필요', CODEX_HOOK_TRUST_REQUIRED: 'Hook 검토 필요', CODEX_HOOK_NOT_INSTALLED: 'Hook 설치 필요', CODEX_EXECUTABLE_UNAVAILABLE: 'Codex 확인 필요', PREFLIGHT_TIMEOUT: '확인 시간 초과', PREFLIGHT_UNAVAILABLE: '확인 실패', CHECKING: '확인 중', ACTIVE: '보호 실행 중', UNKNOWN: '확인 필요'};
+const dashboardActiveTitle = ['보호', '실행이 진행 중입니다.'].join(' ');
+const dashboardActiveStatuses = ['CREATED', 'PREPARING', 'READY', 'LAUNCHING', 'RUNNING'];
+const dashboardProtectionLabels = {ACTIVE_VERIFIED: '보호 검증됨', ACTIVE_UNVERIFIED: '행위 관찰 전', ACTIVE_DEGRADED: '보호 상태 저하', COMPLETED_VERIFIED: '완료 · 검증됨', COMPLETED_DEGRADED: '완료 · 일부 확인', ABORTED_VERIFIED: '중지 · 검증됨', ABORTED_DEGRADED: '중지 · 일부 확인', ORPHANED_DEGRADED: '보호 연결 끊김 · 정리 필요'};
+const dashboardBundleLabels = {VALID: '유효', INVALID: '무효', UNVERIFIED: '검증 전', PENDING: '검증 중', NOT_FOUND: '없음'};
+let dashboardReadinessOk = {{ 'true' if readiness_ok else 'false' }};
+let dashboardReadinessCode = {{ readiness|tojson }};
+let dashboardHookVerified = {{ 'true' if dashboard_hook_verified else 'false' }};
+let dashboardPreflightLoaded = {{ 'false' if preflight_deferred else 'true' }};
+let dashboardPreflightInFlight = false;
+let dashboardPreflightStartedAt = 0;
+let dashboardPreflightElapsedTimer = null;
+let dashboardPreflightLoadingMessageTimer = null;
+const DASHBOARD_PREFLIGHT_REQUEST_TIMEOUT_MS = 30000;
+let dashboardPreflightTimer = null;
+let dashboardRunsLoaded = false;
+let dashboardRefreshInFlight = false;
+let dashboardRefreshBusyTimer = null;
+let dashboardRefreshTimer = null;
+let dashboardCurrentActiveRun = null;
+
+function updateDashboardPreflightElapsed() {
+  if (!dashboardPreflightLoadingElapsed || !dashboardPreflightStartedAt) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - dashboardPreflightStartedAt) / 1000));
+  dashboardPreflightLoadingElapsed.textContent = `경과 ${elapsed}초`;
+}
+function startDashboardPreflightLoading() {
+  if (dashboardPreflightElapsedTimer !== null) window.clearInterval(dashboardPreflightElapsedTimer);
+  if (dashboardPreflightLoadingMessageTimer !== null) window.clearTimeout(dashboardPreflightLoadingMessageTimer);
+  dashboardPreflightStartedAt = Date.now();
+  if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다…';
+  updateDashboardPreflightElapsed();
+  dashboardPreflightElapsedTimer = window.setInterval(updateDashboardPreflightElapsed, 1000);
+  dashboardPreflightLoadingMessageTimer = window.setTimeout(() => {
+    if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = '로컬 Codex Hook Trust 응답을 기다리고 있습니다…';
+    if (dashboardPreflightLoadingHelp) dashboardPreflightLoadingHelp.hidden = false;
+    dashboardPreflightLoadingMessageTimer = window.setTimeout(() => {
+      if (dashboardPreflightLoadingLabel) dashboardPreflightLoadingLabel.textContent = '확인이 예상보다 오래 걸리고 있습니다. 확인이 끝날 때까지 보호 실행을 허용하지 않습니다…';
+    }, 7000);
+  }, 4000);
+}
+function stopDashboardPreflightLoading() {
+  if (dashboardPreflightElapsedTimer !== null) window.clearInterval(dashboardPreflightElapsedTimer);
+  if (dashboardPreflightLoadingMessageTimer !== null) window.clearTimeout(dashboardPreflightLoadingMessageTimer);
+  dashboardPreflightElapsedTimer = null;
+  dashboardPreflightLoadingMessageTimer = null;
+  dashboardPreflightStartedAt = 0;
+  if (dashboardPreflightLoadingHelp) dashboardPreflightLoadingHelp.hidden = true;
+}
+
+function dashboardActiveRun(runs) {
+  return (Array.isArray(runs) ? runs : []).find((run) => dashboardActiveStatuses.includes(run.status) && !run.runtime_reconciliation?.orphaned && run.run_classification !== 'UNVERIFIED_RUNTIME_STATE') || null;
+}
+
+function renderDashboardEmptyAction() {
+  if (!dashboardCurrentAction || dashboardCurrentActiveRun) return;
+  const loading = !dashboardPreflightLoaded;
+  const ready = dashboardPreflightLoaded && dashboardReadinessOk;
+  const href = ready ? '/start' : '#dashboard-readiness';
+  const label = loading ? '준비 상태 확인 중…' : ready ? '새 보호 실행' : '준비 방법 확인';
+  dashboardCurrentAction.href = href;
+  dashboardCurrentAction.textContent = label;
+  if (dashboardPrimaryAction) {
+    dashboardPrimaryAction.href = href;
+    dashboardPrimaryAction.textContent = label;
+  }
+}
+
+function updateDashboardDocumentTitle(run = dashboardCurrentActiveRun) {
+  if (run) {
+    const status = String(run.status || 'RUNNING');
+    const label = dashboardStatusLabels[status] || '실행 중';
+    document.title = `${label} · AIA 대시보드`;
+    return;
+  }
+  if (!dashboardPreflightLoaded) {
+    document.title = '준비 확인 중 · AIA 대시보드';
+    return;
+  }
+  document.title = dashboardReadinessOk ? '준비 완료 · AIA 대시보드' : '확인 필요 · AIA 대시보드';
+}
+
+function renderDashboardReadiness(run) {
+  if (!dashboardReadiness) return;
+  updateDashboardDocumentTitle(run);
+  const active = Boolean(run);
+  if (dashboardReadinessMetric) {
+    const metricReady = active || dashboardReadinessOk;
+    dashboardReadinessMetric.classList.toggle('metric-ok', metricReady);
+    dashboardReadinessMetric.classList.toggle('metric-warning', !metricReady);
+  }
+  dashboardReadiness.classList.toggle('panel-active', active);
+  dashboardReadiness.classList.toggle('panel-ready', !active && dashboardReadinessOk);
+  dashboardReadiness.classList.toggle('panel-attention', !active && !dashboardReadinessOk);
+  if (dashboardReadinessLabel) dashboardReadinessLabel.textContent = active ? '현재 보호 실행' : '실행 준비';
+  if (dashboardReadinessValue) dashboardReadinessValue.textContent = active ? '실행 중' : (dashboardReadinessOk ? '준비 완료' : '확인 필요');
+  if (dashboardReadinessCodeElement) {
+    dashboardReadinessCodeElement.textContent = active ? dashboardReadinessLabels.ACTIVE : (dashboardReadinessLabels[dashboardReadinessCode] || '확인 필요');
+    dashboardReadinessCodeElement.title = active ? 'ACTIVE' : dashboardReadinessCode;
+  }
+  if (dashboardReadinessStatus) {
+    dashboardReadinessStatus.classList.toggle('status-active', active);
+    dashboardReadinessStatus.classList.toggle('status-success', !active && dashboardReadinessOk);
+    dashboardReadinessStatus.classList.toggle('status-warning', !active && !dashboardReadinessOk);
+    dashboardReadinessStatus.title = active ? 'ACTIVE' : dashboardReadinessCode;
+    dashboardReadinessStatus.textContent = active ? '현재 실행 중' : (dashboardReadinessOk ? '준비 완료' : (dashboardReadinessLabels[dashboardReadinessCode] || '확인 필요'));
+  }
+  if (active) {
+    if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
+    if (dashboardReadinessProgress) dashboardReadinessProgress.hidden = true;
+    if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = true;
+    if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = '현재 보호 세션이 실행 중입니다.';
+    if (dashboardReadinessHint) dashboardReadinessHint.textContent = '현재 작업은 Workbench에서 계속하세요.';
+    if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = false;
+    if (dashboardReadinessNextSteps) dashboardReadinessNextSteps.hidden = true;
+    if (dashboardReadinessReadyNotice) dashboardReadinessReadyNotice.hidden = true;
+    if (dashboardReadinessActiveLink) {
+      const workbench = run.launch_mode === 'web_terminal';
+      dashboardReadinessActiveLink.href = workbench ? `/runs/${encodeURIComponent(run.session_id)}/workbench` : `/runs/${encodeURIComponent(run.session_id)}`;
+      dashboardReadinessActiveLink.textContent = workbench ? 'Workbench 열기 →' : '상태 보기 →';
+    }
+    return;
+  }
+  renderDashboardEmptyAction();
+  if (!dashboardPreflightLoaded) {
+    dashboardReadiness.classList.remove('panel-ready');
+    dashboardReadiness.classList.add('panel-attention');
+    if (dashboardReadinessLabel) dashboardReadinessLabel.textContent = '실행 준비';
+    if (dashboardReadinessValue) dashboardReadinessValue.textContent = '확인 중';
+    if (dashboardReadinessCodeElement) {
+      dashboardReadinessCodeElement.textContent = dashboardReadinessLabels.CHECKING;
+      dashboardReadinessCodeElement.title = 'CHECKING';
+    }
+    if (dashboardReadinessStatus) {
+      dashboardReadinessStatus.className = 'status-badge status-warning';
+      dashboardReadinessStatus.title = 'CHECKING';
+      dashboardReadinessStatus.textContent = '확인 중';
+    }
+    if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = '보호 실행 준비를 확인하는 중입니다.';
+    if (dashboardReadinessHint) dashboardReadinessHint.textContent = 'Codex Hook과 로컬 실행 환경을 확인하고 있습니다.';
+    if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = true;
+    if (dashboardReadinessNextSteps) dashboardReadinessNextSteps.hidden = true;
+    if (dashboardReadinessReadyNotice) dashboardReadinessReadyNotice.hidden = true;
+    renderDashboardReadinessChecking();
+    if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = false;
+    if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = true;
+    return;
+  }
+  if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
+  if (dashboardReadinessProgress) dashboardReadinessProgress.hidden = false;
+  if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = false;
+  if (dashboardReadinessTitle) dashboardReadinessTitle.textContent = dashboardReadinessOk ? '보호 실행을 시작할 수 있습니다.' : '보호 실행 전에 확인이 필요합니다.';
+  if (dashboardReadinessHint) dashboardReadinessHint.textContent = dashboardReadinessHint.dataset.defaultText || '사전 점검 결과를 확인하세요.';
+  if (dashboardReadinessActiveNotice) dashboardReadinessActiveNotice.hidden = true;
+  const dashboardPreflightTransientFailure = ['PREFLIGHT_TIMEOUT', 'PREFLIGHT_UNAVAILABLE'].includes(dashboardReadinessCode);
+  if (dashboardReadinessNextSteps) dashboardReadinessNextSteps.hidden = dashboardReadinessOk || dashboardPreflightTransientFailure;
+  if (dashboardReadinessReadyNotice) dashboardReadinessReadyNotice.hidden = !dashboardReadinessOk;
+}
+
+function setDashboardSensorStatus(element, label, className) {
+  if (!element) return;
+  element.className = `status-badge ${className}`;
+  element.textContent = label;
+}
+
+function renderDashboardSensors(run) {
+  const active = Boolean(run);
+  const hookVerified = active ? run.protection_state === 'ACTIVE_VERIFIED' : dashboardHookVerified;
+  const hookChecking = !active && !dashboardPreflightLoaded;
+  setDashboardSensorStatus(dashboardSensorHookStatus, active ? (hookVerified ? '검증됨' : '관찰 중') : (hookChecking ? '확인 중' : (hookVerified ? '검증됨' : '확인 필요')), hookVerified && !hookChecking ? 'status-success' : 'status-warning');
+  if (dashboardSensorHookDetail) {
+    const hookCount = Number(run?.hook_event_count || 0);
+    dashboardSensorHookDetail.textContent = active
+      ? hookCount ? `현재 실행에서 Hook Event ${hookCount}건을 확인했습니다.` : '현재 실행에서 Hook Event를 확인하는 중입니다.'
+      : hookChecking ? 'Codex Hook 연결을 확인하고 있습니다.' : hookVerified ? '실제 Session-bound Hook Event 확인됨' : '보호 실행 전에 Codex Hook 연결을 확인해야 합니다';
+  }
+  if (dashboardSensorsStatus) {
+    dashboardSensorsStatus.className = `status-badge ${hookChecking ? 'status-warning' : hookVerified ? 'status-success' : 'status-warning'}`;
+    dashboardSensorsStatus.textContent = active ? '현재 실행' : hookChecking ? '확인 중' : hookVerified ? 'Hook 검증됨' : '실행 전 확인';
+  }
+  setDashboardSensorStatus(dashboardSensorFileStatus, active ? '관찰 중' : '실행 시 활성화', 'status-active');
+  if (dashboardSensorFileDetail) dashboardSensorFileDetail.textContent = active ? '현재 Workbench에서 Workspace 변화를 확인합니다.' : 'Protected Run이 시작되면 Workspace 관찰을 시작합니다.';
+  setDashboardSensorStatus(dashboardSensorProcessStatus, active ? '관찰 중' : '실행 시 활성화', 'status-active');
+  if (dashboardSensorProcessDetail) dashboardSensorProcessDetail.textContent = active ? '현재 Workbench에서 실행 트리를 확인합니다.' : 'Protected Run이 시작되면 실행 트리를 관찰합니다.';
+}
+
+const dashboardTrustLabels = {TRUSTED: '신뢰됨', MANAGED: '관리됨', MANUAL_REVIEW_REQUIRED: '검토 필요', MODIFIED: '변경됨 · 검토 필요', UNTRUSTED: '신뢰되지 않음 · 검토 필요', CHECKING: '확인 중'};
+const dashboardCheckBlocksRun = (check, readinessStatus = dashboardReadinessCode) => !check?.optional || (check?.name === 'codex_hook_trust' && readinessStatus === 'CODEX_HOOK_TRUST_REQUIRED');
+const dashboardCheckMark = (check, readinessStatus = dashboardReadinessCode) => {
+  const name = String(check?.name || '');
+  const blocksRun = dashboardCheckBlocksRun(check, readinessStatus);
+  if (name === 'pretool_hook') return check?.ok ? ['info', '설치됨'] : check?.stale ? ['attention', '갱신 필요'] : ['fail', '설치 필요'];
+  if (name === 'posttool_hook') return check?.ok ? ['info', '설치됨'] : ['optional', '선택'];
+  if (name === 'codex_hook_trust') {
+    return check?.ok ? ['ok', '신뢰됨'] : blocksRun ? ['attention', '신뢰 필요'] : ['optional', '확인 전'];
+  }
+  if (name === 'hook_verification') return check?.ok ? ['ok', '검증됨'] : ['attention', '검증 필요'];
+  if (name === 'codex_executable') return check?.ok ? ['info', '발견됨'] : ['fail', '확인 필요'];
+  if (name === 'control_root') return check?.ok ? ['info', '사용 가능'] : ['fail', '쓰기 확인'];
+  return check?.ok ? ['ok', '통과'] : blocksRun ? ['fail', '확인 필요'] : ['optional', '선택'];
+};
+const dashboardCheckDetailLabel = (check, checks = []) => {
+  if (check?.name === 'pretool_hook') {
+    if (check?.stale) return '이전 AIA Hook 경로를 현재 환경에 맞게 갱신하세요.';
+    if (!check?.ok) return 'AIA Hook 설치 명령을 실행하세요.';
+    return String(check?.detail || '').includes('Trust 확인됨') ? 'Codex /hooks Trust가 확인되었습니다.' : 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.';
+  }
+  if (check?.name === 'posttool_hook') return check?.ok ? '실행 결과 확인 가능' : '선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦';
+  const trustCheck = checks.find((item) => item?.name === 'codex_hook_trust');
+  if (check?.name === 'codex_hook_trust') return check?.ok ? 'PreToolUse Trust가 확인되었습니다.' : String(check?.detail || 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.');
+  if (check?.name === 'hook_verification' && !check?.ok) return trustCheck?.ok === true ? '아래 명령 안내로 실제 Hook 연결을 확인하세요.' : '먼저 Codex Hook을 신뢰한 뒤 아래 검증 명령을 실행하세요.';
+  if (check?.name === 'hook_verification') return 'Session-bound Hook Event가 확인되었습니다.';
+  return String(check?.detail || '상세 정보 없음');
+};
+function renderDashboardReadinessProgress(checks, readinessStatus = dashboardReadinessCode) {
+  if (!dashboardReadinessProgress) return;
+  const source = Array.isArray(checks) ? checks : [];
+  const checkByName = (name) => source.find((check) => check?.name === name);
+  const stages = [
+    ['codex_executable', 'Codex 실행 파일'],
+    ['pretool_hook', 'PreToolUse Hook'],
+    ['codex_hook_trust', 'Codex Hook Trust'],
+    ['hook_verification', '실제 Hook 연결 증명'],
+  ];
+  const completed = stages.filter(([name]) => checkByName(name)?.ok === true).length;
+  const firstPending = stages.find(([name]) => checkByName(name)?.ok !== true);
+  const ready = readinessStatus === 'READY' && completed === stages.length;
+  const percent = Math.round((completed / stages.length) * 100);
+  dashboardReadinessProgress.hidden = false;
+  dashboardReadinessProgress.dataset.state = ready ? 'ready' : 'pending';
+  dashboardReadinessStepElements.forEach((step) => {
+    const name = step.dataset.dashboardReadinessStep;
+    const complete = checkByName(name)?.ok === true;
+    const current = !ready && firstPending?.[0] === name;
+    step.classList.toggle('is-complete', complete);
+    step.classList.toggle('is-current', current);
+    if (current) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
+  if (dashboardReadinessProgressValue) dashboardReadinessProgressValue.textContent = ready ? '준비 완료' : `${completed}/${stages.length} 단계 완료`;
+  if (dashboardReadinessProgressNext) dashboardReadinessProgressNext.textContent = ready ? '보호 실행을 시작할 수 있습니다.' : `다음: ${firstPending?.[1] || '확인 필요'}`;
+  if (dashboardReadinessProgressTrack) {
+    dashboardReadinessProgressTrack.setAttribute('aria-valuenow', String(completed));
+    dashboardReadinessProgressTrack.setAttribute('aria-valuetext', ready ? '보호 실행 준비 완료' : `${completed}단계 완료, 다음은 ${firstPending?.[1] || '확인 필요'}`);
+  }
+  if (dashboardReadinessProgressFill) dashboardReadinessProgressFill.style.width = `${percent}%`;
+}
+function renderDashboardReadinessChecking() {
+  if (!dashboardReadinessProgress) return;
+  dashboardReadinessProgress.hidden = false;
+  dashboardReadinessProgress.dataset.state = 'checking';
+  dashboardReadinessStepElements.forEach((step, index) => {
+    step.classList.remove('is-complete', 'is-current');
+    if (index === 0) step.classList.add('is-current');
+    if (index === 0) step.setAttribute('aria-current', 'step');
+    else step.removeAttribute('aria-current');
+  });
+  if (dashboardReadinessProgressValue) dashboardReadinessProgressValue.textContent = '확인 중';
+  if (dashboardReadinessProgressNext) dashboardReadinessProgressNext.textContent = '로컬 환경과 Hook 연결을 확인하고 있습니다.';
+  if (dashboardReadinessProgressTrack) {
+    dashboardReadinessProgressTrack.removeAttribute('aria-valuenow');
+    dashboardReadinessProgressTrack.setAttribute('aria-valuetext', '보호 실행 준비 확인 중');
+  }
+  if (dashboardReadinessProgressFill) dashboardReadinessProgressFill.style.width = '38%';
+}
+function renderDashboardPreflightChecks(checks, readinessStatus = dashboardReadinessCode) {
+  if (!dashboardPreflightChecks) return;
+  dashboardPreflightChecks.replaceChildren();
+  const source = Array.isArray(checks) ? checks : [];
+  if (!source.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = '준비 상태 확인 결과가 없습니다.';
+    dashboardPreflightChecks.append(empty);
+    return;
+  }
+  source.forEach((check) => {
+    const row = document.createElement('div');
+    row.className = 'preflight-row';
+    const [markClass, markLabel] = dashboardCheckMark(check, readinessStatus);
+    const mark = document.createElement('span');
+    mark.className = `preflight-mark ${markClass}`;
+    mark.textContent = markLabel;
+    const label = document.createElement('strong');
+    label.textContent = String(check?.label || '준비 상태');
+    const detail = document.createElement('span');
+    detail.className = 'hint';
+    detail.textContent = dashboardCheckDetailLabel(check, source);
+    row.append(mark, label, detail);
+    dashboardPreflightChecks.append(row);
+  });
+}
+
+function renderDashboardNextSteps(payload) {
+  if (!dashboardNextStepsTitle || !dashboardNextStepsIntro) return;
+  const checks = Array.isArray(payload?.checks) ? payload.checks : [];
+  const checkByName = (name) => checks.find((check) => check?.name === name);
+  const hookCheck = checkByName('pretool_hook');
+  const trustCheck = checkByName('codex_hook_trust');
+  const verificationCheck = checkByName('hook_verification');
+  const hookInstalled = hookCheck?.ok === true;
+  const trustReady = trustCheck?.ok === true;
+  const verificationReady = verificationCheck?.ok === true;
+  const readinessCode = String(payload?.readiness_code || 'UNKNOWN');
+  let visibleSteps = [];
+  let title = '다음 단계';
+  let intro = '현재 확인 결과에 맞는 단계만 안내합니다.';
+  if (readinessCode === 'CODEX_HOOK_NOT_INSTALLED' || (hookCheck && !hookInstalled)) {
+    visibleSteps = ['setup'];
+    title = '먼저 Hook을 설치하세요';
+    intro = '설치가 끝나면 이 화면을 다시 열거나 다시 검사하세요.';
+  } else if (readinessCode === 'CODEX_HOOK_TRUST_REQUIRED' || (trustCheck && !trustReady)) {
+    visibleSteps = ['explain', 'trust', 'verify'];
+    title = 'Hook 검토와 신뢰가 필요합니다';
+    intro = 'Hook 내용을 확인한 뒤 Codex에서 직접 신뢰하고, 마지막으로 연결을 검증하세요.';
+  } else if (readinessCode === 'HOOK_VERIFICATION_REQUIRED' || (verificationCheck && !verificationReady)) {
+    visibleSteps = ['verify'];
+    title = '실제 연결을 검증하세요';
+    intro = 'Codex Hook Trust는 확인됐습니다. 실제 Session-bound Hook Event를 확인하세요.';
+  } else if (readinessCode === 'READY') {
+    visibleSteps = [];
+  } else {
+    visibleSteps = [];
+    title = '확인 필요 항목을 해결하세요';
+    intro = '위의 확인 결과를 해결한 뒤 필요한 경우 Hook 연결을 다시 검증하세요.';
+  }
+  dashboardNextStepsTitle.textContent = title;
+  dashboardNextStepsIntro.textContent = intro;
+  dashboardNextStepItems.forEach((item) => {
+    item.hidden = !visibleSteps.includes(item.dataset.dashboardStep);
+  });
+}
+
+async function copyDashboardCommand(button) {
+  const command = button.dataset.dashboardCopyCommand || '';
+  if (!command) return;
+  const idleLabel = button.dataset.idleLabel || button.textContent;
+  button.disabled = true;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(command);
+    } else {
+      const helper = document.createElement('textarea');
+      helper.value = command;
+      helper.setAttribute('readonly', '');
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      document.body.append(helper);
+      helper.select();
+      const copied = document.execCommand('copy');
+      helper.remove();
+      if (!copied) throw new Error('clipboard unavailable');
+    }
+    button.textContent = '복사됨';
+    if (dashboardCommandStatus) {
+      dashboardCommandStatus.hidden = false;
+      dashboardCommandStatus.className = 'hint success-text';
+      dashboardCommandStatus.textContent = '명령을 복사했습니다. 같은 AIA 프로젝트 폴더의 PowerShell에 붙여넣으세요.';
+    }
+  } catch (_) {
+    button.textContent = '복사 실패';
+    if (dashboardCommandStatus) {
+      dashboardCommandStatus.hidden = false;
+      dashboardCommandStatus.className = 'hint error-text';
+      dashboardCommandStatus.textContent = '자동 복사가 막혔습니다. 명령을 직접 선택해 복사하세요.';
+    }
+  } finally {
+    window.setTimeout(() => {
+      button.disabled = false;
+      button.textContent = idleLabel;
+    }, 1400);
+  }
+}
+dashboardCommandCopyButtons.forEach((button) => button.addEventListener('click', () => copyDashboardCommand(button)));
+
+function renderDashboardPreflight(payload) {
+  const data = payload && typeof payload === 'object' ? payload : {};
+  stopDashboardPreflightLoading();
+  dashboardPreflightLoaded = true;
+  dashboardReadinessOk = data.ready === true;
+  dashboardReadinessCode = String(data.readiness_code || 'UNKNOWN');
+  const preflightTransientFailure = ['PREFLIGHT_TIMEOUT', 'PREFLIGHT_UNAVAILABLE'].includes(dashboardReadinessCode);
+  if (dashboardPreflightRetry) {
+    dashboardPreflightRetry.hidden = !preflightTransientFailure;
+    dashboardPreflightRetry.disabled = false;
+    dashboardPreflightRetry.removeAttribute('aria-busy');
+    dashboardPreflightRetry.textContent = '다시 확인';
+  }
+  const trustStatus = String(data.hook_trust?.status || 'UNKNOWN');
+  const activationStatus = String(data.hook_activation?.status || 'UNKNOWN');
+  dashboardHookVerified = activationStatus === 'CURRENTLY_VERIFIED';
+  if (dashboardHookTrustValue) {
+    dashboardHookTrustValue.textContent = dashboardTrustLabels[trustStatus] || '확인 필요';
+    dashboardHookTrustValue.title = trustStatus;
+  }
+  if (dashboardHookTrustDetail) dashboardHookTrustDetail.textContent = ['MANUAL_REVIEW_REQUIRED', 'MODIFIED', 'UNTRUSTED'].includes(trustStatus) ? 'Codex /hooks에서 AIA Hook을 검토·신뢰하세요.' : (data.hook_trust?.detail || `PreToolUse 실행 전 관문 · ${dashboardTrustLabels[trustStatus] || '확인 필요'}`);
+  if (dashboardReadinessHint && data.next_step) dashboardReadinessHint.dataset.defaultText = String(data.next_step);
+  renderDashboardPreflightChecks(data.checks, dashboardReadinessCode);
+  renderDashboardReadinessProgress(data.checks, dashboardReadinessCode);
+  renderDashboardNextSteps(data);
+  if (dashboardPreflightLoading) dashboardPreflightLoading.hidden = true;
+  if (dashboardPreflightChecks) dashboardPreflightChecks.hidden = false;
+  if (dashboardRunsLoaded) {
+    const activeRun = dashboardCurrentActiveRun;
+    renderDashboardReadiness(activeRun);
+    renderDashboardSensors(activeRun);
+  }
+}
+
+function scheduleDashboardPreflight() {
+  if (dashboardPreflightTimer !== null) window.clearTimeout(dashboardPreflightTimer);
+  dashboardPreflightTimer = null;
+  if (document.hidden) return;
+  dashboardPreflightTimer = window.setTimeout(loadDashboardPreflight, 30000);
+}
+
+async function loadDashboardPreflight() {
+  if (dashboardPreflightInFlight || document.hidden) return;
+  dashboardPreflightInFlight = true;
+  dashboardPreflightLoaded = false;
+  renderDashboardReadiness(dashboardCurrentActiveRun);
+  renderDashboardSensors(dashboardCurrentActiveRun);
+  if (dashboardPreflightRetry) {
+    dashboardPreflightRetry.disabled = true;
+    dashboardPreflightRetry.setAttribute('aria-busy', 'true');
+    dashboardPreflightRetry.textContent = '확인 중…';
+  }
+  startDashboardPreflightLoading();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DASHBOARD_PREFLIGHT_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch('/api/preflight', {cache: 'no-store', signal: controller.signal});
+    if (!response.ok) throw new Error('preflight request failed');
+    renderDashboardPreflight(await response.json());
+  } catch (error) {
+    renderDashboardPreflight({
+      ready: false,
+      readiness_code: error?.name === 'AbortError' ? 'PREFLIGHT_TIMEOUT' : 'PREFLIGHT_UNAVAILABLE',
+      next_step: 'AIA 준비 상태를 확인하지 못했습니다. 잠시 후 다시 시도하세요.',
+      checks: [{label: 'AIA 준비 상태', ok: false, detail: error?.name === 'AbortError' ? '확인 시간이 초과되어 다시 시도합니다.' : '로컬 AIA 서버 연결을 확인하세요.'}],
+      hook_trust: {status: 'UNKNOWN', detail: 'Codex Hook Trust를 확인하지 못했습니다.'},
+      hook_activation: {status: 'UNKNOWN'},
+    });
+  } finally {
+    window.clearTimeout(timeout);
+    dashboardPreflightInFlight = false;
+    scheduleDashboardPreflight();
+  }
+}
+
+dashboardPreflightRetry?.addEventListener('click', loadDashboardPreflight);
+
+function renderDashboardCurrentRun(run) {
+  if (!run) {
+    dashboardCurrentRun.classList.remove('active-run-present');
+    dashboardCurrentRun.classList.add('active-run-empty');
+    dashboardCurrentTitle.textContent = '현재 실행 중인 보호 세션이 없습니다.';
+    dashboardCurrentDetail.textContent = 'Workspace와 정책을 선택하면 AIA가 보호된 Codex 세션을 시작합니다.';
+    dashboardCurrentMeta.textContent = '새 보호 실행을 시작하면 현재 상태가 여기에 표시됩니다.';
+    renderDashboardEmptyAction();
+    if (dashboardStaleRun) dashboardStaleRun.hidden = false;
+    return;
+  }
+  dashboardCurrentRun.classList.remove('active-run-empty');
+  dashboardCurrentRun.classList.add('active-run-present');
+  dashboardCurrentTitle.textContent = dashboardActiveTitle;
+  const state = document.createElement('span');
+  state.className = `badge badge-${String(run.status || 'unknown').toLowerCase()}`;
+  state.textContent = dashboardStatusLabels[run.status] || run.status || '확인 필요';
+  const separator = document.createTextNode(' · ');
+  const workspace = document.createElement('span');
+  workspace.className = 'mono active-run-workspace';
+  workspace.title = run.workspace || '';
+  workspace.textContent = run.workspace || 'Workspace 정보 없음';
+  dashboardCurrentDetail.replaceChildren(state, separator, workspace);
+  const protection = String(run.protection_state || '');
+  const protectionLabel = dashboardProtectionLabels[protection] || protection || '보호 상태 확인 중';
+  const incidentCount = Number(run.incident_count || 0);
+  dashboardCurrentMeta.textContent = `${protectionLabel} · 사건 ${incidentCount}건`;
+  const workbench = run.launch_mode === 'web_terminal';
+  const runHref = workbench ? `/runs/${encodeURIComponent(run.session_id)}/workbench` : `/runs/${encodeURIComponent(run.session_id)}`;
+  const runLabel = workbench ? 'Workbench 열기' : '상태 보기';
+  dashboardCurrentAction.href = runHref;
+  dashboardCurrentAction.textContent = runLabel;
+  if (dashboardPrimaryAction) {
+    dashboardPrimaryAction.href = runHref;
+    dashboardPrimaryAction.textContent = runLabel;
+  }
+  if (dashboardStaleRun) dashboardStaleRun.hidden = true;
+}
+
+function dashboardBadgeClass(value) {
+  return String(value || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+}
+
+function dashboardIsDiagnosticRun(run) {
+  const workspace = String(run?.workspace || '').replaceAll('/', '\\');
+  const leaf = workspace.split('\\').pop().toLowerCase();
+  return leaf.startsWith('aia-hook-verify-') || leaf.startsWith('aia-path-hook-probe-') || ['aia-ui-probe', 'aia-hook-probe'].includes(leaf);
+}
+
+function dashboardRecentRunView(runs) {
+  const source = Array.isArray(runs) ? runs : [];
+  const userRuns = source.filter((run) => !dashboardIsDiagnosticRun(run));
+  return userRuns.length ? userRuns : source;
+}
+
+function dashboardRefreshTime() {
+  return new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+}
+
+function dashboardEsc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[ch]));
+}
+
+function renderDashboardRecentRuns(runs) {
+  if (!dashboardRecentRuns || !dashboardRecentTable || !dashboardRecentEmpty) return;
+  const recentRuns = dashboardRecentRunView(runs);
+  if (!recentRuns.length) {
+    dashboardRecentRuns.replaceChildren();
+    dashboardRecentTable.hidden = true;
+    dashboardRecentEmpty.hidden = false;
+    return;
+  }
+  dashboardRecentTable.hidden = false;
+  dashboardRecentEmpty.hidden = true;
+  dashboardRecentRuns.innerHTML = recentRuns.slice(0, 5).map((run) => {
+    const sessionId = String(run.session_id || '');
+    const terminalRun = ['COMPLETED', 'ABORTED', 'FAILED'].includes(run.status);
+    const workbench = run.launch_mode === 'web_terminal';
+    const orphaned = Boolean(run.runtime_reconciliation?.orphaned);
+    const status = String(run.status || 'UNKNOWN');
+    const protection = String(run.protection_state || '');
+    const bundle = String(run.bundle_status || 'UNKNOWN');
+    const resultReady = terminalRun && bundle === 'VALID';
+    const runHref = workbench && !orphaned ? `/runs/${encodeURIComponent(sessionId)}/workbench` : `/runs/${encodeURIComponent(sessionId)}`;
+    const primaryHref = resultReady ? `/runs/${encodeURIComponent(sessionId)}/result` : runHref;
+    const primaryTitle = resultReady ? '결과 보기' : orphaned ? '연결 끊긴 실행 검토' : workbench ? 'Workbench 열기' : '실행 상태 열기';
+    const diagnostic = dashboardIsDiagnosticRun(run);
+    const executionLabel = diagnostic ? 'AIA 자체 진단' : resultReady ? '사용자 작업 · 결과' : orphaned ? '사용자 작업 · 연결 끊김' : workbench ? '사용자 작업 · Workbench' : '사용자 작업 · CLI';
+    const actionHref = resultReady ? primaryHref : runHref;
+    const actionLabel = resultReady ? '결과 보기' : orphaned ? '정리 검토' : workbench ? 'Workbench 열기' : '상태 보기';
+    const displaySessionId = sessionId ? `#${sessionId.slice(0, 8)}` : '—';
+    const protectionHtml = orphaned
+      ? '<br><span class="error-text">보호 경계 끊김 · 정리 필요</span>'
+      : protection ? `<br><span class="muted" title="${dashboardEsc(protection)}">${dashboardEsc(dashboardProtectionLabels[protection] || protection)}</span>` : '';
+    const statusClass = orphaned ? 'disconnected' : dashboardBadgeClass(status);
+    const statusLabel = orphaned ? '연결 끊김' : (dashboardStatusLabels[status] || status || '확인 필요');
+    const unverifiedHtml = run.run_classification === 'UNVERIFIED_RUNTIME_STATE' ? '<br><span class="error-text">검증되지 않은 실행</span>' : '';
+    const bundleNote = orphaned ? '<br><span class="error-text">결과 확인 필요</span>' : unverifiedHtml;
+    const bundleClass = orphaned ? 'disconnected' : dashboardBadgeClass(bundle);
+    const bundleLabel = orphaned ? '확인 필요' : (dashboardBundleLabels[bundle] || bundle || '확인 필요');
+    const bundleTitle = orphaned ? `${bundle} · 연결 끊김` : bundle;
+    const workspaceLabel = diagnostic ? 'Hook 연결 검증용 임시 Workspace' : (run.workspace || 'Workspace 정보 없음');
+    const incidentCount = Number(run.incident_count || 0);
+    const incidentClass = incidentCount > 0 ? ' dashboard-run-row-has-incidents' : '';
+    const incidentCountClass = incidentCount > 0 ? ' has-incidents' : '';
+    const incidentTitle = incidentCount > 0 ? '정책 사건 · 결과에서 확인' : '확인된 정책 사건 없음';
+    return `<tr class="dashboard-run-row${incidentClass}"><td class="mono"><a class="run-link" href="${primaryHref}" title="${primaryTitle} · 전체 Session ID: ${dashboardEsc(sessionId)}">${dashboardEsc(displaySessionId)}</a><br><span class="muted">${executionLabel}</span></td><td><span class="badge badge-${statusClass}" title="${dashboardEsc(status)}${orphaned ? ' · 연결 끊김' : ''}">${dashboardEsc(statusLabel)}</span>${protectionHtml}${unverifiedHtml}</td><td class="mono target-cell">${dashboardEsc(workspaceLabel)}</td><td><span class="dashboard-incident-count${incidentCountClass}" title="${incidentTitle}">${dashboardEsc(String(incidentCount))}건</span></td><td><span class="badge badge-${bundleClass}" title="${dashboardEsc(bundleTitle)}">${dashboardEsc(bundleLabel)}</span>${bundleNote}</td><td><a href="${actionHref}">${actionLabel}</a></td></tr>`;
+  }).join('');
+}
+
+async function refreshDashboard() {
+  if (dashboardRefreshInFlight || document.hidden) return;
+  dashboardRefreshInFlight = true;
+  dashboardRefreshBusyTimer = window.setTimeout(() => {
+    dashboardSyncStatus.classList.add('is-refreshing');
+    dashboardSyncStatus.setAttribute('aria-busy', 'true');
+    dashboardSyncLabel.textContent = '상태 확인 중…';
+  }, 350);
+  try {
+    const response = await fetch('/api/runs', {cache: 'no-store'});
+    if (!response.ok) throw new Error('dashboard refresh failed');
+    const payload = await response.json();
+    const runs = Array.isArray(payload.runs) ? payload.runs : [];
+    dashboardRunCount.textContent = `${runs.length}건`;
+    const activeRun = dashboardActiveRun(runs);
+    dashboardCurrentActiveRun = activeRun;
+    dashboardRunsLoaded = true;
+    renderDashboardCurrentRun(activeRun);
+    renderDashboardReadiness(activeRun);
+    renderDashboardSensors(activeRun);
+    renderDashboardRecentRuns(runs);
+    dashboardSyncLabel.textContent = `자동 갱신됨 · ${dashboardRefreshTime()}`;
+    dashboardSyncStatus.classList.remove('error-text');
+  } catch (_) {
+    dashboardSyncLabel.textContent = '갱신 확인 필요';
+    dashboardSyncStatus.classList.add('error-text');
+  } finally {
+    if (dashboardRefreshBusyTimer !== null) window.clearTimeout(dashboardRefreshBusyTimer);
+    dashboardRefreshBusyTimer = null;
+    dashboardSyncStatus.classList.remove('is-refreshing');
+    dashboardSyncStatus.removeAttribute('aria-busy');
+    dashboardRefreshInFlight = false;
+    scheduleDashboardRefresh();
+  }
+}
+
+function scheduleDashboardRefresh() {
+  if (dashboardRefreshTimer !== null) window.clearTimeout(dashboardRefreshTimer);
+  dashboardRefreshTimer = null;
+  if (document.hidden) return;
+  const delay = dashboardCurrentActiveRun ? 5000 : 15000;
+  dashboardRefreshTimer = window.setTimeout(refreshDashboard, delay);
+}
+
+refreshDashboard();
+loadDashboardPreflight();
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    if (dashboardRefreshTimer !== null) window.clearTimeout(dashboardRefreshTimer);
+    dashboardRefreshTimer = null;
+    refreshDashboard();
+    loadDashboardPreflight();
+  }
+});
+</script>
 {% endblock %}

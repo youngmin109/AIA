@@ -644,3 +644,4 @@ def test_root_provenance_mismatch_is_not_silently_accepted(tmp_path: Path) -> No
     ).attribute(action)
     assert result.grade is AttributionGrade.UNKNOWN
     assert result.reason_code is AttributionReason.UNSUPPORTED_PROVENANCE
+

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 from aia import CodexHookInstaller
 from aia.hook_verification import HookVerificationStore
+import aia.hook_verification as hook_verification
+import aia.codex_installation as codex_installation
 
 
 def test_codex_hook_installer_preserves_existing_hooks_and_is_idempotent(
@@ -51,6 +55,80 @@ def test_codex_hook_installer_uses_codex_home_when_path_is_omitted(
     assert installer.path == (codex_home / "hooks.json").resolve()
     installer.install()
     assert installer.path.exists()
+
+
+def test_codex_hook_installer_uses_stable_uv_launcher_from_isolated_environment(
+    tmp_path: Path, monkeypatch
+) -> None:
+    isolated_python = (
+        tmp_path
+        / "uv"
+        / "cache"
+        / "builds-v0"
+        / ".tmpExample"
+        / "Scripts"
+        / "python.exe"
+    )
+    monkeypatch.setattr(sys, "executable", str(isolated_python))
+    monkeypatch.setattr(
+        codex_installation.shutil,
+        "which",
+        lambda name: r"C:\Tools\uv.exe" if name == "uv" else None,
+    )
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    assert "uv.exe" in installer.command
+    assert "--project" in installer.command
+    assert "--isolated" in installer.command
+    assert "aia.codex_hook_runtime" in installer.command
+    assert installer.is_installed() is False
+    installer.install()
+    assert installer.is_installed() is True
+
+
+def test_frozen_desktop_installer_uses_packaged_cli_hook_runtime(
+    tmp_path: Path, monkeypatch
+) -> None:
+    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
+    cli_path.parent.mkdir()
+    cli_path.touch()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "AIA.exe"))
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    assert installer.command == subprocess.list2cmdline([str(cli_path), "hook", "runtime"])
+    installer.install()
+    assert installer.is_installed() is True
+    assert installer.has_aia_runtime() is True
+
+
+def test_frozen_cli_installer_uses_itself_for_hook_runtime(
+    tmp_path: Path, monkeypatch
+) -> None:
+    cli_path = tmp_path / "aia-cli.exe"
+    cli_path.touch()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(cli_path))
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    assert installer.command == subprocess.list2cmdline([str(cli_path), "hook", "runtime"])
+
+
+def test_codex_hook_installer_distinguishes_stale_aia_runtime_from_missing_hook(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "hooks.json"
+    old = CodexHookInstaller(path, python_executable=tmp_path / "old-python.exe")
+    old.install()
+
+    current = CodexHookInstaller(path, python_executable=tmp_path / "new-python.exe")
+
+    assert current.has_aia_runtime() is True
+    assert current.is_installed() is False
+    assert current.has_aia_runtime("PostToolUse") is True
 
 
 def test_codex_hook_install_migrates_only_the_existing_aia_entry(tmp_path: Path) -> None:
@@ -208,13 +286,51 @@ def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(
     assert store.is_current(installer, executable) is True
     document = store.read()
     assert document is not None
-    assert document["schema_version"] == "aia-hook-verification-4"
+    assert document["schema_version"] == "aia-hook-verification-5"
     assert document["codex_config_sha256"]
     assert document["aia_hook_runtime_sha256"]
     assert document["session_id"] == "session-1"
 
     hook_path.write_text(hook_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     assert store.is_current(installer, executable) is False
+
+
+def test_frozen_hook_verification_uses_stable_runtime_identity(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    (codex_home / "config.toml").write_text(
+        "approval_policy = 'on-request'\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    runtime_a = tmp_path / "aia-a" / "codex_hook_runtime.py"
+    runtime_b = tmp_path / "aia-b" / "codex_hook_runtime.py"
+    runtime_a.parent.mkdir()
+    runtime_b.parent.mkdir()
+    runtime_a.write_bytes(b"same-packaged-runtime")
+    runtime_b.write_bytes(runtime_a.read_bytes())
+    monkeypatch.setattr(hook_verification.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(hook_verification, "_RUNTIME_PATH", runtime_a)
+    store = HookVerificationStore(tmp_path / "control")
+
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    document = store.read()
+    assert document is not None
+    assert document["aia_hook_runtime"] == "packaged:aia.codex_hook_runtime"
+    monkeypatch.setattr(hook_verification, "_RUNTIME_PATH", runtime_b)
+    assert store.is_current(installer, executable) is True
 
 
 def test_hook_verification_is_invalid_after_codex_config_changes(
@@ -241,6 +357,47 @@ def test_hook_verification_is_invalid_after_codex_config_changes(
     config_path.write_text("approval_policy = 'never'\n", encoding="utf-8")
 
     assert store.is_current(installer, executable) is False
+
+
+def test_hook_verification_survives_codex_workspace_trust_bookkeeping(
+    tmp_path: Path, monkeypatch
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text(
+        "approval_policy = 'on-request'\n"
+        "\n"
+        "[projects.'C:\\\\workspace\\\\demo']\n"
+        "trust_level = 'trusted'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    config_path.write_text(
+        "approval_policy = 'on-request'\n"
+        "\n"
+        "[projects.'C:\\\\workspace\\\\demo']\n"
+        "trust_level = 'untrusted'\n"
+        "\n"
+        "[projects.'C:\\\\workspace\\\\new-demo']\n"
+        "trust_level = 'trusted'\n",
+        encoding="utf-8",
+    )
+
+    assert store.is_current(installer, executable) is True
 
 
 def test_hook_verification_is_invalid_after_codex_executable_changes(tmp_path: Path) -> None:

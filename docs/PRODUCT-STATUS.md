@@ -173,8 +173,12 @@ uv run aia reconcile <SESSION_ID>
 - Hook 신뢰 검토는 Codex 화면에서 사용자가 직접 수행해야 하며 AIA가 자동 증명하지
   못한다.
 - 소스 체크아웃용 Windows 설치 스크립트와 릴리스 ZIP의 wheel 설치기를 제공하며,
-  `uv tool install`로 어느 Workspace에서든 `aia`를 실행할 수 있다. 서명된 배포
-  설치 파일·자동 업데이트·롤백 경로와 GUI 정책 작성은 아직 없다.
+  `uv tool install`로 어느 Workspace에서든 `aia`를 실행할 수 있다. Windows용
+  `AIA.exe`·Inno Setup 설치 프로그램과 서명 릴리스 workflow도 구현되어 있다.
+  다만 현재 checkout에는 코드 서명 인증서가 없어 signed artifact가 없으며,
+  공개 배포는 인증서 설정과 서명 Release Gate 통과 뒤에만 가능하다. 공개 소스는
+  내부 평가 기록을 그대로 올리지 않도록 `export-public-tree.ps1`와 CI 안전성
+  검사를 거친다. 자동 업데이트·롤백 경로와 GUI 정책 작성은 아직 없다.
 - 대규모 Workspace 성능 SLA와 OS 전체 Writer 통제는 제공하지 않는다.
 
 따라서 현재 버전을 “개인 개발자가 제한된 지원 범위에서 실제 사용해 볼 수 있는
@@ -185,17 +189,18 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 
 1. 정상 제품 경로에서 Hook Trust를 통과한 Actual Codex 사전 차단과 보상 집행을
    한 번의 사용자 시나리오로 연결한다.
-2. 소스 설치를 넘어 서명된 배포 설치 파일과 업데이트·롤백 경로를 제공한다.
+2. 코드 서명 인증서를 연결해 signed Windows 설치 파일을 배포하고, 이후 업데이트·
+   롤백 경로를 제공한다.
 3. 대화형 세션과 간헐적인 Process Sensor 실패를 안정화한다.
 4. Actual Codex 대표 시나리오의 반복 평가를 늘리고, 성능·제한사항을 제품 화면에서
    함께 보여준다.
 
-결정론적 제품 전후 평가는 `scripts/product_evaluation/run_fixture_evaluation.py`로
-12개 시나리오를 AIA OFF/ON 각각 반복 실행할 수 있다. 실행 결과는 로컬 무시
-디렉터리에 생성하며, 결정론적 Fixture의 근거를 Actual Codex의 모델 지연시간이나
-모든 도구 범위로 확대 해석하지 않는다. 측정 항목과 보고서 생성 방법은
-[`scripts/product_evaluation/README.md`](../scripts/product_evaluation/README.md)에
-기록한다.
+결정론적 제품 전후 평가는 `fixture-20260911-001`에서 12개 시나리오를 AIA OFF/ON
+각각 30회씩 실행한 780건으로 완료했다. 위험 행위 부작용률은 AIA OFF 100%에서
+AIA ON 0%로 감소했고, 정상 작업 성공률은 양쪽 100%였다. AIA ON 보호 준비 시간은
+중앙값 274.48ms, PreTool 판단 지연은 중앙값 0.35ms였다. 이 결과는 결정론적
+Fixture의 근거이며 Actual Codex의 모델 지연시간이나 모든 도구 범위를 뜻하지 않는다.
+[평가 표와 대시보드](validation/PRODUCT-EVALUATION.md)에서 원본과 수치를 확인할 수 있다.
 
 현재 온보딩에는 `aia setup`, 읽기 전용 `aia hook explain`, `aia doctor`, 웹 콘솔의 대시보드와 실행 전 사전 점검이
 포함된다. 로컬 콘솔의 `/dashboard`에서는 실행 가능 여부, Codex Hook Trust, 지원 범위,

@@ -941,6 +941,278 @@ class RecoveryCoordinator:
     execute = recover
     restore = recover
 
+    def restore_manual(
+        self,
+        *,
+        session: ProtectedRunSession,
+        checkpoint: SafeCheckpoint | str | Path | None,
+        workspace_lease: WorkspaceLease | None,
+        workspace: Path | str | None = None,
+    ) -> RecoveryVerificationResult:
+        """Restore a completed run after an explicit user request.
+
+        Manual restoration is deliberately separate from policy containment.
+        It requires a valid checkpoint, a newly acquired current lease, and
+        the same Workspace binding, but it does not fabricate a policy gate or
+        process-termination result.
+        """
+
+        session_id = getattr(session, "session_id", "unknown")
+        checkpoint_id = getattr(checkpoint, "checkpoint_id", None)
+        try:
+            safe_checkpoint = self._load_and_validate_checkpoint(checkpoint) if checkpoint is not None else None
+        except _RecoverySafetyFailure as error:
+            reason = error.reason
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=checkpoint_id,
+                    status=RecoveryStatus.RECOVERY_UNAVAILABLE,
+                    reason=reason,
+                ),
+                IntegrityVerificationResult.not_checked(
+                    aia_session_id=session_id,
+                    checkpoint_id=checkpoint_id,
+                    reason=reason,
+                ),
+            )
+        if safe_checkpoint is None:
+            reason = "CHECKPOINT_MISSING"
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=None,
+                    status=RecoveryStatus.RECOVERY_UNAVAILABLE,
+                    reason=reason,
+                ),
+                IntegrityVerificationResult.not_checked(
+                    aia_session_id=session_id,
+                    reason=reason,
+                ),
+            )
+        checkpoint_id = safe_checkpoint.checkpoint_id
+        binding_reason = self._check_bindings(
+            safe_checkpoint,
+            session=session,
+            workspace_lease=workspace_lease,
+            workspace=workspace,
+            launch_context=None,
+        )
+        if binding_reason is not None:
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=checkpoint_id,
+                    status=RecoveryStatus.REFUSED,
+                    reason=binding_reason,
+                ),
+                IntegrityVerificationResult.not_checked(
+                    aia_session_id=session_id,
+                    checkpoint_id=checkpoint_id,
+                    checkpoint_fingerprint=safe_checkpoint.checkpoint_content_sha256,
+                    reason=binding_reason,
+                ),
+            )
+        target = canonicalize_workspace(workspace or session.workspace)
+        try:
+            self.lease_manager.validate_ownership(workspace_lease)
+            _validate_checkpoint_sources(safe_checkpoint)
+            plan = _build_plan(safe_checkpoint, target)
+        except ProtectionError:
+            reason = "WORKSPACE_LEASE_INVALID"
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=checkpoint_id,
+                    status=RecoveryStatus.REFUSED,
+                    reason=reason,
+                ),
+                IntegrityVerificationResult.not_checked(
+                    aia_session_id=session_id,
+                    checkpoint_id=checkpoint_id,
+                    checkpoint_fingerprint=safe_checkpoint.checkpoint_content_sha256,
+                    reason=reason,
+                ),
+            )
+        except _RecoverySafetyFailure as error:
+            reason = error.reason
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=checkpoint_id,
+                    status=RecoveryStatus.RECOVERY_UNAVAILABLE,
+                    reason=reason,
+                ),
+                IntegrityVerificationResult.not_checked(
+                    aia_session_id=session_id,
+                    checkpoint_id=checkpoint_id,
+                    checkpoint_fingerprint=safe_checkpoint.checkpoint_content_sha256,
+                    reason=reason,
+                ),
+            )
+        except Exception:
+            reason = "RECOVERY_PREFLIGHT_FAILED"
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=checkpoint_id,
+                    status=RecoveryStatus.REFUSED,
+                    reason=reason,
+                ),
+                IntegrityVerificationResult.not_checked(
+                    aia_session_id=session_id,
+                    checkpoint_id=checkpoint_id,
+                    checkpoint_fingerprint=safe_checkpoint.checkpoint_content_sha256,
+                    reason=reason,
+                ),
+            )
+        if plan.workspace_matches:
+            return self._combined(
+                self._result(
+                    session_id=session_id,
+                    action_id=None,
+                    termination_id=None,
+                    checkpoint_id=checkpoint_id,
+                    status=RecoveryStatus.NOT_REQUIRED,
+                    reason="WORKSPACE_ALREADY_MATCHES_CHECKPOINT",
+                ),
+                self.integrity_verifier.verify(
+                    safe_checkpoint,
+                    workspace=target,
+                    session=session,
+                ),
+            )
+
+        started_at = datetime.now(timezone.utc)
+        operation_results: list[RecoveryOperationResult] = []
+        restored_paths: list[str] = []
+        removed_paths: list[str] = []
+        failed_paths: list[str] = []
+        mutation_started = False
+        security_failure: str | None = None
+        for operation in plan.operations:
+            try:
+                self.lease_manager.validate_ownership(workspace_lease)
+                mutation_started = True
+                final_sha256 = self._apply_operation(
+                    operation,
+                    checkpoint=safe_checkpoint,
+                    workspace=target,
+                )
+                operation_results.append(
+                    RecoveryOperationResult(
+                        operation=operation.operation,
+                        relative_path=operation.relative_path,
+                        expected_entry_type=operation.expected_entry_type,
+                        attempted=True,
+                        succeeded=True,
+                        expected_sha256=operation.expected_sha256,
+                        final_sha256=final_sha256,
+                    )
+                )
+                if operation.operation in {
+                    RecoveryOperationType.RESTORE_FILE,
+                    RecoveryOperationType.CREATE_DIRECTORY,
+                    RecoveryOperationType.REPLACE_TYPE_CONFLICT,
+                }:
+                    restored_paths.append(operation.relative_path)
+                else:
+                    removed_paths.append(operation.relative_path)
+            except ProtectionError:
+                security_failure = "WORKSPACE_LEASE_INVALID"
+                failed_paths.append(operation.relative_path)
+                operation_results.append(
+                    RecoveryOperationResult(
+                        operation=operation.operation,
+                        relative_path=operation.relative_path,
+                        expected_entry_type=operation.expected_entry_type,
+                        attempted=False,
+                        succeeded=False,
+                        reason=security_failure,
+                        expected_sha256=operation.expected_sha256,
+                    )
+                )
+                break
+            except (_RecoverySafetyFailure, _RecoveryOperationFailure) as error:
+                reason = getattr(error, "reason", "RECOVERY_OPERATION_FAILED")
+                if isinstance(error, _RecoverySafetyFailure):
+                    security_failure = reason
+                failed_paths.append(operation.relative_path)
+                operation_results.append(
+                    RecoveryOperationResult(
+                        operation=operation.operation,
+                        relative_path=operation.relative_path,
+                        expected_entry_type=operation.expected_entry_type,
+                        attempted=True,
+                        succeeded=False,
+                        reason=reason,
+                        expected_sha256=operation.expected_sha256,
+                    )
+                )
+                if security_failure is not None:
+                    break
+
+        ended_at = datetime.now(timezone.utc)
+        attempted_count = sum(int(item.attempted) for item in operation_results)
+        succeeded_count = sum(int(item.succeeded) for item in operation_results)
+        failed_count = sum(int(not item.succeeded) for item in operation_results)
+        status = (
+            RecoveryStatus.RESTORED
+            if failed_count == 0
+            else RecoveryStatus.REFUSED
+            if security_failure is not None and not mutation_started
+            else RecoveryStatus.FAILED
+        )
+        reason = security_failure or (
+            None if status is RecoveryStatus.RESTORED else "RECOVERY_OPERATION_FAILED"
+        )
+        recovery = RecoveryResult(
+            recovery_id=str(uuid4()),
+            aia_session_id=session_id,
+            action_id=None,
+            termination_id=None,
+            checkpoint_id=checkpoint_id,
+            recovery_status=status,
+            started_at=started_at,
+            ended_at=ended_at,
+            duration_ms=_duration(started_at, ended_at),
+            planned_operation_count=len(plan.operations),
+            attempted_operation_count=attempted_count,
+            succeeded_operation_count=succeeded_count,
+            failed_operation_count=failed_count,
+            restored_paths=tuple(restored_paths),
+            removed_paths=tuple(removed_paths),
+            failed_paths=tuple(failed_paths),
+            reason=reason,
+            limitations=("RECOVERY_MUTATION_IS_NOT_WHOLE_WORKSPACE_ATOMIC",)
+            if mutation_started
+            else (),
+            operation_results=tuple(operation_results),
+        )
+        integrity = (
+            self.integrity_verifier.verify(safe_checkpoint, workspace=target, session=session)
+            if mutation_started
+            else IntegrityVerificationResult.not_checked(
+                aia_session_id=session_id,
+                checkpoint_id=checkpoint_id,
+                checkpoint_fingerprint=safe_checkpoint.checkpoint_content_sha256,
+                reason=reason,
+            )
+        )
+        return self._combined(recovery, integrity)
+
     def _load_and_validate_checkpoint(
         self,
         checkpoint: SafeCheckpoint | str | Path,

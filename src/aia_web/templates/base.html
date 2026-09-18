@@ -4,19 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AIA Local Security Console{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v=three-page-ui-01">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg') }}">
 </head>
 <body>
-  <header class="topbar">
+  <div class="ambient-scene" aria-hidden="true">
+    <div class="ambient-glow ambient-glow-one"></div>
+    <div class="ambient-glow ambient-glow-two"></div>
+    <div class="ambient-orbit ambient-orbit-one"></div>
+    <div class="ambient-orbit ambient-orbit-two"></div>
+    <div class="star-layer star-layer-one"></div>
+    <div class="star-layer star-layer-two"></div>
+  </div>
+  <header class="topbar{% if is_workbench %} topbar-workbench{% endif %}">
     <div class="brand"><span class="brand-mark">A</span><span>AIA</span><small>로컬 보안 콘솔</small></div>
-    <nav>
-      <a href="/">대시보드</a>
-      <a href="/new">새 보호 실행</a>
-      <a href="/runs">실행 기록</a>
-      {% if session_id %}<a href="/runs/{{ session_id }}">현재 실행</a>{% endif %}
+    {% set current_path = request.url.path %}
+    {% set workbench_path = '/runs/' ~ session_id ~ '/workbench' if session_id else '' %}
+    {% set current_run_path = '/runs/' ~ session_id if session_id else '' %}
+    {% set workbench_active = current_path == workbench_path %}
+    {% set current_run_active = current_path == current_run_path %}
+    {% set history_active = current_path == '/runs' or (current_path.startswith('/runs/') and not workbench_active and not current_run_active) %}
+    <nav aria-label="AIA 주요 메뉴">
+      <a class="{{ 'is-active' if is_setup or current_path in ['/', '/start'] else '' }}"{% if is_setup or current_path in ['/', '/start'] %} aria-current="page"{% endif %} href="/start">시작</a>
+      <a class="{{ 'is-active' if current_path == '/dashboard' else '' }}"{% if current_path == '/dashboard' %} aria-current="page"{% endif %} href="/dashboard">대시보드</a>
+      <a class="{{ 'is-active' if history_active else '' }}"{% if history_active %} aria-current="page"{% endif %} href="/runs">지난 실행</a>
+      {% if session_id %}<a class="{{ 'is-active' if workbench_active or current_run_active else '' }}"{% if workbench_active or current_run_active %} aria-current="page"{% endif %} href="{% if is_workbench %}/runs/{{ session_id }}/workbench{% else %}/runs/{{ session_id }}{% endif %}">{% if is_workbench %}현재 Workbench{% else %}현재 실행{% endif %}</a>{% endif %}
     </nav>
   </header>
-  <main class="page-shell">
+  <main class="page-shell{% if is_workbench %} page-shell-workbench{% endif %}">
     {% block content %}{% endblock %}
   </main>
   <footer class="footer">로컬 전용 콘솔 · 보안 판단 권한은 AIA Core에 있습니다</footer>

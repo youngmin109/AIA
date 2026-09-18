@@ -55,11 +55,67 @@ from aia_app.presenters import action_summary
 _HOOK_VERIFICATION_PROBE_TOKEN_ENV = "AIA_HOOK_VERIFICATION_PROBE_TOKEN"
 
 
+def _module_cli_prefix() -> str:
+    """Return a launcher that does not depend on a generated ``aia.exe``."""
+
+    source = Path(__file__).resolve()
+    project_root = next(
+        (
+            candidate
+            for candidate in (source.parent, *source.parents)
+            if (candidate / "pyproject.toml").is_file()
+        ),
+        None,
+    )
+    if project_root is not None:
+        return subprocess.list2cmdline(
+            [
+                "uv",
+                "run",
+                "--isolated",
+                "--project",
+                str(project_root),
+                "python",
+                "-m",
+                "aia.cli",
+            ]
+        )
+    return subprocess.list2cmdline([sys.executable, "-m", "aia.cli"])
+
+
+def _cli_prefix(installer: CodexHookInstaller) -> str:
+    """Return a user-facing launcher that avoids a blocked console-script EXE."""
+
+    # Keep the argument for callers that already pass the installer.  The
+    # generated Windows console-script executable can be blocked by local
+    # application-control policy even when the Python interpreter is allowed.
+    # Always show the direct module path so setup/doctor guidance remains
+    # executable in that environment as well.
+    del installer
+    return _module_cli_prefix()
+
+
 def _json_text(value: object, *, default: object | None = None) -> str:
     options: dict[str, object] = {"ensure_ascii": True, "indent": 2}
     if default is not None:
         options["default"] = default
     return json.dumps(value, **options)
+
+
+def _hidden_process_kwargs() -> dict[str, int]:
+    """Prevent non-interactive diagnostic runs from opening Windows consoles."""
+
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
+def _self_cli_command(*arguments: str) -> list[str]:
+    """Build a command that re-enters the current CLI in source or frozen mode."""
+
+    if getattr(sys, "frozen", False):
+        return [sys.executable, *arguments]
+    return [sys.executable, "-m", "aia.cli", *arguments]
 
 
 def _add_protected_run_arguments(parser: argparse.ArgumentParser) -> None:
@@ -140,9 +196,27 @@ def _parser() -> argparse.ArgumentParser:
             "block-apply-patch",
             "block-env",
             "block-windows-delete",
+            "process-kill",
+            "hook-block",
+            "file-rollback",
         ),
         default="block-canary",
-        help="live proof scenario when --live is used",
+        help="live proof scenario or deterministic presentation scenario",
+    )
+    demo.add_argument(
+        "--workspace",
+        type=Path,
+        help="dedicated Workspace for a deterministic presentation scenario",
+    )
+    demo.add_argument(
+        "--control-root",
+        type=Path,
+        help="dedicated Control Root for a deterministic presentation scenario",
+    )
+    demo.add_argument(
+        "--open",
+        action="store_true",
+        help="open the local Workbench console after a deterministic demo",
     )
     demo.add_argument(
         "--output",
@@ -291,6 +365,10 @@ def _parser() -> argparse.ArgumentParser:
         default=180.0,
         help="maximum wait in seconds",
     )
+    hook_runtime = hook_commands.add_parser(
+        "runtime",
+        help=argparse.SUPPRESS,
+    )
 
     setup = commands.add_parser(
         "setup",
@@ -331,6 +409,16 @@ def _parser() -> argparse.ArgumentParser:
         "--open",
         action="store_true",
         help="open the local console in the default browser",
+    )
+    console.add_argument(
+        "--control-root",
+        type=Path,
+        help="AIA control root to display in the local console",
+    )
+    console.add_argument(
+        "--open-path",
+        default="/",
+        help="local console path to open when --open is used",
     )
 
     protect = commands.add_parser(
@@ -404,6 +492,7 @@ def _control_root_write_check(control_root: Path) -> tuple[bool, str]:
 def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
     """Return safe metadata from the most recent committed Protected Run."""
 
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     reader = ResultBundleReader(control_root)
     try:
         runs = reader.list_completed()
@@ -449,7 +538,7 @@ def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
     elif not latest.get("hook_event_count"):
         next_step = (
             "Session에 연결된 Codex Hook Event가 없습니다. Codex에서 Hook을 검토·신뢰한 "
-            "뒤 aia hook verify를 다시 실행하세요."
+            f"뒤 {cli_prefix} hook verify를 다시 실행하세요."
         )
     elif str(latest.get("protection_state", "")).endswith("DEGRADED"):
         next_step = "보호 경계가 완전히 검증되지 않았습니다. Result Bundle의 제한사항을 확인하세요."
@@ -511,17 +600,24 @@ def _doctor(args: argparse.Namespace) -> int:
         )
 
     installer = CodexHookInstaller(args.hook_path)
+    cli_prefix = _cli_prefix(installer)
     hook_installed = installer.is_installed()
+    stale_hook_detected = not hook_installed and installer.has_aia_runtime("PreToolUse")
     posttool_installed = installer.is_posttool_installed()
     checks.append(
         {
             "name": "codex_hook",
             "ok": hook_installed,
+            "stale": stale_hook_detected,
             "value": str(installer.path),
             "detail": (
                 "Hook definition installed; review/trust it in Codex"
                 if hook_installed
-                else "Run 'aia hook install', then review/trust the Hook in Codex"
+                else (
+                    f"기존 AIA Hook 경로가 남아 있습니다. '{cli_prefix} setup'으로 현재 경로를 갱신하세요."
+                    if stale_hook_detected
+                    else f"Run '{cli_prefix} setup', then review/trust the Hook in Codex"
+                )
             ),
         }
     )
@@ -595,14 +691,14 @@ def _doctor(args: argparse.Namespace) -> int:
                 if hook_verified
                 else (
                     (
-                        "Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 'aia hook verify'를 실행하세요"
+                        f"Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 '{cli_prefix} hook verify'를 실행하세요"
                         if any(
                             isinstance(item, dict)
                             and item.get("event") == "preToolUse"
                             and item.get("trust_status") not in {"TRUSTED", "MANAGED"}
                             for item in (codex_hook_trust.get("hooks") or [])
                         )
-                        else "Run 'aia hook verify' after reviewing the Hook in Codex"
+                        else f"Run '{cli_prefix} hook verify' after reviewing the Hook in Codex"
                     )
                     + (
                         f"; recent run: {recent_run['next_step']}"
@@ -628,25 +724,29 @@ def _doctor(args: argparse.Namespace) -> int:
         next_step = "Python 3.13 환경에서 AIA를 다시 실행하세요."
     elif executable is None:
         readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
-        next_step = "Codex CLI 설치와 PATH를 확인한 뒤 'aia doctor'를 다시 실행하세요."
+        next_step = f"Codex CLI 설치와 PATH를 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     elif not hook_installed:
         readiness_code = "CODEX_HOOK_NOT_INSTALLED"
-        next_step = "'aia setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+        next_step = (
+            f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
+            if stale_hook_detected
+            else f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+        )
     elif pretool_status not in {"TRUSTED", "MANAGED"}:
         readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
         next_step = (
             "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
-            "'aia hook verify'와 'aia doctor'를 순서대로 실행하세요."
+            f"'{cli_prefix} hook verify'와 '{cli_prefix} doctor'를 순서대로 실행하세요."
         )
     elif not hook_verified:
         readiness_code = "HOOK_VERIFICATION_REQUIRED"
-        next_step = "'aia hook verify'를 실행한 뒤 'aia doctor'를 다시 실행하세요."
+        next_step = f"'{cli_prefix} hook verify'를 실행한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     elif not writable:
         readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
-        next_step = "AIA Control Root 권한을 확인한 뒤 'aia doctor'를 다시 실행하세요."
+        next_step = f"AIA Control Root 권한을 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
     else:
         readiness_code = "READY"
-        next_step = "'aia protect <workspace>'로 보호 실행을 시작할 수 있습니다."
+        next_step = f"'{cli_prefix} protect <workspace>'로 보호 실행을 시작할 수 있습니다."
 
     payload = {
         "product": "AIA",
@@ -710,7 +810,7 @@ def _doctor(args: argparse.Namespace) -> int:
             print(f"[다음] {recent_run['next_step']}")
         print(f"[필수 조치] {next_step}")
         if not payload["ready"]:
-            print("[도움말] 검토 순서가 헷갈리면 'uv run aia hook explain'을 실행하세요.")
+            print(f"[도움말] 검토 순서가 헷갈리면 '{cli_prefix} hook explain'을 실행하세요.")
         print(f"결과: {'READY' if payload['ready'] else 'NOT_READY'}")
     return 0 if payload["ready"] else 1
 
@@ -763,6 +863,7 @@ def _capabilities(args: argparse.Namespace) -> int:
 def _self_test(args: argparse.Namespace) -> int:
     """Exercise the disposable Core contracts without claiming live Codex proof."""
 
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     checks: list[dict[str, object]] = []
     workspace_root = Path(tempfile.mkdtemp(prefix="aia-self-test-workspace-"))
     control_root = Path(tempfile.mkdtemp(prefix="aia-self-test-control-"))
@@ -860,7 +961,10 @@ def _self_test(args: argparse.Namespace) -> int:
             "workspace": str(workspace_root),
             "control_root": str(control_root),
             "checks": checks,
-            "next_step": "실제 Codex 보호는 aia hook verify 후 aia protect로 별도 검증하세요.",
+            "next_step": (
+                f"실제 Codex 보호는 {cli_prefix} hook verify 후 "
+                f"{cli_prefix} protect로 별도 검증하세요."
+            ),
         }
         exit_code = 0
     except Exception as error:
@@ -909,6 +1013,44 @@ def _demo(args: argparse.Namespace) -> int:
     user's reviewed Hook trust state.
     """
 
+    from aia.demo import (
+        DEFAULT_DEMO_CONTROL_ROOT,
+        DEFAULT_DEMO_WORKSPACE,
+        DEMO_SCENARIOS,
+        run_demo,
+    )
+
+    if args.scenario in DEMO_SCENARIOS:
+        if args.live:
+            raise ApplicationValidationError(
+                "deterministic presentation scenarios cannot be combined with --live"
+            )
+        result = run_demo(
+            args.scenario,
+            workspace=args.workspace or DEFAULT_DEMO_WORKSPACE,
+            control_root=args.control_root or DEFAULT_DEMO_CONTROL_ROOT,
+        )
+        print("AIA 시연용 Result Bundle 생성")
+        print(f"시나리오: {result['title']} ({result['scenario']})")
+        print(f"Session: {result['session_id']}")
+        print(f"Workspace: {result['workspace']}")
+        print(f"Control Root: {result['control_root']}")
+        print(f"Bundle: {result['bundle_status']}")
+        print("주의: DEMO_FIXTURE 결과이며 Actual Codex 실행 증명이 아닙니다.")
+        if args.open:
+            _run_console(
+                argparse.Namespace(
+                    host=os.environ.get("AIA_WEB_HOST", "127.0.0.1"),
+                    port=int(os.environ.get("AIA_WEB_PORT", "8787")),
+                    open=True,
+                    control_root=Path(result["control_root"]),
+                    open_path=f"/runs/{result['session_id']}/workbench",
+                )
+            )
+        else:
+            print(f"[다음] {result['next_step']}")
+        return 0
+
     print("AIA 제품 데모")
     print("실제 프로젝트를 건드리지 않는 임시 Workspace에서 보호 흐름을 확인합니다.")
     print()
@@ -923,8 +1065,9 @@ def _demo(args: argparse.Namespace) -> int:
         print()
         print("[완료] Core 데모가 끝났습니다.")
         print("실제 Codex Hook 차단까지 확인하려면 먼저 Codex에서 Hook을 검토·신뢰한 뒤")
-        print("      aia hook verify")
-        print("      aia demo --live")
+        cli_prefix = _cli_prefix(CodexHookInstaller())
+        print(f"      {cli_prefix} hook verify")
+        print(f"      {cli_prefix} demo --live")
         print("를 실행하세요.")
         return 0
 
@@ -1008,6 +1151,7 @@ def _setup(args: argparse.Namespace) -> int:
     """Install the stable Hook and make the manual trust boundary explicit."""
 
     installer = CodexHookInstaller(args.path)
+    cli_prefix = _cli_prefix(installer)
     try:
         path = installer.install()
     except CodexHookInstallationError as error:
@@ -1051,14 +1195,14 @@ def _setup(args: argparse.Namespace) -> int:
     if pretool_trust_status in {"TRUSTED", "MANAGED"}:
         next_steps = [
             "Codex PreToolUse Hook은 신뢰된 상태입니다.",
-            "aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
-            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
+            f"{cli_prefix} hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            f"검증 결과가 VERIFIED이면 {cli_prefix} protect <workspace>를 실행합니다.",
         ]
     else:
         next_steps = [
             "Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰합니다.",
-            "신뢰한 뒤 aia hook verify로 실제 Session-bound Hook Event를 확인합니다.",
-            "검증 결과가 VERIFIED이면 aia protect <workspace>를 실행합니다.",
+            f"신뢰한 뒤 {cli_prefix} hook verify로 실제 Session-bound Hook Event를 확인합니다.",
+            f"검증 결과가 VERIFIED이면 {cli_prefix} protect <workspace>를 실행합니다.",
         ]
     trust_status = (
         pretool_trust_status
@@ -1105,7 +1249,7 @@ def _setup(args: argparse.Namespace) -> int:
         print(_json_text(payload))
     else:
         print(f"AIA Hook 설정 완료: {path}")
-        print("[안내] 검토 순서가 헷갈리면 'uv run aia hook explain'을 실행하세요.")
+        print(f"[안내] 검토 순서가 헷갈리면 '{cli_prefix} hook explain'을 실행하세요.")
         print(f"[확인] Codex PreToolUse Trust: {pretool_trust_status}")
         if pretool_trust_status not in {"TRUSTED", "MANAGED"}:
             print("[필수] Codex에서 /hooks를 열고 AIA Hook을 검토·신뢰하세요.")
@@ -1114,16 +1258,20 @@ def _setup(args: argparse.Namespace) -> int:
             f"({payload['readiness_code']})"
         )
         if not payload["ready"]:
-            print("[검증] uv run aia hook verify")
-            print("[확인] uv run aia doctor")
+            print(f"[검증] {cli_prefix} hook verify")
+            print(f"[확인] {cli_prefix} doctor")
         else:
-            print("[실행] uv run aia start C:\\workspace\\my-project")
+            print(f"[실행] {cli_prefix} start C:\\workspace\\my-project")
     return 0
 
 
 def _run_console(args: argparse.Namespace) -> int:
     """Start the local console through the same product CLI as other commands."""
 
+    if args.control_root is not None:
+        os.environ["AIA_CONTROL_ROOT"] = str(
+            Path(args.control_root).expanduser().resolve(strict=False)
+        )
     from aia_web.__main__ import run, validate_local_bind
 
     try:
@@ -1131,7 +1279,10 @@ def _run_console(args: argparse.Namespace) -> int:
     except ValueError as error:
         raise ApplicationValidationError(str(error)) from error
 
-    url = f"http://{args.host}:{args.port}"
+    open_path = getattr(args, "open_path", "/") or "/"
+    if not open_path.startswith("/"):
+        open_path = "/" + open_path
+    url = f"http://{args.host}:{args.port}{open_path}"
     print(f"AIA 로컬 보안 콘솔: {url}")
     if args.open:
         # Let uvicorn bind the loopback port before asking the browser to load
@@ -1149,6 +1300,7 @@ def _hook_status(args: argparse.Namespace) -> int:
     """Show the difference between an installed Hook and an observed Hook."""
 
     installer = CodexHookInstaller(args.path)
+    cli_prefix = _cli_prefix(installer)
     service = RunApplicationService(_control_root(args.control_root))
     try:
         runs = service.list_runs()
@@ -1267,9 +1419,9 @@ def _hook_status(args: argparse.Namespace) -> int:
         if payload["activation_status"] == "OBSERVED_IN_PAST":
             print("주의: 과거 관찰 기록만 있으며 현재 검증 증명은 없습니다.")
         if payload["ready"]:
-            print("[다음] uv run aia protect <workspace>")
+            print(f"[다음] {cli_prefix} protect <workspace>")
         else:
-            print("주의: CURRENT가 아니면 aia protect는 보호 실행을 시작하지 않습니다.")
+            print(f"주의: CURRENT가 아니면 {cli_prefix} protect는 보호 실행을 시작하지 않습니다.")
             if any(
                 isinstance(item, dict)
                 and item.get("event") == "preToolUse"
@@ -1277,7 +1429,7 @@ def _hook_status(args: argparse.Namespace) -> int:
                 for item in trust_entries
             ):
                 print("[다음] Codex에서 /hooks를 열고 AIA PreToolUse Hook을 검토·신뢰하세요.")
-            print("[다음] uv run aia hook verify")
+            print(f"[다음] {cli_prefix} hook verify")
     return 0 if payload["ready"] else 1
 
 
@@ -1290,6 +1442,7 @@ def _hook_explain(args: argparse.Namespace) -> int:
     """
 
     installer = CodexHookInstaller(args.path)
+    cli_prefix = _cli_prefix(installer)
     executable: Path | None = None
     try:
         executable = CodexAdapter().discover()
@@ -1350,8 +1503,8 @@ def _hook_explain(args: argparse.Namespace) -> int:
             "Codex에서 /hooks를 엽니다.",
             "AIA PreToolUse Hook의 matcher(*)와 command를 검토합니다.",
             "내용을 이해한 뒤 Codex 화면에서 직접 Trust합니다.",
-            "uv run aia hook verify를 실행합니다.",
-            "uv run aia doctor에서 READY를 확인한 뒤 aia start <workspace>를 실행합니다.",
+            f"{cli_prefix} hook verify를 실행합니다.",
+            f"{cli_prefix} doctor에서 READY를 확인한 뒤 {cli_prefix} start <workspace>를 실행합니다.",
         ],
         "security_note": (
             "AIA는 사용자의 Codex Hook Trust를 대신 승인하지 않습니다. "
@@ -1422,16 +1575,33 @@ def _hook_verify(args: argparse.Namespace) -> int:
     if args.timeout <= 0:
         raise ApplicationValidationError("timeout must be positive")
     if not installer.is_installed():
+        runtime_detected = installer.has_aia_runtime("PreToolUse")
+        reason = (
+            "PRETOOL_HOOK_COMMAND_MISMATCH"
+            if runtime_detected
+            else "PRETOOL_HOOK_NOT_INSTALLED"
+        )
         payload = {
             "verified": False,
-            "reason": "PRETOOL_HOOK_NOT_INSTALLED",
+            "reason": reason,
             "hook_path": str(installer.path),
+            "aia_runtime_detected": runtime_detected,
         }
         if args.json:
             print(_json_text(payload))
         else:
-            print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
-            print("[다음] uv run aia setup")
+            print(f"[확인] 읽은 Hook 설정: {installer.path}")
+            if runtime_detected:
+                print(
+                    "Hook 검증 실패: PreToolUse Hook 설정은 있지만 현재 AIA 실행 경로와 일치하지 않습니다."
+                )
+                print(
+                    "[원인] 이전 uv 격리 환경이나 다른 AIA 프로젝트에서 생성된 Hook일 수 있습니다."
+                )
+            else:
+                print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
+            print(f"[예상] 현재 AIA Hook 명령: {installer.command}")
+            print(f"[다음] {_cli_prefix(installer)} setup")
         return 2
     try:
         executable = CodexAdapter().discover()
@@ -1503,10 +1673,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
         "Path('AIA_HOOK_PROBE_MARKER.txt').write_text('ok', encoding='utf-8')\". "
         "Do not use another tool."
     )
-    command = [
-        sys.executable,
-        "-m",
-        "aia.cli",
+    command = _self_cli_command(
         "protect",
         str(probe_workspace),
         "--task",
@@ -1518,7 +1685,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
         "--timeout",
         str(args.timeout),
         "--_hook-verification-probe",
-    ]
+    )
     probe_environment = os.environ.copy()
     probe_environment[_HOOK_VERIFICATION_PROBE_TOKEN_ENV] = uuid4().hex
     payload: dict[str, object] = {
@@ -1549,6 +1716,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
             env=probe_environment,
             timeout=args.timeout + 60.0,
             check=False,
+            **_hidden_process_kwargs(),
         )
         session_id = _extract_session_id(completed.stdout)
         payload["session_id"] = session_id
@@ -1673,9 +1841,10 @@ def _protected_run_preflight(
     except Exception:
         failures.append("Codex executable을 찾을 수 없습니다. Codex 설치를 확인하세요.")
     installer = CodexHookInstaller()
+    cli_prefix = _cli_prefix(installer)
     if not installer.is_installed():
         failures.append(
-            "AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 'uv run aia setup'을 실행하세요."
+            f"AIA PreToolUse Hook이 설치되지 않았습니다. 먼저 '{cli_prefix} setup'을 실행하세요."
         )
     elif not hook_verification_probe:
         resolved_control_root = control_root or _control_root(None)
@@ -1708,11 +1877,11 @@ def _protected_run_preflight(
         ):
             if trust_status not in {None, "TRUSTED", "MANAGED"}:
                 failures.append(
-                    f"Codex PreToolUse Hook Trust={trust_status}. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 'uv run aia hook verify'를 실행하세요."
+                    f"Codex PreToolUse Hook Trust={trust_status}. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 '{cli_prefix} hook verify'를 실행하세요."
                 )
             else:
                 failures.append(
-                    "실제 Codex Hook 검증이 없습니다. 먼저 'uv run aia hook verify'를 실행하세요."
+                    f"실제 Codex Hook 검증이 없습니다. 먼저 '{cli_prefix} hook verify'를 실행하세요."
                 )
     return not failures, failures
 
@@ -1872,11 +2041,12 @@ def _policy_profiles(args: argparse.Namespace) -> int:
     if args.json:
         print(_json_text({"profiles": profiles}))
         return 0
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     print("AIA 정책 프로필")
     for item in profiles:
         edit_hint = "복사 후 수정 가능" if item["editable"] else "직접 JSON 필요"
         print(f"- {item['value']} / {item['label']}: {item['description']} ({edit_hint})")
-    print("기본 정책 파일 생성: uv run aia policy init C:\\workspace\\policies\\my-policy.json")
+    print(f"기본 정책 파일 생성: {cli_prefix} policy init C:\\workspace\\policies\\my-policy.json")
     return 0
 
 
@@ -1898,7 +2068,7 @@ def _init_policy(args: argparse.Namespace) -> int:
     print("정책 파일을 생성했습니다.")
     print(f"프로필: {profile.value} ({profile.display_name})")
     print(f"경로: {target}")
-    print(f"다음 단계: uv run aia policy validate \"{target}\"")
+    print(f"다음 단계: {_cli_prefix(CodexHookInstaller())} policy validate \"{target}\"")
     return 0
 
 
@@ -2042,6 +2212,7 @@ def _show_status(args: argparse.Namespace) -> int:
     policy = status.get("policy") or {}
     policy_id = policy.get("id") or policy.get("policy_id") or "-"
     policy_version = policy.get("version") or policy.get("policy_version") or ""
+    cli_prefix = _cli_prefix(CodexHookInstaller())
     print("AIA 보호 실행 상태")
     print(f"Session: {session.get('session_id', args.session_id)}")
     print(f"상태: {session.get('status', 'UNKNOWN')} / 단계: {status.get('phase', 'UNKNOWN')}")
@@ -2069,7 +2240,7 @@ def _show_status(args: argparse.Namespace) -> int:
         )
         if reconciliation.get("orphaned"):
             print(f"주의: {reconciliation.get('detail', '보호 상태를 확인할 수 없습니다.')}")
-            print(f"[다음] uv run aia reconcile {args.session_id}")
+            print(f"[다음] {cli_prefix} reconcile {args.session_id}")
     return 0
 
 
@@ -2156,10 +2327,11 @@ def _run_protected(args: argparse.Namespace) -> int:
         print("AIA 보호 실행을 시작하지 않았습니다.")
         for failure in failures:
             print(f"[FAIL] {failure}")
+        cli_prefix = _cli_prefix(CodexHookInstaller())
         if any("hook verify" in failure for failure in failures):
-            print("[다음] uv run aia hook verify")
+            print(f"[다음] {cli_prefix} hook verify")
         else:
-            print("[다음] uv run aia setup")
+            print(f"[다음] {cli_prefix} setup")
         return 2
     service = RunApplicationService(
         _control_root(args.control_root),
@@ -2312,6 +2484,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             path = CodexHookInstaller(args.path).uninstall()
             print(f"AIA Codex Hook removed (other Hooks preserved): {path}")
             return 0
+        if args.command == "hook" and args.hook_command == "runtime":
+            from aia.codex_hook_runtime import main as hook_runtime_main
+
+            return hook_runtime_main()
         if args.command == "setup":
             return _setup(args)
         if args.command == "support-bundle":

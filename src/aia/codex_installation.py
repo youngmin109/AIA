@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -35,6 +36,25 @@ AIA_CODEX_TOOL_ALIASES = {
 AIA_CODEX_HOOK_MATCHER = "*"
 
 
+def _is_ephemeral_uv_python(path: Path) -> bool:
+    """Return whether *path* belongs to uv's short-lived isolated environment."""
+
+    parts = tuple(part.casefold() for part in path.resolve(strict=False).parts)
+    return any(part.startswith("builds-v") for part in parts) and any(
+        part.startswith(".tmp") for part in parts
+    )
+
+
+def _project_root() -> Path | None:
+    """Find the source project root when AIA is running from a checkout."""
+
+    source = Path(__file__).resolve()
+    for candidate in (source.parent, *source.parents):
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    return None
+
+
 class CodexHookInstaller:
     """Manage one explicit user-level Hook entry without changing other hooks."""
 
@@ -58,6 +78,57 @@ class CodexHookInstaller:
         self.python_executable = str(
             Path(python_executable or sys.executable).expanduser().resolve(strict=False)
         )
+        self._command_tokens = self._resolve_command_tokens(
+            explicit_python=python_executable is not None
+        )
+
+    def _resolve_command_tokens(self, *, explicit_python: bool) -> tuple[str, ...]:
+        """Use a stable uv command when the caller runs from uv's temp env.
+
+        ``uv run --isolated`` gives each invocation a different temporary
+        interpreter. Persisting that interpreter in Codex's Hook config makes
+        the next AIA command report the Hook as missing. The project and uv
+        executable paths are stable across those invocations, so use them as
+        the Hook launcher in that specific case. Explicit test/runtime paths
+        retain the historical direct-Python behavior.
+        """
+
+        python_path = Path(self.python_executable)
+        if not explicit_python and getattr(sys, "frozen", False):
+            executable_name = python_path.name.casefold()
+            if executable_name in {"aia-cli.exe", "aia-cli"}:
+                return (self.python_executable, "hook", "runtime")
+
+            candidates = (
+                python_path.parent / "aia-cli" / "aia-cli.exe",
+                python_path.parent.parent / "aia-cli" / "aia-cli.exe",
+                python_path.parent / "aia-cli.exe",
+            )
+            for candidate in candidates:
+                if candidate.is_file():
+                    return (str(candidate), "hook", "runtime")
+            raise CodexHookInstallationError(
+                "aia-cli.exe is not installed next to the AIA desktop application"
+            )
+
+        if explicit_python or not _is_ephemeral_uv_python(python_path):
+            return (self.python_executable, "-m", "aia.codex_hook_runtime")
+
+        project = _project_root()
+        uv = shutil.which("uv")
+        if project is None or uv is None:
+            return (self.python_executable, "-m", "aia.codex_hook_runtime")
+        return (
+            str(Path(uv).expanduser().resolve(strict=False)),
+            "run",
+            "--quiet",
+            "--project",
+            str(project),
+            "--isolated",
+            "python",
+            "-m",
+            "aia.codex_hook_runtime",
+        )
 
     @staticmethod
     def _default_hook_path() -> Path:
@@ -73,9 +144,15 @@ class CodexHookInstaller:
 
     @property
     def command(self) -> str:
-        return subprocess.list2cmdline(
-            [self.python_executable, "-m", "aia.codex_hook_runtime"]
-        )
+        return subprocess.list2cmdline(list(self._command_tokens))
+
+    @property
+    def uses_uv_launcher(self) -> bool:
+        """Whether the Hook is launched through uv's stable project command."""
+
+        return len(self._command_tokens) > 1 and Path(
+            self._command_tokens[0]
+        ).name.casefold() in {"uv", "uv.exe"}
 
     def hook_entry(self, event: str = "PreToolUse") -> dict[str, Any]:
         if event not in self._EVENTS:
@@ -118,6 +195,35 @@ class CodexHookInstaller:
         """Return whether both pre-tool enforcement and post-tool evidence exist."""
 
         return self.is_installed() and self.is_posttool_installed()
+
+    def has_aia_runtime(self, event: str = "PreToolUse") -> bool:
+        """Return whether an AIA runtime handler exists for *event*.
+
+        This deliberately does not mean that the handler is usable.  A stale
+        isolated-Python path or another checkout can leave an AIA handler in
+        ``hooks.json`` whose exact command differs from this installer.  The
+        distinction lets the CLI explain that situation without accepting the
+        stale handler as current.
+        """
+
+        if event not in self._EVENTS:
+            raise CodexHookInstallationError(f"unsupported AIA Hook event: {event}")
+        try:
+            document = self._read()
+        except (OSError, ValueError, TypeError):
+            return False
+        hooks = document.get("hooks")
+        entries = hooks.get(event) if isinstance(hooks, Mapping) else None
+        if not isinstance(entries, list):
+            return False
+        return any(
+            isinstance(entry, Mapping)
+            and any(
+                self._is_aia_runtime_handler(handler)
+                for handler in (entry.get("hooks") or ())
+            )
+            for entry in entries
+        )
 
     def install(self) -> Path:
         document = self._read()
@@ -268,10 +374,17 @@ class CodexHookInstaller:
         except ValueError:
             return False
         normalized = [token.strip('"').casefold() for token in tokens]
-        return any(
+        if any(
             token == "-m"
             and index + 1 < len(normalized)
             and normalized[index + 1] == "aia.codex_hook_runtime"
+            for index, token in enumerate(normalized)
+        ):
+            return True
+        return any(
+            token.replace("\\", "/").rsplit("/", 1)[-1] in {"aia-cli.exe", "aia-cli"}
+            and index + 2 < len(normalized)
+            and normalized[index + 1 : index + 3] == ["hook", "runtime"]
             for index, token in enumerate(normalized)
         )
 

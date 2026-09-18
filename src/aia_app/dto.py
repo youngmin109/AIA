@@ -23,6 +23,7 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "model",
         "policy_profile",
         "custom_policy_path",
+        "protected_paths",
         "mode",
         "interactive",
         "task",
@@ -54,6 +55,7 @@ class CreateRunRequest:
     model: str | None = None
     policy_profile: str = PolicyProfile.PROTECTED_DEVELOPMENT.value
     custom_policy_path: str | None = None
+    protected_paths: tuple[str, ...] = ()
     mode: str = "ENFORCE"
     task: str = ""
     interactive: bool = False
@@ -80,6 +82,14 @@ class CreateRunRequest:
         custom_policy_path = value.get("custom_policy_path")
         if custom_policy_path is not None:
             custom_policy_path = _required_text(custom_policy_path, "custom_policy_path")
+        raw_protected_paths = value.get("protected_paths", ())
+        if not isinstance(raw_protected_paths, (list, tuple)):
+            raise DTOValidationError("protected_paths must be a list")
+        if len(raw_protected_paths) > 100:
+            raise DTOValidationError("protected_paths may contain at most 100 paths")
+        protected_paths: list[str] = []
+        for item in raw_protected_paths:
+            protected_paths.append(_required_text(item, "protected_paths item"))
         mode = _required_text(value.get("mode", "ENFORCE"), "mode").upper()
         task = value.get("task", "")
         if not isinstance(task, str):
@@ -90,16 +100,21 @@ class CreateRunRequest:
         if not isinstance(interactive, bool):
             raise DTOValidationError("interactive must be a boolean")
         launch_mode = _required_text(value.get("launch_mode", "inherit"), "launch_mode").lower()
-        if launch_mode not in {"inherit", "new_terminal"}:
-            raise DTOValidationError("launch_mode must be inherit or new_terminal")
-        if launch_mode == "new_terminal" and not interactive:
-            raise DTOValidationError("new_terminal launch_mode requires interactive mode")
+        if launch_mode not in {"inherit", "new_terminal", "web_terminal"}:
+            raise DTOValidationError(
+                "launch_mode must be inherit, new_terminal, or web_terminal"
+            )
+        if launch_mode in {"new_terminal", "web_terminal"} and not interactive:
+            raise DTOValidationError(
+                f"{launch_mode} launch mode requires interactive mode"
+            )
         return cls(
             workspace=workspace,
             agent=agent,
             model=model,
             policy_profile=policy_profile,
             custom_policy_path=custom_policy_path,
+            protected_paths=tuple(protected_paths),
             mode=mode,
             task=task,
             interactive=interactive,
@@ -110,6 +125,7 @@ class CreateRunRequest:
         return {
             "agent": self.agent,
             "custom_policy_path": self.custom_policy_path,
+            "protected_paths": list(self.protected_paths),
             "mode": self.mode,
             "model": self.model,
             "policy_profile": self.policy_profile,

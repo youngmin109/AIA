@@ -22,6 +22,7 @@ from aia import (
     UserAbortTerminationResult,
 )
 from aia.process_identity import ProcessIdentity
+from aia.sensors.process import RootProcessGoneError
 
 from tests.test_readiness import make_barrier, readiness_inputs
 
@@ -345,6 +346,45 @@ def test_hook_failure_refuses_launch_without_spawn(readiness_inputs: dict) -> No
     assert values["session"].status is SessionStatus.FAILED
 
 
+def test_process_sensor_start_failure_preserves_explicit_failure_code(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+
+    class FailingProcessSensor:
+        def __init__(self, *args, **kwargs):
+            return None
+
+        def start(self):
+            raise RootProcessGoneError("root process disappeared")
+
+        def stop(self):
+            return None
+
+    readiness = make_barrier(values).evaluate()
+    assert readiness.readiness_context is not None
+    launcher = ProtectedLauncher(
+        values["session"],
+        readiness.readiness_context,
+        values["context"],
+        values["checkpoint"],
+        values["filesystem"],
+        values["hook"],
+        adapter=PythonTestAdapter(),
+        lease_manager=values["lease_manager"],
+        process_sensor_factory=FailingProcessSensor,
+    )
+
+    result = launcher.launch(launch_request(values))
+
+    assert result.status is LaunchStatus.FAILED
+    assert result.failure_code == "ROOT_PROCESS_GONE"
+    assert result.cleanup_status is LaunchCleanupStatus.SUCCEEDED
+    assert values["session"].status is SessionStatus.FAILED
+    assert launcher.process_handle is not None
+    assert launcher.process_handle.poll() is not None
+
+
 def test_managed_registry_failure_cleans_up_before_running(
     readiness_inputs: dict,
 ) -> None:
@@ -420,6 +460,41 @@ def test_codex_adapter_builds_interactive_terminal_launch_without_prompt(
     assert "--color" not in spec.argv
     assert "-" not in spec.argv
     assert spec.stdin_bytes == b""
+
+
+def test_codex_adapter_uses_inline_submit_binding_for_workbench_terminal(
+    tmp_path: Path,
+) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        adapter_options={
+            "interactive": True,
+            "sandbox": "workspace-write",
+            "workbench_terminal": True,
+        },
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert spec.argv.count("--no-alt-screen") == 1
+    assert 'tui.keymap.composer.submit="ctrl-x"' in spec.argv
+
+
+def test_codex_adapter_rejects_workbench_terminal_for_exec_mode(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="safe",
+        adapter_options={"workbench_terminal": True},
+    )
+
+    with pytest.raises(AdapterError, match="interactive mode"):
+        adapter.build_launch(request, Path(sys.executable))
 
 
 def test_codex_adapter_rejects_permission_bypass_option(tmp_path: Path) -> None:

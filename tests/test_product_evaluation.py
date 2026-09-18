@@ -148,6 +148,32 @@ def test_report_contains_readable_performance_table_with_percentiles() -> None:
     assert "변화량" in html
 
 
+def test_summary_reports_sensor_success_rates_without_using_off_as_zero() -> None:
+    rows = [
+        _run(
+            condition="AIA_OFF",
+            repetition=1,
+            hook_sensor_observed="NOT_APPLICABLE",
+            file_sensor_observed="NOT_APPLICABLE",
+            process_sensor_observed="NOT_APPLICABLE",
+        ),
+        _run(
+            condition="AIA_ON",
+            repetition=1,
+            hook_sensor_observed=True,
+            file_sensor_observed="NOT_APPLICABLE",
+            process_sensor_observed=True,
+        ),
+    ]
+
+    summary = build_summary(rows)
+
+    assert summary["sensors"]["hook_sensor_success_rate"]["AIA_OFF"] is None
+    assert summary["sensors"]["hook_sensor_success_rate"]["AIA_ON"]["rate"] == 1.0
+    assert summary["sensors"]["file_sensor_success_rate"]["AIA_ON"] is None
+    assert summary["sensors"]["process_sensor_success_rate"]["AIA_ON"]["rate"] == 1.0
+
+
 def test_load_runs_rejects_unknown_scenario(tmp_path: Path) -> None:
     path = tmp_path / "raw-runs.jsonl"
     row = _run(condition="AIA_ON", repetition=1)

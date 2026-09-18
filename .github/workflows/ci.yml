@@ -33,6 +33,13 @@ jobs:
           uv lock --check
           python -m compileall -q src scripts
 
+      - name: Verify public source export
+        shell: pwsh
+        run: |
+          $publicRoot = Join-Path $env:RUNNER_TEMP "aia-public-source"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\export-public-tree.ps1 `
+            -OutputPath $publicRoot -Force
+
       - name: Run tests
         run: uv run pytest -ra
 
@@ -104,3 +111,46 @@ jobs:
           & (Join-Path $venv "Scripts\aia.exe") --help
           & (Join-Path $venv "Scripts\aia.exe") console --help
           & (Join-Path $venv "Scripts\aia.exe") self-test --json
+
+  windows-desktop-package:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Build unsigned development installer
+        shell: pwsh
+        run: pwsh -NoProfile -File .\scripts\package-windows.ps1 -Clean
+
+      - name: Verify Windows package
+        shell: pwsh
+        run: pwsh -NoProfile -File .\scripts\verify-windows-package.ps1
+
+      - name: Smoke test Windows installer
+        shell: pwsh
+        run: pwsh -NoProfile -File .\scripts\windows-installer-smoke.ps1
+
+      - name: Upload Windows package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aia-windows-unsigned-${{ github.sha }}
+          path: dist/windows
+          if-no-files-found: error
+          retention-days: 7

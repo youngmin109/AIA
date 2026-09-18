@@ -9,6 +9,8 @@ from aia import CodexHookInstaller
 from aia.cli import (
     _extract_session_id,
     _live_hook_proof_is_valid,
+    _cli_prefix,
+    _self_cli_command,
     _parser,
     _print_protected_run_summary,
     _protected_run_preflight,
@@ -137,6 +139,14 @@ def test_doctor_parser_supports_machine_readable_preflight() -> None:
     assert args.json is True
 
 
+def test_cli_guidance_uses_module_launcher_for_source_checkout() -> None:
+    command = _cli_prefix(CodexHookInstaller())
+
+    assert "python -m aia.cli" in command
+    assert "uv run --isolated" in command
+    assert "uv run aia" not in command
+
+
 def test_self_test_parser_supports_machine_readable_output() -> None:
     args = _parser().parse_args(["self-test", "--json"])
 
@@ -160,6 +170,97 @@ def test_demo_live_parser_selects_real_codex_proof() -> None:
     assert args.scenario == "block-env"
 
 
+def test_demo_parser_supports_presentation_scenario_roots(tmp_path) -> None:
+    args = _parser().parse_args(
+        [
+            "demo",
+            "--scenario",
+            "process-kill",
+            "--workspace",
+            str(tmp_path / "workspace"),
+            "--control-root",
+            str(tmp_path / "control"),
+            "--open",
+        ]
+    )
+
+    assert args.scenario == "process-kill"
+    assert args.workspace == tmp_path / "workspace"
+    assert args.control_root == tmp_path / "control"
+    assert args.open is True
+
+
+def test_demo_presentation_scenario_prints_fixture_boundary(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr(
+        "aia.demo.run_demo",
+        lambda scenario, *, workspace, control_root: {
+            "scenario": scenario,
+            "title": "Process Sensor 관리 트리 종료",
+            "session_id": "demo-process-kill",
+            "workspace": str(workspace),
+            "control_root": str(control_root),
+            "bundle_status": "VALID",
+            "next_step": "open",
+        },
+    )
+
+    assert (
+        main(
+            [
+                "demo",
+                "--scenario",
+                "process-kill",
+                "--workspace",
+                str(tmp_path / "workspace"),
+                "--control-root",
+                str(tmp_path / "control"),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "Bundle: VALID" in output
+    assert "DEMO_FIXTURE" in output
+
+
+def test_demo_open_targets_the_created_session_workbench(monkeypatch, tmp_path) -> None:
+    console_calls = []
+    monkeypatch.setattr(
+        "aia.demo.run_demo",
+        lambda scenario, *, workspace, control_root: {
+            "scenario": scenario,
+            "title": "Hook Sensor PreToolUse 사전 차단",
+            "session_id": "demo-hook-block",
+            "workspace": str(workspace),
+            "control_root": str(control_root),
+            "bundle_status": "VALID",
+            "next_step": "open",
+        },
+    )
+    monkeypatch.setattr(
+        "aia.cli._run_console",
+        lambda args: console_calls.append(args) or 0,
+    )
+
+    assert (
+        main(
+            [
+                "demo",
+                "--scenario",
+                "hook-block",
+                "--workspace",
+                str(tmp_path / "workspace"),
+                "--control-root",
+                str(tmp_path / "control"),
+                "--open",
+            ]
+        )
+        == 0
+    )
+
+    assert console_calls[0].open_path == "/runs/demo-hook-block/workbench"
+
+
 def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
     calls: list[bool] = []
     monkeypatch.setattr(
@@ -173,7 +274,7 @@ def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
     output = capsys.readouterr().out
     assert "AIA 제품 데모" in output
     assert "[1/1]" in output
-    assert "aia demo --live" in output
+    assert f"{_cli_prefix(CodexHookInstaller())} demo --live" in output
 
 
 def test_demo_live_delegates_to_real_codex_proof(monkeypatch, tmp_path) -> None:
@@ -551,6 +652,40 @@ def test_console_parser_supports_explicit_bind_values() -> None:
     assert args.open is True
 
 
+def test_hook_runtime_subcommand_forwards_stdin_to_hook_runtime(monkeypatch) -> None:
+    called = []
+
+    monkeypatch.setattr(
+        "aia.codex_hook_runtime.main",
+        lambda: called.append(True) or 7,
+    )
+
+    assert main(["hook", "runtime"]) == 7
+    assert called == [True]
+
+
+def test_frozen_hook_verification_reenters_packaged_cli_without_module_flag(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("aia.cli.sys.frozen", True, raising=False)
+    monkeypatch.setattr("aia.cli.sys.executable", r"C:\AIA\aia-cli.exe")
+
+    assert _self_cli_command("protect", "workspace") == [
+        r"C:\AIA\aia-cli.exe",
+        "protect",
+        "workspace",
+    ]
+
+
+def test_console_parser_supports_explicit_control_root(tmp_path) -> None:
+    args = _parser().parse_args(
+        ["console", "--control-root", str(tmp_path / "control")]
+    )
+
+    assert args.control_root == tmp_path / "control"
+    assert args.open_path == "/"
+
+
 def test_console_rejects_non_loopback_host() -> None:
     with pytest.raises(ValueError, match="local-only"):
         run_console(host="0.0.0.0", port=8799)
@@ -654,7 +789,7 @@ def test_hook_explain_is_read_only_and_describes_manual_review(
     assert "/hooks" in output
     assert "matcher: *" in output
     assert "preToolUse=MODIFIED" in output
-    assert "aia hook verify" in output
+    assert "hook verify" in output
     assert hook_path.read_bytes() == before
 
 
@@ -769,7 +904,7 @@ def test_hook_status_human_output_explains_trust_and_verification_steps(
     output = capsys.readouterr().out
     assert exit_code == 1
     assert "/hooks" in output
-    assert "aia hook verify" in output
+    assert "hook verify" in output
 
 
 def test_hook_status_does_not_report_ready_when_current_fingerprint_is_untrusted(
@@ -882,6 +1017,61 @@ def test_hook_verify_parser_supports_live_probe_options(tmp_path) -> None:
     assert args.hook_command == "verify"
     assert args.json is True
     assert args.timeout == 30
+
+
+def test_hook_verify_explains_stale_aia_command_before_probe(tmp_path, monkeypatch, capsys) -> None:
+    hook_path = tmp_path / "hooks.json"
+    old = CodexHookInstaller(hook_path, python_executable=tmp_path / "old-python.exe")
+    old.install()
+
+    monkeypatch.setattr(
+        "aia.cli.CodexHookInstaller",
+        lambda _path=None: CodexHookInstaller(
+            hook_path, python_executable=tmp_path / "new-python.exe"
+        ),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "verify",
+            "--json",
+            "--path",
+            str(hook_path),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert payload["reason"] == "PRETOOL_HOOK_COMMAND_MISMATCH"
+    assert payload["aia_runtime_detected"] is True
+
+
+def test_hook_verify_human_failure_shows_hook_path_and_expected_command(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    monkeypatch.setattr(
+        "aia.cli.CodexHookInstaller",
+        lambda _path=None: CodexHookInstaller(
+            hook_path, python_executable=tmp_path / "new-python.exe"
+        ),
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "verify",
+            "--path",
+            str(hook_path),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 2
+    assert f"[확인] 읽은 Hook 설정: {hook_path}" in output
+    assert "[예상] 현재 AIA Hook 명령:" in output
+    assert "-m aia.codex_hook_runtime" in output
 
 
 def test_hook_verify_fails_before_probe_when_codex_hook_is_untrusted(
@@ -1089,7 +1279,53 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
     assert "PreToolUse=MODIFIED" in trust_check["value"]
     assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
     assert payload["readiness_code"] == "CODEX_HOOK_TRUST_REQUIRED"
-    assert "aia hook verify" in payload["next_step"]
+    assert f"{_cli_prefix(CodexHookInstaller(hook_path))} hook verify" in payload["next_step"]
+
+
+def test_doctor_marks_stale_aia_hook_for_refresh(tmp_path, monkeypatch, capsys) -> None:
+    hook_path = tmp_path / "hooks.json"
+    hook_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "*",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "python -m aia.codex_hook_runtime",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+
+    exit_code = main(
+        [
+            "doctor",
+            "--json",
+            "--hook-path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    hook_check = next(item for item in payload["checks"] if item["name"] == "codex_hook")
+    assert exit_code == 1
+    assert hook_check["ok"] is False
+    assert hook_check["stale"] is True
+    assert "기존 AIA Hook 경로" in hook_check["detail"]
+    assert "갱신" in payload["next_step"]
 
 
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
 import re
 from typing import Any
 
@@ -37,12 +38,18 @@ class ResultBundleReader:
             return None
         return verify_evidence_bundle(result_directory)
 
-    def read_result(self, session_id: str) -> dict[str, Any]:
+    def _read_verified_result(self, session_id: str) -> tuple[dict[str, Any], Any]:
+        """Read a result together with the single verification used for it."""
+
         result_directory = self.result_directory(session_id)
         verification = self.verification(session_id)
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
-        return self._read_json(result_directory / "result.json")
+        return self._read_json(result_directory / "result.json"), verification
+
+    def read_result(self, session_id: str) -> dict[str, Any]:
+        result, _ = self._read_verified_result(session_id)
+        return result
 
     def read_report(self, session_id: str) -> str:
         result_directory = self.result_directory(session_id)
@@ -106,14 +113,27 @@ class ResultBundleReader:
             if not candidate.is_dir() or not _SAFE_SESSION_ID.fullmatch(candidate.name):
                 continue
             try:
-                result = self.read_result(candidate.name)
-                verification = self.verification(candidate.name)
+                result, verification = self._read_verified_result(candidate.name)
             except (OSError, ValueError, KeyError):
                 continue
             if verification is None:
                 continue
-            hook_event_count = self.hook_event_count(candidate.name)
-            posttool_event_count = self.posttool_event_count(candidate.name)
+            evidence_metadata = self.read_evidence_metadata(
+                candidate.name,
+                require_valid=False,
+            )
+            hook_event_count = sum(
+                1
+                for item in evidence_metadata
+                if item.get("source") == "AGENT_HOOK"
+                and item.get("record_type") == "PRETOOL_REQUEST"
+            )
+            posttool_event_count = sum(
+                1
+                for item in evidence_metadata
+                if item.get("source") == "AGENT_HOOK"
+                and item.get("record_type") == "POSTTOOL_OBSERVED"
+            )
             session_status = result.get("session_status")
             session_end_reason = result.get("session_end_reason")
             protection_downgraded = any(
@@ -133,6 +153,7 @@ class ResultBundleReader:
                     "created_at": result.get("created_at"),
                     "workspace": result.get("workspace"),
                     "agent": result.get("agent"),
+                    "launch_mode": result.get("launch_mode", "inherit"),
                     "policy": result.get("policy", {}),
                     "run_classification": result.get("run_classification"),
                     "bundle_status": verification.status.value,
@@ -188,10 +209,93 @@ class ResultBundleReader:
             and item.get("record_type") == "POSTTOOL_OBSERVED"
         )
 
+    def checkpoint_status(self, session_id: str) -> str:
+        """Return a display-safe status for the completed run Checkpoint.
+
+        A completed Result Bundle does not put the preparation Checkpoint ID in
+        ``SessionResult`` unless Recovery used it.  The Checkpoint metadata and
+        manifest are committed as separately hashed artifacts, so use those
+        already-verified artifacts to preserve the preparation status in the
+        UI.  Unknown is intentional for older bundles or bundles that do not
+        prove a valid Checkpoint.
+        """
+
+        try:
+            self._require_valid(session_id)
+            session_directory = self.session_directory(session_id)
+            manifest = self._read_json(
+                self.result_directory(session_id) / "evidence-manifest.json"
+            )
+            artifacts = manifest.get("artifacts")
+            if not isinstance(artifacts, list):
+                return "UNKNOWN"
+
+            artifact_types: dict[Path, set[str]] = {}
+            for item in artifacts:
+                if not isinstance(item, dict):
+                    continue
+                relative_path = item.get("relative_path")
+                if not isinstance(relative_path, str):
+                    continue
+                artifact_path = self._safe_artifact_path(
+                    session_directory,
+                    relative_path,
+                )
+                if artifact_path is None:
+                    continue
+                artifact_types.setdefault(artifact_path, set()).add(
+                    str(item.get("artifact_type", ""))
+                )
+
+            for metadata_path, types in artifact_types.items():
+                if "CHECKPOINT_METADATA" not in types or metadata_path.name != "metadata.json":
+                    continue
+                checkpoint_path = metadata_path.parent
+                manifest_path = checkpoint_path / "manifest.json"
+                if "CHECKPOINT_MANIFEST" not in artifact_types.get(manifest_path, set()):
+                    continue
+                try:
+                    metadata = self._read_json(metadata_path)
+                    if (
+                        metadata.get("session_id") != session_id
+                        or metadata.get("validity") != "VALID"
+                        or metadata.get("checkpoint_id") != checkpoint_path.name
+                    ):
+                        continue
+                    if metadata.get("schema_version") == "1.0":
+                        return "READY"
+                except (OSError, ValueError, KeyError):
+                    continue
+        except (OSError, ValueError, KeyError):
+            return "UNKNOWN"
+        return "UNKNOWN"
+
     def _require_valid(self, session_id: str) -> None:
         verification = self.verification(session_id)
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
+
+    @staticmethod
+    def _safe_artifact_path(
+        session_directory: Path,
+        relative_path: str,
+    ) -> Path | None:
+        """Resolve a manifest path while keeping it inside the Session."""
+
+        normalized = relative_path.replace("\\", "/")
+        parsed = PurePosixPath(normalized)
+        if (
+            not normalized
+            or parsed.is_absolute()
+            or any(part in {"", ".", ".."} for part in parsed.parts)
+        ):
+            return None
+        candidate = (session_directory / Path(*parsed.parts)).resolve(strict=False)
+        try:
+            candidate.relative_to(session_directory.resolve(strict=False))
+        except ValueError:
+            return None
+        return candidate
 
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:

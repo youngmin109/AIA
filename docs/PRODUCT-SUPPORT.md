@@ -25,14 +25,14 @@ Control Root: Workspace 밖의 사용자별 AIA control directory
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -SkipDoctor
-uv run aia hook install
-uv run aia policy validate C:\workspace\policies\protected-policy.json
+uv run --isolated --project . python -m aia.cli hook install
+uv run --isolated --project . python -m aia.cli policy validate C:\workspace\policies\protected-policy.json
 ```
 
 설치 직후 Codex를 실행하지 않고 AIA Core만 점검하려면 다음을 사용한다.
 
 ```powershell
-uv run aia self-test
+uv run --isolated --project . python -m aia.cli self-test
 ```
 
 이 점검은 임시 Workspace에서 정책 프로필, Active Policy Freeze, Workspace Lease,
@@ -40,10 +40,10 @@ Safe Checkpoint, Raw Evidence Seal을 확인하고 임시 산출물을 삭제한
 Core 정상 상태를 뜻하며, 실제 Codex Hook 연결 증명은 포함하지 않는다.
 
 처음 `aia doctor`에서 `hook_verification`이 실패하는 것은 정상이다. Codex에서
-Hook을 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해 실제 연결을 확인해야
+Hook을 검토·신뢰한 뒤 `uv run --isolated --project . python -m aia.cli hook verify`를 실행해 실제 연결을 확인해야
 `aia protect`를 시작할 수 있다.
 
-기계적으로 상태를 확인할 때는 `uv run aia doctor --json`의
+기계적으로 상태를 확인할 때는 `uv run --isolated --project . python -m aia.cli doctor --json`의
 `readiness_code`와 `next_step`을 사용한다. `CODEX_HOOK_TRUST_REQUIRED`,
 `HOOK_VERIFICATION_REQUIRED`, `CODEX_HOOK_NOT_INSTALLED`는 각각 Trust 검토,
 실제 Hook 검증, Hook 설치가 더 필요하다는 뜻이다. `READY`가 아닌 상태에서
@@ -52,9 +52,9 @@ Hook을 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해 실제 연�
 정책을 새로 만들 때는 기본 프로필을 복사한 뒤 수정합니다.
 
 ```powershell
-uv run aia policy profiles
-uv run aia policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
-uv run aia policy validate C:\workspace\policies\my-policy.json
+uv run --isolated --project . python -m aia.cli policy profiles
+uv run --isolated --project . python -m aia.cli policy init C:\workspace\policies\my-policy.json --profile CONSERVATIVE_SECURITY
+uv run --isolated --project . python -m aia.cli policy validate C:\workspace\policies\my-policy.json
 ```
 
 `aia hook install`은 정책 관문인 PreToolUse와 실행 확인용 PostToolUse Hook을
@@ -64,7 +64,7 @@ PostToolUse가 없으면 실제 도구 실행 여부를 확인하는 증거가 �
 설치 상태와 실제 실행 활성화 상태는 별도로 확인한다.
 
 ```powershell
-uv run aia hook status
+uv run --isolated --project . python -m aia.cli hook status
 ```
 
 `PreToolUse 설치: YES`는 Hook 설정이 존재한다는 뜻이다. `CURRENTLY_VERIFIED`는
@@ -77,10 +77,10 @@ uv run aia hook status
 Codex 설정 파일, AIA Hook 런타임 코드 지문이 모두 일치하는 실제 Probe 검증이
 남아 있다는 뜻이다.
 `MISSING_OR_STALE`이면
-`uv run aia hook verify`를 다시 실행해야 한다.
+`uv run --isolated --project . python -m aia.cli hook verify`를 다시 실행해야 한다.
 `CURRENT_BUT_UNTRUSTED`이면 이전 Probe 지문은 남아 있지만 현재 Codex가 보고한
 PreToolUse Trust가 `TRUSTED` 또는 `MANAGED`가 아니므로 보호 실행을 시작할 수 없다.
-Codex `/hooks`에서 다시 검토·신뢰한 뒤 `uv run aia hook verify`를 실행해야 한다.
+Codex `/hooks`에서 다시 검토·신뢰한 뒤 `uv run --isolated --project . python -m aia.cli hook verify`를 실행해야 한다.
 
 검증 명령은 먼저 Codex PreToolUse Trust를 확인한다. `MODIFIED`, `UNTRUSTED` 또는
 `NOT_VISIBLE`이면 임시 Probe를 실행하지 않고 즉시 종료하며, AIA Hook을 자동으로
@@ -95,7 +95,7 @@ Codex `/hooks`에서 내용을 검토한 뒤 사용자가 직접 Trust해야 한
 확인한다.
 
 ```powershell
-uv run aia hook verify
+uv run --isolated --project . python -m aia.cli hook verify
 ```
 
 이 명령은 임시 Workspace에서 무해한 Probe를 실행하고, Session-bound Hook Event와
@@ -117,20 +117,20 @@ AIA를 제거하거나 Hook 설정을 되돌릴 때는 다음 명령을 사용�
 Handler만 제거하고 다른 사용자 Hook은 보존한다.
 
 ```powershell
-uv run aia hook uninstall
+uv run --isolated --project . python -m aia.cli hook uninstall
 ```
 
 Codex의 `/hooks` 화면에서 AIA Hook을 직접 검토하고 신뢰한 다음 보호 실행을
 시작한다.
 
 ```powershell
-uv run aia protect C:\workspace\my-project
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project
 ```
 
 실행 중 사용자가 중지해야 하면 별도 터미널이나 웹 콘솔에서 중지 요청을 보낼 수 있다.
 
 ```powershell
-uv run aia stop <SESSION_ID>
+uv run --isolated --project . python -m aia.cli stop <SESSION_ID>
 ```
 
 이 동작은 정책 위반 집행과 구분되는 `USER_ABORT`다. AIA는 등록된 Agent Root와
@@ -147,14 +147,14 @@ uv run aia stop <SESSION_ID>
 명령을 한 번만 전달하려면 다음처럼 실행한다.
 
 ```powershell
-uv run aia protect C:\workspace\my-project --task "테스트를 실행하고 변경 결과를 설명해줘"
+uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project --task "테스트를 실행하고 변경 결과를 설명해줘"
 ```
 
 정책을 수정한 뒤에는 실제 실행 전에 다음으로 판정을 미리 확인할 수 있다.
 
 ```powershell
-uv run aia policy evaluate --operation READ --path .env
-uv run aia policy evaluate --operation EXECUTE --command "python build.py"
+uv run --isolated --project . python -m aia.cli policy evaluate --operation READ --path .env
+uv run --isolated --project . python -m aia.cli policy evaluate --operation EXECUTE --command "python build.py"
 ```
 
 이 명령은 Agent나 대상 명령을 실행하지 않고, 이미 검증된 정책 객체의 판정만
@@ -265,6 +265,6 @@ Codex가 Hook 경로로 보내지 않는 특수 도구, Hosted 도구, Hook 비�
   Result Bundle은 `COMPLETED_DEGRADED`로 남으며 실행을 검증된 보호 성공으로
   해석하지 않는다.
 
-자세한 제한사항은 [LIMITATIONS.md](LIMITATIONS.md)와
-[빠른 시작](QUICKSTART.md)을 함께 확인한다. 평가 원본과 검증 증거는 공개 저장소에
-포함하지 않으며, 저장소의 재현 명령으로 새로 생성한다.
+자세한 제한사항과 평가 결과는 [LIMITATIONS.md](LIMITATIONS.md),
+[CLAIM-MATRIX.md](validation/CLAIM-MATRIX.md),
+[ACTUAL-CODEX-PROOF.md](ACTUAL-CODEX-PROOF.md)를 함께 확인한다.
