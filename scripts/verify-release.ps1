@@ -142,6 +142,8 @@ try {
     $demoOutput = (& $verifyPython -m aia.cli demo | Out-String)
     $demoExitCode = $LASTEXITCODE
     if ($demoExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($demoOutput)) {
+        Write-Host "[AIA] Installed safe demo output:"
+        Write-Host $demoOutput
         throw "installed wheel safe demo failed (exit code $demoExitCode)"
     }
 
