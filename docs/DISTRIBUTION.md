@@ -34,6 +34,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-public-sou
 `aia-<version>-source.zip`과 `SHA256SUMS.txt`를 만든다. `source` 폴더에는 검토용
 공개 트리도 함께 남기며, 내부 평가 실행 결과는 포함하지 않는다.
 
+기존 내부 평가 이력을 가진 작업 폴더에서 GitHub 기본 브랜치에 올릴 공개 기준선을
+만들 때는 별도 Git 저장소를 생성한다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-public-repository.ps1 `
+  -OutputPath .\dist\public-repository -Force
+```
+
+생성된 폴더는 평가 기록이 없는 새 `main` 초기 커밋을 가진 독립 저장소다. 원본
+작업 폴더의 Git 이력과 평가 산출물은 변경하지 않는다. 생성 후 원격 주소를 확인하고
+해당 폴더에서만 GitHub 원격을 추가해 검토·업로드한다.
+
 ## 릴리스 패키지 생성
 
 저장소 루트의 PowerShell에서 다음을 실행한다.
