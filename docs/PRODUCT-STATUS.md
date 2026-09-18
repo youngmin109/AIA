@@ -178,7 +178,9 @@ uv run aia reconcile <SESSION_ID>
   다만 현재 checkout에는 코드 서명 인증서가 없어 signed artifact가 없으며,
   공개 배포는 인증서 설정과 서명 Release Gate 통과 뒤에만 가능하다. 공개 소스는
   내부 평가 기록을 그대로 올리지 않도록 `export-public-tree.ps1`와 CI 안전성
-  검사를 거친다. 자동 업데이트·롤백 경로와 GUI 정책 작성은 아직 없다.
+  검사를 거친다. 자동 업데이트는 아직 제공하지 않으며, 복구는 실행 전
+  Checkpoint로 전체 Workspace를 되돌리는 수동 복구 경로로 제공한다. 정책은
+  로컬 콘솔의 Strict Validation 기반 GUI 편집기에서 작성·검증·저장할 수 있다.
 - 대규모 Workspace 성능 SLA와 OS 전체 Writer 통제는 제공하지 않는다.
 
 따라서 현재 버전을 “개인 개발자가 제한된 지원 범위에서 실제 사용해 볼 수 있는
