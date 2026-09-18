@@ -95,17 +95,18 @@ jobs:
           finally {
             $stream.Dispose()
           }
-          $previousErrorActionPreference = $ErrorActionPreference
-          $ErrorActionPreference = "Continue"
-          try {
-            $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $probe "install.ps1") 2>&1)
-            $tamperedInstallExitCode = $LASTEXITCODE
-          }
-          finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-          }
-          $outputText = $output | Out-String
-          if ($tamperedInstallExitCode -eq 0 -or $outputText -notmatch "SHA-256 mismatch") {
+          $stdoutPath = Join-Path $probe "install.stdout.txt"
+          $stderrPath = Join-Path $probe "install.stderr.txt"
+          $tamperedInstall = Start-Process -FilePath "pwsh" `
+            -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $probe "install.ps1")) `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath `
+            -Wait -PassThru
+          $outputText = @(
+            if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw }
+            if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw }
+          ) -join "`n"
+          if ($tamperedInstall.ExitCode -eq 0 -or $outputText -notmatch "SHA-256 mismatch") {
             Write-Host $outputText
             throw "The release installer did not reject the modified wheel."
           }
