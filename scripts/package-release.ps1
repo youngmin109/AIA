@@ -78,7 +78,6 @@ $supportFiles = @(
     "CONTRIBUTING.md",
     "PROJECT.md",
     "ARCHITECTURE.md",
-    "AGENTS.md",
     "pyproject.toml",
     "uv.lock"
 )
