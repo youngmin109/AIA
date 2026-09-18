@@ -41,10 +41,11 @@ dist\windows\AIA\AIA.exe
 dist\windows\aia-cli\aia-cli.exe
 ```
 
-패키지된 `AIA.exe`는 로컬 FastAPI Workbench를 자기 프로세스 안에서
-시작합니다. 따라서 Windows 애플리케이션 제어 정책이 unsigned 진단용
-`aia-cli.exe`를 차단하는 개발 PC에서도 화면을 여는 단계는 계속 사용할 수
-있습니다. `aia-cli.exe`는 명령줄 진단과 Hook 검증을 위한 별도 도구로
+패키지된 `AIA.exe`는 로컬 FastAPI Workbench를 허용된 `AIA.exe --server`
+자식 프로세스에서 시작합니다. 서버를 GUI 프로세스와 분리해 보호 실행 준비와
+Checkpoint 작업이 화면을 멈추게 하지 않도록 하면서, Windows 애플리케이션
+제어 정책에 막힐 수 있는 unsigned `aia-cli.exe`를 Workbench 시작에 사용하지
+않습니다. `aia-cli.exe`는 명령줄 진단과 Hook 검증을 위한 별도 도구로
 포함됩니다.
 
 패키지 해시·Core self-test와 실제 `AIA.exe` 기동을 한 번에 확인하려면 다음을

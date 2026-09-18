@@ -96,6 +96,8 @@ class CodexHookInstaller:
         python_path = Path(self.python_executable)
         if not explicit_python and getattr(sys, "frozen", False):
             executable_name = python_path.name.casefold()
+            if executable_name in {"aia.exe", "aia"}:
+                return (self.python_executable, "hook", "runtime")
             if executable_name in {"aia-cli.exe", "aia-cli"}:
                 return (self.python_executable, "hook", "runtime")
 
@@ -382,7 +384,8 @@ class CodexHookInstaller:
         ):
             return True
         return any(
-            token.replace("\\", "/").rsplit("/", 1)[-1] in {"aia-cli.exe", "aia-cli"}
+            token.replace("\\", "/").rsplit("/", 1)[-1]
+            in {"aia.exe", "aia", "aia-cli.exe", "aia-cli"}
             and index + 2 < len(normalized)
             and normalized[index + 1 : index + 3] == ["hook", "runtime"]
             for index, token in enumerate(normalized)

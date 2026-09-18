@@ -1783,20 +1783,18 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         service.shutdown()
 
 
-def test_frozen_preflight_points_to_packaged_cli(tmp_path, monkeypatch) -> None:
+def test_frozen_preflight_points_to_trusted_desktop_entrypoint(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(
         tmp_path / "control",
         require_hook_verification=True,
     )
     fake_aia = tmp_path / "AIA" / "AIA.exe"
-    packaged_cli = tmp_path / "AIA" / "aia-cli" / "aia-cli.exe"
-    packaged_cli.parent.mkdir(parents=True)
+    fake_aia.parent.mkdir(parents=True)
     fake_aia.write_bytes(b"")
-    packaged_cli.write_bytes(b"")
     monkeypatch.setattr("aia_app.service.sys.executable", str(fake_aia))
     monkeypatch.setattr("aia_app.service.sys.frozen", True, raising=False)
     try:
-        assert _aia_cli_prefix(CodexHookInstaller()) == str(packaged_cli)
+        assert _aia_cli_prefix(CodexHookInstaller()) == str(fake_aia)
     finally:
         service.shutdown()
 

@@ -78,6 +78,8 @@ def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
 
     if getattr(sys, "frozen", False):
         executable = Path(sys.executable).resolve(strict=False)
+        if executable.name.casefold() in {"aia.exe", "aia"}:
+            return subprocess.list2cmdline([str(executable)])
         if executable.name.casefold() in {"aia-cli.exe", "aia-cli"}:
             return subprocess.list2cmdline([str(executable)])
         candidates = (

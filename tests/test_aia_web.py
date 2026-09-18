@@ -1592,20 +1592,19 @@ def test_large_terminal_replay_is_coalesced_without_losing_order() -> None:
     assert "".join(batch["data"] for batch in batches) == "".join(item["data"] for item in items)
 
 
-def test_frozen_console_uses_packaged_cli_without_launching_a_second_aia_window(
+def test_frozen_console_reuses_trusted_desktop_entrypoint_for_diagnostics(
     monkeypatch, tmp_path
 ) -> None:
     web_module = importlib.import_module("aia_web.app")
-    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
-    cli_path.parent.mkdir()
-    cli_path.touch()
+    desktop_path = tmp_path / "AIA.exe"
+    desktop_path.touch()
 
     monkeypatch.setattr(web_module.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(web_module.sys, "executable", str(tmp_path / "AIA.exe"))
+    monkeypatch.setattr(web_module.sys, "executable", str(desktop_path))
 
     command = _aia_cli_command("hook", "verify", "--json")
 
-    assert command == [str(cli_path), "hook", "verify", "--json"]
+    assert command == [str(desktop_path), "hook", "verify", "--json"]
     assert "-m" not in command
 
 

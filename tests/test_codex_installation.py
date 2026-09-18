@@ -87,18 +87,17 @@ def test_codex_hook_installer_uses_stable_uv_launcher_from_isolated_environment(
     assert installer.is_installed() is True
 
 
-def test_frozen_desktop_installer_uses_packaged_cli_hook_runtime(
+def test_frozen_desktop_installer_uses_trusted_desktop_hook_runtime(
     tmp_path: Path, monkeypatch
 ) -> None:
-    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
-    cli_path.parent.mkdir()
-    cli_path.touch()
+    desktop_path = tmp_path / "AIA.exe"
+    desktop_path.touch()
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", str(tmp_path / "AIA.exe"))
+    monkeypatch.setattr(sys, "executable", str(desktop_path))
 
     installer = CodexHookInstaller(tmp_path / "hooks.json")
 
-    assert installer.command == subprocess.list2cmdline([str(cli_path), "hook", "runtime"])
+    assert installer.command == subprocess.list2cmdline([str(desktop_path), "hook", "runtime"])
     installer.install()
     assert installer.is_installed() is True
     assert installer.has_aia_runtime() is True

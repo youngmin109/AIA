@@ -47,6 +47,8 @@ def _aia_cli_command(*arguments: str) -> list[str]:
 
     if getattr(sys, "frozen", False):
         executable = Path(sys.executable).resolve(strict=False)
+        if executable.name.casefold() in {"aia.exe", "aia"}:
+            return [str(executable), *arguments]
         candidates = (
             executable.parent / "aia-cli" / "aia-cli.exe",
             executable.parent.parent / "aia-cli" / "aia-cli.exe",

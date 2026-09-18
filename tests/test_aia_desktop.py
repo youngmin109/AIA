@@ -7,7 +7,6 @@ import socket
 from aia_desktop.launcher import (
     DesktopBridge,
     _desktop_server_command,
-    _start_server_process,
     _wait_for_server,
     _webview_storage_path,
     choose_loopback_port,
@@ -56,19 +55,18 @@ def test_desktop_server_uses_module_cli_in_source_mode(monkeypatch) -> None:
 
     command = _desktop_server_command("127.0.0.1", 8787)
 
-    assert command[1:4] == ["-m", "aia.cli", "console"]
+    assert command[1:3] == ["-m", "aia_web"]
     assert command[-4:] == ["--host", "127.0.0.1", "--port", "8787"]
 
 
-def test_frozen_desktop_embeds_server_instead_of_spawning_packaged_cli(monkeypatch) -> None:
+def test_frozen_desktop_starts_isolated_aia_server_instead_of_packaged_cli(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("aia_desktop.launcher.sys.frozen", True, raising=False)
-    sentinel = object()
-    monkeypatch.setattr(
-        "aia_desktop.launcher._start_embedded_server",
-        lambda host, port: sentinel,
-    )
+    executable = tmp_path / "AIA.exe"
+    monkeypatch.setattr("aia_desktop.launcher.sys.executable", str(executable))
 
-    assert _start_server_process("127.0.0.1", 8787) is sentinel
+    command = _desktop_server_command("127.0.0.1", 8787)
+
+    assert command == [str(executable), "--server", "--host", "127.0.0.1", "--port", "8787"]
 
 
 def test_webview_storage_path_is_per_user_and_isolated_per_run(
