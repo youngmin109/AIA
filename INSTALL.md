@@ -3,6 +3,19 @@
 AIA 0.1은 Windows 11과 Python 3.13 환경을 지원한다. Codex CLI와 `uv`를 먼저
 설치해야 한다.
 
+## Windows 제품 실행
+
+설치 프로그램으로 설치한 사용자는 시작 메뉴 또는 바탕 화면의 `AIA`를 실행한다.
+이 방식은 `uv`, Python, 포트, AIA CLI 명령을 직접 입력하지 않고 Workbench를
+연다. WebView2 Runtime과 Codex CLI는 별도로 설치되어 있어야 한다. WebView2가
+없으면 AIA가 공식 설치 안내를 표시한다.
+
+첫 실행에서는 이미 존재하는 Workspace를 선택하고, 자동 점검과 Codex `/hooks`
+신뢰를 완료한 뒤 보호 실행을 시작한다. 실행 종료 후 결과 화면에서 전체
+Workspace 복구와 `RESTORED`·`VERIFIED` 상태를 확인할 수 있다. 상세한 개발 빌드와
+설치 프로그램 생성 방법은 [Windows Desktop 가이드](docs/WINDOWS-DESKTOP.md)를
+참조한다.
+
 ## 소스 저장소에서 설치
 
 PowerShell에서 저장소 폴더로 이동한 뒤 다음을 실행한다.

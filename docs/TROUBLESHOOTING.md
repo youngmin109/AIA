@@ -139,6 +139,27 @@ PowerShell에서 실행해도 Hook이 `미설치`로 오인되지 않는다. 이
 현재 프로젝트의 `.venv\\Scripts\\python.exe`와 `.venv\\Scripts\\aia.exe`를
 허용할 수 있는지 확인한다.
 
+PyInstaller로 만든 `dist\\windows\\AIA\\AIA.exe` 또는 설치된 `AIA.exe`가 같은
+오류로 차단되는 경우에는 개발용 unsigned EXE가 Windows Code Integrity 정책을
+통과하지 못한 것이다. 다음으로 서명 상태를 확인한다.
+
+```powershell
+Get-AuthenticodeSignature .\\dist\\windows\\AIA\\AIA.exe
+Get-AuthenticodeSignature .\\dist\\windows\\aia-cli\\aia-cli.exe
+```
+
+`Status`가 `NotSigned`이면 제품 코드의 Workspace나 Codex 문제가 아니다. 공개
+배포본은 Authenticode로 `AIA.exe`, `aia-cli.exe`, 설치 프로그램을 서명하고,
+엄격한 정책에서는 bundled DLL/PYD까지 서명해야 한다. 학교·회사 PC에서는
+관리자가 서명 게시자 또는 릴리스 파일을 허용 목록에 등록해야 할 수 있다.
+개발용 unsigned 패키지는 다음 검증에서 서명 0건으로 표시되는 것이 정상이며,
+공개 릴리스 검증은 의도적으로 실패한다.
+
+```powershell
+.\\scripts\\verify-windows-package.ps1
+.\\scripts\\verify-windows-package.ps1 -RequireSignature -RequireNativeSignature
+```
+
 ## 문제를 보고할 진단 파일
 
 문제를 재현한 뒤 다음 명령을 실행한다.

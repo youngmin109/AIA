@@ -10,6 +10,7 @@ from aia.cli import (
     _extract_session_id,
     _live_hook_proof_is_valid,
     _cli_prefix,
+    _self_cli_command,
     _parser,
     _print_protected_run_summary,
     _protected_run_preflight,
@@ -649,6 +650,31 @@ def test_console_parser_supports_explicit_bind_values() -> None:
     assert args.host == "127.0.0.1"
     assert args.port == 8799
     assert args.open is True
+
+
+def test_hook_runtime_subcommand_forwards_stdin_to_hook_runtime(monkeypatch) -> None:
+    called = []
+
+    monkeypatch.setattr(
+        "aia.codex_hook_runtime.main",
+        lambda: called.append(True) or 7,
+    )
+
+    assert main(["hook", "runtime"]) == 7
+    assert called == [True]
+
+
+def test_frozen_hook_verification_reenters_packaged_cli_without_module_flag(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("aia.cli.sys.frozen", True, raising=False)
+    monkeypatch.setattr("aia.cli.sys.executable", r"C:\AIA\aia-cli.exe")
+
+    assert _self_cli_command("protect", "workspace") == [
+        r"C:\AIA\aia-cli.exe",
+        "protect",
+        "workspace",
+    ]
 
 
 def test_console_parser_supports_explicit_control_root(tmp_path) -> None:

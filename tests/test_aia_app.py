@@ -93,6 +93,25 @@ def test_create_request_can_explicitly_open_interactive_session() -> None:
     assert request.task == ""
 
 
+def test_create_request_accepts_protected_paths_and_normalizes_to_tuple() -> None:
+    request = CreateRunRequest.from_mapping(
+        {
+            "workspace": ".",
+            "protected_paths": [".env", "data/customers.db"],
+        }
+    )
+
+    assert request.protected_paths == (".env", "data/customers.db")
+    assert request.to_mapping()["protected_paths"] == [".env", "data/customers.db"]
+
+
+def test_create_request_rejects_invalid_protected_paths() -> None:
+    with pytest.raises(DTOValidationError, match="protected_paths"):
+        CreateRunRequest.from_mapping({"workspace": ".", "protected_paths": ".env"})
+    with pytest.raises(DTOValidationError, match="protected_paths"):
+        CreateRunRequest.from_mapping({"workspace": ".", "protected_paths": [""]})
+
+
 def test_create_request_supports_separate_windows_terminal_only_for_interactive() -> None:
     request = CreateRunRequest.from_mapping(
         {"workspace": ".", "interactive": True, "launch_mode": "new_terminal"}
@@ -527,6 +546,28 @@ def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path)
     )
     assert saved["path"].endswith("user-policy.json")
     assert (tmp_path / "user-policy.json").is_file()
+
+
+def test_workspace_protected_paths_create_high_priority_deny_policy(tmp_path, monkeypatch) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    protected = workspace / ".env"
+    protected.write_text("SECRET=redacted\n", encoding="utf-8")
+    monkeypatch.setattr(service_module.Path, "home", staticmethod(lambda: tmp_path / "home"))
+
+    path = RunApplicationService._workspace_policy_path(
+        workspace,
+        "PROTECTED_DEVELOPMENT",
+        (str(protected),),
+    )
+
+    assert path is not None
+    document = json.loads(path.read_text(encoding="utf-8"))
+    selected = next(rule for rule in document["rules"] if rule["rule_id"] == "aia-user-protected-path-1")
+    assert selected["path_patterns"] == [".env"]
+    assert selected["asset_type"] == "WORKSPACE"
+    assert selected["operation_effects"]["DELETE"] == "DENY"
+    assert RunApplicationService.validate_policy_document(document)["rule_count"] >= 1
 
 
 def test_policy_preview_request_validates_target_shape_and_unknown_fields() -> None:
@@ -1742,6 +1783,24 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         service.shutdown()
 
 
+def test_frozen_preflight_points_to_packaged_cli(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(
+        tmp_path / "control",
+        require_hook_verification=True,
+    )
+    fake_aia = tmp_path / "AIA" / "AIA.exe"
+    packaged_cli = tmp_path / "AIA" / "aia-cli" / "aia-cli.exe"
+    packaged_cli.parent.mkdir(parents=True)
+    fake_aia.write_bytes(b"")
+    packaged_cli.write_bytes(b"")
+    monkeypatch.setattr("aia_app.service.sys.executable", str(fake_aia))
+    monkeypatch.setattr("aia_app.service.sys.frozen", True, raising=False)
+    try:
+        assert _aia_cli_prefix(CodexHookInstaller()) == str(packaged_cli)
+    finally:
+        service.shutdown()
+
+
 def test_application_create_rejects_currently_untrusted_hook(
     tmp_path, monkeypatch
 ) -> None:
@@ -2270,6 +2329,32 @@ def test_new_run_refuses_workspace_with_unresolved_orphaned_agent(
     try:
         with pytest.raises(ApplicationValidationError, match="정리되지 않은 이전 Protected Run"):
             service.create_protected_run({"workspace": str(tmp_path), "task": "inspect"})
+    finally:
+        service.shutdown()
+
+
+def test_validate_workspace_exposes_orphan_recovery_action(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    state = _orphaned_runtime_state()
+    state["session"]["workspace"] = str(tmp_path)
+    monkeypatch.setattr(
+        "aia_app.service.verify_process_identity",
+        lambda identity: ProcessIdentityStatus.PROCESS_GONE,
+    )
+    service._write_runtime_state_payload("session-1", state)
+    try:
+        result = service.validate_workspace(str(tmp_path))
+        assert result["recovery"] == {
+            "required": True,
+            "session_id": "session-1",
+            "status": "STALE_PROCESS_GONE",
+            "action": "REVIEW_AND_RESTART",
+            "agent_process_status": "PROCESS_GONE",
+        }
     finally:
         service.shutdown()
 

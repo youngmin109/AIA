@@ -22,6 +22,14 @@ from ..launcher import (
 )
 
 
+def _hidden_process_kwargs() -> dict[str, int]:
+    """Prevent version probes from opening a transient Windows console."""
+
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 @dataclass(frozen=True, slots=True)
 class CodexExecutionObservation:
     """Bounded, non-sensitive classification of one Codex output stream."""
@@ -177,6 +185,7 @@ class CodexAdapter:
                 stderr=subprocess.DEVNULL,
                 timeout=5.0,
                 check=False,
+                **_hidden_process_kwargs(),
             )
         except (OSError, subprocess.TimeoutExpired):
             return None

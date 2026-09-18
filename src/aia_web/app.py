@@ -28,6 +28,38 @@ _TERMINAL_OUTPUT_BATCH_MIN_ITEMS = 16
 _TERMINAL_OUTPUT_BATCH_MAX_CHARS = 64 * 1024
 
 
+def _hidden_process_kwargs() -> dict[str, int]:
+    """Keep local diagnostic subprocesses inside the desktop app window."""
+
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
+def _aia_cli_command(*arguments: str) -> list[str]:
+    """Return the CLI executable appropriate for source or frozen execution.
+
+    In a PyInstaller GUI build ``sys.executable`` is ``AIA.exe`` itself.  Using
+    it with ``-m aia.cli`` would launch a second GUI process instead of the
+    diagnostic CLI, so the packaged desktop app must invoke the sibling
+    ``aia-cli.exe`` explicitly.
+    """
+
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable).resolve(strict=False)
+        candidates = (
+            executable.parent / "aia-cli" / "aia-cli.exe",
+            executable.parent.parent / "aia-cli" / "aia-cli.exe",
+            executable.parent / "aia-cli.exe",
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return [str(candidate), *arguments]
+        raise FileNotFoundError("aia-cli.exe is not installed next to AIA.exe")
+
+    return [sys.executable, "-m", "aia.cli", *arguments]
+
+
 def _coalesce_terminal_output(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Reduce WebSocket message overhead when replaying terminal history.
 
@@ -183,18 +215,22 @@ def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tup
 
     if timeout <= 0:
         return {"verified": False, "reason": "INVALID_TIMEOUT"}, 400
-    command = [
-        sys.executable,
-        "-m",
-        "aia.cli",
-        "hook",
-        "verify",
-        "--json",
-        "--timeout",
-        str(timeout),
-        "--control-root",
-        str(control_root),
-    ]
+    try:
+        command = _aia_cli_command(
+            "hook",
+            "verify",
+            "--json",
+            "--timeout",
+            str(timeout),
+            "--control-root",
+            str(control_root),
+        )
+    except FileNotFoundError:
+        return {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": "AIA_CLI_UNAVAILABLE",
+        }, 503
     try:
         completed = subprocess.run(
             command,
@@ -205,6 +241,7 @@ def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tup
             errors="replace",
             timeout=timeout + 60.0,
             check=False,
+            **_hidden_process_kwargs(),
         )
     except subprocess.TimeoutExpired:
         return {
@@ -373,6 +410,40 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         payload, status_code = _run_hook_verification(Path(control_root))
         return JSONResponse(payload, status_code=status_code)
 
+    @app.post("/api/hook/setup")
+    def setup_hook() -> JSONResponse:
+        """Install or refresh AIA's user-level Hook from the local console.
+
+        Codex Trust remains a deliberate user-controlled boundary. This
+        endpoint performs the safe, idempotent equivalent of ``aia setup`` so
+        the normal product flow does not require a terminal command.
+        """
+
+        installer = CodexHookInstaller()
+        try:
+            path = installer.install()
+        except (OSError, ValueError) as error:
+            return JSONResponse(
+                {
+                    "installed": False,
+                    "hook_path": str(installer.path),
+                    "error": str(error),
+                },
+                status_code=400,
+            )
+        return JSONResponse(
+            {
+                "installed": True,
+                "hook_path": str(path),
+                "posttool_installed": installer.is_posttool_installed(),
+                "trust_required": True,
+                "next_step": (
+                    "Codex에서 AIA Hook을 처음 한 번 검토·신뢰하세요. "
+                    "이미 신뢰했다면 실제 연결 검증을 이어서 진행합니다."
+                ),
+            }
+        )
+
     @app.get("/api/workspaces/validate")
     def validate_workspace(path: str) -> JSONResponse:
         try:
@@ -421,6 +492,32 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse(app.state.service.get_run_status(session_id))
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
+
+    @app.get("/api/runs/{session_id}/recovery")
+    def recovery_status(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.get_recovery_status(session_id))
+        except KeyError:
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+        except (OSError, ValueError) as error:
+            return JSONResponse({"error": str(error)}, status_code=409)
+
+    @app.post("/api/runs/{session_id}/recovery/restore")
+    async def restore_run(request: Request, session_id: str) -> JSONResponse:
+        try:
+            payload = await request.json()
+        except ValueError:
+            payload = {}
+        try:
+            result = app.state.service.restore_run(
+                session_id,
+                confirm=isinstance(payload, dict) and payload.get("confirm") is True,
+            )
+        except KeyError:
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+        except (OSError, ValueError) as error:
+            return JSONResponse({"error": str(error)}, status_code=409)
+        return JSONResponse(result, status_code=200)
 
     @app.get("/api/runs/{session_id}/actions")
     def run_actions(session_id: str) -> JSONResponse:

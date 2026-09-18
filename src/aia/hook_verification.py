@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+import sys
 import tomllib
 from typing import Any
 
@@ -16,6 +17,20 @@ from .codex_installation import CodexHookInstaller
 
 _SCHEMA_VERSION = "aia-hook-verification-5"
 _RUNTIME_PATH = (Path(__file__).resolve().parent / "codex_hook_runtime.py").resolve()
+
+
+def _runtime_identity() -> str:
+    """Return a stable identity for the Hook runtime in source or frozen mode.
+
+    The desktop and diagnostic PyInstaller executables each unpack the same
+    module under a different ``_internal`` directory.  The path is therefore
+    useful as a source-mode diagnostic, but cannot identify a frozen runtime.
+    The runtime content hash remains the integrity binding in both modes.
+    """
+
+    if getattr(sys, "frozen", False):
+        return "packaged:aia.codex_hook_runtime"
+    return str(_RUNTIME_PATH)
 
 
 class HookVerificationStore:
@@ -107,7 +122,7 @@ class HookVerificationStore:
             "hook_sha256": hook_sha256,
             "codex_config": str(config_path),
             "codex_config_sha256": cls._codex_config_fingerprint(config_path),
-            "aia_hook_runtime": str(_RUNTIME_PATH),
+            "aia_hook_runtime": _runtime_identity(),
             "aia_hook_runtime_sha256": runtime_sha256,
             "codex_executable": str(executable_path),
             # File size and mtime are useful diagnostics but are not a
@@ -138,7 +153,22 @@ class HookVerificationStore:
             return False
         if proof.get("verified") is not True:
             return False
-        return all(proof.get(key) == value for key, value in fingerprint.items())
+        if proof.get("aia_hook_runtime") != fingerprint["aia_hook_runtime"]:
+            # Proofs written by an earlier packaged build used the physical
+            # ``AIA`` or ``aia-cli`` extraction path.  Keep those proofs
+            # usable when the runtime bytes are unchanged; the hash, rather
+            # than the unpack directory, is the security-relevant binding.
+            if not (
+                getattr(sys, "frozen", False)
+                and proof.get("aia_hook_runtime_sha256")
+                == fingerprint["aia_hook_runtime_sha256"]
+            ):
+                return False
+        return all(
+            proof.get(key) == value
+            for key, value in fingerprint.items()
+            if key != "aia_hook_runtime"
+        )
 
     def write_verified(
         self,

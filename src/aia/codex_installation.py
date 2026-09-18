@@ -94,6 +94,23 @@ class CodexHookInstaller:
         """
 
         python_path = Path(self.python_executable)
+        if not explicit_python and getattr(sys, "frozen", False):
+            executable_name = python_path.name.casefold()
+            if executable_name in {"aia-cli.exe", "aia-cli"}:
+                return (self.python_executable, "hook", "runtime")
+
+            candidates = (
+                python_path.parent / "aia-cli" / "aia-cli.exe",
+                python_path.parent.parent / "aia-cli" / "aia-cli.exe",
+                python_path.parent / "aia-cli.exe",
+            )
+            for candidate in candidates:
+                if candidate.is_file():
+                    return (str(candidate), "hook", "runtime")
+            raise CodexHookInstallationError(
+                "aia-cli.exe is not installed next to the AIA desktop application"
+            )
+
         if explicit_python or not _is_ephemeral_uv_python(python_path):
             return (self.python_executable, "-m", "aia.codex_hook_runtime")
 
@@ -357,10 +374,17 @@ class CodexHookInstaller:
         except ValueError:
             return False
         normalized = [token.strip('"').casefold() for token in tokens]
-        return any(
+        if any(
             token == "-m"
             and index + 1 < len(normalized)
             and normalized[index + 1] == "aia.codex_hook_runtime"
+            for index, token in enumerate(normalized)
+        ):
+            return True
+        return any(
+            token.replace("\\", "/").rsplit("/", 1)[-1] in {"aia-cli.exe", "aia-cli"}
+            and index + 2 < len(normalized)
+            and normalized[index + 1 : index + 3] == ["hook", "runtime"]
             for index, token in enumerate(normalized)
         )
 

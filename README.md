@@ -105,6 +105,16 @@ Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
 
 외부 Network에 노출하지 마십시오.
 
+Windows 11에서 일반 사용자는 Python·uv·포트를 직접 입력하지 않고 `AIA.exe`로
+같은 Workbench를 시작할 수 있다. 개발 빌드와 사용자 권한 설치 프로그램은
+[Windows Desktop 가이드](docs/WINDOWS-DESKTOP.md)를 따른다. 실행 파일은 기존 AIA
+Core와 센서를 재사용하며, WebView2 Runtime과 Codex CLI는 별도로 설치되어 있어야
+한다.
+
+공개 Windows 배포본은 Authenticode 코드 서명과 SHA-256 manifest를 포함해야 한다.
+서명 인증서 준비와 릴리스 패키징은 [Windows 코드 서명 가이드](docs/WINDOWS-SIGNING.md)를
+따른다.
+
 콘솔에서 `새 보호 실행`을 시작하면 AIA가 사용자가 이미 만든 Workspace를 확인한
 뒤 기본적으로 AIA Workbench 화면에서 Codex를 보호된 작업창으로 실행한다. Workbench는
 Codex 작업창, Hook·File·Process Sensor 상태, 안전한 이벤트 요약, 차단 사건을 한 화면에

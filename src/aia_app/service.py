@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 import os
 import json
@@ -74,6 +75,20 @@ from .terminal import TerminalSessionError, WinPtyTerminalSession
 
 def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
     """Return a usable local CLI command for messages shown by the web app."""
+
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable).resolve(strict=False)
+        if executable.name.casefold() in {"aia-cli.exe", "aia-cli"}:
+            return subprocess.list2cmdline([str(executable)])
+        candidates = (
+            executable.parent / "aia-cli" / "aia-cli.exe",
+            executable.parent.parent / "aia-cli" / "aia-cli.exe",
+            executable.parent / "aia-cli.exe",
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return subprocess.list2cmdline([str(candidate)])
+        return subprocess.list2cmdline([str(executable)])
 
     module_path = Path(__file__).resolve()
     project_root = next(
@@ -655,6 +670,94 @@ class RunApplicationService:
         summary = RunApplicationService.validate_policy_document(document)
         return {**summary, "path": str(path)}
 
+    @staticmethod
+    def _workspace_policy_path(
+        workspace: Path,
+        profile_name: str,
+        protected_paths: tuple[str, ...],
+        policy_source: str | Path | Mapping[str, Any] | None = None,
+    ) -> Path | None:
+        """Create a validated custom policy for paths selected in the UI."""
+
+        if not protected_paths:
+            return None
+        try:
+            resolved = resolve_profile(profile_name, policy_source=policy_source)
+        except (OSError, ValueError) as error:
+            raise ApplicationValidationError(f"policy validation failed: {error}") from error
+
+        normalized: list[tuple[str, bool]] = []
+        for raw_path in protected_paths:
+            candidate = Path(raw_path).expanduser().resolve(strict=False)
+            try:
+                relative = candidate.relative_to(workspace).as_posix()
+            except ValueError as error:
+                raise ApplicationValidationError(
+                    "보호할 파일·폴더는 선택한 Workspace 안에 있어야 합니다."
+                ) from error
+            if not relative or relative == ".":
+                raise ApplicationValidationError("Workspace 자체는 보호 목록에 추가할 수 없습니다.")
+            normalized.append((relative, candidate.is_dir()))
+
+        rules: list[dict[str, Any]] = []
+        for rule in resolved.policy.rules:
+            rule_mapping: dict[str, Any] = {
+                "rule_id": rule.rule_id,
+                "priority": rule.priority,
+                "asset_type": rule.asset_type.value,
+                "operation_effects": {
+                    operation.value: effect.value
+                    for operation, effect in rule.operation_effects.items()
+                },
+            }
+            if rule.path_patterns:
+                rule_mapping["path_patterns"] = list(rule.path_patterns)
+            else:
+                rule_mapping["command_patterns"] = list(rule.command_patterns)
+            rules.append(rule_mapping)
+
+        for index, (relative, is_directory) in enumerate(normalized, start=1):
+            patterns = [relative]
+            if is_directory:
+                patterns.append(f"{relative}/**")
+            rules.append(
+                {
+                    "rule_id": f"aia-user-protected-path-{index}",
+                    "priority": 2000 + index,
+                    "asset_type": "WORKSPACE",
+                    "path_patterns": patterns,
+                    "operation_effects": {
+                        "CREATE": "DENY",
+                        "MODIFY": "DENY",
+                        "DELETE": "DENY",
+                        "MOVE": "DENY",
+                        "RENAME": "DENY",
+                    },
+                }
+            )
+
+        policy_document = {
+            "profile": PolicyProfile.CUSTOM.value,
+            "policy_name": "AIA Workspace Protected Paths",
+            "policy_id": "aia-workspace-protected",
+            "policy_version": "1.0",
+            "schema_version": "1",
+            "default_effect": resolved.policy.default_effect.value,
+            "rules": rules,
+        }
+        digest = hashlib.sha256(
+            json.dumps(
+                {"workspace": str(workspace), "paths": normalized},
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()[:16]
+        path = Path.home() / ".aia" / "policies" / f"workspace-{digest}.json"
+        RunApplicationService.save_policy_document(
+            {"document": policy_document, "path": str(path)}
+        )
+        return path
+
     def preflight(
         self,
         *,
@@ -1006,15 +1109,32 @@ class RunApplicationService:
             mode = SessionMode(request.mode.upper())
         except ValueError as error:
             raise ApplicationValidationError("mode must be ENFORCE or AUDIT") from error
+        workspace_policy_path = self._workspace_policy_path(
+            workspace,
+            request.policy_profile,
+            request.protected_paths,
+            Path(request.custom_policy_path)
+            if request.custom_policy_path is not None
+            else None,
+        )
+        selected_policy_profile = (
+            PolicyProfile.CUSTOM
+            if workspace_policy_path is not None
+            else PolicyProfile.from_value(request.policy_profile)
+        )
+        selected_policy_source = (
+            workspace_policy_path
+            if workspace_policy_path is not None
+            else (
+                Path(request.custom_policy_path)
+                if request.custom_policy_path is not None
+                else None
+            )
+        )
         try:
-            profile = PolicyProfile.from_value(request.policy_profile)
             resolved = resolve_profile(
-                profile,
-                policy_source=(
-                    Path(request.custom_policy_path)
-                    if request.custom_policy_path is not None
-                    else None
-                ),
+                selected_policy_profile,
+                policy_source=selected_policy_source,
             )
         except (OSError, ValueError) as error:
             raise ApplicationValidationError(f"policy validation failed: {error}") from error
@@ -1031,7 +1151,7 @@ class RunApplicationService:
             workspace=workspace,
             agent=session.agent,
             model=request.model,
-            policy_profile=profile.value,
+            policy_profile=selected_policy_profile.value,
             policy_id=resolved.policy_id,
             policy_version=resolved.policy_version,
             mode=mode.value,
@@ -1354,6 +1474,7 @@ class RunApplicationService:
                 "cols": None,
                 "started_at": None,
                 "ended_at": None,
+                "exit_code": None,
                 "error": None,
             }
         terminal = record.runtime.get("terminal_session")
@@ -1366,6 +1487,7 @@ class RunApplicationService:
                 "cols": None,
                 "started_at": None,
                 "ended_at": None,
+                "exit_code": None,
                 "error": None,
             }
         return terminal.snapshot()
@@ -1542,6 +1664,43 @@ class RunApplicationService:
             raise KeyError(action_id)
         return incident
 
+    def _apply_manual_recovery_view(
+        self,
+        view: dict[str, Any],
+        session_id: str,
+    ) -> dict[str, Any]:
+        manual = self._read_manual_recovery(session_id)
+        if not manual:
+            return view
+        recovery = manual.get("recovery_result") or {}
+        integrity = manual.get("integrity_result") or {}
+        view["recovery"] = recovery
+        view["integrity"] = integrity
+        view["recovery_status"] = recovery.get("recovery_status", "NOT_ATTEMPTED")
+        view["integrity_status"] = integrity.get("integrity_status", "NOT_CHECKED")
+        view["recovery_summary"] = {
+            "status": view["recovery_status"],
+            "reason": recovery.get("reason"),
+            "planned_operations": int(recovery.get("planned_operation_count") or 0),
+            "attempted_operations": int(recovery.get("attempted_operation_count") or 0),
+            "succeeded_operations": int(recovery.get("succeeded_operation_count") or 0),
+            "failed_operations": int(recovery.get("failed_operation_count") or 0),
+            "restored_paths": len(recovery.get("restored_paths") or []),
+            "removed_paths": len(recovery.get("removed_paths") or []),
+            "failed_paths": len(recovery.get("failed_paths") or []),
+        }
+        view["integrity_summary"] = {
+            "status": view["integrity_status"],
+            "reason": integrity.get("reason"),
+            "expected_entries": int(integrity.get("expected_entry_count") or 0),
+            "actual_entries": int(integrity.get("actual_entry_count") or 0),
+            "missing_paths": len(integrity.get("missing_paths") or []),
+            "unexpected_paths": len(integrity.get("unexpected_paths") or []),
+            "changed_paths": len(integrity.get("changed_paths") or []),
+            "verification_errors": len(integrity.get("verification_errors") or []),
+        }
+        return view
+
     def get_result(self, session_id: str) -> dict[str, Any]:
         record = self.registry.snapshot(session_id)
         if record is not None and record.result is not None and record.bundle_status is not None:
@@ -1568,7 +1727,7 @@ class RunApplicationService:
                 session_id,
                 metadata=evidence_metadata,
             )
-            return view
+            return self._apply_manual_recovery_view(view, session_id)
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
         view = result_view(result, verification.status.value if verification else "NOT_FOUND")
@@ -1608,7 +1767,220 @@ class RunApplicationService:
             session_id,
             metadata=evidence_metadata,
         )
-        return view
+        return self._apply_manual_recovery_view(view, session_id)
+
+    def _manual_recovery_artifact_path(self, session_id: str) -> Path:
+        if (
+            not isinstance(session_id, str)
+            or not session_id
+            or any(not (character.isalnum() or character == "-") for character in session_id)
+        ):
+            raise ValueError("invalid session_id")
+        return self.control_root / "sessions" / session_id / "manual-recovery.json"
+
+    def _read_manual_recovery(self, session_id: str) -> dict[str, Any] | None:
+        try:
+            path = self._manual_recovery_artifact_path(session_id)
+            if not path.is_file():
+                return None
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    @staticmethod
+    def _recovery_mapping(value: Any) -> dict[str, Any]:
+        return {
+            "recovery_id": value.recovery_id,
+            "aia_session_id": value.aia_session_id,
+            "action_id": value.action_id,
+            "termination_id": value.termination_id,
+            "checkpoint_id": value.checkpoint_id,
+            "recovery_status": value.recovery_status.value,
+            "started_at": value.started_at.isoformat() if value.started_at else None,
+            "ended_at": value.ended_at.isoformat(),
+            "duration_ms": value.duration_ms,
+            "planned_operation_count": value.planned_operation_count,
+            "attempted_operation_count": value.attempted_operation_count,
+            "succeeded_operation_count": value.succeeded_operation_count,
+            "failed_operation_count": value.failed_operation_count,
+            "restored_paths": list(value.restored_paths),
+            "removed_paths": list(value.removed_paths),
+            "failed_paths": list(value.failed_paths),
+            "reason": value.reason,
+            "limitations": list(value.limitations),
+            "operation_results": [
+                {
+                    "operation": item.operation.value,
+                    "relative_path": item.relative_path,
+                    "expected_entry_type": item.expected_entry_type.value
+                    if item.expected_entry_type
+                    else None,
+                    "attempted": item.attempted,
+                    "succeeded": item.succeeded,
+                    "reason": item.reason,
+                    "expected_sha256": item.expected_sha256,
+                    "final_sha256": item.final_sha256,
+                }
+                for item in value.operation_results
+            ],
+        }
+
+    @staticmethod
+    def _integrity_mapping(value: Any) -> dict[str, Any]:
+        return {
+            "aia_session_id": value.aia_session_id,
+            "checkpoint_id": value.checkpoint_id,
+            "integrity_status": value.integrity_status.value,
+            "integrity_started_at": value.integrity_started_at.isoformat()
+            if value.integrity_started_at
+            else None,
+            "integrity_ended_at": value.integrity_ended_at.isoformat()
+            if value.integrity_ended_at
+            else None,
+            "integrity_duration_ms": value.integrity_duration_ms,
+            "verified_at": value.verified_at.isoformat() if value.verified_at else None,
+            "checkpoint_fingerprint": value.checkpoint_fingerprint,
+            "expected_entry_count": value.expected_entry_count,
+            "actual_entry_count": value.actual_entry_count,
+            "missing_paths": list(value.missing_paths),
+            "unexpected_paths": list(value.unexpected_paths),
+            "type_mismatches": list(value.type_mismatches),
+            "changed_paths": list(value.changed_paths),
+            "verification_errors": list(value.verification_errors),
+            "limitations": list(value.limitations),
+            "reason": value.reason,
+        }
+
+    def _manual_recovery_context(self, session_id: str) -> dict[str, Any]:
+        """Load a completed run and its immutable checkpoint without mutation."""
+
+        record = self.registry.get(session_id)
+        if record is not None and record.status not in {"COMPLETED", "ABORTED", "FAILED"}:
+            return {"available": False, "reason": "RUN_IS_ACTIVE"}
+        try:
+            raw_result = self.reader.read_result(session_id)
+        except (KeyError, OSError, ValueError) as error:
+            raise KeyError(session_id) from error
+        workspace = self._validate_workspace(raw_result.get("workspace"))
+        checkpoints_root = self.control_root / "sessions" / session_id / "checkpoints"
+        candidates = sorted(
+            (path for path in checkpoints_root.iterdir() if path.is_dir())
+            if checkpoints_root.is_dir()
+            else (),
+            key=lambda path: path.name,
+        )
+        import aia.checkpoint as checkpoint_module
+
+        checkpoint = None
+        for candidate in candidates:
+            try:
+                metadata, manifest = checkpoint_module._validate_artifact(candidate)
+                checkpoint = checkpoint_module._checkpoint_from_artifact(
+                    candidate,
+                    metadata,
+                    manifest,
+                )
+                break
+            except Exception:
+                continue
+        if checkpoint is None:
+            return {"available": False, "reason": "CHECKPOINT_UNAVAILABLE"}
+        from aia.checkpoint import compare_workspace_to_checkpoint
+
+        comparison = compare_workspace_to_checkpoint(checkpoint, workspace)
+        return {
+            "available": True,
+            "reason": None,
+            "workspace": workspace,
+            "raw_result": raw_result,
+            "checkpoint": checkpoint,
+            "workspace_matches": comparison.matches,
+            "checkpoint_validity": checkpoint.validity.value,
+        }
+
+    def get_recovery_status(self, session_id: str) -> dict[str, Any]:
+        context = self._manual_recovery_context(session_id)
+        manual = self._read_manual_recovery(session_id)
+        if manual is not None:
+            context = {
+                **context,
+                "available": False,
+                "status": (manual.get("recovery_result") or {}).get("recovery_status"),
+                "integrity_status": (manual.get("integrity_result") or {}).get("integrity_status"),
+                "manual_recovery": True,
+            }
+        else:
+            context = {
+                **context,
+                "status": "NOT_REQUIRED" if context.get("workspace_matches") else "NOT_ATTEMPTED",
+                "integrity_status": "VERIFIED" if context.get("workspace_matches") else "NOT_CHECKED",
+                "manual_recovery": False,
+            }
+        return {
+            key: value
+            for key, value in context.items()
+            if key not in {"workspace", "raw_result", "checkpoint"}
+        }
+
+    def restore_run(self, session_id: str, *, confirm: bool) -> dict[str, Any]:
+        if confirm is not True:
+            raise ApplicationValidationError("전체 Workspace 복구 확인이 필요합니다.")
+        existing = self._read_manual_recovery(session_id)
+        if existing is not None:
+            return existing
+        context = self._manual_recovery_context(session_id)
+        if not context.get("available"):
+            raise ApplicationValidationError(str(context.get("reason") or "RECOVERY_UNAVAILABLE"))
+        workspace: Path = context["workspace"]
+        raw_result = context["raw_result"]
+        checkpoint = context["checkpoint"]
+        policy = raw_result.get("policy") if isinstance(raw_result.get("policy"), Mapping) else {}
+        session = ProtectedRunSession(
+            workspace=workspace,
+            agent=str(raw_result.get("agent") or "codex"),
+            mode=str(raw_result.get("mode") or "ENFORCE"),
+            policy_id=str(policy.get("policy_id") or "manual-recovery"),
+            policy_version=str(policy.get("policy_version") or "1"),
+            created_at=datetime.fromisoformat(raw_result["created_at"]),
+        )
+        session.session_id = session_id
+        manager = WorkspaceLeaseManager(
+            self.control_root,
+            process_identity_provider=process_create_time,
+        )
+        lease = manager.acquire(
+            workspace,
+            session_id,
+            owner_pid=os.getpid(),
+            owner_process_create_time=process_create_time(os.getpid()),
+        )
+        try:
+            verification = RecoveryCoordinator(manager).restore_manual(
+                session=session,
+                checkpoint=checkpoint,
+                workspace_lease=lease,
+                workspace=workspace,
+            )
+        finally:
+            try:
+                manager.release(lease)
+            except Exception:
+                pass
+        payload = {
+            "schema_version": "aia-manual-recovery-1",
+            "session_id": session_id,
+            "workspace": str(workspace),
+            "recovery_result": self._recovery_mapping(verification.recovery),
+            "integrity_result": self._integrity_mapping(verification.integrity),
+            "saved_at": _now().isoformat(),
+        }
+        path = self._manual_recovery_artifact_path(session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+        return payload
 
     def _evidence_summary(
         self,
@@ -1662,11 +2034,23 @@ class RunApplicationService:
 
     def validate_workspace(self, value: str) -> dict[str, Any]:
         workspace = self._validate_workspace(value)
+        orphan = self._unresolved_orphan_for_workspace(workspace)
+        recovery = None
+        if orphan is not None:
+            reconciliation = orphan.get("runtime_reconciliation") or {}
+            recovery = {
+                "required": True,
+                "session_id": orphan.get("session_id"),
+                "status": reconciliation.get("status", "UNKNOWN"),
+                "action": reconciliation.get("action"),
+                "agent_process_status": reconciliation.get("agent_process_status"),
+            }
         return {
             "valid": True,
             "exists": workspace.exists(),
             "is_directory": workspace.is_dir(),
             "canonical_path": str(workspace),
+            "recovery": recovery,
         }
 
     def shutdown(self, wait: bool = True) -> None:
@@ -1871,6 +2255,8 @@ class RunApplicationService:
                 codex_output_handles.extend((stdout_stream, stderr_stream))
                 kwargs["stdout"] = stdout_stream
                 kwargs["stderr"] = stderr_stream
+                if os.name == "nt":
+                    kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
                 try:
                     return subprocess.Popen(argv, **kwargs)
                 except Exception:
@@ -1960,6 +2346,15 @@ class RunApplicationService:
                 )
             )
             record.runtime["launch"] = launch
+            # The Process Sensor is created before the launcher can report a
+            # startup failure. Preserve it in the run record even when Codex
+            # exits during startup so failed runs still show truthful sensor
+            # health and evidence in the Workbench.
+            process_sensor = launcher.process_sensor
+            if process_sensor is not None:
+                sensors = (filesystem, hook, process_sensor)
+                record.runtime["sensors"] = sensors
+                self._refresh_sensors(record, sensors)
             if record.stop_requested:
                 if launch.context is None:
                     self._finalize_user_abort_before_launch(

@@ -124,6 +124,7 @@ class WinPtyTerminalSession:
         self._handle: _PtyProcessHandle | None = None
         self._reader: Thread | None = None
         self._reader_error: str | None = None
+        self._exit_code: int | None = None
         self._started_at: datetime | None = None
         self._ended_at: datetime | None = None
         self._closed = False
@@ -197,6 +198,13 @@ class WinPtyTerminalSession:
             if not pty.isalive():
                 break
         with self._lock:
+            exit_code: int | None = None
+            try:
+                value = pty.exitstatus
+                exit_code = int(value) if value is not None else 0
+            except Exception:
+                pass
+            self._exit_code = exit_code
             self._ended_at = self._ended_at or _now()
             self._condition.notify_all()
 
@@ -289,13 +297,19 @@ class WinPtyTerminalSession:
     def poll(self) -> int | None:
         with self._lock:
             pty = self._pty
+            cached_exit_code = getattr(self, "_exit_code", None)
         if pty is None or pty.isalive():
             return None
+        if cached_exit_code is not None:
+            return cached_exit_code
         try:
             value = pty.exitstatus
-            return int(value) if value is not None else 0
+            exit_code = int(value) if value is not None else 0
         except Exception:
-            return 0
+            exit_code = 0
+        with self._lock:
+            self._exit_code = exit_code
+        return exit_code
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = None if timeout is None else time.monotonic() + max(0.0, timeout)
@@ -313,6 +327,7 @@ class WinPtyTerminalSession:
         with self._lock:
             pty = self._pty
             reader_error = self._reader_error
+            exit_code = getattr(self, "_exit_code", None)
             started_at = self._started_at
             ended_at = self._ended_at
             rows = self._rows
@@ -336,6 +351,7 @@ class WinPtyTerminalSession:
             "cols": cols,
             "started_at": started_at.isoformat() if started_at else None,
             "ended_at": ended_at.isoformat() if ended_at else None,
+            "exit_code": exit_code,
             "error": reader_error,
         }
 

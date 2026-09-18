@@ -1804,6 +1804,18 @@ function renderRuntimeAlert(status) {
       'AIA 실행 기록 저장에 문제가 있습니다.',
       '현재 화면의 관찰 정보는 볼 수 있지만, 종료 후 결과 기록이 불완전할 수 있습니다. 실행을 중지한 뒤 결과를 확인하세요.',
     ],
+    ROOT_PROCESS_GONE: [
+      'Codex가 시작 직후 종료되었습니다.',
+      'Process Sensor는 Codex 프로세스의 종료를 감지했습니다. Codex 자체 시작 점검과 Workspace 환경을 확인하세요.',
+    ],
+    PROCESS_EXITED_BEFORE_REGISTRATION: [
+      'Codex가 보호 등록 전에 종료되었습니다.',
+      'Process Sensor가 보호할 실행 대상을 등록하기 전에 Codex가 종료되었습니다. Workspace와 Codex 실행 환경을 확인하세요.',
+    ],
+    PROCESS_EXITED_DURING_STARTUP: [
+      'Codex가 보호 실행 준비 중 종료되었습니다.',
+      'Process Sensor가 실행 대상을 관찰했지만 Codex가 작업 화면을 열기 전에 종료되었습니다. Codex 자체 진단과 Workspace 환경을 확인하세요.',
+    ],
   };
   const [title, detail] = messages[error] || [
     'AIA 실행에 확인이 필요한 문제가 있습니다.',

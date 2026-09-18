@@ -162,6 +162,26 @@ def test_recovery_restores_whole_workspace_and_verifies(tmp_path: Path):
     assert result.recovery.planned_operation_count > 0
 
 
+def test_manual_restore_works_without_policy_gate_or_termination_result(tmp_path: Path):
+    workspace, session, lease, lease_manager, checkpoint, _gate, _termination = _fixture(tmp_path)
+    (workspace / "protected" / "modified.txt").write_text("changed", encoding="utf-8")
+    (workspace / "created-after-run.txt").write_text("created", encoding="utf-8")
+
+    result = _coordinator(lease_manager).restore_manual(
+        session=session,
+        checkpoint=checkpoint,
+        workspace_lease=lease,
+        workspace=workspace,
+    )
+
+    assert result.recovery_status is RecoveryStatus.RESTORED
+    assert result.integrity_status is IntegrityStatus.VERIFIED
+    assert result.recovery.action_id is None
+    assert result.recovery.termination_id is None
+    assert (workspace / "protected" / "modified.txt").read_text(encoding="utf-8") == "original"
+    assert not (workspace / "created-after-run.txt").exists()
+
+
 def test_recovery_replay_is_noop_after_restore(tmp_path: Path):
     workspace, session, lease, lease_manager, checkpoint, gate, termination = _fixture(tmp_path)
     (workspace / "protected" / "modified.txt").write_text("changed", encoding="utf-8")

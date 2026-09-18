@@ -3,7 +3,13 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 import importlib
 
-from aia_web.app import _coalesce_terminal_output, _console_cli_prefix, _dashboard_run_view, create_app
+from aia_web.app import (
+    _aia_cli_command,
+    _coalesce_terminal_output,
+    _console_cli_prefix,
+    _dashboard_run_view,
+    create_app,
+)
 from aia_app.service import RunApplicationService
 from aia.codex_installation import CodexHookInstaller
 
@@ -204,6 +210,29 @@ class FakeService:
             "limitations": ["Local console does not provide remote access."],
         }
 
+    def get_recovery_status(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return {
+            "available": True,
+            "workspace_matches": False,
+            "status": "NOT_ATTEMPTED",
+            "integrity_status": "NOT_CHECKED",
+            "manual_recovery": False,
+            "reason": None,
+        }
+
+    def restore_run(self, session_id, *, confirm):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        if confirm is not True:
+            raise ValueError("전체 Workspace 복구 확인이 필요합니다.")
+        return {
+            "session_id": session_id,
+            "recovery_result": {"recovery_status": "RESTORED"},
+            "integrity_result": {"integrity_status": "VERIFIED"},
+        }
+
     def get_report(self, session_id):
         return "# AIA Security Report\n"
 
@@ -336,6 +365,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert ".history-run-row-has-incidents > td:first-child" in css.text
     assert ".history-incident-count.has-incidents" in css.text
     assert ".workbench-guidance.guidance-warning { background:" in css.text
+
+
     assert ".workbench-header > div:first-child { display: grid; gap: 4px; }" in css.text
     assert ".workbench-header h1 { margin: 0; font-size: 24px; }" in css.text
     assert ".workbench-guidance { min-height: 0; margin-bottom: 10px; padding: 9px 11px; }" in css.text
@@ -622,6 +653,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'id="workbench-system-alert"' in workbench.text
     assert "renderRuntimeAlert(status)" in workbench.text
     assert "RUNTIME_STATE_PERSIST_FAILED" in workbench.text
+    assert "ROOT_PROCESS_GONE" in workbench.text
+    assert "PROCESS_EXITED_DURING_STARTUP" in workbench.text
+    assert "Process Sensor는 Codex 프로세스의 종료를 감지했습니다." in workbench.text
     assert 'id="workbench-alert"' in workbench.text
     assert 'id="workbench-alert-title"' in workbench.text
     assert 'id="workbench-alert-dismiss"' in workbench.text
@@ -981,6 +1015,14 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.post("/api/runs/missing/stop").status_code == 404
     assert client.post("/api/runs/run-1/reconcile").status_code == 200
     assert client.post("/api/runs/missing/reconcile").status_code == 404
+    recovery_status = client.get("/api/runs/run-1/recovery")
+    assert recovery_status.status_code == 200
+    assert recovery_status.json()["available"] is True
+    assert client.get("/api/runs/missing/recovery").status_code == 404
+    restored = client.post("/api/runs/run-1/recovery/restore", json={"confirm": True})
+    assert restored.status_code == 200
+    assert restored.json()["recovery_result"]["recovery_status"] == "RESTORED"
+    assert client.post("/api/runs/missing/recovery/restore", json={"confirm": True}).status_code == 404
     assert client.get("/api/runs/run-1/actions").json()["actions"][0]["operation"] == "DELETE"
     incident = client.get("/runs/run-1/incidents/a1")
     assert incident.status_code == 200
@@ -1051,11 +1093,40 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert 'setResultSectionActive' in result.text
     assert 'resultSectionObserver' in result.text
     assert 'id="recovery-results"' in result.text
+    assert 'id="manual-recovery-panel"' in result.text
+    assert 'id="manual-recovery-button"' in result.text
+    assert "실행 이후 생성·수정·삭제된 Workspace 변경사항" in result.text
+    assert "loadManualRecoveryStatus" in result.text
     assert 'id="action-results"' in result.text
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
     assert "SUPER_SECRET" not in result.text
+
+
+def test_hook_setup_endpoint_installs_hook_without_terminal_command(tmp_path, monkeypatch) -> None:
+    import importlib
+
+    web_app = importlib.import_module("aia_web.app")
+
+    class FakeInstaller:
+        path = tmp_path / "hooks.json"
+
+        def install(self):
+            self.path.write_text('{"hooks": {}}', encoding="utf-8")
+            return self.path
+
+        def is_posttool_installed(self):
+            return True
+
+    monkeypatch.setattr(web_app, "CodexHookInstaller", FakeInstaller)
+    response = TestClient(create_app(FakeService())).post("/api/hook/setup")
+
+    assert response.status_code == 200
+    assert response.json()["installed"] is True
+    assert response.json()["posttool_installed"] is True
+    assert response.json()["trust_required"] is True
+    assert response.json()["hook_path"] == str(tmp_path / "hooks.json")
 
 
 def test_simple_setup_is_the_primary_first_page() -> None:
@@ -1074,6 +1145,13 @@ def test_simple_setup_is_the_primary_first_page() -> None:
         assert 'id="setup-readiness"' in response.text
         assert "고급 설정 보기" in response.text
         assert "Hook·File·Process Sensor" in response.text
+        assert 'id="setup-hook-button"' in response.text
+        assert 'id="verify-hook-button"' in response.text
+        assert 'id="setup-stale-run"' in response.text
+        assert 'id="setup-reconcile-stale-run"' in response.text
+        assert "showStaleRunHelp(payload.recovery)" in response.text
+        assert "정리 완료. 이제 보호 작업을 시작할 수 있습니다." in response.text
+        assert "실제 Codex 세션을 열어 Hook 이벤트를 확인" in response.text
 
 
 def test_dashboard_highlights_policy_incidents_in_recent_runs() -> None:
@@ -1512,6 +1590,31 @@ def test_large_terminal_replay_is_coalesced_without_losing_order() -> None:
     assert len(batches) < len(items)
     assert [batch["sequence"] for batch in batches] == [40]
     assert "".join(batch["data"] for batch in batches) == "".join(item["data"] for item in items)
+
+
+def test_frozen_console_uses_packaged_cli_without_launching_a_second_aia_window(
+    monkeypatch, tmp_path
+) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
+    cli_path.parent.mkdir()
+    cli_path.touch()
+
+    monkeypatch.setattr(web_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(web_module.sys, "executable", str(tmp_path / "AIA.exe"))
+
+    command = _aia_cli_command("hook", "verify", "--json")
+
+    assert command == [str(cli_path), "hook", "verify", "--json"]
+    assert "-m" not in command
+
+
+def test_source_console_uses_python_module_cli(monkeypatch) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    monkeypatch.setattr(web_module.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(web_module.sys, "executable", "python-test")
+
+    assert _aia_cli_command("doctor") == ["python-test", "-m", "aia.cli", "doctor"]
 
 
 def test_console_can_request_hook_verification_without_changing_trust(monkeypatch) -> None:

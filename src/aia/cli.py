@@ -102,6 +102,22 @@ def _json_text(value: object, *, default: object | None = None) -> str:
     return json.dumps(value, **options)
 
 
+def _hidden_process_kwargs() -> dict[str, int]:
+    """Prevent non-interactive diagnostic runs from opening Windows consoles."""
+
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
+def _self_cli_command(*arguments: str) -> list[str]:
+    """Build a command that re-enters the current CLI in source or frozen mode."""
+
+    if getattr(sys, "frozen", False):
+        return [sys.executable, *arguments]
+    return [sys.executable, "-m", "aia.cli", *arguments]
+
+
 def _add_protected_run_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the shared interactive/one-shot Protected Run arguments."""
 
@@ -348,6 +364,10 @@ def _parser() -> argparse.ArgumentParser:
         type=float,
         default=180.0,
         help="maximum wait in seconds",
+    )
+    hook_runtime = hook_commands.add_parser(
+        "runtime",
+        help=argparse.SUPPRESS,
     )
 
     setup = commands.add_parser(
@@ -1653,10 +1673,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
         "Path('AIA_HOOK_PROBE_MARKER.txt').write_text('ok', encoding='utf-8')\". "
         "Do not use another tool."
     )
-    command = [
-        sys.executable,
-        "-m",
-        "aia.cli",
+    command = _self_cli_command(
         "protect",
         str(probe_workspace),
         "--task",
@@ -1668,7 +1685,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
         "--timeout",
         str(args.timeout),
         "--_hook-verification-probe",
-    ]
+    )
     probe_environment = os.environ.copy()
     probe_environment[_HOOK_VERIFICATION_PROBE_TOKEN_ENV] = uuid4().hex
     payload: dict[str, object] = {
@@ -1699,6 +1716,7 @@ def _hook_verify(args: argparse.Namespace) -> int:
             env=probe_environment,
             timeout=args.timeout + 60.0,
             check=False,
+            **_hidden_process_kwargs(),
         )
         session_id = _extract_session_id(completed.stdout)
         payload["session_id"] = session_id
@@ -2466,6 +2484,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             path = CodexHookInstaller(args.path).uninstall()
             print(f"AIA Codex Hook removed (other Hooks preserved): {path}")
             return 0
+        if args.command == "hook" and args.hook_command == "runtime":
+            from aia.codex_hook_runtime import main as hook_runtime_main
+
+            return hook_runtime_main()
         if args.command == "setup":
             return _setup(args)
         if args.command == "support-bundle":

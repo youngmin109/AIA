@@ -22,6 +22,7 @@ from aia import (
     UserAbortTerminationResult,
 )
 from aia.process_identity import ProcessIdentity
+from aia.sensors.process import RootProcessGoneError
 
 from tests.test_readiness import make_barrier, readiness_inputs
 
@@ -343,6 +344,45 @@ def test_hook_failure_refuses_launch_without_spawn(readiness_inputs: dict) -> No
     assert result.failure_code == "LAUNCH_REFUSED"
     assert launcher.process_handle is None
     assert values["session"].status is SessionStatus.FAILED
+
+
+def test_process_sensor_start_failure_preserves_explicit_failure_code(
+    readiness_inputs: dict,
+) -> None:
+    values = readiness_inputs
+
+    class FailingProcessSensor:
+        def __init__(self, *args, **kwargs):
+            return None
+
+        def start(self):
+            raise RootProcessGoneError("root process disappeared")
+
+        def stop(self):
+            return None
+
+    readiness = make_barrier(values).evaluate()
+    assert readiness.readiness_context is not None
+    launcher = ProtectedLauncher(
+        values["session"],
+        readiness.readiness_context,
+        values["context"],
+        values["checkpoint"],
+        values["filesystem"],
+        values["hook"],
+        adapter=PythonTestAdapter(),
+        lease_manager=values["lease_manager"],
+        process_sensor_factory=FailingProcessSensor,
+    )
+
+    result = launcher.launch(launch_request(values))
+
+    assert result.status is LaunchStatus.FAILED
+    assert result.failure_code == "ROOT_PROCESS_GONE"
+    assert result.cleanup_status is LaunchCleanupStatus.SUCCEEDED
+    assert values["session"].status is SessionStatus.FAILED
+    assert launcher.process_handle is not None
+    assert launcher.process_handle.poll() is not None
 
 
 def test_managed_registry_failure_cleans_up_before_running(

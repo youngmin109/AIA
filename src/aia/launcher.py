@@ -35,7 +35,7 @@ from .readiness import (
     ProtectionReadinessContext,
 )
 from .session import ProtectedRunSession, SessionStatus, canonicalize_workspace
-from .sensors.base import SensorStatus
+from .sensors.base import SensorStartError, SensorStatus
 from .sensors.filesystem import FilesystemSensor
 from .sensors.hook import HookSensor
 from .sensors.process import ProcessRuntimeSensor, ProcessRuntimeSensorContext
@@ -866,6 +866,27 @@ class ProtectedLauncher:
             return self._failed_result(
                 launch_id,
                 error.code,
+                cleanup_status=cleanup_status,
+            )
+        except SensorStartError as error:
+            # Sensor startup failures are security-relevant launch outcomes.
+            # Preserve the sensor's explicit code instead of collapsing it
+            # into LAUNCH_FAILED.
+            cleanup_status = self._startup_cleanup(sensor, identity)
+            self.stop_hook_broker()
+            if cleanup_status is LaunchCleanupStatus.FAILED:
+                self._mark_session_failed()
+                return self._failed_result(
+                    launch_id,
+                    "LAUNCH_CLEANUP_FAILED",
+                    cleanup_status=cleanup_status,
+                )
+            failure_code = getattr(error, "code", "SENSOR_START_FAILED")
+            if self._should_fail_session(failure_code):
+                self._mark_session_failed()
+            return self._failed_result(
+                launch_id,
+                failure_code,
                 cleanup_status=cleanup_status,
             )
         except Exception:

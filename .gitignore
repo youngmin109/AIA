@@ -1,4 +1,6 @@
 .venv/
+.tmp-build/
+tmp/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -16,6 +18,19 @@ evaluation/product-e2e/
 # sensitive agent output. Keep generated runs local unless they are reviewed
 # and promoted as a sanitized validation fixture.
 evaluation/product-before-after/actual-codex-*/
+# Runtime and local secret artifacts must never become new source files.
+*.env
+*.env.*
+*.jsonl
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.pfx
+.aia/
+.codex/
 # Local QA renders and generated evaluation output are not source artifacts.
 docs/generated/qa-*/
 docs/generated/*.pdf

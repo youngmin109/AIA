@@ -111,6 +111,7 @@ def inspect_codex_hook_trust(
             encoding="utf-8",
             errors="replace",
             env=_safe_environment(),
+            **_hidden_process_kwargs(),
         )
         if process.stdin is None or process.stdout is None:
             return CodexHookTrustInspection(False, "APP_SERVER_STREAM_UNAVAILABLE")
@@ -152,6 +153,14 @@ def _send(process: subprocess.Popen[str], payload: Mapping[str, object]) -> None
         raise OSError("app-server stdin is unavailable")
     process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
     process.stdin.flush()
+
+
+def _hidden_process_kwargs() -> dict[str, int]:
+    """Prevent diagnostic Codex app-server processes from opening a console."""
+
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
 
 
 def _read_response(
