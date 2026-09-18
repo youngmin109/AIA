@@ -95,8 +95,18 @@ jobs:
           finally {
             $stream.Dispose()
           }
-          $output = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $probe "install.ps1") 2>&1
-          if ($LASTEXITCODE -eq 0 -or (($output | Out-String) -notmatch "SHA-256 mismatch")) {
+          $previousErrorActionPreference = $ErrorActionPreference
+          $ErrorActionPreference = "Continue"
+          try {
+            $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $probe "install.ps1") 2>&1)
+            $tamperedInstallExitCode = $LASTEXITCODE
+          }
+          finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+          }
+          $outputText = $output | Out-String
+          if ($tamperedInstallExitCode -eq 0 -or $outputText -notmatch "SHA-256 mismatch") {
+            Write-Host $outputText
             throw "The release installer did not reject the modified wheel."
           }
 
