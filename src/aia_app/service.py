@@ -209,7 +209,18 @@ def _runtime_coordinator_reconciliation(state: Mapping[str, Any]) -> dict[str, A
 
     managed_process = state.get("managed_process")
     agent_process_status = "NOT_RECORDED"
-    if isinstance(managed_process, Mapping):
+    phase = state.get("phase")
+    if (
+        managed_process is None
+        and phase == "PREPARING"
+        and session_status == "PREPARING"
+    ):
+        # Preparation can fail before the Agent is spawned and before a root
+        # identity is persisted. In that narrow state there is no Agent root
+        # to terminate; treating it as an evidence gap strands the workspace
+        # behind a stale lease after an AIA crash.
+        agent_process_status = "NOT_STARTED"
+    elif isinstance(managed_process, Mapping):
         root = managed_process.get("root_process_identity")
         root_pid = root.get("pid") if isinstance(root, Mapping) else None
         root_create_time = root.get("create_time") if isinstance(root, Mapping) else None
@@ -1427,6 +1438,7 @@ class RunApplicationService:
         if reconciliation.get("agent_process_status") not in {
             ProcessIdentityStatus.PROCESS_GONE.value,
             ProcessIdentityStatus.PID_REUSED.value,
+            "NOT_STARTED",
         }:
             return {
                 "reconciled": False,
@@ -1440,7 +1452,11 @@ class RunApplicationService:
         updated["orphan_reconciliation"] = {
             "status": "ACKNOWLEDGED",
             "acknowledged_at": acknowledged_at,
-            "reason": "RECORDED_AGENT_ROOT_NOT_LIVE",
+            "reason": (
+                "AGENT_ROOT_NOT_STARTED"
+                if reconciliation.get("agent_process_status") == "NOT_STARTED"
+                else "RECORDED_AGENT_ROOT_NOT_LIVE"
+            ),
         }
         self._write_runtime_state_payload(session_id, updated)
         result = _runtime_coordinator_reconciliation(updated)

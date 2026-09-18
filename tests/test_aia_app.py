@@ -2307,6 +2307,33 @@ def test_orphan_reconcile_acknowledges_only_after_agent_root_identity_is_gone(
         service.shutdown()
 
 
+def test_orphan_reconcile_allows_preparing_run_without_recorded_agent_root(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    state = _orphaned_runtime_state()
+    state["managed_process"] = None
+    state["session"]["status"] = "PREPARING"
+    state["phase"] = "PREPARING"
+    state["protection"] = {"state": "STARTING", "hook_events": 0}
+    monkeypatch.setattr(
+        "aia_app.service.verify_process_identity",
+        lambda identity: ProcessIdentityStatus.PROCESS_GONE,
+    )
+    service._write_runtime_state_payload("session-1", state)
+    try:
+        result = service.reconcile_orphaned_run("session-1")
+        assert result["reconciled"] is True
+        assert result["reason"] == "ORPHAN_RECONCILED_AFTER_ROOT_CHECK"
+        assert result["runtime_reconciliation"]["agent_process_status"] == "NOT_STARTED"
+        persisted = service._read_runtime_state("session-1")
+        assert persisted["orphan_reconciliation"]["reason"] == "AGENT_ROOT_NOT_STARTED"
+    finally:
+        service.shutdown()
+
+
 def test_new_run_refuses_workspace_with_unresolved_orphaned_agent(
     tmp_path,
     monkeypatch,
