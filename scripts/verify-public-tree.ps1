@@ -27,7 +27,11 @@ function Add-Finding {
 }
 
 $script:findings = @()
-$files = @(Get-ChildItem -LiteralPath $root -File -Recurse -Force)
+$gitMetadataRoot = (Join-Path $root ".git").TrimEnd("\", "/") + "\"
+$files = @(
+    Get-ChildItem -LiteralPath $root -File -Recurse -Force |
+        Where-Object { -not $_.FullName.StartsWith($gitMetadataRoot, [StringComparison]::OrdinalIgnoreCase) }
+)
 
 $forbiddenPathPatterns = @(
     '(^|/)(\.env($|\.)|\.aia($|/)|\.codex($|/)|\.venv($|/)|__pycache__($|/)|dist($|/)|build($|/)|tmp($|/)|output($|/)|evaluation($|/))',
