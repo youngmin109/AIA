@@ -1101,9 +1101,68 @@ class RunApplicationService:
     def get_run_actions(self, session_id: str) -> list[dict[str, Any]]:
         record = self.registry.snapshot(session_id)
         if record is not None:
-            return record.actions
-        result = self.reader.read_result(session_id)
-        return [action_view(item) for item in result.get("action_outcomes", [])]
+            actions = record.actions
+            require_valid = record.result_path is not None
+        else:
+            result = self.reader.read_result(session_id)
+            actions = [action_view(item) for item in result.get("action_outcomes", [])]
+            require_valid = True
+        evidence_by_id = {
+            item.get("evidence_id"): item
+            for item in self.reader.read_evidence_metadata(
+                session_id,
+                require_valid=require_valid,
+            )
+            if item.get("evidence_id")
+        }
+        linked: list[dict[str, Any]] = []
+        for action in actions:
+            view = dict(action)
+            chain = []
+            for evidence_id in view.get("evidence_ids") or ():
+                item = evidence_by_id.get(evidence_id)
+                if item is None:
+                    continue
+                chain.append(
+                    {
+                        "evidence_id": evidence_id,
+                        "sensor": item.get("source"),
+                        "event_type": item.get("record_type"),
+                        "observation_stage": item.get("observation_stage"),
+                        "occurred_at": item.get("captured_at"),
+                    }
+                )
+            view["evidence_chain"] = chain
+            linked.append(view)
+        return linked
+
+    def get_run_process_tree(self, session_id: str) -> list[dict[str, Any]]:
+        """Return only process identity links and safe labels for the live view."""
+
+        record = self.registry.snapshot(session_id)
+        return self.reader.read_process_tree(
+            session_id,
+            require_valid=record is None or record.result_path is not None,
+        )
+
+    def get_run_workspace_changes(self, session_id: str) -> list[dict[str, Any]]:
+        """Return File Sensor observations as Workspace-relative metadata."""
+
+        record = self.registry.snapshot(session_id)
+        if record is not None:
+            workspace = record.workspace
+            require_valid = record.result_path is not None
+        else:
+            result = self.reader.read_result(session_id)
+            workspace = result.get("workspace")
+            if not isinstance(workspace, str) or not workspace:
+                raise ValueError("Workspace path is not present in the verified Result Bundle")
+            require_valid = True
+        return self.reader.read_workspace_changes(
+            session_id,
+            workspace,
+            require_valid=require_valid,
+        )
 
     def list_runs(self) -> list[dict[str, Any]]:
         """Return live runs plus valid persisted Bundles for the local console."""
@@ -1245,6 +1304,11 @@ class RunApplicationService:
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)
+
+    def get_audit_records(self, session_id: str) -> list[dict[str, Any]]:
+        """Return the existing Core Audit Trail after bundle verification."""
+
+        return self.reader.read_audit_records(session_id)
 
     def get_result_json(self, session_id: str) -> bytes:
         return self.reader.read_result_json(session_id)

@@ -4,13 +4,24 @@
 <section class="hero compact">
   <div>
     <p class="eyebrow">PROTECTED RUN · 보호 실행</p>
-    <h1>보호 실행 상태</h1>
-    <p class="muted mono">{{ session_id }}</p>
+    <h1>작업공간 보호 현황</h1>
+    <p class="muted mono">{{ status.session.workspace or 'Workspace' }} · {{ session_id }}</p>
   </div>
-  <div id="status-badge" class="status-badge">{{ status.session.status }}</div>
+  <div class="live-view-controls" role="group" aria-label="화면 보기 방식">
+    <button class="view-toggle is-active" type="button" data-view="friendly" aria-pressed="true">쉬운 보기</button>
+    <button class="view-toggle" type="button" data-view="expert" aria-pressed="false">전문가 보기</button>
+  </div>
 </section>
 
-<section class="metric-grid" id="run-summary">
+<section class="metric-grid friendly-metrics" aria-label="현재 관찰 수치">
+  <div class="metric"><span>보호 상태</span><strong id="friendly-protection">상태 확인 중</strong><small>현재 세션</small></div>
+  <div class="metric"><span>프로세스 관찰 이벤트</span><strong id="friendly-process-count">{{ (status.evidence_summary or {}).get('process_observed', 0) }}건</strong><small>세션 누적 관찰</small></div>
+  <div class="metric"><span>파일 시스템 이벤트</span><strong id="friendly-filesystem-count">{{ (status.evidence_summary or {}).get('filesystem_events', 0) }}건</strong><small>세션 누적 관찰</small></div>
+  <div class="metric"><span>정책 사건</span><strong id="friendly-incident-count">{{ status.incident_count }}건</strong><small>확인 또는 대응 대상</small></div>
+  <div class="metric"><span>고유 행위 대상</span><strong id="friendly-path-count">0개</strong><small>파일 경로·명령 대상 기준</small></div>
+</section>
+
+<section class="metric-grid expert-only" id="run-summary" aria-label="전문가용 실행 세부 상태">
   <div class="metric"><span>단계</span><strong id="phase">{{ status.phase }}</strong></div>
   <div class="metric"><span>Checkpoint</span><strong id="checkpoint">{{ status.checkpoint or 'PENDING' }}</strong></div>
   <div class="metric"><span>Workspace Lease</span><strong id="lease">{{ status.lease or 'PENDING' }}</strong></div>
@@ -26,8 +37,25 @@
   <strong>대화형 보호 세션:</strong> Codex 창이 열리면 그 안에서 작업을 입력하세요. 작업을 마치면 Codex를 종료하면 AIA가 결과를 확정합니다.
 </div>
 
-<section class="panel sensor-panel">
-  <div class="panel-heading"><div><h2>실시간 센서 상태</h2><p class="muted">AIA가 실제로 유지 중인 세 관찰 계층입니다.</p></div><span id="launch-mode" class="badge">{{ status.launch_mode or 'inherit' }}</span></div>
+<div id="live-run-layout" class="live-dashboard-grid">
+  <section class="friendly-summary" aria-label="아이아 보호 안내">
+    <img src="{{ url_for('static', path='aia-mascot.png') }}" alt="아이아 보호 안내 마스코트" class="friendly-mascot">
+    <div class="friendly-message">
+      <span class="eyebrow">AIA · 아이아가 함께 확인하고 있어요</span>
+      <h2 id="friendly-status-title">보호 실행 상태를 확인하고 있어요</h2>
+      <p id="friendly-status-message">Agent의 작업 요청과 실제 Workspace 변화를 확인 가능한 증거로 살펴봅니다.</p>
+    </div>
+    <span id="status-badge" class="status-badge">{{ status.session.status }}</span>
+  </section>
+
+<section class="panel sensor-panel expert-only">
+  <div class="panel-heading">
+    <div>
+      <h2>실시간 센서 상태</h2>
+      <p class="muted">AIA가 실제로 유지 중인 세 관찰 계층입니다.</p>
+    </div>
+    <span id="launch-mode" class="badge">{{ status.launch_mode or 'inherit' }}</span>
+  </div>
   <div class="sensor-cards" id="sensor-cards">
     <div class="sensor-card"><strong>Hook Sensor</strong><span id="sensor-hook" class="badge">확인 중</span><small>Codex 도구 요청</small></div>
     <div class="sensor-card"><strong>File Sensor</strong><span id="sensor-file" class="badge">확인 중</span><small>Workspace 파일 변화</small></div>
@@ -35,22 +63,176 @@
   </div>
 </section>
 
-<section class="panel incident-panel" id="latest-incident" hidden>
-  <div class="panel-heading"><div><h2>최근 차단·주의 사건</h2><p class="muted">실제 실행 확인 전에는 성공으로 표시하지 않습니다.</p></div><span class="badge badge-warning">확인 필요</span></div>
-  <div class="incident-summary-grid"><div><span class="muted">무엇을 시도했는가</span><strong id="incident-summary">—</strong></div><div><span class="muted">정책 판정</span><strong id="incident-policy">—</strong></div><div><span class="muted">AIA 결정</span><strong id="incident-decision">—</strong></div><div><span class="muted">실제 결과</span><strong id="incident-execution">—</strong></div></div>
-  <p id="incident-side-effect" class="notice success">부작용: 확인되지 않음</p>
+<section class="panel process-tree-panel expert-only" aria-label="Process Sensor에서 관찰한 프로세스 관계">
+  <div class="panel-heading">
+    <div><h2>관찰된 프로세스 트리</h2><p class="muted">등록된 Codex Root와 연결된 프로세스만 표시합니다. 관찰됨은 현재 실행 중이라는 뜻이 아닙니다.</p></div>
+    <span id="process-tree-count" class="badge">0개 관찰</span>
+  </div>
+  <div id="process-tree" class="process-tree" aria-live="polite"><div class="empty">Process Sensor 증거를 기다리는 중입니다.</div></div>
+  <p class="process-tree-note">세션 누적 관찰 목록입니다. 현재 생존 프로세스 수는 별도로 측정하지 않으며, 종료는 Process Sensor가 <span class="mono">PROCESS_EXIT_OBSERVED</span>를 기록한 경우에만 표시합니다. 명령행과 실행 파일 전체 경로는 노출하지 않습니다.</p>
 </section>
 
-<section class="panel">
+<section class="panel incident-panel" id="latest-incident" hidden>
+  <div class="panel-heading">
+    <div>
+      <h2>최근 차단·주의 사건</h2>
+      <p class="muted">실제 실행 확인 전에는 성공으로 표시하지 않습니다.</p>
+    </div>
+    <span class="badge badge-warning">확인 필요</span>
+  </div>
+  <div class="incident-summary-grid">
+    <div><span class="muted">무엇을 시도했는가</span><strong id="incident-summary">—</strong></div>
+    <div><span class="muted">정책 판정</span><strong id="incident-policy">—</strong></div>
+    <div><span class="muted">AIA 결정</span><strong id="incident-decision">—</strong></div>
+    <div><span class="muted">실제 결과</span><strong id="incident-execution">—</strong></div>
+  </div>
+  <p id="incident-side-effect" class="notice warning">부작용: 확인되지 않음</p>
+</section>
+
+<!-- Workspace 디지털 트윈 및 화이트박스 판단 설명 -->
+<section class="panel workspace-map-panel" id="workspace-digital-twin">
+  <div class="panel-heading">
+    <div>
+      <h2>Workspace 관찰 지도</h2>
+      <p class="muted">정규화된 행위에서 확인된 파일 경로와 명령 대상을 표시합니다. 실제 변경 여부는 File Sensor Evidence와 함께 확인하세요.</p>
+    </div>
+    <div class="map-controls">
+      <span id="map-node-count" class="badge">0개 경로 관찰됨</span>
+    </div>
+  </div>
+  <div class="workspace-twin-grid">
+    <div class="tree-container">
+      <div class="tree-header">
+        <span class="tree-root-label mono" id="workspace-root-label">Workspace/</span>
+        <div class="tree-legend">
+          <span class="legend-item"><span class="status-dot dot-observed"></span>관찰</span>
+          <span class="legend-item"><span class="status-dot dot-modifying"></span>수정</span>
+          <span class="legend-item"><span class="status-dot dot-review"></span>검토</span>
+          <span class="legend-item"><span class="status-dot dot-blocked"></span>차단</span>
+        </div>
+      </div>
+      <div id="workspace-tree" class="workspace-tree">
+        <div class="empty">Agent의 작업 경로를 대기 중입니다…</div>
+      </div>
+    </div>
+    <div class="whitebox-container expert-only" id="whitebox-container">
+      <div class="whitebox-empty" id="whitebox-empty">
+        <div class="whitebox-placeholder-icon">🔍</div>
+        <strong>화이트박스 판단 설명</strong>
+        <p class="muted">지도나 타임라인에서 행위를 선택하면<br>작업·귀속·정책·AIA 결정·실제 결과와 연결 증거를 확인할 수 있습니다.</p>
+      </div>
+      <div class="whitebox-card" id="whitebox-card" hidden>
+        <div class="whitebox-card-header">
+          <div>
+            <span class="muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; display: block;">선택된 대상</span>
+            <h3 id="wb-target" class="mono">—</h3>
+          </div>
+          <span id="wb-status-badge" class="badge">—</span>
+        </div>
+        <div class="wb-question-list">
+          <div class="wb-q-row">
+            <div class="wb-q-num">1</div>
+            <div class="wb-q-body">
+              <span class="wb-q-title">무슨 작업인가?</span>
+              <p id="wb-action" class="wb-q-answer">—</p>
+            </div>
+          </div>
+          <div class="wb-q-row">
+            <div class="wb-q-num">2</div>
+            <div class="wb-q-body">
+              <span class="wb-q-title">왜 Agent 행동으로 판단했는가?</span>
+              <p id="wb-attribution" class="wb-q-answer">—</p>
+            </div>
+          </div>
+          <div class="wb-q-row">
+            <div class="wb-q-num">3</div>
+            <div class="wb-q-body">
+              <span class="wb-q-title">어떤 정책이 적용됐는가?</span>
+              <p id="wb-policy" class="wb-q-answer">—</p>
+            </div>
+          </div>
+          <div class="wb-q-row">
+            <div class="wb-q-num">4</div>
+            <div class="wb-q-body">
+              <span class="wb-q-title">AIA는 무엇을 결정했는가?</span>
+              <p id="wb-decision" class="wb-q-answer">—</p>
+            </div>
+          </div>
+          <div class="wb-q-row">
+            <div class="wb-q-num">5</div>
+            <div class="wb-q-body">
+              <span class="wb-q-title">실제 결과는 무엇인가?</span>
+              <p id="wb-execution" class="wb-q-answer">—</p>
+            </div>
+          </div>
+        </div>
+        <div class="wb-evidence-section">
+          <strong>연결된 Evidence</strong>
+          <div id="wb-evidence-chain" class="wb-evidence-chain"><div class="empty">연결된 Evidence ID가 없습니다.</div></div>
+          <small>Evidence 원문과 민감한 payload는 이 화면에 표시하지 않습니다.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="file-change-feed">
+    <div class="file-change-heading"><div><h3>실제 파일 변화</h3><p class="muted">File Sensor가 Workspace에서 관찰한 생성·수정·삭제·이동입니다. Tool 요청과의 인과관계가 확인되지 않으면 별도 증거로 표시합니다.</p></div><span id="file-change-count" class="badge">0건 관찰</span></div>
+    <div id="file-change-list" class="file-change-list" aria-live="polite"><div class="empty">아직 관찰된 파일 변화가 없습니다.</div></div>
+  </div>
+</section>
+
+<section class="panel live-timeline-panel">
   <div class="panel-heading"><h2>보호 실행 타임라인</h2><span id="sensor-health" class="muted"></span></div>
   <div id="protection-note" class="notice warning" hidden></div>
   <div id="error-box" class="error" {% if not status.error %}hidden{% endif %}>{{ status.error or '' }}</div>
   <div id="event-timeline" class="event-timeline"><div class="empty">안전한 이벤트 요약을 기다리는 중입니다…</div></div>
-  <div class="table-wrap"><table><thead><tr><th>Action</th><th>행위</th><th>대상</th><th>정책</th><th>귀속</th><th>집행</th></tr></thead>
-  <tbody id="actions"><tr><td colspan="6" class="empty">실행 증거를 기다리는 중입니다…</td></tr></tbody></table></div>
+  <div class="table-wrap expert-only">
+    <table>
+      <thead>
+        <tr><th>Action</th><th>행위</th><th>대상</th><th>정책</th><th>귀속</th><th>집행</th></tr>
+      </thead>
+      <tbody id="actions">
+        <tr><td colspan="6" class="empty">실행 증거를 기다리는 중입니다…</td></tr>
+      </tbody>
+    </table>
+  </div>
 </section>
 
-<div class="page-actions"><button class="button danger" id="stop-run" type="button">보호 실행 중지</button><button class="button" id="reconcile-run" type="button" hidden>고아 실행 정리 확인</button><a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a><a class="text-link" href="/new">새 보호 실행</a></div>
+<section class="panel audit-link-panel">
+  <div class="panel-heading">
+    <div>
+      <h2>감사 기록</h2>
+      <p id="audit-status" class="muted">실행 중에는 증거가 수집되며, 실행 종료 후 Python Audit Trail과 Evidence Bundle이 확정됩니다.</p>
+    </div>
+    <a class="button" id="audit-link" href="/runs/{{ session_id }}/audit" hidden>감사 기록 열기</a>
+  </div>
+  <p class="muted">감사 기록은 별도 화면 로그가 아니라 AIA Core가 만든 검증된 세션 결과에서 읽습니다.</p>
+</section>
+
+</div>
+
+<section class="panel evidence-flow-panel" aria-label="실시간 증거 흐름">
+  <div class="panel-heading">
+    <div><h2>증거 흐름</h2><p class="muted">서로 다른 관찰 결과를 세션 행위로 연결합니다.</p></div>
+    <span class="live-indicator"><span class="status-dot dot-observed"></span>실시간 관찰</span>
+  </div>
+  <div class="evidence-flow">
+    <div class="flow-step"><span class="flow-index">01</span><span class="flow-icon">⌁</span><div><strong>도구 요청</strong><small id="flow-hook-count">Hook 대기</small></div></div>
+    <span class="flow-arrow" aria-hidden="true">→</span>
+    <div class="flow-step"><span class="flow-index">02</span><span class="flow-icon">⑂</span><div><strong>프로세스</strong><small id="flow-process-count">0건 관찰</small></div></div>
+    <span class="flow-arrow" aria-hidden="true">→</span>
+    <div class="flow-step"><span class="flow-index">03</span><span class="flow-icon">▤</span><div><strong>파일 변화</strong><small id="flow-filesystem-count">0건 관찰</small></div></div>
+    <span class="flow-arrow" aria-hidden="true">→</span>
+    <div class="flow-step"><span class="flow-index">04</span><span class="flow-icon flow-icon-policy">✓</span><div><strong>정책 판단</strong><small id="flow-action-count">행위 대기</small></div></div>
+  </div>
+</section>
+
+<div class="page-actions">
+  <button class="button danger" id="stop-run" type="button">보호 실행 중지</button>
+  <button class="button" id="reconcile-run" type="button" hidden>고아 실행 정리 확인</button>
+  <a class="button" id="result-link" href="/runs/{{ session_id }}/result" hidden>결과 보기</a>
+  <a class="text-link" href="/new">새 보호 실행</a>
+</div>
+
 <script>
 const sessionId = {{ session_id|tojson }};
 const actionsEl = document.getElementById('actions');
@@ -58,13 +240,333 @@ const stopButton = document.getElementById('stop-run');
 const reconcileButton = document.getElementById('reconcile-run');
 const eventTimeline = document.getElementById('event-timeline');
 const incidentPanel = document.getElementById('latest-incident');
+const friendlyTitle = document.getElementById('friendly-status-title');
+const friendlyMessage = document.getElementById('friendly-status-message');
+const auditLink = document.getElementById('audit-link');
+const auditStatus = document.getElementById('audit-status');
+document.body.classList.add('friendly-view');
+
+let currentActionsList = [];
+let currentSelectedActionId = null;
+let lastProcessTreeSignature = null;
+let lastWorkspaceChangeSignature = null;
+
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const badge = (value) => `<span class="badge badge-${String(value || 'UNKNOWN').toLowerCase()}">${esc(value || 'UNKNOWN')}</span>`;
-const actionTarget = (item) => { const target = item.target || {}; return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || '—'; };
-function renderActions(items) {
-  if (!items.length) { actionsEl.innerHTML = '<tr><td colspan="6" class="empty">표준 행위가 아직 관찰되지 않았습니다.</td></tr>'; return; }
-  actionsEl.innerHTML = items.map((item) => `<tr><td class="mono">${esc(item.action_id || '—')}</td><td>${esc(item.operation || '—')}</td><td class="mono target-cell">${esc(actionTarget(item))}</td><td>${badge(item.policy_effect)}</td><td>${badge(item.attribution_class)}</td><td>${badge(item.enforcement_action)} ${badge(item.execution_result)}</td></tr>`).join('');
+const actionTarget = (item) => {
+  const target = item.target || {};
+  return target.canonical_path || target.source_path || target.destination_path || target.command_fingerprint || target.display || '—';
+};
+
+function getNodeState(actionsForPath) {
+  const hasVerifiedBlock = actionsForPath.some(a =>
+    a.enforcement_action === 'BLOCKED' && a.execution_result === 'SUCCEEDED'
+  );
+  if (hasVerifiedBlock) return { code: 'BLOCK_CONFIRMED', label: '차단 확인', badgeClass: 'badge-blocked', dotClass: 'dot-blocked' };
+
+  const hasUnresolvedDecision = actionsForPath.some(a =>
+    ['VIOLATION', 'INDETERMINATE'].includes(a.policy_decision) ||
+    ['CONTAIN', 'REFUSE'].includes(a.enforcement_decision) ||
+    a.operation_effect === 'AUDIT' ||
+    ['PROCESS', 'TEMPORAL', 'UNKNOWN'].includes(a.attribution_class)
+  );
+  if (hasUnresolvedDecision) return { code: 'REVIEW_REQUIRED', label: '판단 확인', badgeClass: 'badge-review_required', dotClass: 'dot-review' };
+
+  const hasFileEvidence = actionsForPath.some(a =>
+    (a.evidence_chain || []).some(item => item.sensor === 'FILESYSTEM_WATCHER')
+  );
+  if (hasFileEvidence) return { code: 'FILE_CHANGE_OBSERVED', label: '파일 변화 관찰', badgeClass: 'badge-modifying', dotClass: 'dot-modifying' };
+
+  return { code: 'OBSERVED', label: '행위 관찰', badgeClass: 'badge-observed', dotClass: 'dot-observed' };
 }
+
+function showWhiteboxCard(action, displayTarget = null) {
+  if (!action) return;
+  currentSelectedActionId = action.action_id;
+
+  document.querySelectorAll('.tree-file-row').forEach(r => {
+    r.classList.toggle('selected', r.dataset.actionId === action.action_id);
+  });
+  document.querySelectorAll('#actions tr').forEach(r => {
+    r.classList.toggle('selected', r.dataset.actionId === action.action_id);
+  });
+
+  const emptyEl = document.getElementById('whitebox-empty');
+  const cardEl = document.getElementById('whitebox-card');
+  emptyEl.hidden = true;
+  cardEl.hidden = false;
+
+  const targetLabel = displayTarget || actionTarget(action);
+  document.getElementById('wb-target').textContent = targetLabel;
+
+  const isVerifiedBlock = action.enforcement_action === 'BLOCKED' && action.execution_result === 'SUCCEEDED';
+  const isReview = action.policy_decision === 'VIOLATION' || action.policy_decision === 'INDETERMINATE' ||
+    action.enforcement_decision === 'CONTAIN' || action.enforcement_decision === 'REFUSE' ||
+    action.operation_effect === 'AUDIT' || ['PROCESS', 'TEMPORAL', 'UNKNOWN'].includes(action.attribution_class);
+  const statusBadge = document.getElementById('wb-status-badge');
+  if (isVerifiedBlock) {
+    statusBadge.className = 'badge badge-blocked';
+    statusBadge.textContent = '차단 확인';
+  } else if (isReview) {
+    statusBadge.className = 'badge badge-review_required';
+    statusBadge.textContent = action.enforcement_decision === 'CONTAIN' ? '차단 결정 · 결과 확인' : '판단 확인 필요';
+  } else if (action.policy_decision === 'COMPLIANT' && action.enforcement_decision === 'CONTINUE') {
+    statusBadge.className = 'badge badge-compliant';
+    statusBadge.textContent = '계속 결정';
+  } else {
+    statusBadge.className = 'badge';
+    statusBadge.textContent = '판정 정보 부족';
+  }
+
+  // 1. 무슨 작업인가?
+  const op = action.operation || '알 수 없음';
+  const stage = action.observation_stage ? `[${action.observation_stage}] ` : '';
+  document.getElementById('wb-action').textContent = `${stage}${op} 작업 시도 (${targetLabel})`;
+
+  // 2. 왜 Agent 행동으로 판단했는가?
+  const attrGrade = action.attribution_class || 'UNKNOWN';
+  const attrDesc = action.attribution_reason || '귀속 세부 사유가 기록되지 않았습니다.';
+  document.getElementById('wb-attribution').textContent = `귀속 등급: ${attrGrade} · ${attrDesc}`;
+
+  // 3. 어떤 정책이 적용됐는가?
+  const rules = action.matched_rule_ids?.length ? action.matched_rule_ids.join(', ') : '매칭 규칙 기록 없음';
+  const assets = action.matched_asset_types?.length ? action.matched_asset_types.join(', ') : '자산 분류 기록 없음';
+  const effect = action.policy_effect || '효과 기록 없음';
+  document.getElementById('wb-policy').textContent =
+    `적용 규칙: ${rules} (자산: ${assets}) → 정책 판정: ${action.policy_decision || '판정 정보 없음'} (효과: ${effect})`;
+
+  // 4. AIA는 무엇을 결정했는가?
+  const gateDecision = action.enforcement_decision || '결정 정보 없음';
+  document.getElementById('wb-decision').textContent = `Enforcement Gate 결정: ${gateDecision}`;
+
+  // 5. 실제 결과는 무엇인가?
+  const act = action.enforcement_action || 'NONE';
+  const exec = action.execution_result || 'NOT_REPORTED';
+  document.getElementById('wb-execution').textContent =
+    `기록된 조치: ${act} / 집행기 결과: ${exec}. 이 값은 Agent 전체 작업의 성공 여부를 뜻하지 않습니다.`;
+
+  const evidenceContainer = document.getElementById('wb-evidence-chain');
+  const chain = action.evidence_chain || [];
+  if (chain.length) {
+    const sensorLabels = {AGENT_HOOK: 'Hook', PROCESS_RUNTIME: 'Process Sensor', FILESYSTEM_WATCHER: 'File Sensor'};
+    evidenceContainer.innerHTML = chain.map(item => `<div class="wb-evidence-item">
+      <span class="badge">${esc(sensorLabels[item.sensor] || item.sensor || '센서')}</span>
+      <span>${esc(item.event_type || '이벤트')} · ${esc(item.observation_stage || '단계 미기록')}</span>
+      <time>${esc(item.occurred_at || '시각 미기록')}</time>
+      <code>${esc(String(item.evidence_id || '').slice(0, 12))}</code>
+    </div>`).join('');
+  } else {
+    const ids = action.evidence_ids || [];
+    evidenceContainer.innerHTML = ids.length
+      ? `<div class="empty">Evidence 메타데이터를 찾지 못했습니다 · ${esc(ids.map(id => String(id).slice(0, 12)).join(', '))}</div>`
+      : '<div class="empty">연결된 Evidence ID가 없습니다.</div>';
+  }
+}
+
+function renderWorkspaceTwin(actions, status) {
+  currentActionsList = actions;
+  const workspaceRoot = status.session?.workspace || 'Workspace';
+  document.getElementById('workspace-root-label').textContent = `${workspaceRoot}/`;
+
+  const pathMap = new Map();
+  actions.forEach(a => {
+    let p = a.target?.canonical_path || a.target?.source_path || a.target?.destination_path || '';
+    if (!p) {
+      if (a.operation === 'EXECUTE' || a.target?.target_kind === 'COMMAND') {
+        p = `[명령] ${a.target?.command_fingerprint || a.target?.display || '명령 실행'}`;
+      } else {
+        p = a.target?.display || '기타 행위';
+      }
+    }
+    let relPath = p;
+    if (relPath.startsWith(workspaceRoot)) {
+      relPath = relPath.slice(workspaceRoot.length).replace(/^[\\\/]+/, '');
+    }
+    if (!pathMap.has(relPath)) {
+      pathMap.set(relPath, { path: relPath, fullPath: p, actions: [] });
+    }
+    pathMap.get(relPath).actions.push(a);
+  });
+
+  const nodeCountEl = document.getElementById('map-node-count');
+  const treeEl = document.getElementById('workspace-tree');
+
+  if (pathMap.size === 0) {
+    nodeCountEl.textContent = '0개 고유 대상';
+    document.getElementById('friendly-path-count').textContent = '0개';
+    treeEl.innerHTML = '<div class="empty">이 세션에서 표시할 행위 대상이 아직 관찰되지 않았습니다.</div>';
+    return;
+  }
+
+  nodeCountEl.textContent = `${pathMap.size}개 고유 대상`;
+  document.getElementById('friendly-path-count').textContent = `${pathMap.size}개`;
+
+  const root = { name: '', isFolder: true, children: new Map(), files: [] };
+
+  for (const [relPath, info] of pathMap.entries()) {
+    const parts = relPath.replace(/\\/g, '/').split('/');
+    if (parts.length === 1) {
+      root.files.push({ name: parts[0], relPath, info });
+    } else {
+      let current = root;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const folderName = parts[i];
+        if (!current.children.has(folderName)) {
+          current.children.set(folderName, { name: folderName, isFolder: true, children: new Map(), files: [] });
+        }
+        current = current.children.get(folderName);
+      }
+      current.files.push({ name: parts[parts.length - 1], relPath, info });
+    }
+  }
+
+  function renderFolder(folder, depth = 0) {
+    let out = '';
+    for (const [name, subfolder] of folder.children.entries()) {
+      out += `<div class="tree-folder">
+        <div class="tree-folder-header">📁 <span>${esc(name)}/</span></div>
+        <div class="tree-folder-children">${renderFolder(subfolder, depth + 1)}</div>
+      </div>`;
+    }
+    for (const file of folder.files) {
+      const state = getNodeState(file.info.actions);
+      const latestAction = file.info.actions[file.info.actions.length - 1];
+      const isSelected = latestAction.action_id === currentSelectedActionId;
+      out += `<div class="tree-file-row ${isSelected ? 'selected' : ''}" role="button" tabindex="0" aria-pressed="${isSelected}" aria-label="${esc(file.name)} 행위 근거 보기"
+                   data-action-id="${esc(latestAction.action_id || '')}"
+                   data-path="${esc(file.relPath)}">
+        <div class="tree-file-left">
+          <span class="status-dot ${state.dotClass}"></span>
+          <span class="tree-file-name mono">${esc(file.name)}</span>
+        </div>
+        <span class="tree-node-badge badge ${state.badgeClass}">${state.label}</span>
+      </div>`;
+    }
+    return out;
+  }
+
+  treeEl.innerHTML = renderFolder(root);
+
+  treeEl.querySelectorAll('.tree-file-row').forEach(row => {
+    const selectRow = () => {
+      const actionId = row.dataset.actionId;
+      const targetPath = row.dataset.path;
+      const action = currentActionsList.find(a => a.action_id === actionId) ||
+                     (pathMap.get(targetPath)?.actions || [])[0];
+      if (action) {
+        showWhiteboxCard(action, targetPath);
+      }
+    };
+    row.addEventListener('click', selectRow);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectRow();
+      }
+    });
+  });
+}
+
+function renderProcessTree(items) {
+  const treeEl = document.getElementById('process-tree');
+  document.getElementById('process-tree-count').textContent = `${items.length}개 누적 관찰`;
+  if (!items.length) {
+    treeEl.innerHTML = '<div class="empty">이 세션에서 표시할 Process Sensor 관찰이 아직 없습니다.</div>';
+    return;
+  }
+  const byId = new Map(items.filter(item => item.node_id).map(item => [item.node_id, item]));
+  const children = new Map();
+  for (const item of items) {
+    const parentId = item.parent_node_id;
+    if (parentId && byId.has(parentId)) {
+      if (!children.has(parentId)) children.set(parentId, []);
+      children.get(parentId).push(item);
+    }
+  }
+  const roots = items.filter(item => item.process_role === 'ROOT' || !item.parent_node_id || !byId.has(item.parent_node_id));
+  const visited = new Set();
+  function renderNode(item, depth = 0) {
+    if (visited.has(item.node_id) || depth > 32) return '';
+    visited.add(item.node_id);
+    const stateLabel = item.state === 'EXIT_OBSERVED' ? '종료 관찰' : '관찰됨 · 생존 미확인';
+    const roleLabel = item.process_role === 'ROOT' ? 'Codex Root' : '자식 프로세스';
+    const row = `<div class="process-tree-row" style="--tree-depth:${Math.min(depth, 8)}">
+      <span class="process-tree-branch" aria-hidden="true">${depth ? '↳' : '●'}</span>
+      <strong>${esc(item.name || '프로세스 이름 확인 불가')}</strong>
+      <span class="badge">${esc(roleLabel)}</span>
+      <span class="mono">PID ${esc(item.pid)}${item.parent_pid ? ` · PPID ${esc(item.parent_pid)}` : ''}</span>
+      <span class="badge ${item.state === 'EXIT_OBSERVED' ? 'badge-completed' : ''}">${stateLabel}</span>
+      <code class="process-tree-evidence">Evidence ${esc(String(item.evidence_id || '').slice(0, 12))}</code>
+    </div>`;
+    const nested = (children.get(item.node_id) || [])
+      .sort((a, b) => Number(a.pid) - Number(b.pid))
+      .map(child => renderNode(child, depth + 1)).join('');
+    return row + nested;
+  }
+  let html = roots.map(root => renderNode(root)).join('');
+  const unlinked = items.filter(item => !visited.has(item.node_id));
+  if (unlinked.length) {
+    html += '<div class="process-tree-unlinked"><span>부모 관계 미확인</span>' + unlinked.map(item => renderNode(item)).join('') + '</div>';
+  }
+  treeEl.innerHTML = html || '<div class="empty">프로세스 관계를 구성할 근거가 부족합니다.</div>';
+}
+
+function renderWorkspaceChanges(items, totalCount) {
+  const list = document.getElementById('file-change-list');
+  document.getElementById('file-change-count').textContent = `${totalCount}건 누적 · 최근 ${items.length}건 표시`;
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">아직 관찰된 파일 변화가 없습니다.</div>';
+    return;
+  }
+  const labels = {created: '생성', modified: '수정', deleted: '삭제', moved: '이동'};
+  list.innerHTML = items.slice().reverse().slice(0, 20).map(item => {
+    const target = item.event_type === 'moved' && item.destination_path
+      ? `${item.source_path} → ${item.destination_path}`
+      : item.source_path;
+    return `<div class="file-change-row">
+      <span class="file-change-type file-change-${esc(item.event_type)}">${esc(labels[item.event_type] || '변화 관찰')}</span>
+      <span class="file-change-target mono">${esc(target || '대상 경로 미확인')}${item.is_directory ? ' · 폴더' : ''}</span>
+      <time>${esc(item.occurred_at || '시각 미기록')}</time>
+      <code>Evidence ${esc(String(item.evidence_id || '').slice(0, 12))}</code>
+    </div>`;
+  }).join('');
+}
+
+function renderActions(items) {
+  if (!items.length) {
+    actionsEl.innerHTML = '<tr><td colspan="6" class="empty">표준 행위가 아직 관찰되지 않았습니다.</td></tr>';
+    return;
+  }
+  actionsEl.innerHTML = items.map((item) => {
+    const isSelected = item.action_id === currentSelectedActionId;
+    return `<tr class="clickable ${isSelected ? 'selected' : ''}" tabindex="0" aria-label="행위 ${esc(item.action_id || '')}의 판단 근거 보기" data-action-id="${esc(item.action_id || '')}">
+      <td class="mono">${esc(item.action_id || '—')}</td>
+      <td>${esc(item.operation || '—')}</td>
+      <td class="mono target-cell">${esc(actionTarget(item))}</td>
+      <td>${badge(item.policy_effect)}</td>
+      <td>${badge(item.attribution_class)}</td>
+      <td>${badge(item.enforcement_action)} ${badge(item.execution_result)}</td>
+    </tr>`;
+  }).join('');
+
+  actionsEl.querySelectorAll('tr.clickable').forEach(row => {
+    const selectRow = () => {
+      const actionId = row.dataset.actionId;
+      const action = currentActionsList.find(a => a.action_id === actionId);
+      if (action) {
+        showWhiteboxCard(action);
+      }
+    };
+    row.addEventListener('click', selectRow);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectRow();
+      }
+    });
+  });
+}
+
 function renderSafeEvents(events) {
   if (!events.length) {
     eventTimeline.innerHTML = '<div class="empty">표준 이벤트가 아직 관찰되지 않았습니다.</div>';
@@ -72,25 +574,69 @@ function renderSafeEvents(events) {
   }
   eventTimeline.innerHTML = events.slice().reverse().map((event) => `
     <div class="event-row severity-${esc(event.severity || 'INFO').toLowerCase()}">
-      <span class="event-dot"></span><div><strong>${esc(event.summary || '이벤트')}</strong><span class="muted">${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</span></div>
+      <span class="event-dot"></span>
+      <div>
+        <strong>${esc(event.summary || '이벤트')}</strong>
+        <span class="muted">${esc(event.target_label || '')} · ${esc(event.sensor || 'AIA')}</span>
+      </div>
       <span>${badge(event.decision || 'OBSERVED')} ${badge(event.execution_result || 'NOT_REPORTED')}</span>
     </div>`).join('');
 }
+
 function renderIncident(events) {
   const incident = events.slice().reverse().find((event) => event.incident_action_id || ['WARNING', 'CRITICAL'].includes(event.severity));
   if (!incident) { incidentPanel.hidden = true; return; }
   incidentPanel.hidden = false;
   document.getElementById('incident-summary').textContent = `${incident.summary || '보호 대상 행위'} · ${incident.target_label || '대상'}`;
-  document.getElementById('incident-policy').textContent = incident.decision === 'CONTAIN' ? 'VIOLATION' : (incident.decision || '확인 필요');
-  document.getElementById('incident-decision').textContent = incident.decision || '확인 필요';
-  document.getElementById('incident-execution').textContent = `${incident.decision === 'CONTAIN' ? 'BLOCKED' : '실행 결과 확인 중'} / ${incident.execution_result || 'NOT_REPORTED'}`;
+  document.getElementById('incident-policy').textContent = incident.policy_decision || '정책 판정 정보 없음';
+  document.getElementById('incident-decision').textContent = incident.enforcement_decision || 'Gate 결정 정보 없음';
+  const action = incident.enforcement_action || 'NONE';
+  const result = incident.execution_result || 'NOT_REPORTED';
+  const verifiedBlock = action === 'BLOCKED' && result === 'SUCCEEDED';
+  document.getElementById('incident-execution').textContent = verifiedBlock
+    ? 'BLOCKED · 차단 결과 확인됨'
+    : `${action} · ${result} (실제 결과 확인 필요)`;
+  document.getElementById('incident-side-effect').textContent = verifiedBlock
+    ? '차단 결과: 실행이 차단된 것으로 기록됐습니다.'
+    : '실제 부작용 여부: 현재 연결된 실행 결과만으로 확인할 수 없습니다.';
 }
+
 async function poll() {
   try {
-    const [statusResponse, actionsResponse] = await Promise.all([fetch(`/api/runs/${sessionId}`), fetch(`/api/runs/${sessionId}/actions`)]);
+    const [statusResponse, actionsResponse] = await Promise.all([
+      fetch(`/api/runs/${sessionId}`),
+      fetch(`/api/runs/${sessionId}/actions`)
+    ]);
     if (!statusResponse.ok) throw new Error('Run status unavailable');
     const status = await statusResponse.json();
     const actions = actionsResponse.ok ? await actionsResponse.json() : {actions: []};
+
+    const evidenceCounts = status.evidence_summary || {};
+    const processTreeSignature = `${evidenceCounts.process_observed || 0}:${evidenceCounts.process_exit_observed || 0}`;
+    if (processTreeSignature !== lastProcessTreeSignature) {
+      try {
+        const response = await fetch(`/api/runs/${sessionId}/process-tree`);
+        if (!response.ok) throw new Error('Process Sensor 데이터를 조회하지 못했습니다.');
+        const treeData = await response.json();
+        renderProcessTree(treeData.processes || []);
+        lastProcessTreeSignature = processTreeSignature;
+      } catch (treeError) {
+        document.getElementById('process-tree').innerHTML = `<div class="error">${esc(treeError.message || 'Process Sensor 데이터를 조회하지 못했습니다.')}</div>`;
+      }
+    }
+    const fileChangeSignature = String(evidenceCounts.filesystem_events || 0);
+    if (fileChangeSignature !== lastWorkspaceChangeSignature) {
+      try {
+        const response = await fetch(`/api/runs/${sessionId}/workspace-changes`);
+        if (!response.ok) throw new Error('File Sensor 데이터를 조회하지 못했습니다.');
+        const changeData = await response.json();
+        renderWorkspaceChanges(changeData.changes || [], evidenceCounts.filesystem_events || 0);
+        lastWorkspaceChangeSignature = fileChangeSignature;
+      } catch (changeError) {
+        document.getElementById('file-change-list').innerHTML = `<div class="error">${esc(changeError.message || 'File Sensor 데이터를 조회하지 못했습니다.')}</div>`;
+      }
+    }
+
     document.getElementById('status-badge').textContent = status.session.status;
     document.getElementById('phase').textContent = status.phase;
     document.getElementById('checkpoint').textContent = status.checkpoint || 'PENDING';
@@ -99,11 +645,35 @@ async function poll() {
     document.getElementById('filesystem-event-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
     document.getElementById('process-observed-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건`;
     document.getElementById('process-exit-count').textContent = `${((status.evidence_summary || {}).process_exit_observed || 0)}건`;
+    document.getElementById('friendly-process-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건`;
+    document.getElementById('friendly-filesystem-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건`;
+    document.getElementById('friendly-incident-count').textContent = `${status.incident_count || 0}건`;
     document.getElementById('launch-mode').textContent = status.launch_mode || 'inherit';
+
     const protection = status.protection || {};
     document.getElementById('interactive-instructions').hidden = !status.interactive;
     document.getElementById('protection-state').textContent = protection.state || 'UNKNOWN';
+    const friendlyProtectionLabels = {
+      ACTIVE_VERIFIED: '보호 확인됨', ACTIVE_UNVERIFIED: '연결 확인 중', READY_UNVERIFIED: '실행 대기',
+      DEGRADED: '보호 제한', COMPLETED_VERIFIED: '완료 · 보호 확인', COMPLETED_DEGRADED: '완료 · 확인 제한',
+      FAILED_DEGRADED: '실행 오류', ORPHANED_DEGRADED: '상태 확인 필요'
+    };
+    document.getElementById('friendly-protection').textContent = friendlyProtectionLabels[protection.state] || '상태 확인 중';
     document.getElementById('hook-broker-health').textContent = protection.hook_broker || 'NOT_STARTED';
+    const friendlyCopy = {
+      'ACTIVE_VERIFIED': ['보호 상태를 확인하며 작업을 살펴보고 있어요', 'Hook 요청, 실제 프로세스, 파일 변화를 함께 관찰하고 있어요.'],
+      'ACTIVE_UNVERIFIED': ['아직 보호 연결을 확인하는 중이에요', 'Agent는 실행 중이지만 검증된 Hook 이벤트가 아직 확인되지 않았어요.'],
+      'READY_UNVERIFIED': ['작업 시작을 기다리고 있어요', '보호 센서가 준비됐는지와 Agent 연결 여부를 계속 확인합니다.'],
+      'DEGRADED': ['보호 상태를 확인할 수 없어요', '보호 경계에 문제가 있습니다. 이 실행을 완전히 보호된 상태로 해석하지 마세요.'],
+      'COMPLETED_VERIFIED': ['작업이 끝났고 보호 연결을 확인했어요', 'AIA Core의 실행 결과와 감사 기록을 확인할 수 있습니다.'],
+      'COMPLETED_DEGRADED': ['작업이 끝났지만 검증에 제한이 있어요', '세션 결과에서 확인되지 않은 부분과 제한사항을 살펴보세요.'],
+      'FAILED_DEGRADED': ['보호 실행 중 문제가 발생했어요', '세션 결과에서 센서 상태와 실제 조치 결과를 확인해 주세요.'],
+      'ORPHANED_DEGRADED': ['현재 보호 상태를 확인할 수 없어요', 'AIA 조정 프로세스가 종료됐습니다. 안내된 정리 절차를 확인해 주세요.']
+    };
+    const copy = friendlyCopy[protection.state] || ['보호 실행 상태를 확인하고 있어요', 'Agent의 작업 요청과 실제 Workspace 변화를 확인 가능한 증거로 살펴봅니다.'];
+    friendlyTitle.textContent = copy[0];
+    friendlyMessage.textContent = copy[1];
+
     const protectionNote = document.getElementById('protection-note');
     const notes = {
       'LAUNCHING': 'Codex 실행을 등록하고 보호 센서를 연결하는 중입니다. 잠시 기다려 주세요.',
@@ -120,32 +690,50 @@ async function poll() {
     protectionNote.textContent = reconciliation.orphaned
       ? `${reconciliation.detail || notes[protection.state] || '보호 상태를 확인할 수 없습니다.'} ${reconciliation.action === 'REVIEW_AND_RESTART' ? 'Agent Root가 종료된 뒤 정리 확인을 실행하세요.' : ''}`
       : (notes[protection.state] || '');
-    protectionNote.hidden = !notes[protection.state];
     protectionNote.hidden = !notes[protection.state] && !reconciliation.orphaned;
+
     document.getElementById('sensor-health').textContent = Object.entries(status.sensor_health || {}).map(([key, value]) => `${key}: ${value}`).join(' · ');
     const sensorHealth = status.sensor_health || {};
     document.getElementById('sensor-hook').textContent = sensorHealth.AGENT_HOOK || protection.hook_broker || 'NOT_STARTED';
     document.getElementById('sensor-file').textContent = sensorHealth.FILESYSTEM_WATCHER || 'NOT_STARTED';
     document.getElementById('sensor-process').textContent = sensorHealth.PROCESS_RUNTIME || 'NOT_STARTED';
+
     renderSafeEvents(status.events || []);
     renderIncident(status.events || []);
+
     const errorBox = document.getElementById('error-box');
     errorBox.textContent = status.error || '';
     errorBox.hidden = !status.error;
-    renderActions(actions.actions || []);
+
+    const actionList = actions.actions || [];
+    document.getElementById('flow-hook-count').textContent = `${((status.evidence_summary || {}).pretool_events || 0)}건 요청`;
+    document.getElementById('flow-process-count').textContent = `${((status.evidence_summary || {}).process_observed || 0)}건 관찰`;
+    document.getElementById('flow-filesystem-count').textContent = `${((status.evidence_summary || {}).filesystem_events || 0)}건 관찰`;
+    document.getElementById('flow-action-count').textContent = `${actionList.length}건 정규화`;
+    renderActions(actionList);
+    renderWorkspaceTwin(actionList, status);
+
     document.getElementById('result-link').hidden = !status.result_available;
+    auditLink.hidden = !status.result_available;
+    auditStatus.textContent = status.result_available
+      ? 'AIA Core가 실행 종료 후 생성한 감사 기록과 검증된 Evidence Bundle을 확인할 수 있습니다.'
+      : '실행 중에는 증거가 수집되며, 실행 종료 후 Python Audit Trail과 Evidence Bundle이 확정됩니다.';
     const terminal = ['COMPLETED', 'ABORTED', 'FAILED'].includes(status.session.status);
     const orphaned = Boolean(reconciliation.orphaned);
     stopButton.hidden = terminal || orphaned || Boolean(status.stop?.requested);
     stopButton.disabled = Boolean(status.stop?.requested);
     reconcileButton.hidden = !orphaned || reconciliation.action === 'RECONCILED';
     reconcileButton.disabled = reconciliation.action === 'RECONCILED';
+
     if (status.stop?.requested && !protectionNote.textContent) {
       protectionNote.textContent = '사용자 중지 요청을 처리하는 중입니다.';
       protectionNote.hidden = false;
     }
-  } catch (error) { document.getElementById('sensor-health').textContent = `상태 조회 실패: ${error.message}`; }
+  } catch (error) {
+    document.getElementById('sensor-health').textContent = `상태 조회 실패: ${error.message}`;
+  }
 }
+
 stopButton.addEventListener('click', async () => {
   stopButton.disabled = true;
   const response = await fetch(`/api/runs/${sessionId}/stop`, {method: 'POST'});
@@ -156,6 +744,7 @@ stopButton.addEventListener('click', async () => {
     document.getElementById('error-box').hidden = false;
   }
 });
+
 reconcileButton.addEventListener('click', async () => {
   reconcileButton.disabled = true;
   const response = await fetch(`/api/runs/${sessionId}/reconcile`, {method: 'POST'});
@@ -167,7 +756,21 @@ reconcileButton.addEventListener('click', async () => {
   }
   await poll();
 });
+
 poll();
 setInterval(poll, 1000);
+
+document.querySelectorAll('.view-toggle').forEach((button) => {
+  button.addEventListener('click', () => {
+    const expert = button.dataset.view === 'expert';
+    document.body.classList.toggle('expert-view', expert);
+    document.body.classList.toggle('friendly-view', !expert);
+    document.querySelectorAll('.view-toggle').forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle('is-active', selected);
+      item.setAttribute('aria-pressed', String(selected));
+    });
+  });
+});
 </script>
 {% endblock %}

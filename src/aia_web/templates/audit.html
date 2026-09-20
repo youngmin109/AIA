@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}감사 기록 · AIA{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <div>
+    <p class="eyebrow">AIA CORE · VERIFIED AUDIT TRAIL</p>
+    <h1>감사 기록</h1>
+    <p class="muted">Python Audit Trail에서 읽은 최종 기록입니다. 원본 센서 payload는 이 화면에 포함하지 않습니다.</p>
+  </div>
+  <span class="status-badge">{{ records|length }}건</span>
+</section>
+
+<section class="panel audit-trail-panel">
+  <div class="panel-heading">
+    <div>
+      <h2>세션 이벤트</h2>
+      <p class="muted mono">{{ session_id }}</p>
+    </div>
+    <span class="badge badge-valid">검증된 Evidence Bundle</span>
+  </div>
+  <div class="table-wrap">
+    <table class="audit-table">
+      <thead><tr><th>시각 (UTC)</th><th>이벤트</th><th>대상 유형</th><th>대상 ID</th><th>근거 출처</th><th>사유</th><th>요약</th></tr></thead>
+      <tbody>
+      {% for record in records %}
+        <tr>
+          <td class="mono">{{ record.occurred_at }}</td>
+          <td><span class="badge">{{ record.event_type }}</span></td>
+          <td>{{ record.entity_type }}</td>
+          <td class="mono">{{ record.entity_id }}</td>
+          <td>{{ record.source_reference }}</td>
+          <td>{{ record.reason_code or '—' }}</td>
+          <td>{{ record.summary or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="empty">감사 기록이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">이 기록은 세션 종료 후 확정된 감사 참조 기록입니다. 상세 Raw Evidence는 민감정보 보호를 위해 별도 메타데이터 화면에서 제한적으로 제공합니다.</p>
+</section>
+
+<div class="page-actions">
+  <a class="button" href="/runs/{{ session_id }}/result">실행 결과로 돌아가기</a>
+  <a class="button" href="/runs/{{ session_id }}/raw-evidence">Evidence 메타데이터</a>
+  <a class="text-link" href="/runs">실행 기록</a>
+</div>
+{% endblock %}

@@ -680,6 +680,26 @@ def test_evidence_summary_counts_safe_record_metadata() -> None:
     }
 
 
+def test_safe_events_keep_gate_decision_separate_from_actual_block_result() -> None:
+    events = safe_event_views(
+        [
+            {
+                "action_id": "action-1",
+                "operation": "DELETE",
+                "policy_decision": "VIOLATION",
+                "enforcement_decision": "CONTAIN",
+                "enforcement_action": "NONE",
+                "execution_result": "NOT_ATTEMPTED",
+            }
+        ]
+    )
+
+    assert events[0]["decision"] == "CONTAIN"
+    assert events[0]["enforcement_action"] == "NONE"
+    assert events[0]["execution_result"] == "NOT_ATTEMPTED"
+    assert "BLOCKED" not in repr(events)
+
+
 def test_result_presenter_aggregates_all_action_outcomes() -> None:
     summary = action_summary(
         {
@@ -887,6 +907,227 @@ def test_result_bundle_reader_can_read_live_metadata_without_valid_bundle(tmp_pa
     assert metadata[0]["record_type"] == "PRETOOL_REQUEST"
     assert "command" in metadata[0]["payload_keys"]
     assert "secret command" not in repr(metadata)
+
+
+def test_result_bundle_reader_reads_only_audit_record_fields(tmp_path, monkeypatch) -> None:
+    reader = ResultBundleReader(tmp_path)
+    audit_path = tmp_path / "sessions" / "session-1" / "result" / "audit.jsonl"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_text(
+        json.dumps(
+            {
+                "audit_id": "audit-1",
+                "aia_session_id": "session-1",
+                "occurred_at": "2026-09-20T01:00:00+00:00",
+                "event_type": "ACTION_OBSERVED",
+                "entity_type": "ACTION",
+                "entity_id": "action-1",
+                "source_reference": "canonical-action",
+                "summary": "DELETE action",
+                "payload": {"secret": "never expose"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(reader, "_require_valid", lambda _session_id: None)
+
+    records = reader.read_audit_records("session-1")
+
+    assert records[0]["event_type"] == "ACTION_OBSERVED"
+    assert "payload" not in records[0]
+    assert "never expose" not in repr(records)
+
+
+def test_result_bundle_reader_reports_malformed_audit_line(tmp_path, monkeypatch) -> None:
+    reader = ResultBundleReader(tmp_path)
+    audit_path = tmp_path / "sessions" / "session-1" / "result" / "audit.jsonl"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_text('{"audit_id":"ok"}\nnot-json\n', encoding="utf-8")
+    monkeypatch.setattr(reader, "_require_valid", lambda _session_id: None)
+
+    with pytest.raises(ValueError, match="line 2"):
+        reader.read_audit_records("session-1")
+
+
+def test_result_bundle_reader_builds_redacted_process_tree(tmp_path) -> None:
+    reader = ResultBundleReader(tmp_path)
+    evidence_path = tmp_path / "sessions" / "session-1" / "evidence" / "raw-evidence.jsonl"
+    evidence_path.parent.mkdir(parents=True)
+    records = [
+        {
+            "session_id": "session-1",
+            "source": "PROCESS_RUNTIME",
+            "record_type": "PROCESS_OBSERVED",
+            "evidence_id": "root-evidence",
+            "captured_at": "2026-09-20T01:00:00+00:00",
+            "payload": {
+                "pid": 100,
+                "create_time": 10.0,
+                "root_pid": 100,
+                "root_create_time": 10.0,
+                "process_role": "ROOT",
+                "name": "codex.exe",
+                "executable": "C:/private/path/codex.exe",
+                "raw_command": "secret root command",
+            },
+        },
+        {
+            "session_id": "session-1",
+            "source": "PROCESS_RUNTIME",
+            "record_type": "PROCESS_OBSERVED",
+            "evidence_id": "child-evidence",
+            "captured_at": "2026-09-20T01:00:01+00:00",
+            "payload": {
+                "pid": 101,
+                "create_time": 11.0,
+                "ppid": 100,
+                "parent_pid": 100,
+                "parent_create_time": 10.0,
+                "root_pid": 100,
+                "root_create_time": 10.0,
+                "process_role": "CHILD",
+                "name": "python.exe",
+                "executable": "C:/private/path/python.exe",
+                "raw_command": "secret child command",
+            },
+        },
+        {
+            "session_id": "session-1",
+            "source": "PROCESS_RUNTIME",
+            "record_type": "PROCESS_EXIT_OBSERVED",
+            "evidence_id": "exit-evidence",
+            "captured_at": "2026-09-20T01:00:02+00:00",
+            "payload": {
+                "pid": 101,
+                "create_time": 11.0,
+                "root_pid": 100,
+                "root_create_time": 10.0,
+                "process_role": "CHILD",
+            },
+        },
+        {
+            "session_id": "other-session",
+            "source": "PROCESS_RUNTIME",
+            "record_type": "PROCESS_OBSERVED",
+            "evidence_id": "foreign-evidence",
+            "payload": {"pid": 999, "create_time": 1, "root_pid": 999, "root_create_time": 1, "process_role": "ROOT"},
+        },
+    ]
+    evidence_path.write_text("\n".join(json.dumps(item) for item in records) + "\n", encoding="utf-8")
+
+    tree = reader.read_process_tree("session-1", require_valid=False)
+
+    assert [(item["pid"], item["name"], item["state"]) for item in tree] == [
+        (100, "codex.exe", "OBSERVED"),
+        (101, "python.exe", "EXIT_OBSERVED"),
+    ]
+    assert tree[1]["parent_node_id"] == "root-evidence"
+    assert "C:/private/path" not in repr(tree)
+    assert "secret child command" not in repr(tree)
+    assert "create_time" not in repr(tree)
+
+
+def test_result_bundle_reader_lists_workspace_changes_without_external_paths(tmp_path) -> None:
+    reader = ResultBundleReader(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    evidence_path = tmp_path / "sessions" / "session-1" / "evidence" / "raw-evidence.jsonl"
+    evidence_path.parent.mkdir(parents=True)
+    records = [
+        {
+            "session_id": "session-1",
+            "source": "FILESYSTEM_WATCHER",
+            "record_type": "FILESYSTEM_EVENT",
+            "evidence_id": "file-event-1",
+            "captured_at": "2026-09-20T01:00:00+00:00",
+            "payload": {
+                "event_type": "modified",
+                "src_path": str(workspace / "src" / "main.py"),
+                "is_directory": False,
+                "content": "secret file content",
+            },
+        },
+        {
+            "session_id": "session-1",
+            "source": "FILESYSTEM_WATCHER",
+            "record_type": "FILESYSTEM_EVENT",
+            "evidence_id": "file-event-2",
+            "captured_at": "2026-09-20T01:00:01+00:00",
+            "payload": {
+                "event_type": "moved",
+                "src_path": str(workspace / "src" / "old.txt"),
+                "dest_path": str(tmp_path / "outside-secret-name.txt"),
+                "is_directory": False,
+            },
+        },
+        {
+            "session_id": "session-1",
+            "source": "FILESYSTEM_WATCHER",
+            "record_type": "FILESYSTEM_EVENT",
+            "evidence_id": "outside-event",
+            "payload": {
+                "event_type": "deleted",
+                "src_path": str(tmp_path / "outside-secret-name.txt"),
+            },
+        },
+    ]
+    evidence_path.write_text("\n".join(json.dumps(item) for item in records) + "\n", encoding="utf-8")
+
+    changes = reader.read_workspace_changes("session-1", workspace, require_valid=False)
+
+    assert changes[0]["source_path"] == "src/main.py"
+    assert changes[0]["event_type"] == "modified"
+    assert changes[1]["destination_path"] == "Workspace 밖"
+    assert "outside-secret-name.txt" not in repr(changes)
+    assert "secret file content" not in repr(changes)
+    assert all("payload" not in item for item in changes)
+
+
+def test_live_actions_include_only_linked_evidence_metadata(tmp_path) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    record = make_record(tmp_path)
+    record.actions = [
+        {
+            "action_id": "action-1",
+            "evidence_ids": ["evidence-1", "missing-evidence"],
+            "operation": "MODIFY",
+        }
+    ]
+    service.registry.add(record)
+    evidence_path = control_root / "sessions" / record.session_id / "evidence" / "raw-evidence.jsonl"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "session_id": record.session_id,
+                "source": "FILESYSTEM_WATCHER",
+                "record_type": "FILESYSTEM_EVENT",
+                "evidence_id": "evidence-1",
+                "captured_at": "2026-09-20T01:00:00+00:00",
+                "observation_stage": "POST_ACTION",
+                "payload": {"path": "secret-path", "raw_command": "secret command"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    try:
+        actions = service.get_run_actions(record.session_id)
+        assert actions[0]["evidence_chain"] == [
+            {
+                "evidence_id": "evidence-1",
+                "sensor": "FILESYSTEM_WATCHER",
+                "event_type": "FILESYSTEM_EVENT",
+                "observation_stage": "POST_ACTION",
+                "occurred_at": "2026-09-20T01:00:00+00:00",
+            }
+        ]
+        assert "secret-path" not in repr(actions)
+        assert "secret command" not in repr(actions)
+    finally:
+        service.shutdown()
 
 
 def test_result_bundle_reader_preserves_protection_downgrade_in_history(

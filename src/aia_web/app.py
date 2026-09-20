@@ -223,8 +223,32 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def run_actions(session_id: str) -> JSONResponse:
         try:
             return JSONResponse({"actions": app.state.service.get_run_actions(session_id)})
+        except (KeyError, ValueError) as exc:
+            if isinstance(exc, ValueError):
+                return JSONResponse({"error": str(exc)}, status_code=404)
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+
+    @app.get("/api/runs/{session_id}/process-tree")
+    def run_process_tree(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(
+                {"processes": app.state.service.get_run_process_tree(session_id)}
+            )
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+
+    @app.get("/api/runs/{session_id}/workspace-changes")
+    def run_workspace_changes(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(
+                {"changes": app.state.service.get_run_workspace_changes(session_id)}
+            )
+        except KeyError:
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
 
     @app.post("/api/runs/{session_id}/stop")
     def stop_run(session_id: str) -> JSONResponse:
@@ -270,6 +294,20 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return PlainTextResponse(app.state.service.get_report(session_id), media_type="text/markdown")
         except (KeyError, ValueError) as exc:
             return PlainTextResponse(str(exc), status_code=404)
+
+    @app.get("/runs/{session_id}/audit", response_class=HTMLResponse)
+    def audit_trail(request: Request, session_id: str) -> HTMLResponse:
+        try:
+            records = app.state.service.get_audit_records(session_id)
+        except KeyError:
+            return _not_found("Run not found")
+        except ValueError as exc:
+            return _not_found(str(exc))
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "audit.html",
+            {"session_id": session_id, "records": records},
+        )
 
     @app.get("/runs/{session_id}/raw-evidence")
     def raw_evidence(session_id: str) -> JSONResponse:

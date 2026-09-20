@@ -87,6 +87,21 @@ Sensor 상태와 민감정보를 숨긴 안전한 이벤트 요약이 1초마다
 차단되면 Codex 세션은 종료하지 않고 사건 카드에 `VIOLATION → CONTAIN →
 BLOCKED / SUCCEEDED`를 실제 확인된 경우에만 표시한다.
 
+실행 화면의 `쉬운 보기`는 보호 상태, 누적 Process/File 관찰 수, Workspace에서 관찰된
+행위 대상, File Sensor의 실제 파일 변화와 사건 타임라인을 보여준다. 도구 요청 대상과
+실제 파일 변화는 별도 증거로 표시해 인과관계가 확인되지 않으면 서로 연결된 것처럼
+표현하지 않는다. `전문가 보기`에서는 센서 상태, Process Sensor가
+남긴 Root·자식 PID 관계, 정책·귀속·Gate 결정, 행위에 연결된 Evidence ID를 확인할 수
+있다. 프로세스는 관찰됐다는 사실과 현재 살아 있다는 사실을 구분하며, 실제 종료는
+`PROCESS_EXIT_OBSERVED`가 있을 때만 표시한다. 이 화면은 실행 파일 전체 경로, 명령행,
+Raw Evidence payload를 보여주지 않는다.
+
+실행이 끝나면 `감사 기록` 화면에서 AIA Python Core가 생성한 `audit.jsonl`을
+무결성 검증된 Evidence Bundle을 통해 읽는다. UI 전용 감사 로그나 임의의 사건 데이터는
+만들지 않는다. 현재 콘솔은 로컬 단일 사용자 제품이므로 역할별 계정·로그인과 사용자
+승인 인터랙션을 제공하지 않는다. UI의 Gate 상태는 Core 결정을 표시할 뿐 사용자의
+승인을 대신하지 않는다.
+
 `새 보호 실행` 화면의 `정책 만들기`에서 현재 한국어 Strict Schema에 맞는 File Rule
 또는 Command Rule을 작성하고 검증할 수 있다. Validation을 통과한 정책만
 `%USERPROFILE%\.aia\policies`에 저장되며, 저장된 파일은 `CUSTOM` 프로필로 다음

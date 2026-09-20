@@ -211,6 +211,17 @@ Alpha”라고 설명하는 것은 타당하지만, “어떤 Agent의 모든 �
 않고도 AIA가 먼저 보호된 Codex 세션을 연 뒤 그 안에서 작업을 시작할 수 있다. 한 번의
 요청만 실행하는 `한 번의 작업 실행`도 별도로 선택할 수 있다.
 
+Live Run은 쉬운 보기와 전문가 보기를 제공한다. 쉬운 보기의 Workspace 변화 피드는
+File Sensor의 생성·수정·삭제·이동 Evidence를 Workspace 상대경로로 표시한다. 도구
+요청 대상과 실제 파일 변화는 같은 행위라는 상관 근거가 있을 때만 연결한다. 전문가
+보기의 프로세스 계보는
+세션 Process Runtime Evidence에서 PID·부모 PID·프로세스 역할을 안전하게 추려 표시하며,
+`PROCESS_OBSERVED`를 현재 생존 상태로 해석하지 않는다. 행위 상세는 정규 Action이
+참조하는 Evidence ID와 센서·이벤트 유형·관찰 단계를 연결해 보여준다. 감사 기록
+화면은 별도 UI 로그가 아니라 Core가 생성하고 Bundle 검증을 통과한 `audit.jsonl`을
+읽는다. 콘솔은 로컬 단일 사용자이므로 로그인·역할별 접근 제어와 Core가 지원하지 않는
+사용자 승인 기능은 Alpha 2 범위에 포함하지 않는다.
+
 Protected Launcher는 제품 실행에 `workspace-write` Sandbox와 `on-request`
 Approval Policy를 요청하고, 바깥 Codex의 일시적인 세션·권한 환경값을 자식 Codex로
 전달하지 않는다. 현재 Codex CLI의 비대화형 `exec`에서는 이 계약을 공식

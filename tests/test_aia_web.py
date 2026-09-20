@@ -112,6 +112,16 @@ class FakeService:
             }
         ]
 
+    def get_run_process_tree(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return []
+
+    def get_run_workspace_changes(self, session_id):
+        if session_id != "run-1":
+            raise KeyError(session_id)
+        return []
+
     def get_incidents(self, session_id):
         return [self.get_incident(session_id, "a1")]
 
@@ -181,6 +191,18 @@ class FakeService:
     def get_raw_evidence(self, session_id):
         return [{"evidence_id": "e1", "payload_keys": ["operation"]}]
 
+    def get_audit_records(self, session_id):
+        return [{
+            "audit_id": "audit-1",
+            "occurred_at": "2026-09-20T01:00:00+00:00",
+            "event_type": "ACTION_OBSERVED",
+            "entity_type": "ACTION",
+            "entity_id": "a1",
+            "source_reference": "canonical-action",
+            "reason_code": None,
+            "summary": "DELETE action",
+        }]
+
     def shutdown(self, wait=True):
         return None
 
@@ -216,10 +238,30 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     live = client.get("/runs/run-1")
     assert live.status_code == 200
     assert "보호 실행 상태" in live.text
+    assert "쉬운 보기" in live.text
+    assert "전문가 보기" in live.text
+    assert "프로세스 관찰 이벤트" in live.text
+    assert "파일 시스템 이벤트" in live.text
+    assert "aia-mascot.png" in live.text
     assert 'id="filesystem-event-count">2건' in live.text
     assert "Hook Broker" in live.text
     assert "실시간 센서 상태" in live.text
     assert 'id="event-timeline"' in live.text
+    assert "Workspace 관찰 지도" in live.text
+    assert 'id="workspace-digital-twin"' in live.text
+    assert 'id="workspace-tree"' in live.text
+    assert 'id="whitebox-container"' in live.text
+    assert 'id="process-tree"' in live.text
+    assert 'id="file-change-list"' in live.text
+    assert "File Sensor가 Workspace에서 관찰한 생성·수정·삭제·이동" in live.text
+    assert "관찰됨은 현재 실행 중이라는 뜻이 아닙니다" in live.text
+    assert 'id="wb-evidence-chain"' in live.text
+    assert "화이트박스 판단 설명" in live.text
+    assert "무슨 작업인가?" in live.text
+    assert "왜 Agent 행동으로 판단했는가?" in live.text
+    assert "어떤 정책이 적용됐는가?" in live.text
+    assert "AIA는 무엇을 결정했는가?" in live.text
+    assert "실제 결과는 무엇인가?" in live.text
     assert "HEALTHY" in live.text
     assert client.get("/api/runs/run-1").json()["phase"] == "RUNNING"
     assert client.post("/api/runs/run-1/stop").status_code == 202
@@ -227,6 +269,8 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.post("/api/runs/run-1/reconcile").status_code == 200
     assert client.post("/api/runs/missing/reconcile").status_code == 404
     assert client.get("/api/runs/run-1/actions").json()["actions"][0]["operation"] == "DELETE"
+    assert client.get("/api/runs/run-1/process-tree").json() == {"processes": []}
+    assert client.get("/api/runs/run-1/workspace-changes").json() == {"changes": []}
     incident = client.get("/runs/run-1/incidents/a1")
     assert incident.status_code == 200
     assert "PROCESS" in incident.text
@@ -240,6 +284,12 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert client.get("/runs/run-1/report").headers["content-type"].startswith("text/markdown")
     assert client.get("/runs/run-1/raw-evidence").json()["evidence"][0]["evidence_id"] == "e1"
     assert client.get("/runs/run-1/result.json").json()["bundle_status"] == "VALID"
+    audit = client.get("/runs/run-1/audit")
+    assert audit.status_code == 200
+    assert "감사 기록" in audit.text
+    assert "ACTION_OBSERVED" in audit.text
+    assert "원본 센서 payload는 이 화면에 포함하지 않습니다" in audit.text
+    assert 'href="/runs/run-1/audit"' in result.text
     assert "SUPER_SECRET" not in result.text
 
 
@@ -298,6 +348,24 @@ def test_console_policy_preview_is_non_executing_and_returns_decision() -> None:
     )
     assert invalid.status_code == 400
     assert "policy preview failed" in invalid.json()["error"]
+
+
+def test_console_process_tree_route_returns_not_found_for_missing_session() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    response = client.get("/api/runs/missing/process-tree")
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "Run not found"
+
+
+def test_console_workspace_change_route_returns_not_found_for_missing_session() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    response = client.get("/api/runs/missing/workspace-changes")
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "Run not found"
 
 
 def test_console_supports_session_first_interactive_run() -> None:
