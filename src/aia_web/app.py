@@ -21,6 +21,84 @@ from aia.capabilities import product_capabilities
 
 _ROOT = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_ROOT / "templates"))
+_ACTIVE_RUN_STATUSES = frozenset({"CREATED", "PREPARING", "READY", "RUNNING"})
+
+
+def _dashboard_activity(service: RunApplicationService, runs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return evidence-backed metrics for the active or latest verified run."""
+
+    active = next(
+        (
+            run
+            for run in runs
+            if run.get("run_classification") == "LIVE_PROTECTED_RUN"
+            and run.get("status") in _ACTIVE_RUN_STATUSES
+            and not (run.get("runtime_reconciliation") or {}).get("orphaned")
+        ),
+        None,
+    )
+    focus = active or next(
+        (
+            run
+            for run in runs
+            if run.get("run_classification") == "PRODUCT_PROTECTED_RUN"
+            and run.get("bundle_status") == "VALID"
+        ),
+        None,
+    )
+    if focus is None:
+        return None
+
+    session_id = focus.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        return None
+    try:
+        status = service.get_run_status(session_id)
+        actions = service.get_run_actions(session_id)
+    except (KeyError, OSError, ValueError):
+        return None
+
+    summary = status.get("evidence_summary")
+    summary = summary if isinstance(summary, dict) else {}
+    targets: set[str] = set()
+    for action in actions:
+        target = action.get("target") if isinstance(action, dict) else None
+        if not isinstance(target, dict):
+            continue
+        key = next(
+            (
+                target.get(name)
+                for name in ("canonical_path", "source_path", "destination_path", "command_fingerprint")
+                if isinstance(target.get(name), str) and target.get(name)
+            ),
+            None,
+        )
+        if key:
+            targets.add(key.casefold())
+
+    protection_state = (status.get("protection") or {}).get("state") or focus.get("protection_state") or "UNKNOWN"
+    friendly_states = {
+        "ACTIVE_VERIFIED": "보호 확인됨",
+        "ACTIVE_UNVERIFIED": "연결 확인 중",
+        "READY_UNVERIFIED": "실행 대기",
+        "DEGRADED": "보호 제한",
+        "COMPLETED_VERIFIED": "완료 · 보호 확인",
+        "COMPLETED_DEGRADED": "완료 · 확인 제한",
+        "FAILED_DEGRADED": "실행 오류",
+        "ORPHANED_DEGRADED": "상태 확인 필요",
+    }
+    is_active = focus is active
+    return {
+        "session_id": session_id,
+        "label": "현재 보호 실행" if is_active else "최근 검증 실행",
+        "href": f"/runs/{session_id}",
+        "protection_state": friendly_states.get(protection_state, protection_state),
+        "process_events": summary.get("process_observed"),
+        "file_events": summary.get("filesystem_events"),
+        "incidents": status.get("incident_count"),
+        "unique_targets": len(targets),
+        "live": is_active,
+    }
 
 
 def default_control_root() -> Path:
@@ -108,12 +186,14 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def dashboard(request: Request) -> HTMLResponse:
         """Render the local product overview without starting an Agent."""
 
+        runs = app.state.service.list_runs()
         return _TEMPLATES.TemplateResponse(
             request,
             "dashboard.html",
             {
                 "preflight": app.state.service.preflight(),
-                "runs": app.state.service.list_runs(),
+                "runs": runs,
+                "dashboard_activity": _dashboard_activity(app.state.service, runs),
                 "capabilities": product_capabilities(),
             },
         )

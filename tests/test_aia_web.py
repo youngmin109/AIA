@@ -321,6 +321,78 @@ def test_console_dashboard_explains_readiness_scope_and_recent_runs() -> None:
     assert "Bash" in dashboard.text
     assert "Edit·Write → apply_patch" in dashboard.text
     assert "아직 보호 실행 기록이 없습니다" in dashboard.text
+    assert 'id="dashboard-process-events">—<' in dashboard.text
+    assert 'id="dashboard-file-events">—<' in dashboard.text
+    assert "현재 생존 수 아님" in dashboard.text
+
+
+def test_console_dashboard_uses_evidence_metrics_from_active_run() -> None:
+    class ActivityService(FakeService):
+        def list_runs(self):
+            return [
+                {
+                    "session_id": "active-1",
+                    "status": "RUNNING",
+                    "run_classification": "LIVE_PROTECTED_RUN",
+                    "protection_state": "ACTIVE_VERIFIED",
+                },
+                {
+                    "session_id": "completed-1",
+                    "status": "COMPLETED",
+                    "run_classification": "PRODUCT_PROTECTED_RUN",
+                    "bundle_status": "VALID",
+                },
+            ]
+
+        def get_run_status(self, session_id):
+            assert session_id == "active-1"
+            return {
+                "incident_count": 2,
+                "protection": {"state": "ACTIVE_VERIFIED"},
+                "evidence_summary": {"process_observed": 3, "filesystem_events": 4},
+            }
+
+        def get_run_actions(self, session_id):
+            assert session_id == "active-1"
+            return [
+                {"target": {"canonical_path": "C:/workspace/src/a.py"}},
+                {"target": {"source_path": "c:/workspace/src/A.py"}},
+                {"target": {"command_fingerprint": "sha256:one"}},
+                {"target": {"command_fingerprint": "sha256:two"}},
+                {"target": {"target_kind": "PATH"}},
+            ]
+
+    dashboard = TestClient(create_app(ActivityService())).get("/dashboard")
+
+    assert dashboard.status_code == 200
+    assert 'data-session-id="active-1" data-live="true"' in dashboard.text
+    assert 'id="dashboard-protection-state">보호 확인됨<' in dashboard.text
+    assert 'id="dashboard-process-events">3건<' in dashboard.text
+    assert 'id="dashboard-file-events">4건<' in dashboard.text
+    assert 'id="dashboard-incidents">2건<' in dashboard.text
+    assert 'id="dashboard-targets">3개<' in dashboard.text
+    assert "보호 실행 후 실제 Evidence를 표시합니다" not in dashboard.text
+
+
+def test_console_dashboard_does_not_promote_unverified_history_to_metrics() -> None:
+    class UnverifiedService(FakeService):
+        def list_runs(self):
+            return [
+                {
+                    "session_id": "unverified-1",
+                    "status": "COMPLETED",
+                    "run_classification": "UNVERIFIED_RUNTIME_STATE",
+                    "bundle_status": "UNVERIFIED",
+                    "incident_count": 99,
+                }
+            ]
+
+    dashboard = TestClient(create_app(UnverifiedService())).get("/dashboard")
+
+    assert dashboard.status_code == 200
+    assert 'id="dashboard-incidents">—<' in dashboard.text
+    assert 'id="dashboard-process-events">—<' in dashboard.text
+    assert 'data-session-id="unverified-1"' not in dashboard.text
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:
