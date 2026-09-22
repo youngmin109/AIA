@@ -1,5 +1,5 @@
-import { ActivityBar } from './ActivityBar'
 import { Sidebar } from './Sidebar'
+import { Topbar } from './Topbar'
 import { ActiveRunPane } from './ActiveRunPane'
 import { RightPanel } from './RightPanel'
 import { StatusBar } from './StatusBar'
@@ -12,9 +12,11 @@ export function Shell() {
   return (
     <div className="shell-root">
       <div className="shell-body">
-        <ActivityBar />
         <Sidebar />
-        <ActiveRunPane />
+        <div className="main-column">
+          <Topbar />
+          <ActiveRunPane />
+        </div>
         <RightPanel />
       </div>
       <StatusBar />
