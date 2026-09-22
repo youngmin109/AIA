@@ -1,6 +1,7 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { useTerminalSession } from './useTerminalSession'
+import { useShellStore } from '../../state/shellStore'
 
 const CONTROL_KEYS: Record<string, string> = {
   Backspace: '\x7f',
@@ -35,6 +36,19 @@ export function TerminalPane({ runId, isFocused = true }: { runId: string; isFoc
     runEnded,
     protectionDisconnected,
   })
+
+  // Reported up to shellStore so GuardianHero (mounted in the dashboard
+  // view, not a descendant of TerminalPane) can reflect live Codex
+  // activity without this hook's DOM-ref-coupled internals ever moving.
+  const { reportTerminalActivity, clearTerminalActivity } = useShellStore()
+  useEffect(() => {
+    reportTerminalActivity({ runId, mode: session.activity.mode, terminalAction: session.terminalAction })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, session.activity.mode, session.terminalAction])
+  useEffect(() => {
+    return () => clearTerminalActivity(runId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId])
 
   function submitLine() {
     const value = draft

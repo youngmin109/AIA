@@ -1,6 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 
-export type ShellView = 'dashboard' | 'history' | 'results'
+export type ShellView = 'dashboard' | 'terminal' | 'history' | 'results'
+
+/** Live signal reported by TerminalPane's useTerminalSession instance so
+ * GuardianHero (mounted in the dashboard view, a sibling -- not an
+ * ancestor -- of TerminalPane) can reflect Codex's current activity
+ * without lifting the whole terminal hook (which is tightly coupled to a
+ * DOM ref) out of TerminalPane. */
+export interface TerminalActivitySignal {
+  runId: string
+  mode: string
+  terminalAction: string | null
+}
 
 const ACTIVE_RUN_STORAGE_KEY = 'aia.activeRunId'
 
@@ -23,6 +34,7 @@ interface ShellState {
    * replace the active run when clicked. Persisted so a reload re-attaches
    * to the same run instead of losing context. */
   activeRunId: string | null
+  terminalActivity: TerminalActivitySignal | null
 }
 
 type ShellAction =
@@ -33,6 +45,8 @@ type ShellAction =
   | { type: 'CLOSE_SETTINGS_MODAL' }
   | { type: 'SET_ACTIVE_RUN'; id: string }
   | { type: 'CLEAR_ACTIVE_RUN' }
+  | { type: 'SET_TERMINAL_ACTIVITY'; signal: TerminalActivitySignal }
+  | { type: 'CLEAR_TERMINAL_ACTIVITY'; runId: string }
 
 function initialState(): ShellState {
   return {
@@ -41,6 +55,7 @@ function initialState(): ShellState {
     rightPanelCollapsed: false,
     settingsModalOpen: false,
     activeRunId: readStoredActiveRunId(),
+    terminalActivity: null,
   }
 }
 
@@ -60,6 +75,10 @@ function reducer(state: ShellState, action: ShellAction): ShellState {
       return { ...state, activeRunId: action.id }
     case 'CLEAR_ACTIVE_RUN':
       return { ...state, activeRunId: null }
+    case 'SET_TERMINAL_ACTIVITY':
+      return { ...state, terminalActivity: action.signal }
+    case 'CLEAR_TERMINAL_ACTIVITY':
+      return state.terminalActivity?.runId === action.runId ? { ...state, terminalActivity: null } : state
     default:
       return state
   }
@@ -73,6 +92,8 @@ interface ShellContextValue extends ShellState {
   closeSettingsModal: () => void
   setActiveRun: (id: string) => void
   clearActiveRun: () => void
+  reportTerminalActivity: (signal: TerminalActivitySignal) => void
+  clearTerminalActivity: (runId: string) => void
 }
 
 const ShellContext = createContext<ShellContextValue | null>(null)
@@ -96,6 +117,8 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
   const closeSettingsModal = useCallback(() => dispatch({ type: 'CLOSE_SETTINGS_MODAL' }), [])
   const setActiveRun = useCallback((id: string) => dispatch({ type: 'SET_ACTIVE_RUN', id }), [])
   const clearActiveRun = useCallback(() => dispatch({ type: 'CLEAR_ACTIVE_RUN' }), [])
+  const reportTerminalActivity = useCallback((signal: TerminalActivitySignal) => dispatch({ type: 'SET_TERMINAL_ACTIVITY', signal }), [])
+  const clearTerminalActivity = useCallback((runId: string) => dispatch({ type: 'CLEAR_TERMINAL_ACTIVITY', runId }), [])
 
   const value = useMemo<ShellContextValue>(
     () => ({
@@ -107,8 +130,21 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
       closeSettingsModal,
       setActiveRun,
       clearActiveRun,
+      reportTerminalActivity,
+      clearTerminalActivity,
     }),
-    [state, setView, toggleSidebar, toggleRightPanel, openSettingsModal, closeSettingsModal, setActiveRun, clearActiveRun],
+    [
+      state,
+      setView,
+      toggleSidebar,
+      toggleRightPanel,
+      openSettingsModal,
+      closeSettingsModal,
+      setActiveRun,
+      clearActiveRun,
+      reportTerminalActivity,
+      clearTerminalActivity,
+    ],
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

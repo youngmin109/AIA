@@ -26,7 +26,7 @@ const TRUST_LABELS: Record<string, string> = {
 }
 
 export function DashboardPanel() {
-  const { openSettingsModal, setActiveRun } = useShellStore()
+  const { openSettingsModal, setActiveRun, setView } = useShellStore()
   const [devSessionId, setDevSessionId] = useState('')
   const { data: preflight, isLoading: preflightLoading } = usePreflight()
   const { data: runs } = useRunList()
@@ -88,7 +88,11 @@ export function DashboardPanel() {
           <button
             type="button"
             className="icon-button-text"
-            onClick={() => devSessionId.trim() && setActiveRun(devSessionId.trim())}
+            onClick={() => {
+              if (!devSessionId.trim()) return
+              setActiveRun(devSessionId.trim())
+              setView('terminal')
+            }}
           >
             열기
           </button>

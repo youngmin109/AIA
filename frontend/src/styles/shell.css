@@ -185,6 +185,17 @@
   flex-direction: column;
 }
 
+.main-column-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-column-view.is-hidden {
+  display: none;
+}
+
 .topbar {
   height: 56px;
   flex: 0 0 auto;
@@ -625,6 +636,180 @@
   color: var(--text-muted);
   font-size: 12px;
   text-align: center;
+}
+
+/* ---- Dashboard view (Guardian hero + metrics + sensors + activity) ---- */
+
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-elevated);
+}
+
+.dashboard-view {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px 24px 32px;
+}
+
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dashboard-metric {
+  padding: 14px 15px;
+}
+
+.dashboard-metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dashboard-metric-value {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 6px 0 2px;
+  color: var(--text);
+}
+
+.dashboard-metric-hint {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.dashboard-rightcol {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-card {
+  padding: 18px;
+}
+
+.dashboard-card-title {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dashboard-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.dashboard-launch-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 13px;
+  margin-top: 14px;
+  border-radius: 11px;
+  border: none;
+  background: var(--nav-bg);
+  color: #fff;
+}
+
+.dashboard-launch-btn strong {
+  margin-left: auto;
+  color: var(--accent-strong);
+}
+
+.dashboard-launch-btn b {
+  font-size: 12px;
+  display: block;
+}
+
+.dashboard-launch-btn small {
+  display: block;
+  margin-top: 2px;
+  color: var(--nav-text-muted);
+  font-size: 10px;
+}
+
+.dashboard-activity-card {
+  padding: 18px;
+}
+
+.dashboard-activity-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+/* Guardian hero card */
+
+.guardian-hero {
+  min-height: 300px;
+  padding: 22px;
+  overflow: hidden;
+  background: radial-gradient(circle at 26% 30%, var(--bg-hover) 0 5%, transparent 30%), var(--bg-panel);
+}
+
+.guardian-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.guardian-hero-overline {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.guardian-hero.is-review .guardian-hero-overline { color: var(--warning); }
+.guardian-hero.is-blocked .guardian-hero-overline { color: var(--danger); }
+.guardian-hero.is-recovery .guardian-hero-overline { color: var(--success); }
+
+.guardian-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 230px;
+  flex-wrap: wrap;
+}
+
+.guardian-hero-img {
+  flex: 0 0 auto;
+  height: 200px;
+  width: 210px;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 14px rgba(0, 0, 0, 0.18));
+}
+
+.guardian-hero-copy {
+  flex: 1;
+  min-width: 220px;
+}
+
+.guardian-hero-copy h2 {
+  font-size: 21px;
+  line-height: 1.3;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+
+.guardian-hero-copy p {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
 }
 
 /* ---- Result verdict banners ---- */

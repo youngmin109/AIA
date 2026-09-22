@@ -1,20 +1,26 @@
 import { Icon, type IconName } from '../common/Icon'
 import { useShellStore, type ShellView } from '../../state/shellStore'
-import { DashboardPanel } from '../dashboard/DashboardPanel'
 import { RunListPanel } from '../history/RunListPanel'
 import { ResultsListPanel } from '../results/ResultsListPanel'
 
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
   { view: 'dashboard', icon: 'dashboard', label: '대시보드' },
+  { view: 'terminal', icon: 'terminal', label: 'Agent CLI' },
   { view: 'history', icon: 'history', label: '지난 실행' },
   { view: 'results', icon: 'results', label: '보호 결과' },
 ]
 
 const TITLES: Record<ShellView, string> = {
   dashboard: '대시보드',
+  terminal: 'Agent CLI',
   history: '지난 실행',
   results: '보호 결과',
 }
+
+// The dashboard/terminal main views own their full content directly (see
+// DashboardView / ActiveRunPane) -- only history/results still delegate to
+// a sidebar list-and-detail panel.
+const SIDEBAR_LIST_VIEWS = new Set<ShellView>(['history', 'results'])
 
 export function Sidebar() {
   const { activeView, sidebarCollapsed, setView, toggleSidebar } = useShellStore()
@@ -69,14 +75,15 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="app-sidebar-section" aria-hidden={sidebarCollapsed}>
-        <div className="app-sidebar-section-label">{TITLES[activeView]}</div>
-        <div className="app-sidebar-section-content">
-          {activeView === 'dashboard' && <DashboardPanel />}
-          {activeView === 'history' && <RunListPanel />}
-          {activeView === 'results' && <ResultsListPanel />}
+      {SIDEBAR_LIST_VIEWS.has(activeView) && (
+        <div className="app-sidebar-section" aria-hidden={sidebarCollapsed}>
+          <div className="app-sidebar-section-label">{TITLES[activeView]}</div>
+          <div className="app-sidebar-section-content">
+            {activeView === 'history' && <RunListPanel />}
+            {activeView === 'results' && <ResultsListPanel />}
+          </div>
         </div>
-      </div>
+      )}
     </aside>
   )
 }

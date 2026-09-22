@@ -7,7 +7,7 @@ import { HookStatusControl } from './HookStatusControl'
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
 
 export function ProtectionSetupModal() {
-  const { settingsModalOpen, closeSettingsModal, setActiveRun } = useShellStore()
+  const { settingsModalOpen, closeSettingsModal, setActiveRun, setView } = useShellStore()
   const [workspace, setWorkspace] = useState('')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({ status: 'idle' })
   const [profiles, setProfiles] = useState<PolicyProfile[]>([])
@@ -64,6 +64,7 @@ export function ProtectionSetupModal() {
         launch_mode: 'web_terminal',
       })
       setActiveRun(result.session_id)
+      setView('terminal')
       closeSettingsModal()
       setWorkspace('')
       setWorkspaceState({ status: 'idle' })

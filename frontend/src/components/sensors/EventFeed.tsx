@@ -26,10 +26,15 @@ export function EventFeed({
   runId,
   events,
   evidenceChains,
+  limit,
 }: {
   runId: string | null
   events?: SecurityEvent[]
   evidenceChains?: EvidenceChain[]
+  /** Caps how many of the most-recent events render -- used by the
+   * dashboard's condensed "최근 활동" card; the right panel's full feed
+   * leaves this unset. */
+  limit?: number
 }) {
   if (!runId) {
     return <p className="empty-hint">열린 실행을 선택하면 Hook·File·Process 센서 기록이 여기에 표시됩니다.</p>
@@ -38,15 +43,14 @@ export function EventFeed({
   if (list.length === 0) {
     return <p className="empty-hint">아직 관찰된 센서 이벤트가 없습니다.</p>
   }
+  const reversed = list.slice().reverse()
+  const visible = limit ? reversed.slice(0, limit) : reversed
 
   return (
     <div className="event-list">
-      {list
-        .slice()
-        .reverse()
-        .map((event, index) => (
-          <EventRow key={event.event_id ?? index} event={event} chain={findChain(evidenceChains, event.chain_action_id)} />
-        ))}
+      {visible.map((event, index) => (
+        <EventRow key={event.event_id ?? index} event={event} chain={findChain(evidenceChains, event.chain_action_id)} />
+      ))}
     </div>
   )
 }

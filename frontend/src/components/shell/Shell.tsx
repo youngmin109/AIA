@@ -4,10 +4,13 @@ import { ActiveRunPane } from './ActiveRunPane'
 import { RightPanel } from './RightPanel'
 import { StatusBar } from './StatusBar'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
+import { DashboardView } from '../dashboard/DashboardView'
 import { useActiveRunReconciliation } from '../../hooks/useActiveRunReconciliation'
+import { useShellStore } from '../../state/shellStore'
 
 export function Shell() {
   useActiveRunReconciliation()
+  const { activeView } = useShellStore()
 
   return (
     <div className="shell-root">
@@ -15,7 +18,17 @@ export function Shell() {
         <Sidebar />
         <div className="main-column">
           <Topbar />
-          <ActiveRunPane />
+          {/* Both views stay mounted and are toggled with CSS, not
+              conditional rendering -- ActiveRunPane owns TerminalPane's
+              useTerminalSession/WebSocket, and unmounting it on every nav
+              switch to the dashboard would drop the live Codex connection
+              GuardianHero is meant to reflect. */}
+          <div className={`main-column-view${activeView === 'dashboard' ? '' : ' is-hidden'}`}>
+            <DashboardView />
+          </div>
+          <div className={`main-column-view${activeView === 'dashboard' ? ' is-hidden' : ''}`}>
+            <ActiveRunPane />
+          </div>
         </div>
         <RightPanel />
       </div>

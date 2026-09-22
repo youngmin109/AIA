@@ -11,6 +11,7 @@ const PATHS = {
   moon: 'M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z',
   plus: 'M12 5v14M5 12h14',
   brand: 'M12 2 3 7v10l9 5 9-5V7l-9-5z',
+  terminal: 'M5 6l5 6-5 6M12 18h7',
 } as const
 
 export type IconName = keyof typeof PATHS
