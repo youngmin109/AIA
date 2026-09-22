@@ -48,12 +48,12 @@
 | 기존 핸드오프 | `HANDOFF_EPIC_000_RECOVERED.md`, 2026-09-16 스냅샷 |
 
 현재 안전 브랜치는 원래 작업 트리의 미커밋 변경을 포함한 상태에서 생성했다.
-핸드오프 문서를 추가하고 검증한 뒤 이 브랜치에 기준 커밋을 남긴다. 최종 커밋
-해시는 커밋 후 아래 기록을 갱신한다.
+핸드오프 문서와 현재 소스 변경을 포함한 기준 커밋은 아래와 같다.
 
 ```text
 안전 브랜치: codex/safepoint-aia-before-rework-2026-09-22
-기준 커밋: 이 문서 작성 및 검증 후 생성되는 커밋
+기준 커밋: b49e9fa (`docs: record current AIA handoff baseline`)
+기준 태그: aia-pre-rework-2026-09-22
 복귀 방법: git switch codex/safepoint-aia-before-rework-2026-09-22
 ```
 
@@ -406,4 +406,3 @@ git switch codex/safepoint-aia-before-rework-2026-09-22
    않는다.
 10. 새 대화방의 첫 결과물은 코드 수정이 아니라 현재 기준선과 새 설계의 차이를
     정리한 결정 문서여야 한다.
-
