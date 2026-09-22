@@ -1,0 +1,106 @@
+@font-face {
+  font-family: 'Pretendard';
+  src: url('/static/fonts/PretendardVariable.woff2') format('woff2');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --font-ui: 'Pretendard', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', Consolas, ui-monospace, monospace;
+
+  --bg-app: #0d1117;
+  --bg-panel: #12181f;
+  --bg-panel-alt: #1a2129;
+  --bg-inset: #090d12;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(88, 166, 255, 0.14);
+  --border: #2a323c;
+  --border-strong: #3a4552;
+
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --text-faint: #5b6572;
+
+  --accent: #58a6ff;
+  --accent-strong: #79c0ff;
+  --accent-contrast: #04101d;
+
+  --success: #3fb950;
+  --success-bg: rgba(63, 185, 80, 0.12);
+  --warning: #d29922;
+  --warning-bg: rgba(210, 153, 34, 0.12);
+  --danger: #f85149;
+  --danger-bg: rgba(248, 81, 73, 0.12);
+
+  --shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --focus-ring: 0 0 0 2px var(--accent);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: #f6f8fa;
+  --bg-panel: #ffffff;
+  --bg-panel-alt: #f0f3f6;
+  --bg-inset: #eaeef2;
+  --bg-hover: rgba(31, 35, 40, 0.05);
+  --bg-active: rgba(9, 105, 218, 0.12);
+  --border: #d0d7de;
+  --border-strong: #b6bec6;
+
+  --text: #1f2328;
+  --text-muted: #59636e;
+  --text-faint: #8c959f;
+
+  --accent: #0969da;
+  --accent-strong: #0550ae;
+  --accent-contrast: #ffffff;
+
+  --success: #1a7f37;
+  --success-bg: rgba(26, 127, 55, 0.1);
+  --warning: #9a6700;
+  --warning-bg: rgba(154, 103, 0, 0.1);
+  --danger: #cf222e;
+  --danger-bg: rgba(207, 34, 46, 0.1);
+
+  --shadow-elevated: 0 12px 32px rgba(31, 35, 40, 0.14);
+  --focus-ring: 0 0 0 2px var(--accent);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text);
+  font: 13px/1.5 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--bg-active);
+}
