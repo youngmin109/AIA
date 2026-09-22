@@ -323,6 +323,74 @@ def test_unreadable_run_record_renders_actionable_integrity_state() -> None:
     assert actions.json() == {"error": "Evidence Bundle 무결성 검증 실패"}
 
 
+def test_result_api_returns_the_same_shape_the_jinja_result_page_renders() -> None:
+    service = FakeService()
+    client = TestClient(create_app(service))
+
+    response = client.get("/api/runs/run-1/result")
+
+    assert response.status_code == 200
+    assert response.json() == service.get_result("run-1")
+
+
+def test_result_api_returns_safe_reason_on_integrity_failure() -> None:
+    client = TestClient(create_app(UnreadableRunService()))
+
+    response = client.get("/api/runs/run-1/result")
+
+    assert response.status_code == 409
+    assert response.json() == {"error": "Evidence Bundle 무결성 검증 실패"}
+
+
+def test_incident_api_returns_the_same_shape_the_jinja_incident_page_renders() -> None:
+    service = FakeService()
+    client = TestClient(create_app(service))
+
+    response = client.get("/api/runs/run-1/incidents/a1")
+
+    assert response.status_code == 200
+    assert response.json() == service.get_incident("run-1", "a1")
+
+
+def test_incident_api_returns_not_found_for_unknown_incident() -> None:
+    class NoIncidentService(FakeService):
+        def get_incident(self, session_id, action_id):
+            raise KeyError(action_id)
+
+    client = TestClient(create_app(NoIncidentService()))
+
+    response = client.get("/api/runs/run-1/incidents/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {"error": "Incident not found"}
+
+
+def test_console_info_api_matches_the_values_the_setup_page_already_exposes() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    setup_page = client.get("/start")
+    api_response = client.get("/api/console-info")
+
+    assert api_response.status_code == 200
+    body = api_response.json()
+    assert body["cli_prefix"] == _console_cli_prefix()
+    assert body["hook_path"] == str(CodexHookInstaller().path)
+    assert setup_page.status_code == 200
+    assert body["cli_prefix"] in setup_page.text
+
+
+def test_spa_preview_route_serves_built_index_or_a_clear_placeholder() -> None:
+    client = TestClient(create_app(FakeService()))
+
+    response = client.get("/app")
+
+    assert response.status_code in (200, 503)
+    if response.status_code == 200:
+        assert "<div id=\"root\">" in response.text
+    else:
+        assert "npm run build" in response.text
+
+
 def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     client = TestClient(create_app(FakeService()))
     dashboard = client.get("/dashboard")

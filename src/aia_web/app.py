@@ -517,6 +517,39 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
 
+    @app.get("/api/runs/{session_id}/result")
+    def result_api(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.get_result(session_id))
+        except KeyError:
+            return _not_found("Run not found")
+        except ValueError as exc:
+            safe_reason = (
+                "Evidence Bundle 무결성 검증 실패"
+                if str(exc) == "Evidence Bundle Integrity Failure"
+                else "실행 기록의 보호 상태를 확인하지 못함"
+            )
+            return JSONResponse({"error": safe_reason}, status_code=409)
+
+    @app.get("/api/runs/{session_id}/incidents/{action_id}")
+    def incident_api(session_id: str, action_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.get_incident(session_id, action_id))
+        except (KeyError, ValueError):
+            return _not_found("Incident not found")
+
+    @app.get("/api/console-info")
+    def console_info() -> JSONResponse:
+        project_root = _console_project_root()
+        return JSONResponse(
+            {
+                "cli_prefix": _console_cli_prefix(),
+                "module_cli_prefix": _console_module_cli_prefix(),
+                "cli_project_root": str(project_root) if project_root else None,
+                "hook_path": str(CodexHookInstaller().path),
+            }
+        )
+
     @app.get("/api/runs/{session_id}/recovery")
     def recovery_status(session_id: str) -> JSONResponse:
         try:
