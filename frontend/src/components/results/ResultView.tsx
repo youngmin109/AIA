@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useResult } from '../../hooks/useResult'
 import type { IncidentView } from '../../api/resultTypes'
+import { deriveVerdict } from '../../api/resultVerdict'
 
 function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   const upper = String(value || '').toUpperCase()
@@ -29,9 +30,39 @@ export function ResultView({ runId }: { runId: string }) {
   }
 
   const incidents = data.incidents ?? []
+  const verdict = deriveVerdict(data)
 
   return (
     <div style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
+      <div className={`result-verdict is-${verdict.tone}`}>
+        <span className="result-verdict-mark" aria-hidden="true">
+          {verdict.tone === 'ok' ? '✓' : verdict.tone === 'bad' ? '!' : '·'}
+        </span>
+        <div className="result-verdict-copy">
+          <strong>{verdict.headline}</strong>
+          <span>{verdict.detail}</span>
+        </div>
+      </div>
+
+      {verdict.executionPolicyAttention && (
+        <div className="result-alert-banner">
+          <span>
+            {verdict.executionPolicyStatus === 'NOT_OBSERVED'
+              ? 'Codex 실행 정책이 관찰되지 않았습니다. 실제 적용 정책을 확인하기 전에는 완전한 보호 성공으로 해석하지 마세요.'
+              : 'Codex 실행 정책이 저하된 상태로 관찰됐습니다. 실제 적용 정책을 확인하세요.'}
+          </span>
+        </div>
+      )}
+
+      <details className="result-reading-guide">
+        <summary>이 결과를 어떻게 읽나요?</summary>
+        <div className="result-reading-guide-body">
+          <span>① 정책 판정 — 아래 정책 사건 상세에서 각 행위가 위반인지 확인</span>
+          <span>② 실행 Evidence — AIA의 조치와 실제 도구 실행 결과는 별개입니다. 실행 결과 배지를 따로 확인하세요</span>
+          <span>③ 보호 검증 — Bundle 유효성과 보호 상태가 함께 검증돼야 신뢰할 수 있습니다</span>
+        </div>
+      </details>
+
       <div className="panel-section">
         <p className="panel-section-title">보호 실행 결과</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
