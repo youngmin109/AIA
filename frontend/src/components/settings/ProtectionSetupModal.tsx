@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
-import { createProtectedRun, listProfiles, validateWorkspace, type PolicyProfile } from '../../api/endpoints'
+import {
+  createProtectedRun,
+  listProfiles,
+  reconcileRun,
+  validateWorkspace,
+  type PolicyProfile,
+  type WorkspaceRecovery,
+} from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
 import { readDefaultPolicyProfile } from '../policy/PolicyView'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
+
+// service.py's reconcile_orphaned_run reason codes, mapped to copy that
+// explains *why* automatic cleanup was refused -- never a "force anyway"
+// option, since each of these guards exists specifically to avoid severing
+// protection out from under a still-running AIA coordinator or Codex Agent.
+const RECONCILE_REFUSAL_COPY: Record<string, string> = {
+  RUN_IS_CONTROLLED_BY_THIS_AIA_PROCESS: '이 실행은 현재 AIA가 직접 관리하고 있어 아직 정리할 수 없습니다. 잠시 후 다시 시도하세요.',
+  ORPHANED_COORDINATOR_NOT_PROVEN: '이전 AIA 창이 아직 실행 중인 것으로 보입니다. 이전 AIA 창을 완전히 종료한 뒤 다시 시도하세요.',
+  RECORDED_AGENT_ROOT_NOT_PROVEN_GONE: 'Codex 프로세스가 아직 실행 중인 것으로 확인됩니다. Codex를 먼저 완전히 종료한 뒤 다시 시도하세요.',
+}
 
 export function ProtectionSetupModal() {
   const { settingsModalOpen, closeSettingsModal, setActiveRun, setView } = useShellStore()
@@ -16,6 +33,9 @@ export function ProtectionSetupModal() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [hookReady, setHookReady] = useState(false)
+  const [recovery, setRecovery] = useState<WorkspaceRecovery | null>(null)
+  const [reconciling, setReconciling] = useState(false)
+  const [reconcileError, setReconcileError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!settingsModalOpen) return
@@ -33,6 +53,8 @@ export function ProtectionSetupModal() {
   }, [settingsModalOpen])
 
   useEffect(() => {
+    setRecovery(null)
+    setReconcileError(null)
     if (!workspace.trim()) {
       setWorkspaceState({ status: 'idle' })
       return
@@ -41,8 +63,12 @@ export function ProtectionSetupModal() {
     const timer = setTimeout(() => {
       validateWorkspace(workspace.trim())
         .then((result) => {
-          if (result.valid) setWorkspaceState({ status: 'valid' })
-          else setWorkspaceState({ status: 'invalid', message: result.error ?? '폴더를 확인할 수 없습니다.' })
+          if (result.valid) {
+            setWorkspaceState({ status: 'valid' })
+            setRecovery(result.recovery?.required ? result.recovery : null)
+          } else {
+            setWorkspaceState({ status: 'invalid', message: result.error ?? '폴더를 확인할 수 없습니다.' })
+          }
         })
         .catch((err) => setWorkspaceState({ status: 'invalid', message: err instanceof Error ? err.message : String(err) }))
     }, 400)
@@ -53,7 +79,28 @@ export function ProtectionSetupModal() {
     return null
   }
 
-  const canSubmit = workspaceState.status === 'valid' && hookReady && !submitting
+  const canSubmit = workspaceState.status === 'valid' && !recovery?.required && hookReady && !submitting
+
+  async function handleReconcile() {
+    if (!recovery?.session_id || reconciling) return
+    setReconciling(true)
+    setReconcileError(null)
+    try {
+      const result = await reconcileRun(recovery.session_id)
+      if (result.reconciled) {
+        setRecovery(null)
+      } else {
+        setReconcileError(
+          (result.reason && RECONCILE_REFUSAL_COPY[result.reason]) ||
+            '아직 안전하게 정리할 수 없습니다. 이전 AIA 창과 Codex가 완전히 종료됐는지 확인한 뒤 다시 시도하세요.',
+        )
+      }
+    } catch (err) {
+      setReconcileError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setReconciling(false)
+    }
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return
@@ -106,6 +153,22 @@ export function ProtectionSetupModal() {
               {workspaceState.status === 'idle' && '이미 만들어 둔 프로젝트 폴더의 전체 경로를 입력하세요.'}
             </p>
           </div>
+          {recovery?.required && (
+            <div className="panel-section">
+              <div className="terminal-action-banner" style={{ borderTop: 'none', borderRadius: 8, flexWrap: 'wrap' }}>
+                <span>
+                  이 Workspace에는 정리되지 않은 이전 보호 실행이 있습니다 (#{recovery.session_id?.slice(0, 8)}
+                  {recovery.status ? ` · ${recovery.status}` : ''}). 이전 AIA·Codex가 완전히 종료됐는지 확인한 뒤 정리하세요.
+                </span>
+                <button type="button" className="cta-button" style={{ width: 'auto', padding: '6px 14px' }} disabled={reconciling} onClick={handleReconcile}>
+                  {reconciling ? '정리하는 중…' : '정리하고 계속'}
+                </button>
+              </div>
+              {reconcileError && (
+                <p style={{ marginTop: 6, fontSize: 11, color: 'var(--danger)' }}>{reconcileError}</p>
+              )}
+            </div>
+          )}
           <div className="panel-section">
             <p className="panel-section-title">보호 정책</p>
             <select
