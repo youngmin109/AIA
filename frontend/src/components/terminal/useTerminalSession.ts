@@ -76,6 +76,14 @@ export function useTerminalSession({
   const lastResizeSignatureRef = useRef('')
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const xtermRef = useRef<XtermAdapter | null>(null)
+  // Batches same-frame WS `output` messages into one xterm.write() + one
+  // processTerminalOutput() pass (see appendTerminal below) -- a fast
+  // server poll tick delivers many small messages during an active Codex
+  // response, and running the full trust/approval/composer regex scan on
+  // every single one of them let the browser fall behind visibly on long
+  // output, even though each individual message is cheap on its own.
+  const pendingOutputRef = useRef<string[]>([])
+  const outputFrameRef = useRef<number | null>(null)
 
   // Kept in refs so the WS callbacks (registered once per socket, not per
   // render) always see the latest value without forcing a socket reopen.
@@ -117,6 +125,9 @@ export function useTerminalSession({
     const adapter = createXtermAdapter(node)
     xtermRef.current = adapter
     return () => {
+      if (outputFrameRef.current !== null) cancelAnimationFrame(outputFrameRef.current)
+      outputFrameRef.current = null
+      pendingOutputRef.current = []
       adapter.dispose()
       xtermRef.current = null
     }
@@ -229,7 +240,15 @@ export function useTerminalSession({
 
   function appendTerminal(data: string) {
     if (!data) return
-    xtermRef.current?.write(data, () => processTerminalOutput(data))
+    pendingOutputRef.current.push(data)
+    if (outputFrameRef.current !== null) return
+    outputFrameRef.current = requestAnimationFrame(() => {
+      outputFrameRef.current = null
+      const combined = pendingOutputRef.current.join('')
+      pendingOutputRef.current = []
+      if (!combined) return
+      xtermRef.current?.write(combined, () => processTerminalOutput(combined))
+    })
   }
 
   function handleTerminalStatus(status: { status?: string; pid?: number | null; rows?: number; cols?: number; error?: string | null }) {
