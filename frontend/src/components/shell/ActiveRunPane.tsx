@@ -1,6 +1,7 @@
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { TerminalPane } from '../terminal/TerminalPane'
+import { StepsExplainer } from '../terminal/StepsExplainer'
 import { ResultView } from '../results/ResultView'
 import { useRunStatus } from '../../hooks/useRunStatus'
 
@@ -49,7 +50,12 @@ export function ActiveRunPane() {
           isEnded ? (
             <ResultView runId={activeRunId} />
           ) : (
-            <TerminalPane runId={activeRunId} isFocused />
+            <div className="terminal-grid">
+              <div className="terminal-card">
+                <TerminalPane runId={activeRunId} isFocused />
+              </div>
+              <StepsExplainer />
+            </div>
           )
         ) : (
           <div className="center-empty-state">

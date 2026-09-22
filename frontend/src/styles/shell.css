@@ -895,7 +895,28 @@
   color: var(--text-muted);
 }
 
-/* ---- Terminal pane ---- */
+/* ---- Terminal pane ----
+ * Fixed dark "console" look regardless of app theme, matching the Guardian
+ * mockup's .terminal-card/.termbar/.termout -- these are literal colors
+ * (not theme tokens) by design, same as the mockup's own CSS. Only the
+ * container styling changes here; TerminalPane's markup/classNames and
+ * useTerminalSession are untouched. */
+
+.terminal-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.6fr);
+  gap: 14px;
+  padding: 14px;
+}
+
+.terminal-card {
+  overflow: hidden;
+  background: #101827;
+  border: 1px solid #273756;
+  border-radius: 16px;
+  box-shadow: var(--shadow-elevated);
+}
 
 .terminal-pane {
   height: 100%;
@@ -910,17 +931,18 @@
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-panel-alt);
+  border-bottom: 1px solid #293b5d;
+  background: #172236;
+  color: #bdcbe4;
   font-size: 11px;
 }
 
 .terminal-activity-label {
-  color: var(--text-muted);
+  color: #9db0d4;
 }
 
 .terminal-pid {
-  color: var(--text-faint);
+  color: #7184a8;
   font-family: var(--font-mono);
 }
 
@@ -943,13 +965,23 @@
   cursor: default;
 }
 
+.terminal-card .icon-button-text {
+  border-color: #344a70;
+  color: #bdcbe4;
+}
+
+.terminal-card .icon-button-text:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .terminal-output {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 10px 14px;
-  background: var(--bg-inset);
-  color: var(--text);
+  background: #101827;
+  color: #d6e3fb;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 19px;
@@ -965,7 +997,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 8px 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid #2b3b59;
   background: var(--danger-bg);
   color: var(--danger);
   font-size: 12px;
@@ -978,7 +1010,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid #2b3b59;
   background: var(--warning-bg);
   color: var(--warning);
   font-size: 12px;
@@ -994,9 +1026,9 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-panel);
+  padding: 10px 12px;
+  border-top: 1px solid #2b3b59;
+  background: #121d30;
 }
 
 .terminal-input-row textarea {
@@ -1006,10 +1038,10 @@
   resize: none;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-inset);
-  color: var(--text);
-  font: 13px/1.4 var(--font-ui);
+  border: 1px solid #2b3b59;
+  background: #0c1526;
+  color: #fff;
+  font: 13px/1.4 var(--font-mono);
 }
 
 .terminal-input-row textarea:disabled {
@@ -1031,6 +1063,59 @@
 .terminal-input-row .cta-button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.explainer {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.explainer-overline {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.explainer-title {
+  font-size: 17px;
+  margin: 7px 0 4px;
+  color: var(--text);
+}
+
+.explainer-flow {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.explainer-step {
+  border-left: 2px solid var(--border-strong);
+  padding: 2px 0 2px 14px;
+  position: relative;
+}
+
+.explainer-step::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.explainer-step b {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.explainer-step p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
 }
 
 /* ---- Protection setup modal ---- */
