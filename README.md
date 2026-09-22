@@ -93,15 +93,12 @@ uv run --isolated --project . python -m aia.cli console --open
 
 기본 주소는 [http://127.0.0.1:8787](http://127.0.0.1:8787)이다. `--open`을 지정하면 기본 브라우저에서 이 로컬 주소를 연다. 화면에서 Workspace, Codex 작업 요청, Policy Profile, ENFORCE/AUDIT 모드를 입력하면 AIA Core의 보호 실행 흐름을 시작하고, Live Run과 Result Bundle을 확인할 수 있다. 기본 Control Root는 `%USERPROFILE%\.aia\control`이며 `AIA_CONTROL_ROOT` 환경 변수로 바꿀 수 있다. 기존의 `uv run aia-web` 명령도 계속 사용할 수 있다.
 
-기본 화면(`/`)은 실행 전 준비 상태, Codex Hook Trust, 현재 지원 범위, 최근
-Protected Run을 보여주는 대시보드다. 대시보드는 실행을 자동으로 시작하지 않으며,
-`새 보호 실행`(`/new`) 화면에서 사용자가 명시적으로 시작한다.
+기본 화면(`/`)은 대시보드/Agent CLI/정책 설정/감사 기록 4개 뷰로 구성된 SPA다.
+대시보드는 실행 전 준비 상태, Codex Hook Trust, 현재 실행 중인 세션의 요약을
+보여주며 실행을 자동으로 시작하지 않는다. 새 보호 실행은 `보호 세팅` 모달에서
+사용자가 명시적으로 시작한다.
 
 콘솔은 로컬 단일 사용자 P1 도구다. 외부 bind/로그인/원격 접근/Database를 제공하지 않으며, Core의 보안 판정과 Result Bundle을 화면에 표시하는 역할만 한다. 화면에는 raw command와 evidence payload 값이 노출되지 않는다. 자세한 범위와 HTTP 계약은 [EPIC-019 문서](docs/epics/EPIC-019-LOCAL-SECURITY-CONSOLE.md)를 참조한다.
-
-새 보호 실행 화면의 `정책 미리보기`에서는 실제 실행 전에 파일 경로 또는 명령을
-넣어 선택한 정책의 판정·Effect·보안 자산·적용 Rule을 확인할 수 있다. 미리보기는
-Codex를 시작하지 않고 실행 대상에도 접근하지 않는다.
 
 외부 Network에 노출하지 마십시오.
 
