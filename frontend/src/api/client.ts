@@ -21,3 +21,19 @@ export function apiPost<T>(path: string, payload?: unknown, signal?: AbortSignal
     signal,
   }).then((response) => parseJson<T>(response))
 }
+
+/**
+ * Like apiPost, but never throws on a non-2xx response -- it returns the
+ * parsed body regardless of status. Some endpoints (e.g. /api/hook/verify)
+ * return structured failure detail (reason/next_step) with no `error` key
+ * on 4xx/5xx, which parseJson's throw-on-!ok path would otherwise discard.
+ */
+export async function apiPostTolerant<T>(path: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+    signal,
+  })
+  return (await response.json().catch(() => ({}))) as T
+}

@@ -21,8 +21,15 @@ export interface Preflight {
   codex_hook_trust?: { available?: boolean; hooks?: Array<{ event?: string; trust_status?: string }> }
 }
 
-/** Same cadence dashboard.html already proved out for readiness cards. */
-export function usePreflight() {
+/**
+ * Same cadence dashboard.html already proved out for readiness cards.
+ * Callers waiting on a specific transition (e.g. the Hook setup flow
+ * watching for the user to finish trusting the Hook in Codex) can pass a
+ * shorter interval; usePolling's effect already re-runs when intervalMs
+ * changes, so this can be computed dynamically from the previous poll's
+ * own result.
+ */
+export function usePreflight(intervalMs = 30_000) {
   const fetchFn = useCallback((signal: AbortSignal) => apiGet<Preflight>('/api/preflight', signal), [])
-  return usePolling<Preflight>(fetchFn, { intervalMs: 30_000 })
+  return usePolling<Preflight>(fetchFn, { intervalMs })
 }

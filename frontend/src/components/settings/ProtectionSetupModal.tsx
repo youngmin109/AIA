@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { createProtectedRun, listProfiles, validateWorkspace, type PolicyProfile } from '../../api/endpoints'
+import { HookStatusControl } from './HookStatusControl'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
 
@@ -13,6 +14,7 @@ export function ProtectionSetupModal() {
   const [policyProfile, setPolicyProfile] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [hookReady, setHookReady] = useState(false)
 
   useEffect(() => {
     if (!settingsModalOpen) return
@@ -46,7 +48,7 @@ export function ProtectionSetupModal() {
     return null
   }
 
-  const canSubmit = workspaceState.status === 'valid' && !submitting
+  const canSubmit = workspaceState.status === 'valid' && hookReady && !submitting
 
   async function handleSubmit() {
     if (!canSubmit) return
@@ -82,6 +84,7 @@ export function ProtectionSetupModal() {
           </button>
         </div>
         <div className="modal-body">
+          <HookStatusControl onReadyChange={setHookReady} />
           <div className="panel-section">
             <p className="panel-section-title">Workspace 경로</p>
             <input
@@ -116,7 +119,12 @@ export function ProtectionSetupModal() {
               <span>{submitError}</span>
             </div>
           )}
-          <button type="button" className="cta-button" style={{ marginTop: 16 }} disabled={!canSubmit} onClick={handleSubmit}>
+          {!hookReady && workspaceState.status === 'valid' && (
+            <p style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+              위 AIA Hook 연결이 준비되어야 보호 작업을 시작할 수 있습니다.
+            </p>
+          )}
+          <button type="button" className="cta-button" style={{ marginTop: 10 }} disabled={!canSubmit} onClick={handleSubmit}>
             {submitting ? '시작하는 중…' : '보호 작업 시작'}
           </button>
         </div>
