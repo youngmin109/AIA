@@ -16,7 +16,7 @@ function shortId(sessionId: string): string {
 }
 
 export function ResultsListPanel() {
-  const { openTab, activeTabId } = useShellStore()
+  const { setActiveRun, activeRunId } = useShellStore()
   const { data: runs, isLoading, error } = useRunList()
   const completed = (runs ?? []).filter((run) => COMPLETED_STATUSES.has(String(run.status)))
 
@@ -36,8 +36,8 @@ export function ResultsListPanel() {
         <button
           key={run.session_id}
           type="button"
-          className={`run-row${activeTabId === run.session_id ? ' is-active' : ''}`}
-          onClick={() => openTab({ id: run.session_id, title: `${shortId(run.session_id)} 결과`, kind: 'result' })}
+          className={`run-row${activeRunId === run.session_id ? ' is-active' : ''}`}
+          onClick={() => setActiveRun(run.session_id)}
         >
           <div className="run-row-top">
             <span>{shortId(run.session_id)}</span>

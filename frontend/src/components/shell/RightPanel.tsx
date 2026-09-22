@@ -5,11 +5,11 @@ import { SensorHealthRow } from '../sensors/SensorHealthRow'
 import { useRunStatus } from '../../hooks/useRunStatus'
 
 export function RightPanel() {
-  const { rightPanelCollapsed, toggleRightPanel, activeTabId } = useShellStore()
+  const { rightPanelCollapsed, toggleRightPanel, activeRunId } = useShellStore()
   // Owned once here rather than in EventFeed/SensorHealthRow separately --
-  // both render from the same focused-tab run status, one 1s poll covers
-  // both (see useRunStatus, gated to the focused tab only).
-  const { data: status } = useRunStatus(activeTabId, { enabled: Boolean(activeTabId) })
+  // both render from the same active-run status, one 1s poll covers both
+  // (see useRunStatus, gated to whether a run is active).
+  const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
 
   return (
     <aside className={`right-panel${rightPanelCollapsed ? ' is-collapsed' : ''}`} aria-hidden={rightPanelCollapsed}>
@@ -20,8 +20,8 @@ export function RightPanel() {
         </button>
       </div>
       <div className="right-panel-content">
-        {activeTabId && <SensorHealthRow sensorHealth={status?.sensor_health} evidenceSummary={status?.evidence_summary} />}
-        <EventFeed runId={activeTabId} events={status?.events} evidenceChains={status?.evidence_chains} />
+        {activeRunId && <SensorHealthRow sensorHealth={status?.sensor_health} evidenceSummary={status?.evidence_summary} />}
+        <EventFeed runId={activeRunId} events={status?.events} evidenceChains={status?.evidence_chains} />
       </div>
     </aside>
   )

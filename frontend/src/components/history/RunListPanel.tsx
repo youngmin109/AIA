@@ -14,7 +14,7 @@ function shortId(sessionId: string): string {
 }
 
 export function RunListPanel() {
-  const { openTab, activeTabId } = useShellStore()
+  const { setActiveRun, activeRunId } = useShellStore()
   const { data: runs, isLoading, error } = useRunList()
 
   if (isLoading && !runs) {
@@ -33,8 +33,8 @@ export function RunListPanel() {
         <button
           key={run.session_id}
           type="button"
-          className={`run-row${activeTabId === run.session_id ? ' is-active' : ''}`}
-          onClick={() => openTab({ id: run.session_id, title: shortId(run.session_id), kind: 'terminal' })}
+          className={`run-row${activeRunId === run.session_id ? ' is-active' : ''}`}
+          onClick={() => setActiveRun(run.session_id)}
         >
           <div className="run-row-top">
             <span>{shortId(run.session_id)}</span>

@@ -1,11 +1,12 @@
-import { useShellStore } from '../../state/shellStore'
 import { usePreflight } from '../../hooks/usePreflight'
+import { useRunList, isRunActive } from '../../hooks/useRunList'
 
 export function StatusBar() {
-  const { openTabs } = useShellStore()
   const { data: preflight, error } = usePreflight()
+  const { data: runs } = useRunList()
   const hookTrustStatus = preflight?.hook_trust?.status ?? 'UNKNOWN'
   const hookOk = ['TRUSTED', 'MANAGED'].includes(hookTrustStatus)
+  const activeRuns = (runs ?? []).filter(isRunActive).length
 
   return (
     <div className="status-bar">
@@ -17,7 +18,7 @@ export function StatusBar() {
         <span className={`status-dot ${error ? 'is-bad' : 'is-ok'}`} />
         {error ? '로컬 서버 연결 확인 필요' : '로컬 서버 연결됨'}
       </span>
-      <span className="status-bar-item">활성 세션 {openTabs.length}건</span>
+      <span className="status-bar-item">활성 세션 {activeRuns}건</span>
       <div className="status-bar-spacer" />
       <span>AIA · 로컬 전용 콘솔</span>
     </div>
