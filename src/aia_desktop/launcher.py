@@ -288,7 +288,10 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         _wait_for_server(f"http://{host}:{port}/start", server)
         window = webview.create_window(
             "AIA · Protected Workbench",
-            f"http://{host}:{port}/start",
+            # TEMPORARY preview: opens the new React shell directly instead of
+            # the old /start page, so it's visible without a second browser.
+            # Revert to /start before milestone 6 removes the old UI for real.
+            f"http://{host}:{port}/app",
             width=1440,
             height=900,
             min_size=(1024, 680),
