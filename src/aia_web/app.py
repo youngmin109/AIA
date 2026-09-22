@@ -29,6 +29,12 @@ _TERMINAL_OUTPUT_BATCH_MAX_CHARS = 32 * 1024
 _TERMINAL_OUTPUT_MAX_ITEMS_PER_TICK = 128
 _TERMINAL_OUTPUT_SEND_TIMEOUT_SECONDS = 2.0
 _TERMINAL_STATUS_POLL_INTERVAL_SECONDS = 0.25
+# Ceiling on how long freshly-buffered PTY output can sit before this loop's
+# next send_pending_output() flushes it to the browser -- the PTY reader
+# thread itself blocks on the OS pipe with no added delay, so this is the
+# dominant knob for perceived output latency. Kept well above 0 so idle
+# sessions don't spin the event loop.
+_TERMINAL_OUTPUT_POLL_TIMEOUT_SECONDS = 0.02
 
 
 def _hidden_process_kwargs() -> dict[str, int]:
@@ -484,7 +490,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 try:
                     message = await asyncio.wait_for(
                         websocket.receive_json(),
-                        timeout=0.10,
+                        timeout=_TERMINAL_OUTPUT_POLL_TIMEOUT_SECONDS,
                     )
                     if not isinstance(message, dict):
                         await send_message(

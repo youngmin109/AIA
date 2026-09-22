@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
+import { useEffect, useRef, useState } from 'react'
+import { createXtermAdapter, type XtermAdapter } from './xtermAdapter'
 
-// Ported from workbench.html's terminal WebSocket client, activity state
-// machine, and Codex-TUI screen-scraping heuristics (trust-directory /
-// command-approval detection, composer-ready gating, submit-settle). The
-// wire protocol and detection regexes are unchanged from the original --
-// only the DOM plumbing is replaced with React refs/state.
+// Ported near-verbatim from workbench.html's terminal WebSocket client,
+// activity state machine, and Codex-TUI screen-scraping heuristics
+// (trust-directory / command-approval detection, composer-ready gating,
+// submit-settle). The wire protocol and detection regexes are unchanged --
+// only the renderer changed: xterm.js (xtermAdapter.ts) now owns painting,
+// scrollback, and escape-sequence parsing instead of a hand-rolled VT100
+// emulator, so this hook only asks it for a plain-text snapshot of the
+// visible screen when the detection regexes need one.
 
 export type ActivityMode =
   | 'IDLE'
@@ -31,7 +34,6 @@ interface ConnectionState {
 // submit key is not swallowed as part of a paste burst.
 const SUBMIT_SETTLE_MS = 250
 const SUBMIT_ECHO_WAIT_MS = 3000
-const TERMINAL_RENDER_CHUNK_CHARS = 4096
 
 export interface UseTerminalSessionOptions {
   sessionId: string
@@ -70,12 +72,10 @@ export function useTerminalSession({
   const pendingSubmissionRef = useRef<{ value: string; timer: ReturnType<typeof setTimeout> | null } | null>(null)
   const detectionBufferRef = useRef('')
   const responseStartedAtRef = useRef(0)
-  const outputQueueRef = useRef<string[]>([])
-  const outputFlushFrameRef = useRef<number | null>(null)
-  const followingOutputRef = useRef(true)
   const terminalClosedRef = useRef(false)
   const lastResizeSignatureRef = useRef('')
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const xtermRef = useRef<XtermAdapter | null>(null)
 
   // Kept in refs so the WS callbacks (registered once per socket, not per
   // render) always see the latest value without forcing a socket reopen.
@@ -89,11 +89,6 @@ export function useTerminalSession({
   protectionDisconnectedRef.current = protectionDisconnected
 
   const setActivity = (mode: ActivityMode, label: string) => {
-    // Read/write activityModeRef synchronously (not via the render-cycle
-    // assignment below) so screen.refresh()'s requestAnimationFrame
-    // callback -- which can fire before React commits the setActivityMode
-    // update -- sees the *new* mode immediately. Otherwise a transient
-    // "Working (Ns)" line can survive one extra frame after going WAITING.
     const previousMode = activityModeRef.current
     activityModeRef.current = mode
     const resetClock = previousMode !== mode || (mode === 'WAITING' && awaitingResponseRef.current)
@@ -107,30 +102,24 @@ export function useTerminalSession({
       responseStartedAtRef.current = Date.now()
     }
     if (['WAITING', 'ACTION', 'ERROR', 'IDLE', 'STOPPED'].includes(mode)) responseStartedAtRef.current = 0
-    if (mode === 'WAITING') screen.refresh()
   }
 
   const setConnectionState = (label: string, tone: ConnectionState['tone']) => setConnection({ label, tone })
 
-  // --- Pure terminal emulator, driven by this hook's own render loop ---
-  const screen = useMemo<TerminalScreen>(() => {
-    const instance: TerminalScreen = createTerminalScreen({
-      isWaiting: () => activityModeRef.current === 'WAITING',
-      onFrame: () => {
-        const node = terminalOutputRef.current
-        if (!node) return
-        const wasAtBottom = node.scrollHeight - node.scrollTop - node.clientHeight <= 32
-        const shouldFollow = followingOutputRef.current || wasAtBottom
-        node.textContent = instance.text()
-        if (shouldFollow) {
-          node.scrollTop = node.scrollHeight
-          followingOutputRef.current = true
-        } else {
-          followingOutputRef.current = false
-        }
-      },
-    })
-    return instance
+  // Mounts xterm.js into the DOM node. Declared before the socket-opening
+  // effect below so xtermRef is always populated before any WS message
+  // could arrive -- effects for one hook fire in declaration order after
+  // the same commit, and refs attach before any effect runs, so this ordering
+  // is a real guarantee, not a race.
+  useEffect(() => {
+    const node = terminalOutputRef.current
+    if (!node) return
+    const adapter = createXtermAdapter(node)
+    xtermRef.current = adapter
+    return () => {
+      adapter.dispose()
+      xtermRef.current = null
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
@@ -146,7 +135,7 @@ export function useTerminalSession({
   function terminalDraftIsVisible(value: string): boolean {
     const normalized = String(value || '').replace(/\s+/g, ' ').trim()
     if (!normalized) return true
-    const visible = screen.text().replace(/\s+/g, ' ')
+    const visible = (xtermRef.current?.bufferText(activityModeRef.current === 'WAITING') ?? '').replace(/\s+/g, ' ')
     const prefix = normalized.slice(0, Math.min(48, normalized.length))
     const suffix = normalized.slice(-Math.min(48, normalized.length))
     return visible.includes(normalized) || visible.includes(prefix) || visible.includes(suffix)
@@ -186,8 +175,7 @@ export function useTerminalSession({
     detectionBufferRef.current = (detectionBufferRef.current + text).slice(-16000)
     const buffer = detectionBufferRef.current
     const trustPromptVisible = /Do you trust the contents of this directory\?/i.test(buffer) || /Press enter to continue/i.test(buffer)
-    screen.consume(text)
-    const currentScreen = screen.text()
+    const currentScreen = xtermRef.current?.bufferText(activityModeRef.current === 'WAITING') ?? ''
     const commandApprovalVisible =
       /Would you like to run the following command\?/i.test(currentScreen) &&
       /Yes, proceed \(y\)/i.test(currentScreen) &&
@@ -239,44 +227,9 @@ export function useTerminalSession({
     }
   }
 
-  function flushTerminalOutput() {
-    outputFlushFrameRef.current = null
-    const startedAt = performance.now()
-    let processed = 0
-    while (outputQueueRef.current.length && (processed === 0 || performance.now() - startedAt < 8)) {
-      processTerminalOutput(outputQueueRef.current.shift()!)
-      processed += 1
-    }
-    if (outputQueueRef.current.length) {
-      outputFlushFrameRef.current = requestAnimationFrame(flushTerminalOutput)
-    }
-  }
-
-  function enqueueTerminalOutput(data: string) {
-    const value = String(data || '')
-    if (!value) return
-    let start = 0
-    let length = 0
-    for (let index = 0; index < value.length; ) {
-      const codePoint = value.codePointAt(index)!
-      const codePointLength = codePoint > 0xffff ? 2 : 1
-      if (length && length + codePointLength > TERMINAL_RENDER_CHUNK_CHARS) {
-        outputQueueRef.current.push(value.slice(start, index))
-        start = index
-        length = 0
-      }
-      index += codePointLength
-      length += codePointLength
-    }
-    if (start < value.length) outputQueueRef.current.push(value.slice(start))
-  }
-
   function appendTerminal(data: string) {
     if (!data) return
-    enqueueTerminalOutput(data)
-    if (outputFlushFrameRef.current === null) {
-      outputFlushFrameRef.current = requestAnimationFrame(flushTerminalOutput)
-    }
+    xtermRef.current?.write(data, () => processTerminalOutput(data))
   }
 
   function handleTerminalStatus(status: { status?: string; pid?: number | null; rows?: number; cols?: number; error?: string | null }) {
@@ -301,7 +254,7 @@ export function useTerminalSession({
                   ? { label: '연결 대기', tone: 'warn' }
                   : { label: '확인 중', tone: 'warn' }
     setConnectionState(connectionState.label, connectionState.tone)
-    if (status?.rows && status?.cols) screen.resize(Number(status.rows), Number(status.cols))
+    if (status?.rows && status?.cols) xtermRef.current?.terminal.resize(Number(status.cols), Number(status.rows))
     if (value === 'RUNNING') scheduleTerminalResize()
     if (value === 'FAILED') setErrorMessage(status?.error || '터미널 연결에 실패했습니다.')
     if (value === 'RUNNING' && activityModeRef.current === 'IDLE') setActivity('STARTING', 'Codex 작업창에 연결하는 중입니다.')
@@ -319,25 +272,10 @@ export function useTerminalSession({
 
   function syncTerminalSize() {
     resizeTimerRef.current = null
-    const node = terminalOutputRef.current
-    if (terminalRuntimeStatus !== 'RUNNING' || !socketConnected || !node?.clientWidth) return
-    const style = window.getComputedStyle(node)
-    const horizontalPadding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0)
-    const verticalPadding = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0)
-    // Measure an actual glyph rather than assuming a fixed px-per-column --
-    // the IDE shell's terminal panel can be resized to widths/fonts the
-    // original full-page layout never had to account for.
-    const probe = document.createElement('span')
-    probe.textContent = '0'
-    probe.style.font = style.font
-    probe.style.position = 'absolute'
-    probe.style.visibility = 'hidden'
-    node.appendChild(probe)
-    const charWidth = probe.getBoundingClientRect().width || 8
-    node.removeChild(probe)
-    const lineHeight = Number.parseFloat(style.lineHeight) || 19
-    const cols = Math.max(48, Math.min(240, Math.floor((node.clientWidth - horizontalPadding) / charWidth)))
-    const rows = Math.max(16, Math.min(64, Math.floor((node.clientHeight - verticalPadding) / lineHeight)))
+    if (terminalRuntimeStatus !== 'RUNNING' || !socketConnected) return
+    const result = xtermRef.current?.fit()
+    if (!result) return
+    const { rows, cols } = result
     const signature = `${rows}x${cols}`
     if (signature === lastResizeSignatureRef.current) return
     lastResizeSignatureRef.current = signature
@@ -369,12 +307,11 @@ export function useTerminalSession({
     socket.onopen = () => {
       if (socketEverConnectedRef.current) {
         // The server replays the bounded terminal buffer from sequence
-        // zero for every new WebSocket. Clear the browser renderer before
-        // a reconnect so replay restores the screen instead of
-        // duplicating old output.
-        screen.reset()
+        // zero for every new WebSocket. Reset the renderer before a
+        // reconnect so replay restores the screen instead of duplicating
+        // old output.
+        xtermRef.current?.reset()
         detectionBufferRef.current = ''
-        followingOutputRef.current = true
       }
       socketEverConnectedRef.current = true
       setConnectionFailed(false)

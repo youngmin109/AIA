@@ -949,16 +949,16 @@
 .terminal-output {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 10px 14px;
+  overflow: hidden;
+  padding: 8px 10px;
   background: #101827;
-  color: #d6e3fb;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 19px;
-  white-space: pre-wrap;
-  word-break: break-word;
   cursor: text;
+}
+
+/* xterm.js manages its own internal scrolling/layout; it just needs its
+   mount point to actually fill the flex-sized container above. */
+.terminal-output .xterm {
+  height: 100%;
 }
 
 .terminal-error {
