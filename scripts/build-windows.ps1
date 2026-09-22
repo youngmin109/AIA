@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$OutputRoot = "dist\windows",
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$SkipFrontendBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +26,27 @@ New-Item -ItemType Directory -Path $buildPath -Force | Out-Null
 
 Push-Location $repositoryRoot
 try {
+    if (-not $SkipFrontendBuild) {
+        Write-Host "[AIA] Building frontend SPA..."
+        Push-Location (Join-Path $repositoryRoot "frontend")
+        try {
+            & npm ci
+            if ($LASTEXITCODE -ne 0) {
+                throw "npm ci failed with exit code $LASTEXITCODE"
+            }
+            & npm run build
+            if ($LASTEXITCODE -ne 0) {
+                throw "npm run build failed with exit code $LASTEXITCODE"
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    else {
+        Write-Host "[AIA] Skipping frontend build (-SkipFrontendBuild); using existing src\aia_web\static\app output."
+    }
+
     Write-Host "[AIA] Building AIA.exe desktop shell..."
     & uv run --group build pyinstaller `
         --noconfirm `

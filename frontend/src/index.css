@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light dark;
+  font: 16px/1.5 'Pretendard', 'Segoe UI', system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+}
+
+.placeholder-shell {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.placeholder-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #158bc4;
+  color: #fff;
+  font-weight: 800;
+}

@@ -12,7 +12,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -294,6 +294,21 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     )
     app.state.service = active_service
     app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
+
+    # Temporary scoped preview mount for the new React/Vite IDE shell
+    # (UI redesign milestone 1-5). Does not touch "/" or any existing Jinja
+    # route below; removed once the SPA replaces them (redesign milestone 6).
+    _spa_index_path = _ROOT / "static" / "app" / "index.html"
+
+    @app.get("/app", response_class=HTMLResponse)
+    @app.get("/app/{_rest:path}", response_class=HTMLResponse)
+    def spa_preview(_rest: str = ""):
+        if not _spa_index_path.exists():
+            return HTMLResponse(
+                "AIA SPA build not found. Run `npm run build` in frontend/.",
+                status_code=503,
+            )
+        return FileResponse(_spa_index_path)
 
     @app.get("/", response_class=HTMLResponse)
     @app.get("/start", response_class=HTMLResponse)

@@ -1,6 +1,12 @@
 .venv/
 .tmp-build/
 tmp/
+# React/Vite frontend build tooling and its generated output. The build
+# output is regenerated into src/aia_web/static/app/ by `npm run build`
+# (see scripts/build-windows.ps1) and picked up by PyInstaller automatically.
+frontend/node_modules/
+frontend/dist/
+src/aia_web/static/app/
 __pycache__/
 *.py[cod]
 .pytest_cache/
