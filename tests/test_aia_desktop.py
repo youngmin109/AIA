@@ -3,10 +3,12 @@ from __future__ import annotations
 from contextlib import nullcontext
 from pathlib import Path
 import socket
+import sys
 
 from aia_desktop.launcher import (
     DesktopBridge,
-    _desktop_server_command,
+    _EmbeddedLocalServer,
+    _ensure_gui_stdio,
     _wait_for_server,
     _webview_storage_path,
     choose_loopback_port,
@@ -28,8 +30,35 @@ def test_choose_loopback_port_skips_ports_that_are_in_use() -> None:
 def test_desktop_bridge_is_safe_before_webview_window_attach() -> None:
     bridge = DesktopBridge()
 
+    assert not hasattr(bridge, "window")
     assert bridge.choose_workspace() == {"path": None}
     assert bridge.choose_files() == {"paths": []}
+
+
+def test_gui_stdio_is_initialized_when_windowed_bootloader_removes_streams(monkeypatch) -> None:
+    class Sink:
+        def write(self, text: str) -> int:
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    stdout = sys.stdout
+    stderr = sys.stderr
+    try:
+        monkeypatch.setattr(sys, "stdout", None)
+        monkeypatch.setattr(sys, "stderr", None)
+        monkeypatch.setattr(
+            "aia_desktop.launcher.open",
+            lambda *args, **kwargs: Sink(),
+            raising=False,
+        )
+        _ensure_gui_stdio()
+        assert sys.stdout is not None
+        assert sys.stderr is not None
+    finally:
+        sys.stdout = stdout
+        sys.stderr = stderr
 
 
 def test_desktop_rejects_non_loopback_binding(monkeypatch) -> None:
@@ -50,23 +79,29 @@ def test_desktop_waits_for_listener_without_rendering_setup_page(monkeypatch) ->
     _wait_for_server("http://127.0.0.1:8787/start", Server(), timeout=0.1)
 
 
-def test_desktop_server_uses_module_cli_in_source_mode(monkeypatch) -> None:
-    monkeypatch.delattr("sys.frozen", raising=False)
+def test_embedded_local_server_exposes_a_pollable_lifecycle(monkeypatch) -> None:
+    class FakeServer:
+        should_exit = False
+        force_exit = False
 
-    command = _desktop_server_command("127.0.0.1", 8787)
+        def run(self):
+            while not self.should_exit and not self.force_exit:
+                import time
 
-    assert command[1:3] == ["-m", "aia_web"]
-    assert command[-4:] == ["--host", "127.0.0.1", "--port", "8787"]
+                time.sleep(0.001)
 
+    class FakeUvicorn:
+        Server = lambda self, config: FakeServer()
+        Config = lambda self, *args, **kwargs: object()
 
-def test_frozen_desktop_starts_isolated_aia_server_instead_of_packaged_cli(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr("aia_desktop.launcher.sys.frozen", True, raising=False)
-    executable = tmp_path / "AIA.exe"
-    monkeypatch.setattr("aia_desktop.launcher.sys.executable", str(executable))
-
-    command = _desktop_server_command("127.0.0.1", 8787)
-
-    assert command == [str(executable), "--server", "--host", "127.0.0.1", "--port", "8787"]
+    monkeypatch.setitem(__import__("sys").modules, "uvicorn", FakeUvicorn())
+    server = _EmbeddedLocalServer("127.0.0.1", 8787)
+    server.start()
+    try:
+        assert server.poll() is None
+    finally:
+        server.stop()
+    assert server.poll() == 0
 
 
 def test_webview_storage_path_is_per_user_and_isolated_per_run(

@@ -96,8 +96,6 @@ class CodexHookInstaller:
         python_path = Path(self.python_executable)
         if not explicit_python and getattr(sys, "frozen", False):
             executable_name = python_path.name.casefold()
-            if executable_name in {"aia.exe", "aia"}:
-                return (self.python_executable, "hook", "runtime")
             if executable_name in {"aia-cli.exe", "aia-cli"}:
                 return (self.python_executable, "hook", "runtime")
 
@@ -109,6 +107,8 @@ class CodexHookInstaller:
             for candidate in candidates:
                 if candidate.is_file():
                     return (str(candidate), "hook", "runtime")
+            if executable_name in {"aia.exe", "aia"}:
+                return (self.python_executable, "hook", "runtime")
             raise CodexHookInstallationError(
                 "aia-cli.exe is not installed next to the AIA desktop application"
             )

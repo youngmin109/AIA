@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 import json
 import subprocess
 from types import SimpleNamespace
@@ -689,6 +690,31 @@ def test_application_does_not_present_unverified_runtime_as_committed_run(tmp_pa
 
         assert runs[0]["run_classification"] == "UNVERIFIED_RUNTIME_STATE"
         assert runs[0]["bundle_status"] == "UNVERIFIED"
+    finally:
+        service.shutdown()
+
+
+def test_concurrent_runtime_state_writes_do_not_share_temporary_file(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    payload = {
+        "schema_version": 1,
+        "session_id": "concurrent-session",
+        "session": {"status": "RUNNING"},
+    }
+    try:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [
+                executor.submit(
+                    service._write_runtime_state_payload,
+                    "concurrent-session",
+                    payload,
+                )
+                for _ in range(32)
+            ]
+            for future in futures:
+                future.result()
+        assert service._read_runtime_state("concurrent-session") == payload
+        assert not list((tmp_path / "control" / "run-status").glob("*.tmp"))
     finally:
         service.shutdown()
 
@@ -1783,7 +1809,7 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         service.shutdown()
 
 
-def test_frozen_preflight_points_to_trusted_desktop_entrypoint(tmp_path, monkeypatch) -> None:
+def test_frozen_preflight_points_to_allowed_sibling_cli_entrypoint(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(
         tmp_path / "control",
         require_hook_verification=True,
@@ -1791,10 +1817,13 @@ def test_frozen_preflight_points_to_trusted_desktop_entrypoint(tmp_path, monkeyp
     fake_aia = tmp_path / "AIA" / "AIA.exe"
     fake_aia.parent.mkdir(parents=True)
     fake_aia.write_bytes(b"")
+    fake_cli = tmp_path / "aia-cli" / "aia-cli.exe"
+    fake_cli.parent.mkdir(parents=True)
+    fake_cli.write_bytes(b"")
     monkeypatch.setattr("aia_app.service.sys.executable", str(fake_aia))
     monkeypatch.setattr("aia_app.service.sys.frozen", True, raising=False)
     try:
-        assert _aia_cli_prefix(CodexHookInstaller()) == str(fake_aia)
+        assert _aia_cli_prefix(CodexHookInstaller()) == str(fake_cli)
     finally:
         service.shutdown()
 
@@ -1967,6 +1996,36 @@ def test_list_runs_includes_runtime_state_from_another_service_process(tmp_path)
     finally:
         reader.shutdown()
         writer.shutdown()
+
+
+def test_list_runs_reuses_verified_history_for_refresh_burst(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    calls = 0
+
+    def list_completed() -> list[dict[str, object]]:
+        nonlocal calls
+        calls += 1
+        return [
+            {
+                "session_id": "completed-1",
+                "status": "COMPLETED",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "ended_at": "2026-01-01T00:01:00+00:00",
+                "workspace": str(tmp_path),
+                "agent": "codex",
+                "policy": {},
+                "launch_mode": "inherit",
+                "bundle_status": "VALID",
+            }
+        ]
+
+    monkeypatch.setattr(service.reader, "list_completed", list_completed)
+    try:
+        assert service.list_runs()[0]["session_id"] == "completed-1"
+        assert service.list_runs()[0]["session_id"] == "completed-1"
+        assert calls == 1
+    finally:
+        service.shutdown()
 
 
 def test_list_runs_preserves_workbench_launch_mode_when_bundle_omits_it(

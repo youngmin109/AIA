@@ -12,9 +12,9 @@ import os
 from pathlib import Path
 import shutil
 import socket
-import subprocess
 import sys
 import time
+from threading import Thread
 from typing import Any
 from urllib.parse import urlparse
 
@@ -23,6 +23,22 @@ DEFAULT_PORT = 8787
 PORT_SEARCH_LIMIT = 20
 WEBVIEW2_DOWNLOAD_URL = "https://developer.microsoft.com/microsoft-edge/webview2/"
 WEBVIEW2_CLIENT_GUID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+
+
+def _ensure_gui_stdio() -> None:
+    """Give GUI builds safe streams for Uvicorn and Python logging.
+
+    PyInstaller's ``--windowed`` bootloader intentionally sets stdout and
+    stderr to ``None``. Uvicorn and dependencies still configure logging while
+    the embedded local server starts, so leaving those streams unset can make
+    the packaged server stall before it serves the first request. A sink is
+    sufficient because the desktop product has no console; diagnostics remain
+    available through the local API and the CLI build.
+    """
+
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
 
 
 def _is_windows() -> bool:
@@ -110,32 +126,64 @@ def choose_loopback_port(preferred: int = DEFAULT_PORT) -> int:
     raise RuntimeError("AIA 로컬 콘솔에 사용할 수 있는 포트를 찾지 못했습니다.")
 
 
-def _desktop_server_command(host: str, port: int) -> list[str]:
-    """Build the command for the isolated local console server process."""
+class _EmbeddedLocalServer:
+    """Run the local FastAPI server without spawning another executable.
 
-    arguments = ["--host", host, "--port", str(port)]
-    if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve(strict=False)
-        return [str(executable), "--server", *arguments]
-    return [sys.executable, "-m", "aia_web", *arguments]
-
-
-def _start_server_process(host: str, port: int) -> Any:
-    """Start the local server in an isolated process.
-
-    The frozen desktop build starts a second AIA.exe in server mode. This
-    keeps preparation/checkpoint work away from the WebView2 GUI process while
-    avoiding the unsigned aia-cli.exe boundary that Windows may block.
+    Windows application-control policies can allow the interactive AIA
+    executable while rejecting a second unsigned AIA executable launched by
+    it. Keeping Uvicorn in a daemon thread avoids that child-process boundary;
+    the WebView and local server still communicate only over loopback.
     """
 
-    process_kwargs: dict[str, Any] = {
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-    }
-    if _is_windows():
-        process_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-    return subprocess.Popen(_desktop_server_command(host, port), **process_kwargs)
+    def __init__(self, host: str, port: int) -> None:
+        _ensure_gui_stdio()
+        import uvicorn
+
+        self._server = uvicorn.Server(
+            uvicorn.Config(
+                "aia_web.app:app",
+                host=host,
+                port=port,
+                reload=False,
+                access_log=False,
+                log_level="warning",
+            )
+        )
+        self._thread = Thread(
+            target=self._run,
+            name="aia-local-console-server",
+            daemon=True,
+        )
+        self._error: BaseException | None = None
+
+    def _run(self) -> None:
+        try:
+            self._server.run()
+        except BaseException as error:  # pragma: no cover - uvicorn boundary
+            self._error = error
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def poll(self) -> int | None:
+        if self._thread.is_alive():
+            return None
+        return 1 if self._error is not None else 0
+
+    def stop(self) -> None:
+        self._server.should_exit = True
+        self._thread.join(timeout=5.0)
+        if self._thread.is_alive():
+            self._server.force_exit = True
+            self._thread.join(timeout=5.0)
+
+
+def _start_local_server(host: str, port: int) -> _EmbeddedLocalServer:
+    """Start the loopback server without a Windows child-process spawn."""
+
+    server = _EmbeddedLocalServer(host, port)
+    server.start()
+    return server
 
 
 def _server_stopped(server: Any) -> bool:
@@ -176,29 +224,34 @@ class DesktopBridge:
     """Small native bridge exposed to the setup page inside WebView2."""
 
     def __init__(self) -> None:
-        self.window: Any | None = None
+        # pywebview recursively exposes public attributes of the JS API.  A
+        # WebView window contains the native WinForms/WebView2 object graph;
+        # keeping it public makes pywebview walk that graph while generating
+        # ``window.pywebview.api`` and can freeze the desktop window.  Private
+        # attributes are intentionally skipped by pywebview's API scanner.
+        self._window: Any | None = None
 
     def attach(self, window: Any) -> None:
-        self.window = window
+        self._window = window
 
     def choose_workspace(self) -> dict[str, str | None]:
         return self.choose_directory()
 
     def choose_directory(self) -> dict[str, str | None]:
-        if self.window is None:
+        if self._window is None:
             return {"path": None}
         import webview
 
-        selected = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        selected = self._window.create_file_dialog(webview.FOLDER_DIALOG)
         path = selected[0] if selected else None
         return {"path": path}
 
     def choose_files(self) -> dict[str, list[str]]:
-        if self.window is None:
+        if self._window is None:
             return {"paths": []}
         import webview
 
-        selected = self.window.create_file_dialog(
+        selected = self._window.create_file_dialog(
             webview.OPEN_DIALOG,
             allow_multiple=True,
         )
@@ -208,6 +261,7 @@ class DesktopBridge:
 def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT) -> int:
     """Start the loopback FastAPI app and display it in a WebView2 window."""
 
+    _ensure_gui_stdio()
     if host != DEFAULT_HOST:
         _show_message("AIA", "AIA Desktop은 외부 주소에 바인딩하지 않습니다.", error=True)
         return 2
@@ -226,12 +280,12 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
     import webview
 
     port = choose_loopback_port(preferred_port)
-    server_process: Any | None = None
+    server: _EmbeddedLocalServer | None = None
     webview_storage_path = _webview_storage_path()
     bridge = DesktopBridge()
     try:
-        server_process = _start_server_process(host, port)
-        _wait_for_server(f"http://{host}:{port}/start", server_process)
+        server = _start_local_server(host, port)
+        _wait_for_server(f"http://{host}:{port}/start", server)
         window = webview.create_window(
             "AIA · Protected Workbench",
             f"http://{host}:{port}/start",
@@ -256,13 +310,8 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         )
         return 1
     finally:
-        if server_process is not None and server_process.poll() is None:
-            server_process.terminate()
-            try:
-                server_process.wait(timeout=5.0)
-            except subprocess.TimeoutExpired:
-                server_process.kill()
-                server_process.wait(timeout=5.0)
+        if server is not None:
+            server.stop()
         _remove_webview_storage(webview_storage_path)
     return 0
 

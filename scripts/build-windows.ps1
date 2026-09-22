@@ -39,6 +39,7 @@ try {
         --collect-all aia_app `
         --collect-all aia_desktop `
         --collect-all aia_web `
+        --collect-all winpty `
         (Join-Path $repositoryRoot "src\aia_desktop\__main__.py")
     if ($LASTEXITCODE -ne 0) {
         throw "AIA.exe build failed with exit code $LASTEXITCODE"

@@ -94,6 +94,11 @@ class WinPtyTerminalSession:
     # message as a paste, which leaves the draft in Codex's composer instead of
     # submitting it.
     SUBMIT_SEQUENCE = "\x18"
+    # ConPTY intermittently panics inside winpty-rs when the packaged AIA
+    # server has no console of its own. WinPTY is the supported fallback in
+    # pywinpty for this Windows product and keeps the child attached to the
+    # same pseudo-terminal contract.
+    PTY_BACKEND = 1
 
     def __init__(
         self,
@@ -164,9 +169,12 @@ class WinPtyTerminalSession:
                 cwd=str(self.cwd),
                 env=self.env,
                 dimensions=(self._rows, self._cols),
+                backend=self.PTY_BACKEND,
             )
         except Exception as error:
-            raise TerminalSessionError(f"ConPTY start failed: {type(error).__name__}") from error
+            raise TerminalSessionError(
+                f"Windows PTY start failed: {type(error).__name__}"
+            ) from error
         with self._lock:
             self._pty = pty
             self._handle = _PtyProcessHandle(self)
@@ -316,6 +324,14 @@ class WinPtyTerminalSession:
         while True:
             result = self.poll()
             if result is not None:
+                reader = self._reader
+                if reader is not None and reader is not current_thread():
+                    remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
+                    # ``poll`` observes the PTY exit before the reader thread
+                    # necessarily consumes the final buffered bytes. Join it
+                    # before returning so callers never see a successful exit
+                    # with a missing last response.
+                    reader.join(timeout=remaining)
                 return result
             if deadline is not None and time.monotonic() >= deadline:
                 raise subprocess.TimeoutExpired(self.argv, timeout)

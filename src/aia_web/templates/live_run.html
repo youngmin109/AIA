@@ -347,7 +347,12 @@ reconcileButton.addEventListener('click', async () => {
   const payload = await response.json();
   if (!response.ok || !payload.reconciled) {
     reconcileButton.disabled = false;
-    document.getElementById('error-box').textContent = payload.reason || payload.error || '고아 실행 정리를 확인하지 못했습니다.';
+    const reconciliation = payload.runtime_reconciliation || {};
+    document.getElementById('error-box').textContent = payload.reason === 'RECORDED_AGENT_ROOT_NOT_PROVEN_GONE' || reconciliation.agent_process_status === 'LIVE_MATCH'
+      ? '기록된 이전 Codex 프로세스가 아직 실행 중으로 확인됩니다. Codex 작업창을 완전히 닫은 뒤 다시 확인해 주세요. AIA는 이 버튼으로 프로세스를 강제 종료하지 않습니다.'
+      : reconciliation.agent_process_status === 'OWNER_UNVERIFIABLE'
+        ? '기록된 이전 Codex 프로세스의 소유자를 확인할 수 없어 정리를 중단했습니다. 이전 실행을 확인한 뒤 AIA를 다시 시작해 주세요.'
+        : payload.reason || payload.error || '고아 실행 정리를 확인하지 못했습니다.';
     document.getElementById('error-box').hidden = false;
   }
   await poll();

@@ -87,17 +87,38 @@ def test_codex_hook_installer_uses_stable_uv_launcher_from_isolated_environment(
     assert installer.is_installed() is True
 
 
-def test_frozen_desktop_installer_uses_trusted_desktop_hook_runtime(
+def test_frozen_codex_hook_prefers_allowed_sibling_cli(tmp_path: Path, monkeypatch) -> None:
+    fake_aia = tmp_path / "AIA" / "AIA.exe"
+    fake_aia.parent.mkdir(parents=True)
+    fake_aia.write_bytes(b"")
+    fake_cli = tmp_path / "aia-cli" / "aia-cli.exe"
+    fake_cli.parent.mkdir(parents=True)
+    fake_cli.write_bytes(b"")
+    monkeypatch.setattr(sys, "executable", str(fake_aia))
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    assert installer.command == subprocess.list2cmdline(
+        [str(fake_cli), "hook", "runtime"]
+    )
+
+
+def test_frozen_desktop_installer_uses_sibling_cli_hook_runtime(
     tmp_path: Path, monkeypatch
 ) -> None:
-    desktop_path = tmp_path / "AIA.exe"
+    desktop_path = tmp_path / "AIA" / "AIA.exe"
+    desktop_path.parent.mkdir(parents=True)
     desktop_path.touch()
+    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
+    cli_path.parent.mkdir(parents=True)
+    cli_path.touch()
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(desktop_path))
 
     installer = CodexHookInstaller(tmp_path / "hooks.json")
 
-    assert installer.command == subprocess.list2cmdline([str(desktop_path), "hook", "runtime"])
+    assert installer.command == subprocess.list2cmdline([str(cli_path), "hook", "runtime"])
     installer.install()
     assert installer.is_installed() is True
     assert installer.has_aia_runtime() is True

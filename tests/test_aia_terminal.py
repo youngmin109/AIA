@@ -50,7 +50,11 @@ def test_terminal_output_can_be_replayed_without_consuming_the_bounded_buffer() 
     assert session.read_output() == []
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Workbench terminal requires Windows ConPTY")
+def test_workbench_terminal_uses_winpty_backend_for_packaged_windows_runs() -> None:
+    assert WinPtyTerminalSession.PTY_BACKEND == 1
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Workbench terminal requires Windows PTY")
 def test_winpty_terminal_supports_input_output_and_resize(tmp_path) -> None:
     session = WinPtyTerminalSession(
         [

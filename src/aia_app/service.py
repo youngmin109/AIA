@@ -11,9 +11,11 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import RLock
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from aia import (
     AttributionEngine,
@@ -73,13 +75,17 @@ from .registry import RunRecord, RunRegistry
 from .terminal import TerminalSessionError, WinPtyTerminalSession
 
 
+# The dashboard refreshes active runs every five seconds. Keep the verified
+# history snapshot through one refresh interval so repeated UI requests do
+# not re-hash every completed bundle while a live terminal is active.
+_COMPLETED_RUNS_CACHE_TTL_SECONDS = 6.0
+
+
 def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
     """Return a usable local CLI command for messages shown by the web app."""
 
     if getattr(sys, "frozen", False):
         executable = Path(sys.executable).resolve(strict=False)
-        if executable.name.casefold() in {"aia.exe", "aia"}:
-            return subprocess.list2cmdline([str(executable)])
         if executable.name.casefold() in {"aia-cli.exe", "aia-cli"}:
             return subprocess.list2cmdline([str(executable)])
         candidates = (
@@ -90,6 +96,8 @@ def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
         for candidate in candidates:
             if candidate.is_file():
                 return subprocess.list2cmdline([str(candidate)])
+        if executable.name.casefold() in {"aia.exe", "aia"}:
+            return subprocess.list2cmdline([str(executable)])
         return subprocess.list2cmdline([str(executable)])
 
     module_path = Path(__file__).resolve()
@@ -530,10 +538,35 @@ class RunApplicationService:
         self.registry = registry or RunRegistry()
         self.reader = ResultBundleReader(self.control_root)
         self.require_hook_verification = require_hook_verification
+        self._runtime_state_lock = RLock()
+        self._completed_runs_cache_lock = RLock()
+        self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="aia-console-run",
         )
+
+    def _list_completed_runs(self) -> list[dict[str, Any]]:
+        """Read verified history once per short UI polling window.
+
+        History is display data.  Re-verifying every completed Result Bundle
+        on every dashboard poll can contend with the live Workbench terminal,
+        especially when several console views refresh at the same time.  The
+        cache does not participate in policy, enforcement, recovery, or
+        integrity decisions; those paths continue to read and verify their
+        artifacts directly.  A one-second window is short enough for the
+        history UI while preventing duplicate scans in one refresh burst.
+        """
+
+        now = time.monotonic()
+        with self._completed_runs_cache_lock:
+            cached = self._completed_runs_cache
+            if cached is not None and now - cached[0] < _COMPLETED_RUNS_CACHE_TTL_SECONDS:
+                return [dict(item) for item in cached[1]]
+
+            completed = self.reader.list_completed()
+            self._completed_runs_cache = (time.monotonic(), completed)
+            return [dict(item) for item in completed]
 
     @staticmethod
     def policy_profiles() -> list[dict[str, str]]:
@@ -1576,6 +1609,12 @@ class RunApplicationService:
     def list_runs(self) -> list[dict[str, Any]]:
         """Return live runs plus valid persisted Bundles for the local console."""
 
+        completed_runs = self._list_completed_runs()
+        completed_by_session = {
+            item.get("session_id"): item
+            for item in completed_runs
+            if isinstance(item.get("session_id"), str)
+        }
         values: dict[str, dict[str, Any]] = {}
         for state in self._list_runtime_states():
             state = self._runtime_state_for_display(state)
@@ -1591,10 +1630,10 @@ class RunApplicationService:
             # like a committed product result when its Result Bundle cannot
             # be verified (for example after an interrupted probe or an old
             # incompatible artifact).
-            verification = self.reader.verification(session_id) if result_available else None
-            if verification is not None and verification.is_valid:
+            completed_item = completed_by_session.get(session_id) if result_available else None
+            if completed_item is not None and completed_item.get("bundle_status") == "VALID":
                 run_classification = "PRODUCT_PROTECTED_RUN"
-                bundle_status = verification.status.value
+                bundle_status = "VALID"
             elif session_status in {"COMPLETED", "ABORTED", "FAILED"}:
                 run_classification = "UNVERIFIED_RUNTIME_STATE"
                 bundle_status = "UNVERIFIED"
@@ -1648,7 +1687,7 @@ class RunApplicationService:
                 "hook_event_count": record.hook_event_count,
                 "launch_mode": record.launch_mode,
             }
-        for item in self.reader.list_completed():
+        for item in completed_runs:
             existing = values.get(item["session_id"])
             # Result Bundles created before launch_mode became a persisted
             # history field still need to retain the live runtime metadata
@@ -1763,7 +1802,7 @@ class RunApplicationService:
         if isinstance(runtime_state, Mapping):
             view["launch_mode"] = runtime_state.get("launch_mode", "inherit")
         completed_metadata = next(
-            (item for item in self.reader.list_completed() if item.get("session_id") == session_id),
+            (item for item in self._list_completed_runs() if item.get("session_id") == session_id),
             None,
         )
         view["protection_state"] = (
@@ -3167,14 +3206,26 @@ class RunApplicationService:
         session_id: str,
         payload: Mapping[str, Any],
     ) -> Path:
-        path = self._runtime_state_path(session_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(
-            json.dumps(dict(payload), ensure_ascii=True, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
+        with self._runtime_state_lock:
+            path = self._runtime_state_path(session_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # Multiple request threads persist the same live run while the
+            # background launcher updates it. A shared ``.tmp`` name lets one
+            # writer replace or remove another writer's temporary file, which
+            # falsely degrades an otherwise healthy run. Each write gets its
+            # own temporary path and the final replace remains atomic.
+            temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+            try:
+                temporary.write_text(
+                    json.dumps(dict(payload), ensure_ascii=True, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                os.replace(temporary, path)
+            finally:
+                try:
+                    temporary.unlink()
+                except OSError:
+                    pass
         return path
 
     def _read_runtime_state(self, session_id: str) -> dict[str, Any] | None:

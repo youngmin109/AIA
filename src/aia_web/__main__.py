@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import uvicorn
 
@@ -24,6 +25,11 @@ def validate_local_bind(host: str, port: int) -> None:
 def run(*, host: str | None = None, port: int | None = None) -> None:
     """Start the local console with explicit values or environment defaults."""
 
+    # PyInstaller ``--windowed`` applications have no console streams. Keep
+    # Uvicorn's logging setup from receiving ``None`` in packaged server mode.
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
     selected_host = host if host is not None else os.environ.get("AIA_WEB_HOST", "127.0.0.1")
     selected_port = port if port is not None else int(os.environ.get("AIA_WEB_PORT", "8787"))
     validate_local_bind(selected_host, selected_port)

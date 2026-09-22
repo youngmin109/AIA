@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -145,6 +147,19 @@ def test_cli_guidance_uses_module_launcher_for_source_checkout() -> None:
     assert "python -m aia.cli" in command
     assert "uv run --isolated" in command
     assert "uv run aia" not in command
+
+
+def test_cli_guidance_prefers_sibling_cli_in_frozen_desktop_bundle(tmp_path, monkeypatch) -> None:
+    fake_aia = tmp_path / "AIA" / "AIA.exe"
+    fake_aia.parent.mkdir(parents=True)
+    fake_aia.write_bytes(b"")
+    fake_cli = tmp_path / "aia-cli" / "aia-cli.exe"
+    fake_cli.parent.mkdir(parents=True)
+    fake_cli.write_bytes(b"")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(fake_aia))
+
+    assert _cli_prefix(CodexHookInstaller()) == subprocess.list2cmdline([str(fake_cli)])
 
 
 def test_self_test_parser_supports_machine_readable_output() -> None:

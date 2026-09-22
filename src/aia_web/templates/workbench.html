@@ -445,6 +445,7 @@ let workbenchAlertTimer = null;
 // settle window before sending the dedicated composer submit key; without it
 // the key can arrive before the paste has been committed to the composer.
 const SUBMIT_SETTLE_MS = 250;
+const SUBMIT_ECHO_WAIT_MS = 3000;
 
 const terminalScreen = (() => {
   let rows = Number(initialStatus.terminal?.rows) || 32;
@@ -1060,6 +1061,11 @@ function updateWorkbenchGuidance(status = latestStatus) {
     detail = '브라우저 연결이 완료되면 입력창이 활성화됩니다. 잠시 후에도 연결되지 않으면 새로고침을 눌러 주세요.';
     owner = 'AIA';
     kind = 'active';
+  } else if (terminal === 'RUNNING' && !terminalComposerReady) {
+    title = 'Codex가 작업창을 준비하고 있습니다.';
+    detail = '모델과 Workspace 준비가 끝나면 입력창이 활성화됩니다. 그 전에 입력한 내용은 전송하지 않습니다.';
+    owner = 'AIA';
+    kind = 'active';
   } else if (terminal === 'RUNNING' || phase === 'RUNNING') {
     title = 'Codex 작업창이 준비됐습니다.';
     detail = '가운데 입력창에 작업을 입력하세요. AIA는 오른쪽에서 센서 결과를 표시합니다.';
@@ -1556,7 +1562,7 @@ function updateTerminalClosedCard(status, ended) {
   terminalClosedResult.hidden = !status.result_available;
   if (status.result_available) terminalClosedResult.href = `/runs/${encodeURIComponent(sessionId)}/result`;
 }
-function appendTerminal(data) {
+function processTerminalOutput(data) {
   // Terminal output is memory-only. Interpret the small ANSI subset used by
   // Codex so full-screen redraws replace the current view instead of being
   // appended as duplicate text.
@@ -1574,10 +1580,11 @@ function appendTerminal(data) {
   const commandApprovalVisible = /Would you like to run the following command\?/i.test(currentScreen)
     && /Yes, proceed \(y\)/i.test(currentScreen)
     && /Press enter to confirm or esc to cancel/i.test(currentScreen);
-  const visibleLines = terminalScreen.text().split('\n').filter((line) => line.trim()).slice(-10);
+  const visibleLines = currentScreen.split('\n').filter((line) => line.trim()).slice(-10);
   const tailLines = visibleLines.slice(-4);
   const workingAtTail = tailLines.some((line) => /(^|\s)Working(?:\s*\(|\s+\d+s?\b|\s*$)/i.test(line));
   const composerVisible = visibleLines.some((line) => /Ask Codex to do anything|무엇을 도와드릴까요/.test(line));
+  const codexStillInitializing = /(?:^|\n)\s*(?:model|directory):\s*loading\b/i.test(currentScreen);
   const responseOutputReceived = text.length > 0 && awaitingResponse && ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode);
   // The initial Codex screen keeps a copy of the composer prompt above the
   // model metadata, so merely finding that text is not enough to prove that a
@@ -1598,6 +1605,14 @@ function appendTerminal(data) {
     setTerminalActivity('OUTPUTTING', 'Codex 응답을 수신하는 중입니다.');
   } else if (workingAtTail && ['SUBMITTING', 'WORKING', 'OUTPUTTING', 'WAITING'].includes(activityMode)) {
     setTerminalActivity('OUTPUTTING', 'Codex 응답을 수신하는 중입니다.');
+  } else if (codexStillInitializing) {
+    // Codex paints the composer before its model and workspace metadata are
+    // ready.  Sending text during this window can be silently swallowed by
+    // the TUI, so keep the browser composer disabled until the loading rows
+    // have cleared.
+    terminalComposerReady = false;
+    setTerminalAction(null);
+    setTerminalActivity('STARTING', 'Codex가 모델과 Workspace를 준비하는 중입니다.');
   } else if (composerVisible) {
     // Do not enable the browser composer merely because the child process is
     // alive.  Codex can spend a short period rendering its first prompt; an
@@ -1624,6 +1639,62 @@ function appendTerminal(data) {
       setTerminalAction(null);
       setTerminalActivity('WAITING', 'Codex가 다음 작업 입력을 기다리고 있습니다.');
     }
+  }
+}
+// Keep WebSocket delivery separate from terminal parsing. Codex redraws can
+// arrive in bursts; parsing a burst inside one WebView message callback can
+// briefly block the input field and make the Workbench feel disconnected.
+// Drain a small time slice per animation frame so browser input and status
+// updates keep getting a turn while preserving output order.
+let terminalOutputQueue = [];
+let terminalOutputQueueIndex = 0;
+let terminalOutputFlushFrame = null;
+const TERMINAL_RENDER_CHUNK_CHARS = 4096;
+function enqueueTerminalOutput(data) {
+  const value = String(data || '');
+  if (!value) return;
+  // Keep surrogate pairs together while splitting large WebSocket batches.
+  // The terminal parser already carries incomplete ANSI escape sequences in
+  // its internal buffer, so an escape sequence may safely span two chunks.
+  let start = 0;
+  let length = 0;
+  for (let index = 0; index < value.length;) {
+    const codePoint = value.codePointAt(index);
+    const codePointLength = codePoint > 0xffff ? 2 : 1;
+    if (length && length + codePointLength > TERMINAL_RENDER_CHUNK_CHARS) {
+      terminalOutputQueue.push(value.slice(start, index));
+      start = index;
+      length = 0;
+    }
+    index += codePointLength;
+    length += codePointLength;
+  }
+  if (start < value.length) terminalOutputQueue.push(value.slice(start));
+}
+function flushTerminalOutput() {
+  terminalOutputFlushFrame = null;
+  const startedAt = performance.now();
+  let processed = 0;
+  while (
+    terminalOutputQueueIndex < terminalOutputQueue.length
+    && (processed === 0 || performance.now() - startedAt < 8)
+  ) {
+    processTerminalOutput(terminalOutputQueue[terminalOutputQueueIndex]);
+    terminalOutputQueueIndex += 1;
+    processed += 1;
+  }
+  if (terminalOutputQueueIndex >= terminalOutputQueue.length) {
+    terminalOutputQueue = [];
+    terminalOutputQueueIndex = 0;
+  } else {
+    terminalOutputFlushFrame = requestAnimationFrame(flushTerminalOutput);
+  }
+}
+function appendTerminal(data) {
+  if (!data) return;
+  enqueueTerminalOutput(data);
+  if (terminalOutputFlushFrame === null) {
+    terminalOutputFlushFrame = requestAnimationFrame(flushTerminalOutput);
   }
 }
 function send(message) { if (socket && socket.readyState === WebSocket.OPEN) { socket.send(JSON.stringify(message)); return true; } return false; }
@@ -1666,6 +1737,35 @@ function restorePendingSubmission(message) {
   setTerminalActivity('WAITING', message);
   terminalInput.focus();
   return true;
+}
+function terminalDraftIsVisible(value) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return true;
+  const visible = terminalScreen.text().replace(/\s+/g, ' ');
+  // Long prompts can wrap or be clipped by the TUI. A stable prefix and
+  // suffix are enough to prove that the PTY has painted the browser input.
+  const prefix = normalized.slice(0, Math.min(48, normalized.length));
+  const suffix = normalized.slice(-Math.min(48, normalized.length));
+  return visible.includes(normalized) || visible.includes(prefix) || visible.includes(suffix);
+}
+function scheduleTerminalSubmit(value) {
+  const startedAt = Date.now();
+  const submit = () => {
+    if (!pendingSubmission || pendingSubmission.value !== value) return;
+    const elapsed = Date.now() - startedAt;
+    if (!terminalDraftIsVisible(value) && elapsed < SUBMIT_ECHO_WAIT_MS) {
+      pendingSubmission.timer = window.setTimeout(submit, 80);
+      setTerminalActivity('SUBMITTING', 'Codex 작업창에 입력을 반영하는 중입니다.');
+      return;
+    }
+    if (send({type:'submit'})) {
+      if (pendingSubmission) pendingSubmission.stage = 'submit';
+      setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
+    } else if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
+      showTerminalError('Codex에 요청을 전송하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');
+    }
+  };
+  pendingSubmission.timer = window.setTimeout(submit, SUBMIT_SETTLE_MS);
 }
 function openSocket() {
   if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
@@ -2218,14 +2318,7 @@ function submitTerminalLine() {
   // Codex's Workbench launch binds composer.submit to Ctrl+X.  Send it as a
   // separate WebSocket message so the text stays ordinary input and the
   // submit key is not swallowed as part of a paste burst.
-  pendingSubmission.timer = window.setTimeout(() => {
-    if (send({type:'submit'})) {
-      if (pendingSubmission) pendingSubmission.stage = 'submit';
-      setTerminalActivity('WORKING', 'Codex가 요청을 처리하는 중입니다.');
-    } else if (restorePendingSubmission('터미널 연결이 끊겨 전송하지 못했습니다. 다시 전송하세요.')) {
-      showTerminalError('Codex에 요청을 전송하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도하세요.');
-    }
-  }, SUBMIT_SETTLE_MS);
+  scheduleTerminalSubmit(value);
 }
 function continueTerminalAction() {
   if (terminalAction === 'COMMAND_APPROVAL') {
@@ -2345,7 +2438,13 @@ reconcileButton.addEventListener('click', async () => {
   try {
     const response = await fetch(`/api/runs/${encodeURIComponent(sessionId)}/reconcile`, {method: 'POST'});
     const payload = await response.json();
-    if (!response.ok || !payload.reconciled) throw new Error(payload.reason || payload.error || '고아 실행 정리를 확인하지 못했습니다.');
+    const reconciliation = payload?.runtime_reconciliation || {};
+    const message = payload?.reason === 'RECORDED_AGENT_ROOT_NOT_PROVEN_GONE' || reconciliation.agent_process_status === 'LIVE_MATCH'
+      ? '기록된 이전 Codex 프로세스가 아직 실행 중으로 확인됩니다. Codex 작업창을 완전히 닫은 뒤 다시 확인해 주세요. AIA는 이 버튼으로 프로세스를 강제 종료하지 않습니다.'
+      : reconciliation.agent_process_status === 'OWNER_UNVERIFIABLE'
+        ? '기록된 이전 Codex 프로세스의 소유자를 확인할 수 없어 정리를 중단했습니다. 이전 실행을 확인한 뒤 AIA를 다시 시작해 주세요.'
+        : payload?.reason || payload?.error || '고아 실행 정리를 확인하지 못했습니다.';
+    if (!response.ok || !payload.reconciled) throw new Error(message);
     await pollStatus();
   } catch (error) {
     reconcileButton.disabled = false;

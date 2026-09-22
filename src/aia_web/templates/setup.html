@@ -195,6 +195,17 @@ function showStaleRunFromError(message) {
   return true;
 }
 
+function reconcileErrorMessage(payload, fallback) {
+  const reconciliation = payload?.runtime_reconciliation || {};
+  if (payload?.reason === 'RECORDED_AGENT_ROOT_NOT_PROVEN_GONE' || reconciliation.agent_process_status === 'LIVE_MATCH') {
+    return '기록된 이전 Codex 프로세스가 아직 실행 중으로 확인됩니다. Codex 작업창을 완전히 닫은 뒤 다시 정리를 눌러 주세요. AIA는 이 버튼으로 프로세스를 강제 종료하지 않습니다.';
+  }
+  if (reconciliation.agent_process_status === 'OWNER_UNVERIFIABLE') {
+    return '기록된 이전 Codex 프로세스의 소유자를 확인할 수 없어 정리를 중단했습니다. 이전 실행을 확인한 뒤 AIA를 다시 시작해 주세요.';
+  }
+  return payload?.reason || payload?.error || fallback;
+}
+
 function renderProtectedPaths() {
   if (!protectedPaths.length) {
     protectedPathList.innerHTML = '<span class="hint">추가한 보호 대상이 없습니다.</span>';
@@ -382,7 +393,7 @@ reconcileStaleRun.addEventListener('click', async () => {
   try {
     const response = await fetch(`/api/runs/${encodeURIComponent(staleRunId)}/reconcile`, {method: 'POST'});
     const payload = await response.json();
-    if (!response.ok || !payload.reconciled) throw new Error(payload.reason || payload.error || '이전 실행이 아직 정리되지 않았습니다.');
+    if (!response.ok || !payload.reconciled) throw new Error(reconcileErrorMessage(payload, '이전 실행이 아직 정리되지 않았습니다.'));
     staleRunResult.className = 'hint success-text';
     staleRunResult.textContent = '정리 완료. 이제 보호 작업을 시작할 수 있습니다.';
     errorBox.hidden = true;

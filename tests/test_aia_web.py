@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 import importlib
+import time
 
 from aia_web.app import (
     _aia_cli_command,
@@ -779,6 +780,15 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "event.key === 'Enter' && event.shiftKey" in workbench.text
     assert "event.isComposing && !event.shiftKey" in workbench.text
     assert "SUBMIT_SETTLE_MS = 250" in workbench.text
+    assert "SUBMIT_ECHO_WAIT_MS = 3000" in workbench.text
+    assert "terminalDraftIsVisible" in workbench.text
+    assert "scheduleTerminalSubmit" in workbench.text
+    assert "function processTerminalOutput(data)" in workbench.text
+    assert "function flushTerminalOutput()" in workbench.text
+    assert "function enqueueTerminalOutput(data)" in workbench.text
+    assert "TERMINAL_RENDER_CHUNK_CHARS = 4096" in workbench.text
+    assert "terminalOutputQueue" in workbench.text
+    assert "requestAnimationFrame(flushTerminalOutput)" in workbench.text
     assert "Codex에 질문을 제출하는 중입니다." in workbench.text
     assert 'id="terminal-action"' in workbench.text
     assert "신뢰하고 계속" in workbench.text
@@ -947,6 +957,9 @@ def test_console_routes_render_and_keep_raw_secrets_out_of_html() -> None:
     assert "workingAtTail" in workbench.text
     assert "composerAtTail" in workbench.text
     assert "composerVisible" in workbench.text
+    assert "codexStillInitializing" in workbench.text
+    assert "모델과 Workspace를 준비하는 중입니다." in workbench.text
+    assert "입력한 내용은 전송하지 않습니다." in workbench.text
     assert 'id="terminal-scroll-latest"' in workbench.text
     assert "terminalFollowingOutput" in workbench.text
     assert "최신 출력으로 이동" in workbench.text
@@ -1552,6 +1565,27 @@ def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
         assert accepted["cols"] == 140
 
 
+def test_workbench_terminal_status_checks_are_throttled() -> None:
+    class CountingService(FakeService):
+        def __init__(self):
+            super().__init__()
+            self.terminal_status_calls = 0
+
+        def get_terminal_status(self, session_id):
+            self.terminal_status_calls += 1
+            return super().get_terminal_status(session_id)
+
+    service = CountingService()
+    client = TestClient(create_app(service))
+    with client.websocket_connect("/api/runs/run-1/terminal") as websocket:
+        assert websocket.receive_json()["type"] == "status"
+        time.sleep(0.85)
+
+    # The socket loop still notices a terminal exit quickly, but it does not
+    # query the PTY on every 100 ms output tick when no status changed.
+    assert 2 <= service.terminal_status_calls <= 5
+
+
 def test_workbench_terminal_socket_replays_bounded_output_after_reconnect() -> None:
     class ReplayService(FakeService):
         _output = [
@@ -1565,13 +1599,15 @@ def test_workbench_terminal_socket_replays_bounded_output_after_reconnect() -> N
 
     client = TestClient(create_app(ReplayService()))
     with client.websocket_connect("/api/runs/run-1/terminal") as first_connection:
-        assert first_connection.receive_json()["sequence"] == 1
-        assert first_connection.receive_json()["sequence"] == 2
+        first_batch = first_connection.receive_json()
+        assert first_batch["sequence"] == 2
+        assert first_batch["data"] == "firstsecond"
         assert first_connection.receive_json()["type"] == "status"
 
     with client.websocket_connect("/api/runs/run-1/terminal") as second_connection:
-        assert second_connection.receive_json()["sequence"] == 1
-        assert second_connection.receive_json()["sequence"] == 2
+        second_batch = second_connection.receive_json()
+        assert second_batch["sequence"] == 2
+        assert second_batch["data"] == "firstsecond"
 
 
 def test_large_terminal_replay_is_coalesced_without_losing_order() -> None:
@@ -1592,6 +1628,29 @@ def test_large_terminal_replay_is_coalesced_without_losing_order() -> None:
     assert "".join(batch["data"] for batch in batches) == "".join(item["data"] for item in items)
 
 
+def test_small_live_terminal_output_is_batched_to_reduce_transport_churn() -> None:
+    items = [
+        {
+            "type": "output",
+            "sequence": 1,
+            "data": "first",
+            "recorded_at": "2026-01-01T00:00:00+00:00",
+        },
+        {
+            "type": "output",
+            "sequence": 2,
+            "data": "second",
+            "recorded_at": "2026-01-01T00:00:01+00:00",
+        },
+    ]
+
+    batches = _coalesce_terminal_output(items)
+
+    assert len(batches) == 1
+    assert batches[0]["sequence"] == 2
+    assert batches[0]["data"] == "firstsecond"
+
+
 def test_frozen_console_reuses_trusted_desktop_entrypoint_for_diagnostics(
     monkeypatch, tmp_path
 ) -> None:
@@ -1606,6 +1665,21 @@ def test_frozen_console_reuses_trusted_desktop_entrypoint_for_diagnostics(
 
     assert command == [str(desktop_path), "hook", "verify", "--json"]
     assert "-m" not in command
+
+
+def test_frozen_console_prefers_sibling_cli_for_diagnostics(monkeypatch, tmp_path) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    desktop_path = tmp_path / "AIA" / "AIA.exe"
+    desktop_path.parent.mkdir(parents=True)
+    desktop_path.touch()
+    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
+    cli_path.parent.mkdir(parents=True)
+    cli_path.touch()
+
+    monkeypatch.setattr(web_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(web_module.sys, "executable", str(desktop_path))
+
+    assert _aia_cli_command("doctor") == [str(cli_path), "doctor"]
 
 
 def test_source_console_uses_python_module_cli(monkeypatch) -> None:

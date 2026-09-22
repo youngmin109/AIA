@@ -58,6 +58,21 @@ _HOOK_VERIFICATION_PROBE_TOKEN_ENV = "AIA_HOOK_VERIFICATION_PROBE_TOKEN"
 def _module_cli_prefix() -> str:
     """Return a launcher that does not depend on a generated ``aia.exe``."""
 
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable).resolve(strict=False)
+        if executable.name.casefold() in {"aia-cli.exe", "aia-cli"}:
+            return subprocess.list2cmdline([str(executable)])
+        candidates = (
+            executable.parent / "aia-cli" / "aia-cli.exe",
+            executable.parent.parent / "aia-cli" / "aia-cli.exe",
+            executable.parent / "aia-cli.exe",
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return subprocess.list2cmdline([str(candidate)])
+        if executable.name.casefold() in {"aia.exe", "aia"}:
+            return subprocess.list2cmdline([str(executable)])
+
     source = Path(__file__).resolve()
     project_root = next(
         (

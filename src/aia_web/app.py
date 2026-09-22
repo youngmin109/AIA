@@ -24,8 +24,13 @@ from aia.codex_installation import CodexHookInstaller
 
 _ROOT = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_ROOT / "templates"))
-_TERMINAL_OUTPUT_BATCH_MIN_ITEMS = 16
-_TERMINAL_OUTPUT_BATCH_MAX_CHARS = 64 * 1024
+_TERMINAL_OUTPUT_BATCH_MIN_ITEMS = 2
+# Keep one browser callback bounded. A smaller batch lets the Workbench's
+# frame budget yield to keyboard input while still reducing WebSocket churn.
+_TERMINAL_OUTPUT_BATCH_MAX_CHARS = 32 * 1024
+_TERMINAL_OUTPUT_MAX_ITEMS_PER_TICK = 128
+_TERMINAL_OUTPUT_SEND_TIMEOUT_SECONDS = 2.0
+_TERMINAL_STATUS_POLL_INTERVAL_SECONDS = 0.25
 
 
 def _hidden_process_kwargs() -> dict[str, int]:
@@ -47,7 +52,7 @@ def _aia_cli_command(*arguments: str) -> list[str]:
 
     if getattr(sys, "frozen", False):
         executable = Path(sys.executable).resolve(strict=False)
-        if executable.name.casefold() in {"aia.exe", "aia"}:
+        if executable.name.casefold() in {"aia-cli.exe", "aia-cli"}:
             return [str(executable), *arguments]
         candidates = (
             executable.parent / "aia-cli" / "aia-cli.exe",
@@ -57,6 +62,8 @@ def _aia_cli_command(*arguments: str) -> list[str]:
         for candidate in candidates:
             if candidate.is_file():
                 return [str(candidate), *arguments]
+        if executable.name.casefold() in {"aia.exe", "aia"}:
+            return [str(executable), *arguments]
         raise FileNotFoundError("aia-cli.exe is not installed next to AIA.exe")
 
     return [sys.executable, "-m", "aia.cli", *arguments]
@@ -73,7 +80,7 @@ def _coalesce_terminal_output(items: list[dict[str, Any]]) -> list[dict[str, Any
     connection cursor because all preceding data is included in that batch.
     """
 
-    if len(items) <= _TERMINAL_OUTPUT_BATCH_MIN_ITEMS:
+    if len(items) < _TERMINAL_OUTPUT_BATCH_MIN_ITEMS:
         return items
 
     batches: list[dict[str, Any]] = []
@@ -546,7 +553,27 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     async def terminal_socket(websocket: WebSocket, session_id: str) -> None:
         await websocket.accept()
         last_status: str | None = None
+        last_status_check = 0.0
         last_sequence = 0
+
+        async def send_message(message: dict[str, Any]) -> None:
+            """Send one terminal message without starving other local routes.
+
+            The Workbench and its status API share one local Uvicorn event
+            loop.  A slow or overloaded browser must not let a burst of PTY
+            output monopolize that loop and make new input or status requests
+            appear frozen.  The explicit yield also matters on Windows,
+            where a small local socket write can complete synchronously.
+            """
+
+            try:
+                await asyncio.wait_for(
+                    websocket.send_json(message),
+                    timeout=_TERMINAL_OUTPUT_SEND_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError as error:
+                raise WebSocketDisconnect(code=1013) from error
+            await asyncio.sleep(0)
 
         async def send_pending_output() -> None:
             nonlocal last_sequence
@@ -554,8 +581,13 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 session_id,
                 after_sequence=last_sequence,
             )
+            # Never flush the whole bounded replay in one event-loop turn.
+            # Remaining chunks are picked up on the next turn using the final
+            # sequence acknowledged below, so a reconnect remains lossless
+            # within the PTY ring buffer while live API requests stay usable.
+            items = items[:_TERMINAL_OUTPUT_MAX_ITEMS_PER_TICK]
             for item in _coalesce_terminal_output(items):
-                await websocket.send_json(item)
+                await send_message(item)
                 last_sequence = max(last_sequence, int(item.get("sequence", last_sequence)))
 
         try:
@@ -566,7 +598,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                         timeout=0.10,
                     )
                     if not isinstance(message, dict):
-                        await websocket.send_json(
+                        await send_message(
                             {"type": "error", "message": "terminal message must be an object"}
                         )
                     elif message.get("type") == "input":
@@ -574,12 +606,12 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                             session_id,
                             message.get("data", ""),
                         )
-                        await websocket.send_json(
+                        await send_message(
                             {"type": "accepted", "action": "input", **result}
                         )
                     elif message.get("type") == "submit":
                         result = app.state.service.submit_terminal_input(session_id)
-                        await websocket.send_json(
+                        await send_message(
                             {"type": "accepted", "action": "submit", **result}
                         )
                     elif message.get("type") == "resize":
@@ -588,30 +620,33 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                             int(message.get("rows", 32)),
                             int(message.get("cols", 120)),
                         )
-                        await websocket.send_json(
+                        await send_message(
                             {"type": "accepted", "action": "resize", **result}
                         )
                     else:
-                        await websocket.send_json(
+                        await send_message(
                             {"type": "error", "message": "unsupported terminal message"}
                         )
                 except asyncio.TimeoutError:
                     pass
                 except (KeyError, ValueError, TypeError, TerminalSessionError) as error:
-                    await websocket.send_json({"type": "error", "message": str(error)})
+                    await send_message({"type": "error", "message": str(error)})
 
                 await send_pending_output()
-                status = app.state.service.get_terminal_status(session_id)
-                status_name = str(status.get("status", "UNKNOWN"))
-                if status_name != last_status:
-                    await websocket.send_json({"type": "status", **status})
-                    last_status = status_name
-                if status_name in {"FAILED", "EXITED"}:
-                    # Send once more before closing so the last prompt/output
-                    # is visible in the Workbench.
-                    await send_pending_output()
-                    await websocket.send_json({"type": "closed", "status": status_name})
-                    return
+                now = asyncio.get_running_loop().time()
+                if now - last_status_check >= _TERMINAL_STATUS_POLL_INTERVAL_SECONDS:
+                    last_status_check = now
+                    status = app.state.service.get_terminal_status(session_id)
+                    status_name = str(status.get("status", "UNKNOWN"))
+                    if status_name != last_status:
+                        await send_message({"type": "status", **status})
+                        last_status = status_name
+                    if status_name in {"FAILED", "EXITED"}:
+                        # Send once more before closing so the last prompt/output
+                        # is visible in the Workbench.
+                        await send_pending_output()
+                        await send_message({"type": "closed", "status": status_name})
+                        return
         except WebSocketDisconnect:
             return
 
