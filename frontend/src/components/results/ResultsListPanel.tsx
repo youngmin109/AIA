@@ -1,28 +1,48 @@
 import { useShellStore } from '../../state/shellStore'
+import { useRunList } from '../../hooks/useRunList'
+import type { RunSummary } from '../../api/types'
 
-// Milestone 3: static mock data standing in for GET /api/runs filtered to
-// completed/stopped sessions. Replaced with real data + GET
-// /api/runs/{id}/result drill-in during milestone 5.
-const MOCK_RESULTS = [
-  { id: 'run-41274c13', workspace: 'C:\\workspace\\aia-demo-hanbit', bundle: '유효', tone: 'ok' as const },
-  { id: 'run-22b7cf1c', workspace: 'C:\\workspace\\aia-demo-hanbit', bundle: '유효 · 정책 사건 2건', tone: 'warn' as const },
-]
+const COMPLETED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
+
+function toneFor(bundleStatus: string | undefined): 'ok' | 'warn' | 'bad' {
+  const upper = String(bundleStatus || '').toUpperCase()
+  if (upper === 'VALID') return 'ok'
+  if (upper === 'INVALID') return 'bad'
+  return 'warn'
+}
+
+function shortId(sessionId: string): string {
+  return `#${sessionId.slice(0, 8)}`
+}
 
 export function ResultsListPanel() {
   const { openTab, activeTabId } = useShellStore()
+  const { data: runs, isLoading, error } = useRunList()
+  const completed = (runs ?? []).filter((run) => COMPLETED_STATUSES.has(String(run.status)))
+
+  if (isLoading && !runs) {
+    return <p className="empty-hint">보호 결과를 불러오는 중입니다…</p>
+  }
+  if (error) {
+    return <p className="empty-hint">보호 결과를 불러오지 못했습니다.</p>
+  }
+  if (completed.length === 0) {
+    return <p className="empty-hint">아직 종료된 보호 실행이 없습니다.</p>
+  }
 
   return (
     <div className="run-list">
-      {MOCK_RESULTS.map((run) => (
+      {completed.map((run: RunSummary) => (
         <button
-          key={run.id}
+          key={run.session_id}
           type="button"
-          className={`run-row${activeTabId === run.id ? ' is-active' : ''}`}
-          onClick={() => openTab({ id: run.id, title: `${run.id.replace('run-', '#')} 결과` })}
+          className={`run-row${activeTabId === run.session_id ? ' is-active' : ''}`}
+          onClick={() => openTab({ id: run.session_id, title: `${shortId(run.session_id)} 결과`, kind: 'result' })}
         >
           <div className="run-row-top">
-            <span>{run.id.replace('run-', '#')}</span>
-            <span className={`badge is-${run.tone}`}>{run.bundle}</span>
+            <span>{shortId(run.session_id)}</span>
+            <span className={`badge is-${toneFor(run.bundle_status)}`}>Bundle {run.bundle_status ?? '확인 전'}</span>
+            {Boolean(run.incident_count) && <span className="badge is-warn">사건 {run.incident_count}</span>}
           </div>
           <div className="run-row-path" title={run.workspace}>
             {run.workspace}

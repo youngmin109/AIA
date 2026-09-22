@@ -5,6 +5,9 @@ export type ShellView = 'dashboard' | 'history' | 'results'
 export interface RunTab {
   id: string
   title: string
+  /** 'terminal' attaches the live Codex PTY; 'result' shows the static
+   * result/incident view for a completed run. Defaults to 'terminal'. */
+  kind?: 'terminal' | 'result'
 }
 
 interface ShellState {

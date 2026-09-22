@@ -14,7 +14,7 @@ export function RightPanel() {
         </button>
       </div>
       <div className="right-panel-content">
-        <EventFeed runId={activeTabId} />
+        <EventFeed runId={activeTabId} isFocused={Boolean(activeTabId)} />
       </div>
     </aside>
   )

@@ -1,6 +1,7 @@
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { TerminalPane } from '../terminal/TerminalPane'
+import { ResultView } from '../results/ResultView'
 
 export function CenterTabs() {
   const { openTabs, activeTabId, setActiveTab, closeTab, openSettingsModal, rightPanelCollapsed, toggleRightPanel } =
@@ -54,7 +55,11 @@ export function CenterTabs() {
             is gated to the focused tab (see TerminalPane/useRunStatus). */}
         {openTabs.map((tab) => (
           <div key={tab.id} style={{ display: tab.id === activeTabId ? 'flex' : 'none', height: '100%' }}>
-            <TerminalPane runId={tab.id} isFocused={tab.id === activeTabId} />
+            {tab.kind === 'result' ? (
+              <ResultView runId={tab.id} />
+            ) : (
+              <TerminalPane runId={tab.id} isFocused={tab.id === activeTabId} />
+            )}
           </div>
         ))}
         {!activeTab && (
