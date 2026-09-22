@@ -294,12 +294,29 @@ class WinPtyTerminalSession:
         Each Workbench WebSocket keeps its own sequence cursor.  Keeping the
         bounded buffer intact allows a browser refresh or reconnect to replay
         the current terminal view without persisting terminal content.
+
+        The WS loop calls this on every poll tick (as often as every ~20ms),
+        so the common "nothing new since last check" case must be O(1), and
+        the "some new output" case must scale with how much is new, not with
+        the full MAX_OUTPUT_CHUNKS buffer -- a linear scan of the whole deque
+        on every tick pegged a CPU core on long sessions with a large
+        accumulated backlog. Sequences are strictly increasing and the deque
+        is append-only, so walking back from the newest item and stopping at
+        the first one at or before after_sequence is equivalent to the old
+        full-buffer filter.
         """
 
         if isinstance(after_sequence, bool) or not isinstance(after_sequence, int) or after_sequence < 0:
             raise TerminalSessionError("after_sequence must be a non-negative integer")
         with self._lock:
-            chunks = [item for item in self._chunks if item.sequence > after_sequence]
+            if not self._chunks or self._chunks[-1].sequence <= after_sequence:
+                return []
+            newest_first: list[_OutputChunk] = []
+            for item in reversed(self._chunks):
+                if item.sequence <= after_sequence:
+                    break
+                newest_first.append(item)
+            chunks = list(reversed(newest_first))
         return self._output_items(chunks)
 
     def poll(self) -> int | None:
