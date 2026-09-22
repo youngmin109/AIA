@@ -30,9 +30,9 @@ interface ShellState {
   settingsModalOpen: boolean
   /** The single protected run currently shown in the center pane -- the
    * shell shows one active run at a time (not a multi-tab workspace);
-   * browsing other runs happens via the history/results lists, which
-   * replace the active run when clicked. Persisted so a reload re-attaches
-   * to the same run instead of losing context. */
+   * browsing other runs happens via the audit view's list, which replaces
+   * the active run when clicked. Persisted so a reload re-attaches to the
+   * same run instead of losing context. */
   activeRunId: string | null
   terminalActivity: TerminalActivitySignal | null
 }
