@@ -13,7 +13,6 @@
 
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 
 const THEME = {
@@ -77,28 +76,6 @@ export function createXtermAdapter(container: HTMLDivElement): XtermAdapter {
   terminal.loadAddon(fitAddon)
   terminal.open(container)
 
-  // The default DOM renderer updates real DOM nodes per cell on every
-  // write and falls behind under sustained heavy output (long Codex
-  // responses, a repeatedly-redrawn "Working (Ns)" line) -- the visible
-  // screen can lag seconds behind terminal.buffer.active even though
-  // parsing itself stays fast, which is what made status/detection look
-  // "done" while the painted screen still looked frozen. WebGL moves
-  // painting off the main-thread DOM path onto the GPU, the same
-  // approach Electron-based terminals (VS Code, Hyper, Orca) rely on.
-  // WebGL2 can be unavailable or lost (driver issue, GPU process crash);
-  // fall back to the default DOM renderer rather than losing output.
-  let webglAddon: WebglAddon | null = null
-  try {
-    webglAddon = new WebglAddon()
-    webglAddon.onContextLoss(() => {
-      webglAddon?.dispose()
-      webglAddon = null
-    })
-    terminal.loadAddon(webglAddon)
-  } catch {
-    webglAddon = null
-  }
-
   function fit(): { rows: number; cols: number } | null {
     try {
       fitAddon.fit()
@@ -124,9 +101,6 @@ export function createXtermAdapter(container: HTMLDivElement): XtermAdapter {
     write: (data, onDone) => terminal.write(data, onDone),
     bufferText,
     reset: () => terminal.reset(),
-    dispose: () => {
-      webglAddon?.dispose()
-      terminal.dispose()
-    },
+    dispose: () => terminal.dispose(),
   }
 }
