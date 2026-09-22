@@ -1,5 +1,6 @@
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
+import { TerminalPane } from '../terminal/TerminalPane'
 
 export function CenterTabs() {
   const { openTabs, activeTabId, setActiveTab, closeTab, openSettingsModal, rightPanelCollapsed, toggleRightPanel } =
@@ -47,28 +48,22 @@ export function CenterTabs() {
         </button>
       </div>
       <div className="center-content">
-        {activeTab ? (
-          <TerminalPanePlaceholder tabId={activeTab.id} title={activeTab.title} />
-        ) : (
+        {/* Every open tab stays mounted (display:none when inactive) so its
+            terminal WebSocket keeps running in the background instead of
+            reconnecting on every tab switch -- only the 1s run-status poll
+            is gated to the focused tab (see TerminalPane/useRunStatus). */}
+        {openTabs.map((tab) => (
+          <div key={tab.id} style={{ display: tab.id === activeTabId ? 'flex' : 'none', height: '100%' }}>
+            <TerminalPane runId={tab.id} isFocused={tab.id === activeTabId} />
+          </div>
+        ))}
+        {!activeTab && (
           <div className="center-empty-state">
             <strong>열린 실행이 없습니다</strong>
             <p>좌측 지난 실행 목록에서 항목을 선택하거나, + 버튼으로 새 보호 실행을 시작하세요.</p>
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function TerminalPanePlaceholder({ tabId, title }: { tabId: string; title: string }) {
-  // Milestone 3 placeholder. Replaced by the real TerminalPane (ported
-  // VT100 emulator + WinPTY WebSocket client) in milestone 4.
-  return (
-    <div className="center-empty-state">
-      <strong>{title}</strong>
-      <p>
-        Codex 터미널 자리 (session {tabId}) — 실제 WebSocket 연결은 마일스톤 4에서 이식됩니다.
-      </p>
     </div>
   )
 }

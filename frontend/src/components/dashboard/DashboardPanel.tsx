@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useShellStore } from '../../state/shellStore'
 
 // Milestone 3: static mock data. Replaced with a live GET /api/preflight
@@ -11,7 +12,8 @@ const MOCK_READINESS = {
 }
 
 export function DashboardPanel() {
-  const { openSettingsModal } = useShellStore()
+  const { openSettingsModal, openTab } = useShellStore()
+  const [devSessionId, setDevSessionId] = useState('')
 
   return (
     <div>
@@ -50,6 +52,29 @@ export function DashboardPanel() {
       <button type="button" className="cta-button" onClick={openSettingsModal}>
         + 새 보호 실행 시작
       </button>
+
+      {/* TEMPORARY (milestone 4 dev aid): real run-list wiring lands in
+          milestone 5's "새 보호 실행 시작" flow; until then this is the only
+          way to open a real session_id as a tab for terminal-port testing.
+          Remove once the setup modal creates + opens tabs itself. */}
+      <div className="panel-section" style={{ marginTop: 18 }}>
+        <p className="panel-section-title">개발용 · 세션 ID로 열기</p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            value={devSessionId}
+            onChange={(event) => setDevSessionId(event.target.value)}
+            placeholder="session_id"
+            style={{ flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-inset)', color: 'var(--text)' }}
+          />
+          <button
+            type="button"
+            className="icon-button-text"
+            onClick={() => devSessionId.trim() && openTab({ id: devSessionId.trim(), title: `#${devSessionId.trim().slice(0, 8)}` })}
+          >
+            열기
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

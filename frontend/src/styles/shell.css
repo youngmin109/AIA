@@ -520,6 +520,144 @@
   text-align: center;
 }
 
+/* ---- Terminal pane ---- */
+
+.terminal-pane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.terminal-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-alt);
+  font-size: 11px;
+}
+
+.terminal-activity-label {
+  color: var(--text-muted);
+}
+
+.terminal-pid {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.icon-button-text {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.icon-button-text:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.icon-button-text:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.terminal-output {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px;
+  background: var(--bg-inset);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 19px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+
+.terminal-error {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.terminal-action-banner {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.terminal-action-banner .cta-button {
+  width: auto;
+  padding: 6px 14px;
+}
+
+.terminal-input-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.terminal-input-row textarea {
+  flex: 1;
+  min-height: 38px;
+  max-height: 110px;
+  resize: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--text);
+  font: 13px/1.4 var(--font-ui);
+}
+
+.terminal-input-row textarea:disabled {
+  opacity: 0.6;
+}
+
+.terminal-input-row textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.terminal-input-row .cta-button {
+  width: auto;
+  padding: 9px 16px;
+  flex: 0 0 auto;
+}
+
+.terminal-input-row .cta-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ---- Protection setup modal ---- */
 
 .modal-overlay {
