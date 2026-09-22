@@ -196,8 +196,8 @@ def _server_stopped(server: Any) -> bool:
 def _wait_for_server(url: str, server: Any, timeout: float = 30.0) -> None:
     """Wait only for the loopback listener before creating the GUI window.
 
-    Rendering ``/start`` performs filesystem-backed run listing and can take a
-    few seconds on a workspace with many previous runs.  Waiting for that HTTP
+    The SPA's own API calls (run listing, preflight, etc.) can take a few
+    seconds on a workspace with many previous runs.  Waiting for a full HTTP
     response on the desktop process' main thread makes Windows label the GUI
     as unresponsive before WebView2 has even been created.  WebView2 can load
     the page once the socket is accepting connections; the page already loads
@@ -285,13 +285,10 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
     bridge = DesktopBridge()
     try:
         server = _start_local_server(host, port)
-        _wait_for_server(f"http://{host}:{port}/start", server)
+        _wait_for_server(f"http://{host}:{port}/", server)
         window = webview.create_window(
             "AIA · Protected Workbench",
-            # TEMPORARY preview: opens the new React shell directly instead of
-            # the old /start page, so it's visible without a second browser.
-            # Revert to /start before milestone 6 removes the old UI for real.
-            f"http://{host}:{port}/app",
+            f"http://{host}:{port}/",
             width=1440,
             height=900,
             min_size=(1024, 680),

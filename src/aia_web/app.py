@@ -8,13 +8,12 @@ import subprocess
 import sys
 import asyncio
 from contextlib import asynccontextmanager
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from aia_app.service import RunApplicationService
 from aia_app.terminal import TerminalSessionError
@@ -23,7 +22,6 @@ from aia.codex_installation import CodexHookInstaller
 
 
 _ROOT = Path(__file__).resolve().parent
-_TEMPLATES = Jinja2Templates(directory=str(_ROOT / "templates"))
 _TERMINAL_OUTPUT_BATCH_MIN_ITEMS = 2
 # Keep one browser callback bounded. A smaller batch lets the Workbench's
 # frame budget yield to keyboard input while still reducing WebSocket churn.
@@ -118,30 +116,6 @@ def default_control_root() -> Path:
     return Path(configured).expanduser() if configured else Path.home() / ".aia" / "control"
 
 
-def _dashboard_preflight_placeholder() -> dict[str, Any]:
-    """Return a safe loading state for the dashboard's deferred preflight."""
-
-    return {
-        "ready": False,
-        "readiness_code": "CHECKING",
-        "next_step": "AIA가 Codex Hook과 로컬 실행 환경을 확인하고 있습니다.",
-        "checks": [],
-        "hook_trust": {
-            "status": "CHECKING",
-            "detail": "Codex Hook Trust 상태를 확인하고 있습니다.",
-        },
-        "hook_activation": {
-            "status": "CHECKING",
-            "detail": "실제 Hook 연결 상태를 확인하고 있습니다.",
-        },
-        "codex_hook_trust": {"hooks": []},
-        "protection_claim": {
-            "status": "CHECKING",
-            "detail": "준비 상태 확인이 끝날 때까지 보호 실행을 시작하지 않습니다.",
-        },
-    }
-
-
 def _console_project_root() -> Path | None:
     """Return the checkout that is serving this local console, when present."""
 
@@ -183,36 +157,6 @@ def _console_cli_prefix() -> str:
     """Return the CLI form that avoids a generated Windows console-script EXE."""
 
     return _console_module_cli_prefix()
-
-
-def _is_console_diagnostic_run(run: dict[str, Any]) -> bool:
-    """Identify known AIA-created probe workspaces for overview display only."""
-
-    workspace = str(run.get("workspace") or "")
-    leaf = PureWindowsPath(workspace.replace("/", "\\")).name.casefold()
-    return leaf.startswith(("aia-hook-verify-", "aia-path-hook-probe-")) or leaf in {
-        "aia-ui-probe",
-        "aia-hook-probe",
-    }
-
-
-def _decorate_console_diagnostic_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Add an overview-only label without changing persisted run records."""
-
-    return [
-        {**run, "dashboard_diagnostic": _is_console_diagnostic_run(run)}
-        for run in runs
-    ]
-
-
-def _dashboard_run_view(runs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
-    """Prefer user runs on the dashboard while preserving all history records."""
-
-    decorated = _decorate_console_diagnostic_runs(runs)
-    user_runs = [run for run in decorated if not run["dashboard_diagnostic"]]
-    return (user_runs or decorated), sum(
-        1 for run in decorated if run["dashboard_diagnostic"]
-    )
 
 
 def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tuple[dict[str, Any], int]:
@@ -295,14 +239,9 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     app.state.service = active_service
     app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
-    # Temporary scoped preview mount for the new React/Vite IDE shell
-    # (UI redesign milestone 1-5). Does not touch "/" or any existing Jinja
-    # route below; removed once the SPA replaces them (redesign milestone 6).
     _spa_index_path = _ROOT / "static" / "app" / "index.html"
 
-    @app.get("/app", response_class=HTMLResponse)
-    @app.get("/app/{_rest:path}", response_class=HTMLResponse)
-    def spa_preview(_rest: str = ""):
+    def _serve_spa() -> HTMLResponse | FileResponse:
         if not _spa_index_path.exists():
             return HTMLResponse(
                 "AIA SPA build not found. Run `npm run build` in frontend/.",
@@ -311,80 +250,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         return FileResponse(_spa_index_path)
 
     @app.get("/", response_class=HTMLResponse)
-    @app.get("/start", response_class=HTMLResponse)
-    def setup(request: Request) -> HTMLResponse:
-        """Render the simple first-run setup surface.
-
-        The setup page only changes presentation.  Readiness, Workspace
-        validation, policy resolution, and run creation continue to use the
-        existing service and API contracts.
-        """
-
-        runs = app.state.service.list_runs()
-        recent_runs, _diagnostic_run_count = _dashboard_run_view(runs)
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "setup.html",
-            {
-                "profiles": app.state.service.policy_profiles(),
-                "preflight": _dashboard_preflight_placeholder(),
-                "setup_preflight_deferred": True,
-                "recent_runs": recent_runs[:5],
-                "capabilities": product_capabilities(),
-                "cli_prefix": _console_cli_prefix(),
-                "module_cli_prefix": _console_module_cli_prefix(),
-                "cli_project_root": _console_project_root(),
-                "is_setup": True,
-            },
-        )
-
-    @app.get("/dashboard", response_class=HTMLResponse)
-    def dashboard(request: Request) -> HTMLResponse:
-        """Render the local product overview without starting an Agent."""
-
-        runs = app.state.service.list_runs()
-        dashboard_runs, diagnostic_run_count = _dashboard_run_view(runs)
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "dashboard.html",
-            {
-                "preflight": _dashboard_preflight_placeholder(),
-                "dashboard_preflight_deferred": True,
-                "runs": runs,
-                "dashboard_runs": dashboard_runs,
-                "dashboard_diagnostic_count": diagnostic_run_count,
-                "capabilities": product_capabilities(),
-                "cli_prefix": _console_cli_prefix(),
-                "module_cli_prefix": _console_module_cli_prefix(),
-                "cli_project_root": _console_project_root(),
-            },
-        )
-
-    @app.get("/new", response_class=HTMLResponse)
-    def new_run(request: Request) -> HTMLResponse:
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "new_run.html",
-            {
-                "profiles": app.state.service.policy_profiles(),
-                "preflight": _dashboard_preflight_placeholder(),
-                "new_run_preflight_deferred": True,
-                "capabilities": product_capabilities(),
-                "cli_prefix": _console_cli_prefix(),
-                "module_cli_prefix": _console_module_cli_prefix(),
-                "cli_project_root": _console_project_root(),
-                "hook_path": str(CodexHookInstaller().path),
-            },
-        )
-
-    @app.get("/runs", response_class=HTMLResponse)
-    def run_history(request: Request) -> HTMLResponse:
-        runs = app.state.service.list_runs()
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "history.html",
-            {"runs": runs, "history_runs": _decorate_console_diagnostic_runs(runs)},
-        )
+    def spa_index():
+        return _serve_spa()
 
     @app.get("/api/runs")
     def run_history_api() -> JSONResponse:
@@ -483,32 +350,6 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (json.JSONDecodeError, ValueError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(created, status_code=202)
-
-    @app.get("/runs/{session_id}", response_class=HTMLResponse)
-    def live_run(request: Request, session_id: str) -> HTMLResponse:
-        try:
-            status = app.state.service.get_run_status(session_id)
-        except KeyError:
-            return _not_found("Run not found")
-        except ValueError as exc:
-            return _run_unavailable(request, session_id, str(exc))
-        return _TEMPLATES.TemplateResponse(
-            request, "live_run.html", {"session_id": session_id, "status": status}
-        )
-
-    @app.get("/runs/{session_id}/workbench", response_class=HTMLResponse)
-    def workbench(request: Request, session_id: str) -> HTMLResponse:
-        try:
-            status = app.state.service.get_run_status(session_id)
-        except KeyError:
-            return _not_found("Run not found")
-        except ValueError as exc:
-            return _run_unavailable(request, session_id, str(exc))
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "workbench.html",
-            {"session_id": session_id, "status": status, "is_workbench": True},
-        )
 
     @app.get("/api/runs/{session_id}")
     def run_status(session_id: str) -> JSONResponse:
@@ -714,36 +555,6 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse({"error": "Run not found"}, status_code=404)
         return JSONResponse(result, status_code=200 if result.get("reconciled") else 409)
 
-    @app.get("/runs/{session_id}/incidents/{action_id}", response_class=HTMLResponse)
-    def incident(request: Request, session_id: str, action_id: str) -> HTMLResponse:
-        try:
-            incident_data = app.state.service.get_incident(session_id, action_id)
-        except (KeyError, ValueError):
-            return _not_found("Incident not found")
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "incident.html",
-            {"session_id": session_id, "incident": incident_data},
-        )
-
-    @app.get("/runs/{session_id}/result", response_class=HTMLResponse)
-    def result(request: Request, session_id: str) -> HTMLResponse:
-        try:
-            result_data = app.state.service.get_result(session_id)
-        except KeyError:
-            return _not_found("Run not found")
-        except ValueError as exc:
-            return _run_unavailable(request, session_id, str(exc))
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "result.html",
-            {
-                "session_id": session_id,
-                "result": result_data,
-                "is_workbench": result_data.get("launch_mode") == "web_terminal",
-            },
-        )
-
     @app.get("/runs/{session_id}/report")
     def report(session_id: str) -> PlainTextResponse:
         try:
@@ -768,27 +579,18 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (KeyError, ValueError) as exc:
             return Response(str(exc), status_code=404, media_type="text/plain")
 
+    # Registered last so it only ever catches paths no earlier route (API,
+    # static, WebSocket, or "/") matched -- the SPA owns client-side routing
+    # for everything else, including a hard reload on a deep link.
+    @app.get("/{_full_path:path}", response_class=HTMLResponse)
+    def spa_catch_all(_full_path: str):
+        return _serve_spa()
+
     return app
 
 
 def _not_found(message: str) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=404)
-
-
-def _run_unavailable(request: Request, session_id: str, reason: str) -> HTMLResponse:
-    """Render a safe, actionable state for an unreadable run record."""
-
-    safe_reason = (
-        "Evidence Bundle 무결성 검증 실패"
-        if reason == "Evidence Bundle Integrity Failure"
-        else "실행 기록의 보호 상태를 확인하지 못함"
-    )
-    return _TEMPLATES.TemplateResponse(
-        request,
-        "run_unavailable.html",
-        {"session_id": session_id, "reason": safe_reason},
-        status_code=409,
-    )
 
 
 app = create_app()
