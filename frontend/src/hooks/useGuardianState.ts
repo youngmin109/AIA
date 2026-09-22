@@ -63,12 +63,17 @@ export function useGuardianState(): GuardianStatus {
       state = 'recovery'
     }
   } else if (activeRunId) {
+    // event.decision's vocabulary is enforcement-decision-first
+    // (CONTAIN/REFUSE/BLOCKED/TERMINATED, falling back to the raw policy
+    // decision), not a plain VIOLATION/INDETERMINATE string -- category and
+    // severity (set server-side from that same logic, see presenters.py's
+    // format_run_events) are the fields actually meant for this check.
     const events = status?.events ?? []
-    const hasViolation = events.some((event) => (event.display_decision ?? event.decision) === 'VIOLATION')
-    const hasIndeterminate = events.some((event) => (event.display_decision ?? event.decision) === 'INDETERMINATE')
+    const hasEnforcement = events.some((event) => event.category === 'ENFORCEMENT')
+    const hasWarning = events.some((event) => event.category !== 'SENSOR' && event.severity === 'WARNING')
     const codexActionPrompt = terminalActivity?.runId === activeRunId && terminalActivity.terminalAction !== null
-    if (hasViolation) state = 'blocked'
-    else if (hasIndeterminate || codexActionPrompt) state = 'review'
+    if (hasEnforcement) state = 'blocked'
+    else if (hasWarning || codexActionPrompt) state = 'review'
   }
 
   const copy = COPY[state]

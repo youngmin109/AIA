@@ -7,6 +7,7 @@ import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
 import { DashboardView } from '../dashboard/DashboardView'
 import { PolicyView } from '../policy/PolicyView'
 import { AuditView } from '../audit/AuditView'
+import { EvidenceReviewModal } from '../audit/EvidenceReviewModal'
 import { useActiveRunReconciliation } from '../../hooks/useActiveRunReconciliation'
 import { useShellStore, type ShellView } from '../../state/shellStore'
 
@@ -46,6 +47,7 @@ export function Shell() {
       </div>
       <StatusBar />
       <ProtectionSetupModal />
+      <EvidenceReviewModal />
     </div>
   )
 }
