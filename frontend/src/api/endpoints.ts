@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPostTolerant } from './client'
 export interface PolicyProfile {
   value: string
   label: string
+  description?: string
 }
 
 export function listProfiles(): Promise<PolicyProfile[]> {

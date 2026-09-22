@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 
-export type ShellView = 'dashboard' | 'terminal' | 'history' | 'results'
+export type ShellView = 'dashboard' | 'terminal' | 'policy' | 'history' | 'results'
 
 /** Live signal reported by TerminalPane's useTerminalSession instance so
  * GuardianHero (mounted in the dashboard view, a sibling -- not an

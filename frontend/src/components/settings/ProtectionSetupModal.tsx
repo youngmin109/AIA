@@ -3,6 +3,7 @@ import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { createProtectedRun, listProfiles, validateWorkspace, type PolicyProfile } from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
+import { readDefaultPolicyProfile } from '../policy/PolicyView'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
 
@@ -21,7 +22,11 @@ export function ProtectionSetupModal() {
     listProfiles()
       .then((list) => {
         setProfiles(list)
-        if (!policyProfile && list.length > 0) setPolicyProfile(list[0].value)
+        if (!policyProfile && list.length > 0) {
+          const defaultValue = readDefaultPolicyProfile()
+          const stillValid = defaultValue && list.some((profile) => profile.value === defaultValue)
+          setPolicyProfile(stillValid ? defaultValue : list[0].value)
+        }
       })
       .catch(() => setProfiles([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps

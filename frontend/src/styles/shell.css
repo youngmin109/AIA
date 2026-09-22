@@ -1118,6 +1118,51 @@
   color: var(--text-muted);
 }
 
+/* ---- Policy view ---- */
+
+.policy-view-notice {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-alt);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.policy-choice {
+  padding: 18px;
+}
+
+.policy-choice.is-active {
+  border: 2px solid var(--accent);
+  background: var(--bg-active);
+}
+
+.policy-choice h3 {
+  margin: 12px 0 6px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.policy-choice p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.policy-choice button {
+  margin-top: 14px;
+}
+
 /* ---- Protection setup modal ---- */
 
 .modal-overlay {

@@ -5,6 +5,7 @@ import { RightPanel } from './RightPanel'
 import { StatusBar } from './StatusBar'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
 import { DashboardView } from '../dashboard/DashboardView'
+import { PolicyView } from '../policy/PolicyView'
 import { useActiveRunReconciliation } from '../../hooks/useActiveRunReconciliation'
 import { useShellStore } from '../../state/shellStore'
 
@@ -26,7 +27,10 @@ export function Shell() {
           <div className={`main-column-view${activeView === 'dashboard' ? '' : ' is-hidden'}`}>
             <DashboardView />
           </div>
-          <div className={`main-column-view${activeView === 'dashboard' ? ' is-hidden' : ''}`}>
+          <div className={`main-column-view${activeView === 'policy' ? '' : ' is-hidden'}`}>
+            <PolicyView />
+          </div>
+          <div className={`main-column-view${activeView === 'dashboard' || activeView === 'policy' ? ' is-hidden' : ''}`}>
             <ActiveRunPane />
           </div>
         </div>

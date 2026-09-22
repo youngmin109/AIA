@@ -6,6 +6,7 @@ import { ResultsListPanel } from '../results/ResultsListPanel'
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
   { view: 'dashboard', icon: 'dashboard', label: '대시보드' },
   { view: 'terminal', icon: 'terminal', label: 'Agent CLI' },
+  { view: 'policy', icon: 'settings', label: '정책 설정' },
   { view: 'history', icon: 'history', label: '지난 실행' },
   { view: 'results', icon: 'results', label: '보호 결과' },
 ]
@@ -13,6 +14,7 @@ const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
 const TITLES: Record<ShellView, string> = {
   dashboard: '대시보드',
   terminal: 'Agent CLI',
+  policy: '정책 설정',
   history: '지난 실행',
   results: '보호 결과',
 }
