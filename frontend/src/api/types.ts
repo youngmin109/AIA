@@ -26,8 +26,56 @@ export interface SecurityEvent {
   decision?: string
   display_decision?: string
   execution_result?: string
+  execution_observed?: boolean
   observed_at?: string
   incident_action_id?: string
+  chain_action_id?: string
+  tool_name?: string
+  target_label?: string
+}
+
+export interface EvidenceChainSensorLink {
+  sensor?: string
+  status?: string
+  evidence_count?: number
+  run_evidence_count?: number
+}
+
+export interface EvidenceChainStage {
+  stage?: string
+  label?: string
+  status?: string
+}
+
+export interface EvidenceChain {
+  action_id?: string
+  operation?: string
+  target_label?: string
+  observed_at?: string
+  evidence_link_status?: string
+  linked_evidence_count?: number
+  evidence_count?: number
+  sensor_links?: EvidenceChainSensorLink[]
+  stages?: EvidenceChainStage[]
+}
+
+export interface EvidenceTimelineRecord {
+  evidence_id?: string
+  source?: string
+  record_type?: string
+  captured_at?: string
+  link_status?: string
+  linked_action_id?: string
+}
+
+export interface EvidenceSummary {
+  available?: boolean
+  pretool_events?: number
+  posttool_events?: number
+  filesystem_events?: number
+  process_observed?: number
+  process_exit_observed?: number
+  sensor_health_events?: number
 }
 
 export interface RunStatus {
@@ -45,6 +93,10 @@ export interface RunStatus {
   runtime_reconciliation?: { orphaned?: boolean; [key: string]: unknown }
   terminal?: TerminalSnapshot
   events?: SecurityEvent[]
+  sensor_health?: Record<string, string>
+  evidence_summary?: EvidenceSummary
+  evidence_chains?: EvidenceChain[]
+  evidence_timeline?: EvidenceTimelineRecord[]
   incident_count?: number
   bundle_status?: string
   result_available?: boolean
