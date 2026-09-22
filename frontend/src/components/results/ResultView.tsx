@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useResult } from '../../hooks/useResult'
 import type { IncidentView } from '../../api/resultTypes'
 import { deriveVerdict } from '../../api/resultVerdict'
+import { EvidenceLogView } from './EvidenceLogView'
 
 function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   const upper = String(value || '').toUpperCase()
@@ -10,7 +11,7 @@ function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   return 'warn'
 }
 
-export function ResultView({ runId }: { runId: string }) {
+export function ResultView({ runId, showEvidenceLog = false }: { runId: string; showEvidenceLog?: boolean }) {
   const { data, error, isLoading } = useResult(runId)
 
   if (isLoading) {
@@ -108,6 +109,17 @@ export function ResultView({ runId }: { runId: string }) {
               <IncidentRow key={incident.action_id ?? index} incident={incident} />
             ))}
           </div>
+        </div>
+      )}
+
+      {showEvidenceLog && (
+        <div className="panel-section">
+          <details className="result-reading-guide">
+            <summary>Raw Evidence (원시 기록 보기)</summary>
+            <div style={{ marginTop: 8 }}>
+              <EvidenceLogView incidents={incidents} />
+            </div>
+          </details>
         </div>
       )}
     </div>

@@ -1,28 +1,19 @@
 import { Icon, type IconName } from '../common/Icon'
 import { useShellStore, type ShellView } from '../../state/shellStore'
-import { RunListPanel } from '../history/RunListPanel'
-import { ResultsListPanel } from '../results/ResultsListPanel'
 
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
   { view: 'dashboard', icon: 'dashboard', label: '대시보드' },
   { view: 'terminal', icon: 'terminal', label: 'Agent CLI' },
   { view: 'policy', icon: 'settings', label: '정책 설정' },
-  { view: 'history', icon: 'history', label: '지난 실행' },
-  { view: 'results', icon: 'results', label: '보호 결과' },
+  { view: 'audit', icon: 'history', label: '감사 기록' },
 ]
 
 const TITLES: Record<ShellView, string> = {
   dashboard: '대시보드',
   terminal: 'Agent CLI',
   policy: '정책 설정',
-  history: '지난 실행',
-  results: '보호 결과',
+  audit: '감사 기록',
 }
-
-// The dashboard/terminal main views own their full content directly (see
-// DashboardView / ActiveRunPane) -- only history/results still delegate to
-// a sidebar list-and-detail panel.
-const SIDEBAR_LIST_VIEWS = new Set<ShellView>(['history', 'results'])
 
 export function Sidebar() {
   const { activeView, sidebarCollapsed, setView, toggleSidebar } = useShellStore()
@@ -76,16 +67,6 @@ export function Sidebar() {
           </button>
         ))}
       </nav>
-
-      {SIDEBAR_LIST_VIEWS.has(activeView) && (
-        <div className="app-sidebar-section" aria-hidden={sidebarCollapsed}>
-          <div className="app-sidebar-section-label">{TITLES[activeView]}</div>
-          <div className="app-sidebar-section-content">
-            {activeView === 'history' && <RunListPanel />}
-            {activeView === 'results' && <ResultsListPanel />}
-          </div>
-        </div>
-      )}
     </aside>
   )
 }
