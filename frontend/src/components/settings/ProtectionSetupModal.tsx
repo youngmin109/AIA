@@ -11,6 +11,7 @@ import {
 } from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
 import { readDefaultPolicyProfile } from '../policy/PolicyView'
+import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
 
@@ -36,6 +37,7 @@ export function ProtectionSetupModal() {
   const [recovery, setRecovery] = useState<WorkspaceRecovery | null>(null)
   const [reconciling, setReconciling] = useState(false)
   const [reconcileError, setReconcileError] = useState<string | null>(null)
+  const [pickerMessage, setPickerMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!settingsModalOpen) return
@@ -127,6 +129,20 @@ export function ProtectionSetupModal() {
     }
   }
 
+  async function handleChooseWorkspace() {
+    setPickerMessage(null)
+    if (!hasNativeWorkspacePicker()) {
+      setPickerMessage('폴더 선택은 AIA Windows EXE에서 사용할 수 있습니다. 현재 브라우저에서는 전체 경로를 직접 입력하세요.')
+      return
+    }
+    try {
+      const selected = await chooseNativeWorkspace()
+      if (selected) setWorkspace(selected)
+    } catch (error) {
+      setPickerMessage(error instanceof Error ? `폴더 선택창을 열지 못했습니다: ${error.message}` : '폴더 선택창을 열지 못했습니다.')
+    }
+  }
+
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="보호 세팅" onClick={closeSettingsModal}>
       <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
@@ -140,18 +156,21 @@ export function ProtectionSetupModal() {
           <HookStatusControl onReadyChange={setHookReady} />
           <div className="panel-section">
             <p className="panel-section-title">Workspace 경로</p>
-            <input
-              value={workspace}
-              onChange={(event) => setWorkspace(event.target.value)}
-              placeholder="C:\workspace\my-project"
-              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-inset)', color: 'var(--text)' }}
-            />
+            <div className="workspace-picker-row">
+              <input
+                value={workspace}
+                onChange={(event) => setWorkspace(event.target.value)}
+                placeholder="폴더 선택 또는 전체 경로 입력"
+              />
+              <button type="button" className="secondary-button" onClick={handleChooseWorkspace}>폴더 선택</button>
+            </div>
             <p style={{ marginTop: 6, fontSize: 11 }}>
               {workspaceState.status === 'checking' && '폴더를 확인하는 중입니다…'}
               {workspaceState.status === 'valid' && <span className="success-text" style={{ color: 'var(--success)' }}>폴더를 확인했습니다.</span>}
               {workspaceState.status === 'invalid' && <span style={{ color: 'var(--danger)' }}>{workspaceState.message}</span>}
               {workspaceState.status === 'idle' && '이미 만들어 둔 프로젝트 폴더의 전체 경로를 입력하세요.'}
             </p>
+            {pickerMessage && <p className="inline-notice">{pickerMessage}</p>}
           </div>
           {recovery?.required && (
             <div className="panel-section">

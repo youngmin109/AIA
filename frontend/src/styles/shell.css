@@ -16,6 +16,7 @@
 /* Guardian sidebar: brand + nav, both always visible; collapses to an icon rail */
 
 .app-sidebar {
+  position: relative;
   flex: 0 0 auto;
   width: 256px;
   background: var(--nav-bg);
@@ -1242,4 +1243,87 @@
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* Guardian visual language: the desktop shell keeps the JH terminal and
+   evidence flow, while these elements make the user-facing guide explicit. */
+.guardian-hero {
+  background:
+    radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--accent) 14%, transparent) 0 8%, transparent 39%),
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--cyan) 13%, transparent) 0 5%, transparent 27%),
+    var(--bg-panel);
+}
+
+.guardian-hero-img {
+  height: 248px;
+  width: 260px;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.guardian-hero:hover .guardian-hero-img {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.guardian-hero-status {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.guardian-hero-status.is-review { color: var(--warning); border-color: var(--warning); }
+.guardian-hero-status.is-blocked { color: var(--danger); border-color: var(--danger); }
+.guardian-hero-status.is-recovery { color: var(--success); border-color: var(--success); }
+
+.sidebar-guardian {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: auto 10px 12px;
+  padding: 8px;
+  color: var(--nav-text);
+  border: 1px solid var(--nav-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--nav-bg-active) 78%, transparent);
+  text-align: left;
+}
+
+.sidebar-guardian:hover { color: var(--nav-text-active); border-color: var(--nav-accent); }
+.sidebar-guardian img { width: 54px; height: 54px; object-fit: contain; filter: drop-shadow(0 7px 7px rgba(0, 0, 0, .22)); }
+.sidebar-guardian b { display: block; font-size: 11px; }
+.sidebar-guardian small { display: block; margin-top: 3px; color: var(--nav-text-muted); font-size: 9px; line-height: 1.45; }
+.app-sidebar.is-collapsed .sidebar-guardian { margin: auto 5px 12px; justify-content: center; }
+.app-sidebar.is-collapsed .sidebar-guardian span { display: none; }
+
+.guardian-guide-popover {
+  position: absolute;
+  z-index: 10;
+  bottom: 16px;
+  left: 264px;
+  width: 280px;
+  padding: 16px;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-elevated);
+}
+
+.app-sidebar.is-collapsed .guardian-guide-popover { left: 72px; }
+.guardian-guide-popover img { display: block; width: 108px; height: 108px; margin: -10px auto 2px; object-fit: contain; }
+.guardian-guide-popover strong { display: block; font-size: 12px; }
+.guardian-guide-popover p { margin: 7px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.guardian-guide-close { position: absolute; right: 8px; top: 8px; }
+
+.workspace-picker-row { display: flex; gap: 8px; }
+.workspace-picker-row input { min-width: 0; flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-inset); color: var(--text); }
+.secondary-button { flex: 0 0 auto; border: 1px solid var(--border-strong); border-radius: 8px; padding: 0 11px; background: var(--bg-panel-alt); color: var(--accent-strong); font-size: 11px; font-weight: 700; }
+.secondary-button:hover { border-color: var(--accent); background: var(--bg-active); }
+.inline-notice { margin: 5px 0 0; color: var(--warning); font-size: 11px; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .guardian-hero-img { width: 185px; height: 185px; }
+  .guardian-guide-popover { left: 14px; bottom: 14px; }
 }

@@ -25,6 +25,7 @@ export function GuardianHero() {
     <article className={`card guardian-hero is-${guardian.state}`}>
       <div className="guardian-hero-head">
         <span className="guardian-hero-overline">{guardian.overline}</span>
+        <span className={`guardian-hero-status is-${guardian.state}`}>아이아 가디언</span>
       </div>
       <div className="guardian-hero-main">
         <img className="guardian-hero-img" src={MASCOT[guardian.state]} alt={ALT[guardian.state]} />

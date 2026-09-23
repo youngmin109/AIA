@@ -242,7 +242,7 @@ class DesktopBridge:
             return {"path": None}
         import webview
 
-        selected = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        selected = self._window.create_file_dialog(webview.FileDialog.FOLDER)
         path = selected[0] if selected else None
         return {"path": path}
 

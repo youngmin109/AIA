@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Icon, type IconName } from '../common/Icon'
 import { useShellStore, type ShellView } from '../../state/shellStore'
+import guardianNormal from '../../assets/mascot/guardian-normal.png'
 
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
   { view: 'dashboard', icon: 'dashboard', label: '대시보드' },
@@ -17,6 +19,7 @@ const TITLES: Record<ShellView, string> = {
 
 export function Sidebar() {
   const { activeView, sidebarCollapsed, setView, toggleSidebar } = useShellStore()
+  const [guideOpen, setGuideOpen] = useState(false)
 
   function handleNavClick(view: ShellView) {
     if (!sidebarCollapsed && activeView === view) {
@@ -36,7 +39,7 @@ export function Sidebar() {
           <Icon name="brand" size={18} />
         </span>
         <span className="app-sidebar-brand-name">
-          AIA
+          AIA Guardian
           <small>PROTECTED RUN</small>
         </span>
         <button
@@ -67,6 +70,18 @@ export function Sidebar() {
           </button>
         ))}
       </nav>
+      <button type="button" className="sidebar-guardian" onClick={() => setGuideOpen(true)} title="아이아 가디언 도움말">
+        <img src={guardianNormal} alt="아이아 가디언" />
+        <span><b>아이아 가디언</b><small>실제 실행을 관찰하고<br />안전한 상태를 안내해요.</small></span>
+      </button>
+      {guideOpen && (
+        <div className="guardian-guide-popover" role="dialog" aria-label="아이아 가디언 도움말">
+          <button type="button" className="icon-button guardian-guide-close" onClick={() => setGuideOpen(false)} aria-label="도움말 닫기"><Icon name="close" size={14} /></button>
+          <img src={guardianNormal} alt="아이아 가디언" />
+          <strong>아이아 가디언은 Agent가 아닙니다.</strong>
+          <p>Codex의 요청만 믿지 않고 Hook·Process·File Sensor가 확인한 실제 실행 사실을 이해하기 쉽게 안내합니다.</p>
+        </div>
+      )}
     </aside>
   )
 }
