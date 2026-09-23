@@ -1348,3 +1348,9 @@
 .right-panel-subtitle { margin: 2px 4px 10px; color: var(--text-faint); font-size: 10px; }
 .guardian-start-button { margin-top: 17px; border: 0; border-radius: 10px; padding: 10px 13px; background: var(--accent); color: var(--accent-contrast); font-size: 11px; font-weight: 800; }
 .guardian-start-button:hover { background: var(--accent-strong); }
+.guardian-ready-brief { display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 18px; }
+.guardian-ready-checks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 13px; max-width: 47%; }
+.guardian-ready-checks span { font-size: 10px; font-weight: 700; white-space: nowrap; }
+.guardian-ready-checks .is-ok { color: var(--success); }
+.guardian-ready-checks .is-warn { color: var(--warning); }
+@media (max-width: 900px) { .guardian-ready-brief { display: grid; } .guardian-ready-checks { justify-content: flex-start; max-width: none; } }
