@@ -102,7 +102,12 @@ export function TerminalPane({ runId, isFocused = true }: { runId: string; isFoc
         <div className="tab-strip-spacer" />
         {session.pid ? <span className="terminal-pid">PID {session.pid}</span> : null}
         {session.interruptVisible && (
-          <button type="button" className="icon-button-text" disabled={session.interruptPending} onClick={session.interrupt}>
+          <button
+            type="button"
+            className={session.heartbeat.visible ? 'icon-button-text is-urgent' : 'icon-button-text'}
+            disabled={session.interruptPending}
+            onClick={session.interrupt}
+          >
             {session.interruptPending ? '중지 요청 전송됨' : '현재 요청 중지'}
           </button>
         )}
@@ -130,6 +135,12 @@ export function TerminalPane({ runId, isFocused = true }: { runId: string; isFoc
           <button type="button" className="cta-button" onClick={session.continueAction}>
             {session.trustRequired ? '신뢰하고 계속' : 'y로 승인'}
           </button>
+        </div>
+      )}
+
+      {session.heartbeat.visible && (
+        <div className="terminal-heartbeat-banner" role="status">
+          <span>Codex 응답을 기다리는 중입니다 · {session.heartbeat.seconds}초 경과 · 정상적으로 진행 중일 수 있습니다.</span>
         </div>
       )}
 

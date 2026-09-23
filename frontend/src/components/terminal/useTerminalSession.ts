@@ -35,6 +35,15 @@ interface ConnectionState {
 const SUBMIT_SETTLE_MS = 250
 const SUBMIT_ECHO_WAIT_MS = 3000
 
+// Codex's own model call can legitimately go silent for a minute or more
+// (confirmed against bare `codex exec`, outside AIA entirely -- this is a
+// Codex/model-API characteristic, not an AIA pipeline issue). Codex's local
+// "Working (Ns)" redraw freezes too during that wait, since its own event
+// loop blocks on the same network read -- so without a signal of our own,
+// a long-but-normal response is indistinguishable from AIA itself being
+// stuck. This threshold only decides when to show that signal.
+const HEARTBEAT_STALL_SECONDS = 15
+
 export interface UseTerminalSessionOptions {
   sessionId: string
   terminalOutputRef: React.RefObject<HTMLDivElement | null>
@@ -54,6 +63,7 @@ export function useTerminalSession({
   const [activityLabel, setActivityLabel] = useState('')
   const [activityStartedAt, setActivityStartedAt] = useState(0)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [silentSeconds, setSilentSeconds] = useState(0)
   const [connection, setConnection] = useState<ConnectionState>({ label: '연결 대기', tone: 'warn' })
   const [terminalAction, setTerminalActionState] = useState<TerminalAction>(null)
   const [composerReady, setComposerReady] = useState(false)
@@ -84,6 +94,10 @@ export function useTerminalSession({
   // output, even though each individual message is cheap on its own.
   const pendingOutputRef = useRef<string[]>([])
   const outputFrameRef = useRef<number | null>(null)
+  // Time of the last PTY byte actually received (not the last render), so
+  // the heartbeat below measures real silence from the wire, independent of
+  // RAF batching.
+  const lastOutputAtRef = useRef(Date.now())
 
   // Kept in refs so the WS callbacks (registered once per socket, not per
   // render) always see the latest value without forcing a socket reopen.
@@ -102,6 +116,7 @@ export function useTerminalSession({
     const resetClock = previousMode !== mode || (mode === 'WAITING' && awaitingResponseRef.current)
     setActivityMode(mode)
     if (resetClock) setActivityStartedAt(Date.now())
+    if (resetClock && ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(mode)) lastOutputAtRef.current = Date.now()
     setActivityLabel(label)
     if (!['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(mode)) setInterruptPending(false)
     if (['SUBMITTING', 'WORKING', 'OUTPUTTING', 'STOPPING'].includes(mode)) setAwaitingResponse(true)
@@ -240,6 +255,7 @@ export function useTerminalSession({
 
   function appendTerminal(data: string) {
     if (!data) return
+    lastOutputAtRef.current = Date.now()
     pendingOutputRef.current.push(data)
     if (outputFrameRef.current !== null) return
     outputFrameRef.current = requestAnimationFrame(() => {
@@ -405,9 +421,13 @@ export function useTerminalSession({
   useEffect(() => {
     if (activityMode === 'IDLE' || activityMode === 'STOPPED' || activityMode === 'WAITING') {
       setElapsedSeconds(0)
+      setSilentSeconds(0)
       return
     }
-    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - activityStartedAt) / 1000)))
+    const tick = () => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - activityStartedAt) / 1000)))
+      setSilentSeconds(Math.max(0, Math.floor((Date.now() - lastOutputAtRef.current) / 1000)))
+    }
     tick()
     const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
@@ -509,9 +529,14 @@ export function useTerminalSession({
   const terminalUnavailable = runEnded || protectionDisconnected || terminalClosedRef.current || ['EXITED', 'FAILED'].includes(terminalRuntimeStatus)
   const reconnectVisible = (socketEverConnectedRef.current || connectionFailed) && !socketConnected && !terminalClosedRef.current && !runEnded
   const interruptVisible = ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode) && !terminalClosedRef.current && !protectionDisconnected
+  const heartbeat = {
+    visible: silentSeconds >= HEARTBEAT_STALL_SECONDS && ['SUBMITTING', 'WORKING', 'OUTPUTTING'].includes(activityMode),
+    seconds: silentSeconds,
+  }
 
   return {
     activity: { mode: activityMode, label: activityLabel, elapsedSeconds },
+    heartbeat,
     connection,
     terminalAction,
     composerReady,

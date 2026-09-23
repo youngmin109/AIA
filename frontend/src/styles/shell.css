@@ -992,6 +992,20 @@
   padding: 6px 14px;
 }
 
+.terminal-heartbeat-banner {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-top: 1px solid #2b3b59;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.terminal-toolbar .icon-button-text.is-urgent {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
 .terminal-input-row {
   flex: 0 0 auto;
   display: flex;
