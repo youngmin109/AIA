@@ -1327,3 +1327,24 @@
   .guardian-hero-img { width: 185px; height: 185px; }
   .guardian-guide-popover { left: 14px; bottom: 14px; }
 }
+
+/* Original Guardian dashboard controls, kept separate from the terminal's
+   functional layout so the live WebSocket console remains unchanged. */
+.topbar-activity-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.topbar-activity-button:hover { color: var(--text); background: var(--bg-hover); }
+.readiness-badge { border-radius: 999px; padding: 6px 9px; color: var(--warning); background: var(--warning-bg); font-size: 10px; font-weight: 800; }
+.readiness-badge.is-ready { color: var(--success); background: var(--success-bg); }
+.right-panel-subtitle { margin: 2px 4px 10px; color: var(--text-faint); font-size: 10px; }
+.guardian-start-button { margin-top: 17px; border: 0; border-radius: 10px; padding: 10px 13px; background: var(--accent); color: var(--accent-contrast); font-size: 11px; font-weight: 800; }
+.guardian-start-button:hover { background: var(--accent-strong); }

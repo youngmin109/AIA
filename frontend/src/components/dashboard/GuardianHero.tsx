@@ -3,6 +3,7 @@ import guardianReview from '../../assets/mascot/guardian-review.png'
 import guardianBlocked from '../../assets/mascot/guardian-blocked.png'
 import guardianRecovery from '../../assets/mascot/guardian-recovery.png'
 import { useGuardianState, type GuardianState } from '../../hooks/useGuardianState'
+import { useShellStore } from '../../state/shellStore'
 
 const MASCOT: Record<GuardianState, string> = {
   normal: guardianNormal,
@@ -20,6 +21,7 @@ const ALT: Record<GuardianState, string> = {
 
 export function GuardianHero() {
   const guardian = useGuardianState()
+  const { activeRunId, openSettingsModal, setView } = useShellStore()
 
   return (
     <article className={`card guardian-hero is-${guardian.state}`}>
@@ -32,6 +34,11 @@ export function GuardianHero() {
         <div className="guardian-hero-copy">
           <h2>{guardian.headline}</h2>
           <p>{guardian.detail}</p>
+          {!activeRunId ? (
+            <button type="button" className="guardian-start-button" onClick={openSettingsModal}>보호 실행 시작</button>
+          ) : (
+            <button type="button" className="guardian-start-button" onClick={() => setView('terminal')}>Agent CLI 열기</button>
+          )}
         </div>
       </div>
     </article>

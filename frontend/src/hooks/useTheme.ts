@@ -13,12 +13,8 @@ function readStoredTheme(): Theme | null {
   }
 }
 
-function systemTheme(): Theme {
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-}
-
 export function useTheme(): { theme: Theme; toggleTheme: () => void; setTheme: (theme: Theme) => void } {
-  const [theme, setThemeState] = useState<Theme>(() => readStoredTheme() ?? systemTheme())
+  const [theme, setThemeState] = useState<Theme>(() => readStoredTheme() ?? 'light')
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
