@@ -1354,3 +1354,8 @@
 .guardian-ready-checks .is-ok { color: var(--success); }
 .guardian-ready-checks .is-warn { color: var(--warning); }
 @media (max-width: 900px) { .guardian-ready-brief { display: grid; } .guardian-ready-checks { justify-content: flex-start; max-width: none; } }
+.sensor-explainer { display: grid; gap: 9px; margin-top: 15px; }
+.sensor-explainer span { color: var(--success); font-size: 11px; font-weight: 700; }
+.sensor-explainer small { display: block; margin: 2px 0 0 14px; color: var(--text-muted); font-size: 10px; font-weight: 400; }
+.activity-more { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--bg-panel); color: var(--accent-strong); font-size: 10px; font-weight: 700; }
+@media (max-width: 1180px) { .right-panel { width: 0; border-left: 0; } .right-panel .right-panel-header, .right-panel .right-panel-content { display: none; } .dashboard-grid { grid-template-columns: 1fr; } .guardian-hero { min-height: 330px; } }

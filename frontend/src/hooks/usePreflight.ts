@@ -21,6 +21,20 @@ export interface Preflight {
   codex_hook_trust?: { available?: boolean; hooks?: Array<{ event?: string; trust_status?: string }> }
 }
 
+let inflight: Promise<Preflight> | null = null
+let cached: Preflight | null = null
+let cachedAt = 0
+
+async function loadPreflight(): Promise<Preflight> {
+  if (cached && Date.now() - cachedAt < 1_000) return cached
+  if (!inflight) {
+    inflight = apiGet<Preflight>('/api/preflight')
+      .then((value) => { cached = value; cachedAt = Date.now(); return value })
+      .finally(() => { inflight = null })
+  }
+  return inflight
+}
+
 /**
  * Same cadence dashboard.html already proved out for readiness cards.
  * Callers waiting on a specific transition (e.g. the Hook setup flow
@@ -30,6 +44,8 @@ export interface Preflight {
  * own result.
  */
 export function usePreflight(intervalMs = 30_000) {
-  const fetchFn = useCallback((signal: AbortSignal) => apiGet<Preflight>('/api/preflight', signal), [])
+  // Multiple panels need the same readiness state. Share the request so the
+  // local server does not queue identical preflight work at startup.
+  const fetchFn = useCallback((_signal: AbortSignal) => loadPreflight(), [])
   return usePolling<Preflight>(fetchFn, { intervalMs })
 }
