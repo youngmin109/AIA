@@ -1358,4 +1358,27 @@
 .sensor-explainer span { color: var(--success); font-size: 11px; font-weight: 700; }
 .sensor-explainer small { display: block; margin: 2px 0 0 14px; color: var(--text-muted); font-size: 10px; font-weight: 400; }
 .activity-more { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--bg-panel); color: var(--accent-strong); font-size: 10px; font-weight: 700; }
-@media (max-width: 1180px) { .right-panel { width: 0; border-left: 0; } .right-panel .right-panel-header, .right-panel .right-panel-content { display: none; } .dashboard-grid { grid-template-columns: 1fr; } .guardian-hero { min-height: 330px; } }
+@media (max-width: 1180px) { .right-panel { width: 0; border-left: 0; } .right-panel .right-panel-header, .right-panel .right-panel-content, .right-panel .right-panel-guide { display: none; } .dashboard-grid { grid-template-columns: 1fr; } .guardian-hero { min-height: 330px; } }
+
+/* Alpha 2 Guardian parity: status guide, workspace context, and a persistent
+   evidence drawer. These use the live React session data rather than mock values. */
+.sidebar-workspace { margin: 0 10px 16px; padding: 12px; border: 1px solid var(--nav-border); border-radius: 12px; background: color-mix(in srgb, var(--nav-bg-active) 72%, transparent); }
+.sidebar-workspace span, .sidebar-workspace small { display: block; color: var(--nav-text-muted); font-size: 9px; }
+.sidebar-workspace b { display: block; margin: 6px 0; overflow: hidden; color: var(--nav-text-active); font-size: 10px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.app-sidebar.is-collapsed .sidebar-workspace { display: none; }
+.guardian-guide-states { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.guardian-guide-states button { border: 1px solid var(--border); border-radius: 7px; padding: 5px 7px; background: var(--bg-panel-alt); color: var(--text-muted); font-size: 10px; font-weight: 700; }
+.guardian-guide-states button.is-active { border-color: var(--accent); background: var(--bg-active); color: var(--accent-strong); }
+.activity-session-summary { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 4px 10px; }
+.activity-session-summary span { border: 1px solid var(--border); border-radius: 999px; padding: 3px 6px; background: var(--bg-panel-alt); color: var(--text-muted); font-size: 9px; font-weight: 700; }
+.right-panel-guide { flex: 0 0 auto; margin: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-panel-alt); color: var(--text-muted); font-size: 10px; line-height: 1.55; }
+.right-panel-guide b, .right-panel-guide span { display: block; }
+.right-panel-guide b { margin-bottom: 3px; color: var(--text); }
+.dashboard-page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 1px 0 16px; }
+.dashboard-page-heading span, .policy-page-heading > span { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.dashboard-page-heading h2, .policy-page-heading h2 { margin: 4px 0 0; color: var(--text); font-size: 21px; letter-spacing: -.4px; }
+.dashboard-page-heading p, .policy-page-heading p { margin: 4px 0 0; color: var(--text-muted); font-size: 11px; }
+.dashboard-page-heading > b { flex: 0 0 auto; color: var(--warning); border: 1px solid var(--warning); border-radius: 999px; padding: 6px 9px; background: var(--warning-bg); font-size: 10px; }
+.dashboard-page-heading > b.is-ready { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+.policy-page-heading { margin-bottom: 16px; }
+@media (max-width: 680px) { .dashboard-page-heading { align-items: flex-start; flex-direction: column; } .dashboard-metrics { grid-template-columns: repeat(2, 1fr); } }

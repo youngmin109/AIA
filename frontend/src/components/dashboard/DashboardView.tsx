@@ -13,8 +13,9 @@ export function DashboardView() {
   const { data: preflight } = usePreflight()
   const summary = status?.evidence_summary
   const isActive = Boolean(activeRunId)
+  const healthyChecks = (preflight?.checks ?? []).filter((check) => check.ok).length
   const metrics = [
-    { label: '현재 실행 프로세스', value: isActive ? summary?.process_observed ?? 0 : '—', hint: isActive ? '세션에서 관찰된 프로세스' : '보호 실행 시작 후 표시' },
+    { label: '세션 누적 프로세스', value: isActive ? summary?.process_observed ?? 0 : '—', hint: isActive ? '세션에서 관찰된 Process 이벤트' : '보호 실행 시작 후 표시' },
     { label: 'Hook 요청', value: isActive ? (summary?.pretool_events ?? 0) + (summary?.posttool_events ?? 0) : '—', hint: isActive ? '실행 전·후 요청 수신' : 'Hook 연결은 준비됨' },
     { label: 'Workspace 파일 변경', value: isActive ? summary?.filesystem_events ?? 0 : '—', hint: isActive ? '실제 File Sensor 이벤트' : '보호 실행 시작 후 표시' },
     { label: '정책 판정 결과', value: isActive ? status?.incident_count ?? 0 : '—', hint: isActive ? '위험·확인 필요 사건 수' : '정책은 다음 실행에서 적용' },
@@ -22,6 +23,10 @@ export function DashboardView() {
 
   return (
     <div className="dashboard-view guardian-dashboard">
+      <div className="dashboard-page-heading">
+        <div><span>AIA GUARDIAN / PROTECTED RUN</span><h2>안전한 작업 현황</h2><p>Codex의 요청, 실제 프로세스, Workspace 변화를 함께 확인합니다.</p></div>
+        <b className={preflight?.readiness_code === 'READY' ? 'is-ready' : ''}>● {preflight ? `${healthyChecks}개 보호 조건 정상` : '보호 조건 확인 중'}</b>
+      </div>
       <div className="dashboard-metrics">
         {metrics.map((metric) => <div key={metric.label} className="card dashboard-metric"><div className="dashboard-metric-label">{metric.label}</div><div className="dashboard-metric-value">{metric.value}</div><div className="dashboard-metric-hint">{metric.hint}</div></div>)}
       </div>
