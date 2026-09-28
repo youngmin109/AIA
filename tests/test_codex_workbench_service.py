@@ -195,7 +195,7 @@ def test_codex_status_reports_detached_state_and_open_errors(service, tmp_path) 
 
 
 def test_conversation_api_rejects_runs_that_do_not_use_the_conversation(service, tmp_path) -> None:
-    record = make_record(tmp_path, launch_mode="web_terminal")
+    record = make_record(tmp_path, launch_mode="inherit")
     record.runtime["codex_session"] = FakeCodexSession()
     service.registry.add(record)
     with pytest.raises(CodexAppServerError):

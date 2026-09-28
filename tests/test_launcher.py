@@ -529,41 +529,6 @@ def test_codex_adapter_builds_interactive_terminal_launch_without_prompt(
     assert spec.stdin_bytes == b""
 
 
-def test_codex_adapter_uses_inline_submit_binding_for_workbench_terminal(
-    tmp_path: Path,
-) -> None:
-    adapter = CodexAdapter()
-    request = ProtectedLaunchRequest(
-        aia_session_id="session-1",
-        workspace=tmp_path,
-        agent="codex",
-        adapter_options={
-            "interactive": True,
-            "sandbox": "workspace-write",
-            "workbench_terminal": True,
-        },
-    )
-
-    spec = adapter.build_launch(request, Path(sys.executable))
-
-    assert spec.argv.count("--no-alt-screen") == 1
-    assert 'tui.keymap.composer.submit="ctrl-x"' in spec.argv
-
-
-def test_codex_adapter_rejects_workbench_terminal_for_exec_mode(tmp_path: Path) -> None:
-    adapter = CodexAdapter()
-    request = ProtectedLaunchRequest(
-        aia_session_id="session-1",
-        workspace=tmp_path,
-        agent="codex",
-        prompt="safe",
-        adapter_options={"workbench_terminal": True},
-    )
-
-    with pytest.raises(AdapterError, match="interactive mode"):
-        adapter.build_launch(request, Path(sys.executable))
-
-
 def test_codex_adapter_builds_app_server_launch_with_protected_overrides(
     tmp_path: Path,
 ) -> None:
@@ -598,7 +563,6 @@ def test_codex_adapter_builds_app_server_launch_with_protected_overrides(
     ("adapter", "options"),
     [
         (CodexAdapter(enable_hooks=True), {"app_server": True}),
-        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "workbench_terminal": True}),
         (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "sandbox": "danger-full-access"}),
         (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "approval_policy": "never"}),
         (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "add_dir": "C:/other"}),

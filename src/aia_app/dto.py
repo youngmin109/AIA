@@ -100,11 +100,9 @@ class CreateRunRequest:
         if not isinstance(interactive, bool):
             raise DTOValidationError("interactive must be a boolean")
         launch_mode = _required_text(value.get("launch_mode", "inherit"), "launch_mode").lower()
-        if launch_mode not in {"inherit", "new_terminal", "web_terminal", "codex_app_server"}:
-            raise DTOValidationError(
-                "launch_mode must be inherit, new_terminal, web_terminal, or codex_app_server"
-            )
-        if launch_mode in {"new_terminal", "web_terminal", "codex_app_server"} and not interactive:
+        if launch_mode not in {"inherit", "new_terminal", "codex_app_server"}:
+            raise DTOValidationError("launch_mode must be inherit, new_terminal, or codex_app_server")
+        if launch_mode in {"new_terminal", "codex_app_server"} and not interactive:
             raise DTOValidationError(
                 f"{launch_mode} launch mode requires interactive mode"
             )
