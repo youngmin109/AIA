@@ -42,3 +42,21 @@ scan returned all 100 bundles with `bundle_status=VALID`.
 
 The cache-miss path now parses the same bytes used to compute the content
 digest. Timings are local observations, not performance thresholds.
+
+## Larger standalone history scan
+
+Run on 2026-09-29 with 1,000 bundles and 5 scans per mode:
+
+```powershell
+.venv\Scripts\python.exe scripts\bench_result_bundle_history.py --bundles 1000 --iterations 5
+```
+
+```text
+bundles=1000 iterations_per_mode=5
+scan_validation=all 1000 bundles returned with bundle_status=VALID
+cold_ms_p50=2243.479 cold_ms_p95=2394.213
+warm_ms_p50=2267.338 warm_ms_p95=2284.422
+```
+
+Every cold and warm scan returned the complete expected set and all bundles
+verified as `VALID`. Timings are local observations, not performance thresholds.
