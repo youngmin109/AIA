@@ -49,9 +49,14 @@ _UTF8_CODE_PAGE = 65001
 _ERROR_ACCESS_DENIED = 5
 _CONSOLE_ATTACH_LOCK = Lock()
 _UTF8_CONSOLE_HELPER = (
-    "import ctypes, sys\n"
+    "import ctypes, sys, time\n"
     "k = ctypes.WinDLL('kernel32')\n"
-    "ok = k.AttachConsole(int(sys.argv[1])) and k.SetConsoleOutputCP(65001) and k.SetConsoleCP(65001)\n"
+    "deadline = time.monotonic() + 2.0\n"
+    "while not k.AttachConsole(int(sys.argv[1])):\n"
+    "    if time.monotonic() >= deadline:\n"
+    "        sys.exit(1)\n"
+    "    time.sleep(0.05)\n"
+    "ok = k.SetConsoleOutputCP(65001) and k.SetConsoleCP(65001)\n"
     "sys.exit(0 if ok else 1)\n"
 )
 
