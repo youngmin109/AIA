@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import os
 from pathlib import Path
 import sys
@@ -7,6 +8,7 @@ import time
 
 import pytest
 
+import aia_app.codex_app_server as app_server
 from aia_app.codex_app_server import (
     CodexAppServerError,
     CodexAppServerSession,
@@ -64,6 +66,87 @@ def test_normalize_keeps_only_rendered_fields_and_ignores_unknown_notifications(
     assert "raw hook output" not in str(hook)
     assert normalize_notification("thread/tokenUsage/updated", {"tokenUsage": {}}) is None
     assert normalize_notification("some/futureNotification", {}) is None
+
+
+def test_console_utf8_retries_attach_and_sets_both_code_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeClock:
+        now = 10.0
+
+        def monotonic(self) -> float:
+            return self.now
+
+        def sleep(self, seconds: float) -> None:
+            self.now += seconds
+
+    class FakeKernel32:
+        def __init__(self) -> None:
+            self.attach_results = iter((False, True))
+            self.attach_calls = 0
+            self.output_code_pages: list[int] = []
+            self.input_code_pages: list[int] = []
+            self.free_calls = 0
+
+        def AttachConsole(self, pid: int) -> bool:
+            assert pid == 123
+            self.attach_calls += 1
+            return next(self.attach_results)
+
+        def SetConsoleOutputCP(self, code_page: int) -> bool:
+            self.output_code_pages.append(code_page)
+            return True
+
+        def SetConsoleCP(self, code_page: int) -> bool:
+            self.input_code_pages.append(code_page)
+            return True
+
+        def FreeConsole(self) -> None:
+            self.free_calls += 1
+
+    clock = FakeClock()
+    kernel32 = FakeKernel32()
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: kernel32, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 123, raising=False)
+    monkeypatch.setattr(time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(time, "sleep", clock.sleep)
+
+    assert app_server._switch_console_to_utf8(123) is True
+    assert kernel32.attach_calls == 2
+    assert kernel32.output_code_pages == [65001]
+    assert kernel32.input_code_pages == [65001]
+    assert kernel32.free_calls == 1
+
+
+def test_console_utf8_stops_retrying_at_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeClock:
+        now = 10.0
+        sleeps = 0
+
+        def monotonic(self) -> float:
+            return self.now
+
+        def sleep(self, seconds: float) -> None:
+            self.sleeps += 1
+            self.now += seconds
+
+    class FakeKernel32:
+        attach_calls = 0
+
+        def AttachConsole(self, pid: int) -> bool:
+            assert pid == 123
+            self.attach_calls += 1
+            return False
+
+    clock = FakeClock()
+    kernel32 = FakeKernel32()
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: kernel32, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 123, raising=False)
+    monkeypatch.setattr(time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(time, "sleep", clock.sleep)
+
+    assert app_server._switch_console_to_utf8(123) is False
+    assert clock.now == pytest.approx(12.0)
+    assert clock.sleeps == 40
+    assert kernel32.attach_calls == 41
 
 
 def test_open_reports_the_sandbox_and_approval_policy_codex_applied(tmp_path: Path) -> None:
