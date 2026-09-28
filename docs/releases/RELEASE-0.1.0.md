@@ -40,11 +40,11 @@
   확인
 - 별도 터미널에서 실행 중인 세션의 상태 조회와 중지 요청
 
-실제 실행 증명 방법은 [ACTUAL-CODEX-PROOF.md](ACTUAL-CODEX-PROOF.md)에 있다. 자동화 증명 산출물은 `evaluation/actual-codex/pretool-block/<timestamp>/`에 생성한다.
+실제 실행 증명 방법은 [ACTUAL-CODEX-PROOF.md](../ACTUAL-CODEX-PROOF.md)에 있다. 자동화 증명 산출물은 `evaluation/actual-codex/pretool-block/<timestamp>/`에 생성한다.
 
 ## 사용 시작
 
-Windows 소스 체크아웃에서는 [INSTALL.md](../INSTALL.md)의 설치 스크립트로
+Windows 소스 체크아웃에서는 [INSTALL.md](../../INSTALL.md)의 설치 스크립트로
 잠금된 환경을 준비할 수 있다. AIA가 추가한 Hook만 되돌릴 때는
 `uv run aia hook uninstall`을 사용한다.
 
@@ -105,9 +105,9 @@ uv run aia console --open
 - 사용자 중지 요청이 실패한 경우의 자동 복구 보장
 
 현재 커밋 기준의 최신 회귀·패키지 검증은
-[CURRENT-REVALIDATION.md](validation/CURRENT-REVALIDATION.md)에 별도로 기록한다.
+[CURRENT-REVALIDATION.md](../validation/CURRENT-REVALIDATION.md)에 별도로 기록한다.
 
-이 항목을 통과하기 전에는 AIA를 해당 범위까지 보호한다고 광고하지 않는다. 자세한 금지 주장은 [LIMITATIONS.md](LIMITATIONS.md)와 [CLAIM-MATRIX.md](validation/CLAIM-MATRIX.md)를 따른다.
+이 항목을 통과하기 전에는 AIA를 해당 범위까지 보호한다고 광고하지 않는다. 자세한 금지 주장은 [LIMITATIONS.md](../LIMITATIONS.md)와 [CLAIM-MATRIX.md](../validation/CLAIM-MATRIX.md)를 따른다.
 
 ## 공개 배포 전 확인
 
@@ -115,5 +115,5 @@ uv run aia console --open
 - [ ] Windows 11 신규 환경에서 `uv sync`, `aia doctor`, Hook trust 확인
 - [ ] 실제 Codex Canary와 `.env` Shell 시나리오 재실행
 - [ ] 지원 범위 밖 동작을 `PROTECTED`로 표시하지 않는지 확인
-- [ ] 보안 문제는 [SECURITY.md](../SECURITY.md) 절차로 접수
+- [ ] 보안 문제는 [SECURITY.md](../../SECURITY.md) 절차로 접수
 - [ ] `scripts/package-release.ps1`로 wheel·sdist·SHA-256 manifest를 생성하고 압축 해제 검증

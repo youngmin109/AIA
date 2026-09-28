@@ -34,6 +34,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePath .\dist\release\aia-0.1.7
 ```
 
-Actual Codex의 보안 증거는 [현재 재검증 기록](validation/CURRENT-REVALIDATION.md)과
+Actual Codex의 보안 증거는 [현재 재검증 기록](../validation/CURRENT-REVALIDATION.md)과
 각 증거 JSON을 함께 확인한다. 0.1.7은 해당 검증된 보안 경로의 사용자 표면만
 확장하며, 모든 Codex 도구·모든 MCP·OS 전체 Writer를 보호한다고 주장하지 않는다.

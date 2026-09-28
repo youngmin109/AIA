@@ -26,4 +26,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePat
 ```
 
 실제 Codex 차단 증거와 일반 사용자 Hook Trust 절차는
-[현재 재검증 기록](validation/CURRENT-REVALIDATION.md)에서 확인한다.
+[현재 재검증 기록](../validation/CURRENT-REVALIDATION.md)에서 확인한다.

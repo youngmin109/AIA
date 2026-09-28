@@ -30,6 +30,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -BundlePath .\dist\release\aia-0.1.8
 ```
 
-Actual Codex 보안 증거와 지원 범위는 [현재 재검증 기록](validation/CURRENT-REVALIDATION.md)과
+Actual Codex 보안 증거와 지원 범위는 [현재 재검증 기록](../validation/CURRENT-REVALIDATION.md)과
 제품 지원 문서를 함께 확인한다. 이 릴리스도 모든 Agent·도구·MCP·OS 전체 Writer를
 보호한다고 주장하지 않는다.
