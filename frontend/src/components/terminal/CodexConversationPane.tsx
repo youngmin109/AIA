@@ -223,13 +223,13 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
 
   // GuardianHero (dashboard) reflects live Codex activity through the shell
   // store; map the structured state onto the same signal it already reads.
-  const { reportTerminalActivity, clearTerminalActivity } = useShellStore()
+  const { reportCodexActivity, clearCodexActivity } = useShellStore()
   const approvalWaiting = session.pendingApprovals.length > 0
   useEffect(() => {
     const mode = session.ended ? 'STOPPED' : approvalWaiting ? 'ACTION' : session.working ? 'WORKING' : session.statusName === 'READY' ? 'WAITING' : 'STARTING'
-    reportTerminalActivity({ runId, mode, terminalAction: approvalWaiting ? 'COMMAND_APPROVAL' : null })
-  }, [runId, session.ended, session.working, session.statusName, approvalWaiting, reportTerminalActivity])
-  useEffect(() => () => clearTerminalActivity(runId), [runId, clearTerminalActivity])
+    reportCodexActivity({ runId, mode, terminalAction: approvalWaiting ? 'COMMAND_APPROVAL' : null })
+  }, [runId, session.ended, session.working, session.statusName, approvalWaiting, reportCodexActivity])
+  useEffect(() => () => clearCodexActivity(runId), [runId, clearCodexActivity])
 
   function submit() {
     const value = draftRef.current

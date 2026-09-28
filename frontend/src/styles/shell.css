@@ -867,12 +867,10 @@
   color: var(--text-muted);
 }
 
-/* ---- Terminal pane ----
+/* ---- Agent conversation pane ----
  * Fixed dark "console" look regardless of app theme, matching the Guardian
  * mockup's .terminal-card/.termbar/.termout -- these are literal colors
- * (not theme tokens) by design, same as the mockup's own CSS. Only the
- * container styling changes here; TerminalPane's markup/classNames and
- * useTerminalSession are untouched. */
+ * (not theme tokens) by design, same as the mockup's own CSS. */
 
 .terminal-grid {
   height: 100%;
@@ -954,12 +952,6 @@
   padding: 8px 10px;
   background: #101827;
   cursor: text;
-}
-
-/* xterm.js manages its own internal scrolling/layout; it just needs its
-   mount point to actually fill the flex-sized container above. */
-.terminal-output .xterm {
-  height: 100%;
 }
 
 .terminal-error {

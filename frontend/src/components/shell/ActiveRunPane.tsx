@@ -1,6 +1,5 @@
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
-import { TerminalPane } from '../terminal/TerminalPane'
 import { CodexConversationPane } from '../terminal/CodexConversationPane'
 import { StepsExplainer } from '../terminal/StepsExplainer'
 import { ResultView } from '../results/ResultView'
@@ -14,8 +13,7 @@ export function ActiveRunPane() {
 
   const sessionStatus = status?.session?.status
   const isEnded = Boolean(sessionStatus && ENDED_STATUSES.has(sessionStatus))
-  // Wait for the run's launch mode before opening a socket so an app-server
-  // run never attaches the legacy PTY terminal (or the reverse).
+  // Wait for the run's launch mode before connecting to its app-server session.
   const launchMode = status ? status.session?.launch_mode ?? (status.launch_mode as string | undefined) ?? 'inherit' : null
 
   return (
@@ -63,7 +61,9 @@ export function ActiveRunPane() {
                 ) : launchMode === 'codex_app_server' ? (
                   <CodexConversationPane key={activeRunId} runId={activeRunId} runEnded={isEnded} />
                 ) : (
-                  <TerminalPane runId={activeRunId} isFocused />
+                  <div className="codex-transcript">
+                    <div className="codex-row codex-notice is-info">이 실행은 이전 터미널 방식으로 시작되어 실시간 대화를 다시 연결할 수 없습니다. 완료된 실행 결과는 감사 기록에서 확인할 수 있습니다.</div>
+                  </div>
                 )}
               </div>
               <StepsExplainer />

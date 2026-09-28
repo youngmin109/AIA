@@ -46,7 +46,7 @@ const COPY: Record<GuardianState, { overline: string; headline: string; detail: 
 // report" pose, so this reuses "recovery" for that case rather than
 // inventing a new visual.
 export function useGuardianState(): GuardianStatus {
-  const { activeRunId, terminalActivity } = useShellStore()
+  const { activeRunId, codexActivity } = useShellStore()
   const { data: preflight } = usePreflight()
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
   const sessionStatus = status?.session?.status
@@ -71,7 +71,7 @@ export function useGuardianState(): GuardianStatus {
     const events = status?.events ?? []
     const hasEnforcement = events.some((event) => event.category === 'ENFORCEMENT')
     const hasWarning = events.some((event) => event.category !== 'SENSOR' && event.severity === 'WARNING')
-    const codexActionPrompt = terminalActivity?.runId === activeRunId && terminalActivity.terminalAction !== null
+    const codexActionPrompt = codexActivity?.runId === activeRunId && codexActivity.terminalAction !== null
     if (hasEnforcement) state = 'blocked'
     else if (hasWarning || codexActionPrompt) state = 'review'
   }

@@ -26,10 +26,8 @@ export function Shell() {
         <div className="main-column">
           <Topbar />
           {/* All views stay mounted and are toggled with CSS, not
-              conditional rendering -- ActiveRunPane owns TerminalPane's
-              useTerminalSession/WebSocket, and unmounting it on every nav
-              switch away from Agent CLI would drop the live Codex
-              connection GuardianHero is meant to reflect. */}
+              conditional rendering, so switching views preserves the live
+              Codex conversation connection and Guardian status. */}
           <div className={viewClass('dashboard')}>
             <DashboardView />
           </div>
