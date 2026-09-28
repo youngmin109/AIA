@@ -942,6 +942,52 @@ def evidence_timeline_views(
     return records[-max(0, limit) :] if limit > 0 else []
 
 
+def attribution_summary(result: Mapping[str, Any]) -> dict[str, Any]:
+    grades = {grade: 0 for grade in ("EXACT", "PROCESS", "TEMPORAL", "UNKNOWN")}
+    counted_action_ids: set[str] = set()
+    for item in result.get("action_outcomes") or ():
+        if not isinstance(item, Mapping):
+            continue
+        action_id = item.get("action_id")
+        grade = item.get("attribution_grade") or item.get("attribution_class")
+        if grade in grades:
+            grades[grade] += 1
+            if action_id is not None:
+                counted_action_ids.add(str(action_id))
+    for item in result.get("attribution_results") or ():
+        if not isinstance(item, Mapping):
+            continue
+        action_id = item.get("action_id")
+        if action_id is not None and str(action_id) in counted_action_ids:
+            continue
+        grade = item.get("grade") or item.get("attribution_grade")
+        if grade in grades:
+            grades[grade] += 1
+            if action_id is not None:
+                counted_action_ids.add(str(action_id))
+
+    automatic_control_happened = False
+    control_grades = []
+    for item in result.get("enforcement_results") or ():
+        if not isinstance(item, Mapping):
+            continue
+        if not (
+            item.get("enforcement_decision") == "CONTAIN"
+            and item.get("enforcement_action") in {"BLOCKED", "TERMINATED"}
+            and item.get("execution_result") == "SUCCEEDED"
+        ):
+            continue
+        automatic_control_happened = True
+        grade = item.get("attribution_grade")
+        if grade in grades and grade not in control_grades:
+            control_grades.append(grade)
+    return {
+        "counts": grades,
+        "automatic_control_happened": automatic_control_happened,
+        "automatic_control_grades": control_grades,
+    }
+
+
 def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
     incidents = incident_views_for_result(result)
     incident_action_ids = {
@@ -1030,6 +1076,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     }
     return {
         "action_summary": action_summary(result),
+        "attribution_summary": attribution_summary(result),
         "evidence_summary": result.get("evidence_summary") or evidence_summary(()),
         "agent": result.get("agent"),
         "attribution_results": list(result.get("attribution_results") or []),

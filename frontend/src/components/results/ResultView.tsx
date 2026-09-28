@@ -84,6 +84,23 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         </div>
       </div>
 
+      <div className="panel-section">
+        <p className="panel-section-title">행위 귀속 요약</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {(['EXACT', 'PROCESS', 'TEMPORAL', 'UNKNOWN'] as const).map((grade) => (
+            <span className="badge is-warn" key={grade}>
+              {grade} {data.attribution_summary?.counts?.[grade] ?? 0}건
+            </span>
+          ))}
+        </div>
+        <p>
+          자동 통제: {data.attribution_summary?.automatic_control_happened
+            ? `발생 (${data.attribution_summary.automatic_control_grades?.join(', ') || '귀속 등급 미확인'})`
+            : '기록되지 않음'}
+        </p>
+        <span>정책 위반만으로는 에이전트를 중지하지 않습니다.</span>
+      </div>
+
       {data.result_action_chains && data.result_action_chains.length > 0 && (
         <div className="panel-section">
           <p className="panel-section-title">Evidence Chain</p>

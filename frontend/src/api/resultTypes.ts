@@ -25,6 +25,11 @@ export interface ResultView {
   policy_version?: string
   workspace?: string
   incidents?: IncidentView[]
+  attribution_summary?: {
+    counts?: Record<'EXACT' | 'PROCESS' | 'TEMPORAL' | 'UNKNOWN', number>
+    automatic_control_happened?: boolean
+    automatic_control_grades?: string[]
+  }
   result_action_chains?: Array<{
     action_id?: string
     stages?: Array<{ stage?: string; label?: string; status?: string; value?: string }>

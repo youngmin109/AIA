@@ -1439,6 +1439,60 @@ def test_result_presenter_preserves_attribution_in_evidence_chain() -> None:
     assert view["evidence_chains"][0]["stages"][3]["status"] == "EXACT"
 
 
+def test_result_presenter_summarizes_attribution_grades_and_control() -> None:
+    view = result_view(
+        {
+            "action_outcomes": [
+                {"action_id": "exact", "attribution_grade": "EXACT"},
+                {"action_id": "process", "attribution_grade": "PROCESS"},
+            ],
+            "attribution_results": [
+                {"action_id": "exact", "grade": "EXACT"},
+                {"action_id": "temporal", "grade": "TEMPORAL"},
+                {"action_id": "unknown", "grade": "UNKNOWN"},
+            ],
+            "enforcement_results": [
+                {
+                    "action_id": "exact",
+                    "attribution_grade": "EXACT",
+                    "enforcement_decision": "CONTAIN",
+                    "enforcement_action": "TERMINATED",
+                    "execution_result": "SUCCEEDED",
+                },
+                {
+                    "action_id": "process",
+                    "attribution_grade": "PROCESS",
+                    "enforcement_decision": "REFUSE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "NOT_ATTEMPTED",
+                },
+            ],
+        },
+        "VALID",
+    )
+
+    assert view["attribution_summary"] == {
+        "counts": {"EXACT": 1, "PROCESS": 1, "TEMPORAL": 1, "UNKNOWN": 1},
+        "automatic_control_happened": True,
+        "automatic_control_grades": ["EXACT"],
+    }
+    refused = result_view(
+        {
+            "enforcement_results": [
+                {
+                    "attribution_grade": "PROCESS",
+                    "enforcement_decision": "REFUSE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "NOT_ATTEMPTED",
+                }
+            ]
+        },
+        "VALID",
+    )
+    assert refused["attribution_summary"]["automatic_control_happened"] is False
+    assert refused["attribution_summary"]["automatic_control_grades"] == []
+
+
 def test_result_action_chain_shows_recorded_stages_and_marks_missing_links() -> None:
     secret = "FAKE_SECRET_DO_NOT_RENDER"
     actions = [
