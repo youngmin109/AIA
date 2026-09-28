@@ -3443,13 +3443,16 @@ class RunApplicationService:
         self._persist_runtime_state(record)
 
     def _runtime_state_path(self, session_id: str) -> Path:
+        root = (self.control_root / "run-status").resolve(strict=False)
+        return self._runtime_state_path_under_root(session_id, root)
+
+    def _runtime_state_path_under_root(self, session_id: str, root: Path) -> Path:
         if (
             not isinstance(session_id, str)
             or not session_id
             or any(not (character.isalnum() or character == "-") for character in session_id)
         ):
             raise ValueError("invalid session_id")
-        root = (self.control_root / "run-status").resolve(strict=False)
         candidate = (root / f"{session_id}.json").resolve(strict=False)
         if not candidate.is_relative_to(root):
             raise ValueError("runtime state path escaped control root")
@@ -3593,7 +3596,7 @@ class RunApplicationService:
         for path in root.glob("*.json"):
             session_id = path.stem
             try:
-                if self._runtime_state_path(session_id) != path:
+                if self._runtime_state_path_under_root(session_id, root) != path:
                     continue
             except ValueError:
                 continue
