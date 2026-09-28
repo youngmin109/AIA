@@ -2080,6 +2080,146 @@ def test_application_rejects_empty_non_interactive_task(tmp_path) -> None:
         service.shutdown()
 
 
+def test_protected_run_lifecycle_keeps_successful_phases_in_order(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    events = []
+    session = SimpleNamespace(
+        transition=lambda status, **_kwargs: events.append(f"session:{status.value}")
+    )
+    record.runtime.update({"session": session, "resolved_policy": object()})
+    sensors = (object(), object())
+
+    monkeypatch.setattr(
+        service,
+        "_phase",
+        lambda _record, phase, *_args: events.append(f"phase:{phase}"),
+    )
+
+    def prepare(*_args):
+        events.append("preparation")
+        return object(), object(), sensors, object(), object(), object(), True
+
+    monkeypatch.setattr(service, "_prepare_protected_run", prepare)
+    monkeypatch.setattr(
+        service,
+        "_create_protected_launcher",
+        lambda *_args: (events.append("launcher") or object(), object(), object()),
+    )
+    monkeypatch.setattr(
+        service,
+        "_observe_protected_run",
+        lambda *_args: (
+            events.append("observation") or (object(), sensors, 0, True, None)
+        ),
+    )
+
+    def finalize(*_args):
+        events.append("finalization")
+        record.status = "COMPLETED"
+        return True
+
+    monkeypatch.setattr(service, "_finalize_completed_protected_run", finalize)
+    monkeypatch.setattr(
+        service,
+        "_cleanup_run_lifecycle",
+        lambda *_args: events.append("cleanup"),
+    )
+    try:
+        service._run_protected_lifecycle(record)
+
+        assert events == [
+            "phase:PREPARING",
+            "session:PREPARING",
+            "preparation",
+            "launcher",
+            "phase:LAUNCHING",
+            "observation",
+            "finalization",
+            "cleanup",
+        ]
+        assert record.status == "COMPLETED"
+    finally:
+        service.shutdown()
+
+
+def test_protected_run_lifecycle_cleans_up_after_prelaunch_abort(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    events = []
+    session = SimpleNamespace(transition=lambda *_args, **_kwargs: None)
+    record.runtime.update({"session": session, "resolved_policy": object()})
+    sensors = (object(), object())
+
+    monkeypatch.setattr(service, "_phase", lambda *_args: None)
+
+    def prepare(*_args):
+        record.status = "ABORTED"
+        events.append("abort_finalized")
+        return object(), object(), sensors, object(), object(), object(), False
+
+    monkeypatch.setattr(service, "_prepare_protected_run", prepare)
+
+    def cleanup(*_args):
+        events.append(("cleanup", record.status))
+
+    monkeypatch.setattr(service, "_cleanup_run_lifecycle", cleanup)
+    try:
+        service._run_protected_lifecycle(record)
+
+        assert events == ["abort_finalized", ("cleanup", "ABORTED")]
+        assert record.status == "ABORTED"
+    finally:
+        service.shutdown()
+
+
+def test_protected_run_lifecycle_cleans_up_after_exception_without_losing_failure(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    events = []
+    session = SimpleNamespace(transition=lambda *_args, **_kwargs: None)
+    record.runtime.update({"session": session, "resolved_policy": object()})
+
+    monkeypatch.setattr(service, "_phase", lambda *_args: None)
+    monkeypatch.setattr(
+        service,
+        "_prepare_protected_run",
+        lambda *_args: (
+            object(),
+            object(),
+            (object(), object()),
+            object(),
+            object(),
+            object(),
+            True,
+        ),
+    )
+
+    def fail_launcher(*_args):
+        raise RuntimeError("launcher setup failed")
+
+    monkeypatch.setattr(service, "_create_protected_launcher", fail_launcher)
+
+    def cleanup(*_args):
+        events.append(("cleanup", record.status))
+
+    monkeypatch.setattr(service, "_cleanup_run_lifecycle", cleanup)
+    try:
+        service._run_protected_lifecycle(record)
+
+        assert events == [("cleanup", "FAILED")]
+        assert record.status == "FAILED"
+        assert record.error == "RuntimeError: launcher setup failed"
+    finally:
+        service.shutdown()
+
+
 def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     service._run = lambda record: None
