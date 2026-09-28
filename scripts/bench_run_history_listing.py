@@ -137,7 +137,10 @@ def _validate_listing(
     }
 
 
-def _benchmark(runtime_state_count: int, runs: int) -> tuple[list[float], dict[str, int], int]:
+def _benchmark(
+    runtime_state_count: int,
+    runs: int,
+) -> tuple[list[float], list[float], dict[str, int], int]:
     bundle_count = runtime_state_count // 2
     with TemporaryDirectory(prefix="aia-run-history-bench-") as temporary_root:
         control_root = Path(temporary_root) / "control"
@@ -175,19 +178,47 @@ def _benchmark(runtime_state_count: int, runs: int) -> tuple[list[float], dict[s
                     ),
                 )
 
-            timings: list[float] = []
+            cold_timings: list[float] = []
+            repeated_timings: list[float] = []
             summary: dict[str, int] = {}
             for _ in range(runs):
-                started = perf_counter()
-                listed = service.list_runs()
-                timings.append((perf_counter() - started) * 1000)
-                summary = _validate_listing(
-                    listed,
-                    runtime_ids=runtime_ids,
-                    bundle_ids=bundle_ids,
-                    overlap_ids=overlap_ids,
-                )
-            return timings, summary, bundle_count
+                cold_service = RunApplicationService(control_root, max_workers=1)
+                try:
+                    started = perf_counter()
+                    listed = cold_service.list_runs()
+                    cold_timings.append((perf_counter() - started) * 1000)
+                    summary = _validate_listing(
+                        listed,
+                        runtime_ids=runtime_ids,
+                        bundle_ids=bundle_ids,
+                        overlap_ids=overlap_ids,
+                    )
+                finally:
+                    cold_service.shutdown()
+
+            for batch_start in range(0, runs, 3):
+                repeated_service = RunApplicationService(control_root, max_workers=1)
+                try:
+                    warmed = repeated_service.list_runs()
+                    summary = _validate_listing(
+                        warmed,
+                        runtime_ids=runtime_ids,
+                        bundle_ids=bundle_ids,
+                        overlap_ids=overlap_ids,
+                    )
+                    for _ in range(min(3, runs - batch_start)):
+                        started = perf_counter()
+                        listed = repeated_service.list_runs()
+                        repeated_timings.append((perf_counter() - started) * 1000)
+                        summary = _validate_listing(
+                            listed,
+                            runtime_ids=runtime_ids,
+                            bundle_ids=bundle_ids,
+                            overlap_ids=overlap_ids,
+                        )
+                finally:
+                    repeated_service.shutdown()
+            return cold_timings, repeated_timings, summary, bundle_count
         finally:
             service.shutdown()
 
@@ -201,13 +232,18 @@ def main() -> None:
 
     print(f"runs_per_size={args.runs} collection_sizes=100,500,1000")
     for runtime_state_count in RUNTIME_STATE_COUNTS:
-        timings, counts, bundle_count = _benchmark(runtime_state_count, args.runs)
+        cold_timings, repeated_timings, counts, bundle_count = _benchmark(
+            runtime_state_count,
+            args.runs,
+        )
         print(
             f"runtime_states={runtime_state_count} result_bundles={bundle_count} "
             f"returned={counts['returned']} runtime_only={counts['runtime_only']} "
             f"bundle_only={counts['bundle_only']} overlap={counts['overlap']} "
-            f"list_runs_ms_p50={median(timings):.3f} "
-            f"p95={_percentile(timings, 0.95):.3f}"
+            f"cold_p50={median(cold_timings):.3f}ms "
+            f"cold_p95={_percentile(cold_timings, 0.95):.3f}ms "
+            f"repeated_p50={median(repeated_timings):.3f}ms "
+            f"repeated_p95={_percentile(repeated_timings, 0.95):.3f}ms"
         )
     print("fixture=synthetic_mixed_history payload_output=none")
 

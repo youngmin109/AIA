@@ -10,8 +10,10 @@ The benchmark creates temporary control roots at three documented sizes:
 100, 500, and 1,000 persisted runtime states. Each size also has half as many
 valid Result Bundles. Half of those bundles overlap runtime-state sessions,
 leaving runtime-only and bundle-only sessions in the same listing. It measures
-seven `list_runs()` calls per size by default and reports p50 and p95 latency.
-`--runs` changes the measured calls and must be at least 3.
+cold calls on fresh service instances and repeated calls in warmed batches of
+up to three calls, reporting separate p50 and p95 latency for each. Batches
+stay inside the one-second completed-history refresh window. `--runs` sets the
+sample count for both conditions and must be at least 3 (default 7).
 
 Every measured listing checks the distinct returned count, newest-first order,
 and expected classification and launch mode for overlapping and source-only

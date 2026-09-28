@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 import json
+from pathlib import Path
 import subprocess
 from types import SimpleNamespace
 from uuid import uuid4
@@ -2547,6 +2548,55 @@ def test_list_runs_skips_malformed_and_mismatched_runtime_state_files(tmp_path) 
 
         assert [run["session_id"] for run in runs] == ["valid-session"]
         assert runs[0]["run_classification"] == "UNVERIFIED_RUNTIME_STATE"
+    finally:
+        service.shutdown()
+
+
+def test_runtime_state_listing_reuses_unchanged_files_and_refreshes_changes(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    run_status = tmp_path / "control" / "run-status"
+    service._write_runtime_state_payload(
+        "cached-session",
+        {
+            "session_id": "cached-session",
+            "session": {"status": "RUNNING"},
+            "policy": {"id": "initial"},
+        },
+    )
+    original_read_text = Path.read_text
+    reads = 0
+
+    def count_runtime_reads(path: Path, *args, **kwargs):
+        nonlocal reads
+        if path.parent == run_status:
+            reads += 1
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", count_runtime_reads)
+    try:
+        first = service._list_runtime_states()
+        first[0]["policy"]["id"] = "mutated"
+        second = service._list_runtime_states()
+
+        assert reads == 1
+        assert second[0]["policy"]["id"] == "initial"
+
+        service._write_runtime_state_payload(
+            "cached-session",
+            {
+                "session_id": "cached-session",
+                "session": {"status": "COMPLETED"},
+                "policy": {"id": "updated"},
+            },
+        )
+        updated = service._list_runtime_states()
+
+        assert reads == 2
+        assert updated[0]["session"]["status"] == "COMPLETED"
+        assert updated[0]["policy"]["id"] == "updated"
     finally:
         service.shutdown()
 

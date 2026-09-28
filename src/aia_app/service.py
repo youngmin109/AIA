@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
@@ -84,6 +85,7 @@ from .codex_workbench import CodexWorkbench, _END_SESSION_REQUEST
 # history snapshot through one refresh interval so repeated UI requests do
 # not re-hash every completed bundle while a live terminal is active.
 _COMPLETED_RUNS_CACHE_TTL_SECONDS = 6.0
+_RUNTIME_STATES_CACHE_LIMIT = 2_048
 
 
 def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
@@ -573,6 +575,11 @@ class RunApplicationService:
         self.reader = ResultBundleReader(self.control_root)
         self.require_hook_verification = require_hook_verification
         self._runtime_state_lock = RLock()
+        self._runtime_states_cache_lock = RLock()
+        self._runtime_states_cache: dict[
+            Path,
+            tuple[int, int, int, int, dict[str, Any]],
+        ] = {}
         self._completed_runs_cache_lock = RLock()
         self._tool_review_lock = RLock()
         self._codex_workbench = CodexWorkbench(self, _runtime_coordinator_reconciliation)
@@ -3591,8 +3598,11 @@ class RunApplicationService:
     def _list_runtime_states(self) -> list[dict[str, Any]]:
         root = (self.control_root / "run-status").resolve(strict=False)
         if not root.is_dir():
+            with self._runtime_states_cache_lock:
+                self._runtime_states_cache.clear()
             return []
         states: list[dict[str, Any]] = []
+        seen_paths: set[Path] = set()
         for path in root.glob("*.json"):
             session_id = path.stem
             try:
@@ -3601,12 +3611,31 @@ class RunApplicationService:
             except ValueError:
                 continue
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, json.JSONDecodeError):
+                stat = path.stat()
+                signature = (stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns, stat.st_ino)
+            except OSError:
                 continue
+            seen_paths.add(path)
+            with self._runtime_states_cache_lock:
+                cached = self._runtime_states_cache.get(path)
+                payload = cached[4] if cached is not None and cached[:4] == signature else None
+            if payload is None:
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, json.JSONDecodeError):
+                    continue
+                if not isinstance(payload, dict) or payload.get("session_id") != session_id:
+                    continue
+                with self._runtime_states_cache_lock:
+                    self._runtime_states_cache[path] = (*signature, payload)
+                    if len(self._runtime_states_cache) > _RUNTIME_STATES_CACHE_LIMIT:
+                        self._runtime_states_cache.pop(next(iter(self._runtime_states_cache)))
             if not isinstance(payload, dict) or payload.get("session_id") != session_id:
                 continue
-            states.append(payload)
+            states.append(deepcopy(payload))
+        with self._runtime_states_cache_lock:
+            for cached_path in self._runtime_states_cache.keys() - seen_paths:
+                self._runtime_states_cache.pop(cached_path, None)
         return states
 
     def _runtime_state_for_display(self, state: Mapping[str, Any]) -> dict[str, Any]:
