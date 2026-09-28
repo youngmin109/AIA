@@ -841,6 +841,20 @@ class RunApplicationService:
         """Report local prerequisites without starting a Protected Run."""
 
         checks: list[dict[str, Any]] = []
+        hook_state = self._preflight_hook_state(checks)
+        self._append_control_root_check(checks)
+        activation = self._preflight_hook_activation(
+            runs,
+            hook_state["hook_verified"],
+            hook_state["cli_prefix"],
+        )
+        readiness = self._preflight_readiness(checks, hook_state)
+        return self._preflight_result(checks, hook_state, activation, readiness)
+
+    def _preflight_hook_state(
+        self,
+        checks: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         executable: Path | None = None
         try:
             executable = CodexAdapter().discover()
@@ -962,6 +976,18 @@ class RunApplicationService:
                 }
             )
 
+        return {
+            "executable": executable,
+            "installer": installer,
+            "cli_prefix": cli_prefix,
+            "pretool_installed": pretool_installed,
+            "stale_hook_detected": stale_hook_detected,
+            "pretool_status": pretool_status,
+            "codex_hook_trust": codex_hook_trust,
+            "hook_verified": hook_verified,
+        }
+
+    def _append_control_root_check(self, checks: list[dict[str, Any]]) -> None:
         try:
             self.control_root.mkdir(parents=True, exist_ok=True)
             probe = self.control_root / ".aia-preflight-write-test"
@@ -985,10 +1011,12 @@ class RunApplicationService:
                 }
             )
 
-        control_root_check = next(
-            (item for item in checks if item.get("name") == "control_root"),
-            None,
-        )
+    def _preflight_hook_activation(
+        self,
+        runs: list[dict[str, Any]] | None,
+        hook_verified: bool,
+        cli_prefix: str,
+    ) -> dict[str, Any]:
         recent_runs = runs if runs is not None else self.list_runs()
         recent_verified = [
             item
@@ -1017,6 +1045,27 @@ class RunApplicationService:
             hook_activation_status = "NOT_OBSERVED"
             hook_activation_detail = "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
 
+        return {
+            "status": hook_activation_status,
+            "detail": hook_activation_detail,
+            "last_verified": last_verified,
+        }
+
+    def _preflight_readiness(
+        self,
+        checks: list[dict[str, Any]],
+        hook_state: dict[str, Any],
+    ) -> dict[str, Any]:
+        executable = hook_state["executable"]
+        cli_prefix = hook_state["cli_prefix"]
+        stale_hook_detected = hook_state["stale_hook_detected"]
+        pretool_installed = hook_state["pretool_installed"]
+        pretool_status = hook_state["pretool_status"]
+        hook_verified = hook_state["hook_verified"]
+        control_root_check = next(
+            (item for item in checks if item.get("name") == "control_root"),
+            None,
+        )
         if not self.require_hook_verification:
             required_checks_ok = all(
                 bool(item["ok"])
@@ -1059,8 +1108,23 @@ class RunApplicationService:
             readiness_code = "READY"
             next_step = "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
 
-        ready = readiness_code == "READY"
+        return {
+            "ready": readiness_code == "READY",
+            "readiness_code": readiness_code,
+            "next_step": next_step,
+        }
 
+    def _preflight_result(
+        self,
+        checks: list[dict[str, Any]],
+        hook_state: dict[str, Any],
+        activation: dict[str, Any],
+        readiness: dict[str, Any],
+    ) -> dict[str, Any]:
+        cli_prefix = hook_state["cli_prefix"]
+        codex_hook_trust = hook_state["codex_hook_trust"]
+        pretool_status = hook_state["pretool_status"]
+        last_verified = activation["last_verified"]
         hook_trust_status = (
             pretool_status
             if pretool_status in {"TRUSTED", "MANAGED"}
@@ -1071,9 +1135,9 @@ class RunApplicationService:
             # The machine-readable readiness result must include effective
             # gates such as Codex Hook Trust, even when that check is marked
             # optional for telemetry purposes.
-            "ready": ready,
-            "readiness_code": readiness_code,
-            "next_step": next_step,
+            "ready": readiness["ready"],
+            "readiness_code": readiness["readiness_code"],
+            "next_step": readiness["next_step"],
             "checks": checks,
             "hook_trust": {
                 "status": hook_trust_status,
@@ -1089,8 +1153,8 @@ class RunApplicationService:
             },
             "codex_hook_trust": codex_hook_trust,
             "hook_activation": {
-                "status": hook_activation_status,
-                "detail": hook_activation_detail,
+                "status": activation["status"],
+                "detail": activation["detail"],
                 "last_verified_run": (
                     {
                         "session_id": last_verified.get("session_id"),
