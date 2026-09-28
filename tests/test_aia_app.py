@@ -2601,37 +2601,44 @@ def test_runtime_state_listing_reuses_unchanged_files_and_refreshes_changes(
         service.shutdown()
 
 
-def test_list_runs_reuses_verified_history_for_refresh_burst(tmp_path, monkeypatch) -> None:
+def test_list_completed_runs_refreshes_history_after_cache_expiry(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(tmp_path / "control")
+    clock = [100.0]
+    monkeypatch.setattr(
+        service_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: clock[0]),
+    )
     calls = 0
+    completed = [{
+        "session_id": "completed-1",
+        "status": "COMPLETED",
+        "policy": {"settings": {"mode": "strict"}},
+    }]
 
     def list_completed() -> list[dict[str, object]]:
         nonlocal calls
         calls += 1
-        return [
-            {
-                "session_id": "completed-1",
-                "status": "COMPLETED",
-                "created_at": "2026-01-01T00:00:00+00:00",
-                "ended_at": "2026-01-01T00:01:00+00:00",
-                "workspace": str(tmp_path),
-                "agent": "codex",
-                "policy": {"settings": {"mode": "strict"}},
-                "launch_mode": "inherit",
-                "bundle_status": "VALID",
-            }
-        ]
+        return [dict(run) for run in completed]
 
     monkeypatch.setattr(service.reader, "list_completed", list_completed)
     try:
-        first = service.list_runs()
+        first = service._list_completed_runs()
         assert first[0]["session_id"] == "completed-1"
         first[0]["policy"]["settings"]["mode"] = "mutated"
 
-        second = service.list_runs()
+        clock[0] += 5.999
+        completed.append({"session_id": "completed-2", "status": "COMPLETED"})
+        second = service._list_completed_runs()
         assert second[0]["session_id"] == "completed-1"
         assert second[0]["policy"]["settings"]["mode"] == "strict"
+        assert [run["session_id"] for run in second] == ["completed-1"]
         assert calls == 1
+
+        clock[0] += 0.002
+        refreshed = service._list_completed_runs()
+        assert [run["session_id"] for run in refreshed] == ["completed-1", "completed-2"]
+        assert calls == 2
     finally:
         service.shutdown()
 
