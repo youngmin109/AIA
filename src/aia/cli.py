@@ -19,6 +19,7 @@ import webbrowser
 from uuid import uuid4
 
 from aia import (
+    BundleVerificationStatus,
     CodexAdapter,
     CodexHookInstallationError,
     CodexHookInstaller,
@@ -38,6 +39,7 @@ from aia import (
     WorkspaceLeaseManager,
     prepare_protection,
     resolve_profile,
+    verify_evidence_bundle,
 )
 from aia import cli_policy
 from aia.hook_verification import HookVerificationStore
@@ -417,6 +419,17 @@ def _parser() -> argparse.ArgumentParser:
     support_bundle.add_argument("--hook-path", type=Path, help="hooks.json path")
     support_bundle.add_argument("--control-root", type=Path, help="AIA control root")
     support_bundle.add_argument("--json", action="store_true", help="print machine-readable output")
+
+    verify_bundle = commands.add_parser(
+        "verify-bundle",
+        help="verify a committed Result Bundle without modifying it",
+    )
+    verify_bundle.add_argument(
+        "result_directory",
+        type=Path,
+        help="Result Bundle or session directory",
+    )
+    verify_bundle.add_argument("--json", action="store_true", help="print machine-readable output")
 
     console = commands.add_parser(
         "console",
@@ -1234,6 +1247,29 @@ def _support_bundle(args: argparse.Namespace) -> int:
     else:
         print("JSON 파일로 저장하려면 --output <path>를 사용하세요.")
     return 0
+
+
+def _verify_bundle(args: argparse.Namespace) -> int:
+    """Verify a Result Bundle using the read-only Evidence Bundle verifier."""
+
+    result = verify_evidence_bundle(args.result_directory)
+    if args.json:
+        print(
+            _json_text(
+                {
+                    "status": result.status.value,
+                    "session_id": result.session_id,
+                    "result_id": result.result_id,
+                    "reason": result.reason,
+                    "verified_artifact_count": result.verified_artifact_count,
+                }
+            )
+        )
+    else:
+        print(f"Status: {result.status.value}")
+        print(f"Reason: {result.reason or 'NONE'}")
+        print(f"Verified artifacts: {result.verified_artifact_count}")
+    return 0 if result.status is BundleVerificationStatus.VALID else 1
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -2425,6 +2461,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _setup(args)
         if args.command == "support-bundle":
             return _support_bundle(args)
+        if args.command == "verify-bundle":
+            return _verify_bundle(args)
         if args.command == "console":
             return _run_console(args)
         if args.command == "hook" and args.hook_command == "status":

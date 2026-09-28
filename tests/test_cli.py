@@ -9,7 +9,7 @@ import sys
 
 import pytest
 
-from aia import CodexHookInstaller
+from aia import CodexHookInstaller, ProcessIdentityStatus, SessionFinalizer
 from aia.cli import (
     _extract_session_id,
     _live_hook_proof_is_valid,
@@ -25,11 +25,12 @@ from aia.codex_hook_trust import summarize_aia_hooks
 from aia.diagnostics import build_support_bundle
 from aia._version import __version__
 from aia_web.__main__ import run as run_console, validate_local_bind
+from tests.test_finalization import _session
 
 
 def test_cli_help_matches_existing_command_tree() -> None:
     expected = {
-        "aia": "bf00c942afbca1c38fcd70addd1ef397c96afd9abb035fc5f2b45d564915672b",
+        "aia": "d23679860ffa7f5041663701929488a8596064de907dda95aef7feb684825050",
         "aia capabilities": "e4d1fecf21e880925884b6e73c3c0abd2e69ad9d1a97afd33dee07d56858e48e",
         "aia doctor": "e8044389ee6a0f83820c77d57d7798e69f958832e6b4ce70266a5bb7fafa2ae3",
         "aia self-test": "3bf6889c413d88aaccc4ea96a9e85c8f4009f362607c36414ef41145de5e2a07",
@@ -52,6 +53,7 @@ def test_cli_help_matches_existing_command_tree() -> None:
         "aia hook runtime": "8f3b2ffed73f188747dfaa4fa9d31c78977075aa003be311f655547e47216308",
         "aia setup": "6bf6cf6f3e3f671bc90048205a808a8c4fa4fd083927ff8826b7d006ab11f1fd",
         "aia support-bundle": "7e345a4883fc9afb9c355e61d3d4e601aabc9f1c80b74662b509ab674927d0e0",
+        "aia verify-bundle": "da1af79ca66faccc845733e48b452f9ee329c0ad19bca64f60c68359bae57091",
         "aia console": "be886cbd69d101035d7d16bad003a6abd6b4d5b8f3f2a951ebcedc059b847be6",
         "aia protect": "8f0fa70197e6ba324307b3f4c0ae84a37c13ab4e231fd2e45e3c5c79d9aa0def",
         "aia start": "a9e9a0d6a879e87892b54f9014ce78716159ca848b5ab38454fff0575bd6f26d",
@@ -388,6 +390,45 @@ def test_support_bundle_parser_accepts_output_and_json(tmp_path) -> None:
     assert args.command == "support-bundle"
     assert args.output == tmp_path / "support.json"
     assert args.json is True
+
+
+@pytest.mark.parametrize(
+    "tamper, expected_status, expected_exit",
+    [(False, "VALID", 0), (True, "INVALID", 1)],
+)
+def test_verify_bundle_reports_status_without_modifying_files(
+    tmp_path, capsys, tamper: bool, expected_status: str, expected_exit: int
+) -> None:
+    session, store, _ = _session(tmp_path)
+    final = SessionFinalizer(evidence_store=store).finalize(
+        session,
+        process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+    )
+    result_path = final.bundle.result_directory / "result.json"
+    if tamper:
+        result_path.write_bytes(result_path.read_bytes() + b"tamper")
+    result_directory = final.bundle.result_directory
+    bundle_directory = result_directory.parent
+
+    def file_snapshot() -> dict[str, tuple[int, int, str]]:
+        return {
+            str(path.relative_to(bundle_directory)): (
+                path.stat().st_mtime_ns,
+                path.stat().st_size,
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+            for path in bundle_directory.rglob("*")
+            if path.is_file()
+        }
+
+    before = file_snapshot()
+    exit_code = main(["verify-bundle", str(result_directory), "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert exit_code == expected_exit
+    assert output["status"] == expected_status
+    assert (output["reason"] is not None) is tamper
+    assert file_snapshot() == before
 
 
 def test_support_bundle_excludes_full_paths_and_protected_content(tmp_path, monkeypatch) -> None:
