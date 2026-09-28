@@ -1,11 +1,12 @@
-"""Benchmark list_runs with growing persisted runtime-state collections.
+"""Benchmark list_runs with mixed runtime-state and Result Bundle histories.
 
 Run from the repository root with:
     .venv\\Scripts\\python.exe scripts\\bench_run_history_listing.py
 
-Synthetic runtime snapshots are written to temporary control roots. Completed
-Result Bundle history is held empty so timings isolate runtime-state listing;
-the benchmark prints aggregate counts and timings only.
+Each documented size is the number of runtime states; half also have a
+committed Result Bundle. The other half of each source is source-only, giving
+overlapping, runtime-only, and bundle-only sessions. Temporary control roots
+are used, and output contains aggregate counts and timings only.
 """
 
 from __future__ import annotations
@@ -13,15 +14,26 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta, timezone
 from math import ceil
+from pathlib import Path
 from statistics import median
 from tempfile import TemporaryDirectory
 from time import perf_counter
 
+from aia import (
+    ProcessIdentityStatus,
+    ProtectedRunSession,
+    SessionFinalizer,
+    SessionMode,
+    SessionStatus,
+)
+from aia.evidence import RawEvidenceStore
 from aia_app.service import RunApplicationService
 
 
-RUNTIME_STATE_COUNTS = (100, 1_000, 5_000)
+RUNTIME_STATE_COUNTS = (100, 500, 1_000)
 STARTED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
+OVERLAP_LAUNCH_MODE = "codex_app_server"
+RUNTIME_ONLY_LAUNCH_MODE = "web_terminal"
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -29,10 +41,17 @@ def _percentile(values: list[float], percentile: float) -> float:
     return ordered[max(0, ceil(percentile * len(ordered)) - 1)]
 
 
-def _runtime_state(session_id: str, index: int) -> dict[str, object]:
+def _runtime_state(
+    session_id: str,
+    index: int,
+    *,
+    result_available: bool,
+    launch_mode: str,
+) -> dict[str, object]:
     return {
         "schema_version": 1,
         "session_id": session_id,
+        "launch_mode": launch_mode,
         "session": {
             "status": "COMPLETED",
             "workspace": "synthetic/workspace",
@@ -42,40 +61,133 @@ def _runtime_state(session_id: str, index: int) -> dict[str, object]:
         "policy": {"id": "synthetic", "version": "1"},
         "protection": {"state": "COMPLETED", "hook_events": index % 7},
         "incident_count": 0,
-        "result_available": False,
+        "result_available": result_available,
     }
 
 
-def _benchmark(runtime_state_count: int, runs: int) -> list[float]:
-    expected_ids = [
-        f"bench-session-{index:06d}"
-        for index in reversed(range(runtime_state_count))
+def _create_bundle(control_root: Path, workspace: Path) -> str:
+    now = datetime.now(timezone.utc)
+    session = ProtectedRunSession(
+        workspace=workspace,
+        agent="benchmark",
+        mode=SessionMode.ENFORCE,
+        policy_id="benchmark-policy",
+        policy_version="1.0.0",
+        created_at=now,
+    )
+    for status in (SessionStatus.PREPARING, SessionStatus.READY, SessionStatus.RUNNING):
+        session.transition(status, at=now)
+    store = RawEvidenceStore.for_session(control_root, session.session_id)
+    SessionFinalizer(evidence_store=store).finalize(
+        session,
+        process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+        run_classification="PRODUCT_PROTECTED_RUN",
+    )
+    return session.session_id
+
+
+def _validate_listing(
+    listed: list[dict[str, object]],
+    *,
+    runtime_ids: set[str],
+    bundle_ids: set[str],
+    overlap_ids: set[str],
+) -> dict[str, int]:
+    expected_ids = runtime_ids | bundle_ids
+    listed_ids = [str(item.get("session_id")) for item in listed]
+    if len(listed) != len(expected_ids) or set(listed_ids) != expected_ids:
+        raise RuntimeError("list_runs returned an unexpected session count")
+    if len(listed_ids) != len(set(listed_ids)):
+        raise RuntimeError("list_runs returned duplicate sessions")
+
+    sort_keys = [
+        str(item.get("ended_at") or item.get("created_at") or "")
+        for item in listed
     ]
+    if sort_keys != sorted(sort_keys, reverse=True):
+        raise RuntimeError("list_runs returned unexpected newest-first ordering")
+
+    by_id = {str(item["session_id"]): item for item in listed}
+    runtime_only_ids = runtime_ids - bundle_ids
+    bundle_only_ids = bundle_ids - runtime_ids
+    for session_id in runtime_only_ids:
+        item = by_id[session_id]
+        if item.get("run_classification") != "UNVERIFIED_RUNTIME_STATE":
+            raise RuntimeError("runtime-only session has an unexpected classification")
+        if item.get("launch_mode") != RUNTIME_ONLY_LAUNCH_MODE:
+            raise RuntimeError("runtime-only session has an unexpected launch mode")
+    for session_id in bundle_only_ids:
+        item = by_id[session_id]
+        if item.get("run_classification") != "PRODUCT_PROTECTED_RUN":
+            raise RuntimeError("bundle-only session has an unexpected classification")
+        if item.get("launch_mode") != "inherit":
+            raise RuntimeError("bundle-only session has an unexpected launch mode")
+    for session_id in overlap_ids:
+        item = by_id[session_id]
+        if item.get("run_classification") != "PRODUCT_PROTECTED_RUN":
+            raise RuntimeError("overlapping session has an unexpected classification")
+        if item.get("launch_mode") != OVERLAP_LAUNCH_MODE:
+            raise RuntimeError("overlapping session lost runtime launch-mode metadata")
+
+    return {
+        "returned": len(listed),
+        "runtime_only": len(runtime_only_ids),
+        "bundle_only": len(bundle_only_ids),
+        "overlap": len(overlap_ids),
+    }
+
+
+def _benchmark(runtime_state_count: int, runs: int) -> tuple[list[float], dict[str, int], int]:
+    bundle_count = runtime_state_count // 2
     with TemporaryDirectory(prefix="aia-run-history-bench-") as temporary_root:
-        service = RunApplicationService(temporary_root, max_workers=1)
-        # Keep the Result Bundle history scan out of this measurement. No
-        # runtime fixture points at or contains a Result Bundle.
-        service._list_completed_runs = lambda: []
+        control_root = Path(temporary_root) / "control"
+        workspace = Path(temporary_root) / "workspace"
+        workspace.mkdir()
+        service = RunApplicationService(control_root, max_workers=1)
         try:
-            for index in range(runtime_state_count):
-                session_id = f"bench-session-{index:06d}"
+            bundle_ids = {
+                _create_bundle(control_root, workspace)
+                for _ in range(bundle_count)
+            }
+            overlap_ids = set(sorted(bundle_ids)[: bundle_count // 2])
+            runtime_only_count = runtime_state_count - len(overlap_ids)
+            runtime_ids = set(overlap_ids)
+            for index in range(runtime_only_count):
+                session_id = f"bench-runtime-{index:06d}"
+                runtime_ids.add(session_id)
                 service._write_runtime_state_payload(
                     session_id,
-                    _runtime_state(session_id, index),
+                    _runtime_state(
+                        session_id,
+                        index,
+                        result_available=False,
+                        launch_mode=RUNTIME_ONLY_LAUNCH_MODE,
+                    ),
+                )
+            for index, session_id in enumerate(sorted(overlap_ids)):
+                service._write_runtime_state_payload(
+                    session_id,
+                    _runtime_state(
+                        session_id,
+                        index,
+                        result_available=True,
+                        launch_mode=OVERLAP_LAUNCH_MODE,
+                    ),
                 )
 
             timings: list[float] = []
-            listed_ids: list[str] = []
+            summary: dict[str, int] = {}
             for _ in range(runs):
                 started = perf_counter()
                 listed = service.list_runs()
                 timings.append((perf_counter() - started) * 1000)
-                listed_ids = [item["session_id"] for item in listed]
-                if len(listed) != runtime_state_count:
-                    raise RuntimeError("list_runs returned an unexpected run count")
-                if listed_ids != expected_ids:
-                    raise RuntimeError("list_runs returned unexpected run ordering")
-            return timings
+                summary = _validate_listing(
+                    listed,
+                    runtime_ids=runtime_ids,
+                    bundle_ids=bundle_ids,
+                    overlap_ids=overlap_ids,
+                )
+            return timings, summary, bundle_count
         finally:
             service.shutdown()
 
@@ -87,15 +199,17 @@ def main() -> None:
     if args.runs < 3:
         parser.error("--runs must be at least 3")
 
-    print(f"runs_per_size={args.runs} history_source=empty")
+    print(f"runs_per_size={args.runs} collection_sizes=100,500,1000")
     for runtime_state_count in RUNTIME_STATE_COUNTS:
-        timings = _benchmark(runtime_state_count, args.runs)
+        timings, counts, bundle_count = _benchmark(runtime_state_count, args.runs)
         print(
-            f"runtime_states={runtime_state_count} returned={runtime_state_count} "
+            f"runtime_states={runtime_state_count} result_bundles={bundle_count} "
+            f"returned={counts['returned']} runtime_only={counts['runtime_only']} "
+            f"bundle_only={counts['bundle_only']} overlap={counts['overlap']} "
             f"list_runs_ms_p50={median(timings):.3f} "
-            f"p95={_percentile(timings, 0.95):.3f} ordering=newest_first"
+            f"p95={_percentile(timings, 0.95):.3f}"
         )
-    print("fixture=synthetic_persisted_runtime_states payload_output=none")
+    print("fixture=synthetic_mixed_history payload_output=none")
 
 
 if __name__ == "__main__":
