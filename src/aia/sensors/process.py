@@ -72,6 +72,10 @@ class ProcessTreeEnumerationError(ProcessRuntimeError):
     code = "OWNER_UNVERIFIABLE"
 
 
+class ProcessTreePollTransientError(ProcessRuntimeError):
+    """Raised when a process disappears during a complete-tree snapshot."""
+
+
 class ProcessRole(StrEnum):
     ROOT = "ROOT"
     DESCENDANT = "DESCENDANT"
@@ -303,6 +307,8 @@ def _validate_preparation(
 class ProcessRuntimeSensor:
     """Observe an explicitly registered process tree and append Raw Evidence."""
 
+    _MAX_CONSECUTIVE_TRANSIENT_POLL_FAILURES = 3
+
     def __init__(
         self,
         session: ProtectedRunSession,
@@ -371,6 +377,7 @@ class ProcessRuntimeSensor:
         self._observed: dict[ProcessIdentity, ProcessObservation] = {}
         self._exit_recorded: set[ProcessIdentity] = set()
         self._root_exit_observed = False
+        self._consecutive_transient_poll_failures = 0
         self._metadata_cache: dict[
             ProcessIdentity,
             tuple[str | None, str | None, ProcessMetadataStatus, str | None],
@@ -538,8 +545,28 @@ class ProcessRuntimeSensor:
         while not self._stop_event.wait(self.poll_interval):
             try:
                 self._poll_once(initial=False)
+                with self._lock:
+                    if self._status is SensorStatus.FAILED:
+                        return
             except ProcessEvidenceStoreError:
                 return
+            except ProcessTreePollTransientError:
+                with self._lock:
+                    if self._status is SensorStatus.HEALTHY:
+                        self._consecutive_transient_poll_failures += 1
+                        if (
+                            self._consecutive_transient_poll_failures
+                            >= self._MAX_CONSECUTIVE_TRANSIENT_POLL_FAILURES
+                        ):
+                            self._set_failed("OWNER_UNVERIFIABLE", append=True)
+                        elif self._health.reason != "POLL_RETRY":
+                            self._set_health(
+                                SensorStatus.HEALTHY,
+                                "POLL_RETRY",
+                                append=True,
+                            )
+                        if self._status is SensorStatus.FAILED:
+                            return
             except Exception as error:
                 with self._lock:
                     if self._status is not SensorStatus.FAILED:
@@ -587,6 +614,13 @@ class ProcessRuntimeSensor:
                     self._append_observation(observation)
             self._record_missing_observations(current, None)
             self._observed.update(current)
+            self._consecutive_transient_poll_failures = 0
+            if self._health.reason == "POLL_RETRY":
+                self._set_health(
+                    SensorStatus.HEALTHY,
+                    "POLL_RECOVERED",
+                    append=True,
+                )
 
     def _collect_tree(self, root_process: Any) -> dict[ProcessIdentity, ProcessObservation]:
         try:
@@ -598,6 +632,10 @@ class ProcessRuntimeSensor:
                 for process in psutil.process_iter(attrs=("pid", "ppid"))
                 if isinstance(process.info.get("pid"), int)
             }
+        except (psutil.NoSuchProcess, psutil.ZombieProcess, ProcessLookupError) as error:
+            raise ProcessTreePollTransientError(
+                "process disappeared during managed process snapshot"
+            ) from error
         except Exception as error:
             raise ProcessTreeEnumerationError(
                 "managed process snapshot could not be enumerated"
