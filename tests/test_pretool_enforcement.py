@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from dataclasses import replace
 from pathlib import Path
+import statistics
+import time
 
 import pytest
 
@@ -12,6 +14,7 @@ from aia import (
     HookEnforcementBridge,
     HookTrustStatus,
     PolicyDecision,
+    PolicyEngine,
     PreToolEnforcementAdapter,
     PreToolExecutionConfirmation,
     protected_pretool_deny,
@@ -200,6 +203,49 @@ def test_continue_and_refuse_use_neutral_response(tmp_path: Path):
     assert compliant.gate_result.decision is EnforcementDecision.CONTINUE
     assert compliant.response.to_mapping() == {}
     assert "allow" not in repr(compliant.response.to_mapping()).casefold()
+
+
+def test_pretool_policy_decision_latency_has_generous_ceiling(
+    tmp_path: Path, request
+) -> None:
+    gate_input, manager = _gate_input(tmp_path)
+    policy_engine = PolicyEngine(gate_input.active_policy.policy)
+    adapter = PreToolEnforcementAdapter(EnforcementGate(lease_manager=manager))
+
+    def evaluate_decision():
+        policy = policy_engine.evaluate(
+            asset_type="CRITICAL_CODE",
+            operation=gate_input.action.operation,
+            path=gate_input.action.canonical_path,
+        )
+        runtime_policy = replace(
+            gate_input.policy_evaluation,
+            policy_decision=policy.policy_decision,
+            operation_effect=policy.operation_effect,
+            matched_rule_ids=policy.matched_rule_ids,
+            audit_record=policy.audit_record,
+        )
+        return adapter.evaluate(replace(gate_input, policy_evaluation=runtime_policy))
+
+    # One warmup avoids measuring first-call initialization in the sample.
+    assert evaluate_decision().gate_result.decision is EnforcementDecision.CONTINUE
+    durations_ms = []
+    for _ in range(100):
+        started = time.perf_counter_ns()
+        decision = evaluate_decision()
+        durations_ms.append((time.perf_counter_ns() - started) / 1_000_000)
+        assert decision.gate_result.decision is EnforcementDecision.CONTINUE
+
+    p50_ms = statistics.median(durations_ms)
+    ordered = sorted(durations_ms)
+    p95_ms = ordered[(95 * len(ordered) + 99) // 100 - 1]
+    request.node.user_properties.extend(
+        (
+            ("pretool_policy_p50_ms", f"{p50_ms:.6f}"),
+            ("pretool_policy_p95_ms", f"{p95_ms:.6f}"),
+        )
+    )
+    assert p95_ms < 20, f"PreTool policy decision p50={p50_ms:.3f} ms, p95={p95_ms:.3f} ms"
 
 
 def test_bound_hook_failures_return_a_conservative_deny_without_payload_values():
