@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -23,8 +24,8 @@ class ResultBundleReader:
     def __init__(self, control_root: str | Path) -> None:
         self.control_root = Path(control_root).expanduser().resolve(strict=False)
         self._parsed_cache_lock = RLock()
-        self._result_cache: dict[Path, tuple[int, int, dict[str, Any]]] = {}
-        self._metadata_cache: dict[Path, tuple[int, int, list[dict[str, Any]]]] = {}
+        self._result_cache: dict[Path, tuple[int, int, bytes, dict[str, Any]]] = {}
+        self._metadata_cache: dict[Path, tuple[int, int, bytes, list[dict[str, Any]]]] = {}
 
     def session_directory(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not _SAFE_SESSION_ID.fullmatch(session_id):
@@ -56,11 +57,12 @@ class ResultBundleReader:
             stat = result_path.stat()
         except OSError:
             return self._read_json(result_path), verification
-        signature = (stat.st_mtime_ns, stat.st_size)
+        digest = hashlib.blake2b(result_path.read_bytes(), digest_size=16).digest()
+        signature = (stat.st_mtime_ns, stat.st_size, digest)
         with self._parsed_cache_lock:
             cached = self._result_cache.get(result_path)
-            if cached is not None and cached[:2] == signature:
-                result = deepcopy(cached[2])
+            if cached is not None and cached[:3] == signature:
+                result = deepcopy(cached[3])
             else:
                 result = self._read_json(result_path)
                 self._result_cache[result_path] = (*signature, result)
@@ -106,13 +108,14 @@ class ResultBundleReader:
             stat = path.stat()
         except OSError:
             return []
-        signature = (stat.st_mtime_ns, stat.st_size)
+        digest = hashlib.blake2b(path.read_bytes(), digest_size=16).digest()
+        signature = (stat.st_mtime_ns, stat.st_size, digest)
         with self._parsed_cache_lock:
             cached = self._metadata_cache.get(path)
-            if cached is not None and cached[:2] == signature:
+            if cached is not None and cached[:3] == signature:
                 return [
                     {**item, "payload_keys": list(item["payload_keys"])}
-                    for item in cached[2]
+                    for item in cached[3]
                 ]
         items: list[dict[str, Any]] = []
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):

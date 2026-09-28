@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -35,6 +36,7 @@ from aia_app.registry import RunRecord, RunRegistry
 from aia import (
     ActionTargetKind,
     AttributionGrade,
+    BundleVerificationStatus,
     EnforcementAction,
     EnforcementDecision,
     EnforcementExecutionResult,
@@ -1720,6 +1722,101 @@ def test_result_bundle_reader_can_read_live_metadata_without_valid_bundle(tmp_pa
     assert metadata[0]["record_type"] == "PRETOOL_REQUEST"
     assert "command" in metadata[0]["payload_keys"]
     assert "secret command" not in repr(metadata)
+
+
+def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    result_path = tmp_path / "sessions" / "session-1" / "result" / "result.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text('{"value":"a"}', encoding="utf-8")
+    verification_calls = 0
+
+    def verified(_session_id):
+        nonlocal verification_calls
+        verification_calls += 1
+        return SimpleNamespace(status=BundleVerificationStatus.VALID)
+
+    monkeypatch.setattr(reader, "verification", verified)
+    original_read_json = reader._read_json
+    json_reads = 0
+
+    def read_json(path):
+        nonlocal json_reads
+        json_reads += 1
+        return original_read_json(path)
+
+    monkeypatch.setattr(reader, "_read_json", read_json)
+    first = reader.read_result("session-1")
+    original_stat = result_path.stat()
+    result_path.write_text('{"value":"b"}', encoding="utf-8")
+    os.utime(
+        result_path,
+        ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+    )
+
+    second = reader.read_result("session-1")
+    third = reader.read_result("session-1")
+
+    assert first == {"value": "a"}
+    assert second == {"value": "b"}
+    assert third == second
+    assert result_path.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert verification_calls == 3
+    assert json_reads == 2
+
+
+def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserved_mtime(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    evidence_path = (
+        tmp_path
+        / "sessions"
+        / "session-1"
+        / "evidence"
+        / "raw-evidence.jsonl"
+    )
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        '{"evidence_id":"e1","payload":{"command":"old"}}\n',
+        encoding="utf-8",
+    )
+    original_read_text = Path.read_text
+    metadata_reads = 0
+
+    def read_text(path, *args, **kwargs):
+        nonlocal metadata_reads
+        if path == evidence_path:
+            metadata_reads += 1
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    first = reader.read_evidence_metadata("session-1", require_valid=False)
+    original_stat = evidence_path.stat()
+    evidence_path.write_text(
+        '{"evidence_id":"e2","payload":{"command":"new"}}\n',
+        encoding="utf-8",
+    )
+    os.utime(
+        evidence_path,
+        ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+    )
+
+    second = reader.read_evidence_metadata("session-1", require_valid=False)
+    third = reader.read_evidence_metadata("session-1", require_valid=False)
+
+    assert first[0]["evidence_id"] == "e1"
+    assert second[0]["evidence_id"] == "e2"
+    assert third == second
+    assert evidence_path.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert "old" not in repr(second)
+    assert "new" not in repr(second)
+    assert second[0]["payload_keys"] == ["command"]
+    assert metadata_reads == 2
 
 
 def test_result_bundle_reader_reports_verified_checkpoint_status(
