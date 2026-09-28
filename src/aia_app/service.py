@@ -597,7 +597,7 @@ class RunApplicationService:
         especially when several console views refresh at the same time.  The
         cache does not participate in policy, enforcement, recovery, or
         integrity decisions; those paths continue to read and verify their
-        artifacts directly.  A one-second window is short enough for the
+        artifacts directly.  A six-second window is short enough for the
         history UI while preventing duplicate scans in one refresh burst.
         """
 

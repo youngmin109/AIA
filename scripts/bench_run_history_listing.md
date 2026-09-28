@@ -13,7 +13,7 @@ overlap runtime-state sessions,
 leaving runtime-only and bundle-only sessions in the same listing. It measures
 cold calls on fresh service instances and repeated calls in warmed batches of
 up to three calls, reporting separate p50 and p95 latency for each. Batches
-stay inside the one-second completed-history refresh window. `--runs` sets the
+stay inside the six-second completed-history refresh window. `--runs` sets the
 sample count for both conditions and must be at least 3 (default 7).
 
 Every measured listing checks the distinct returned count, newest-first order,
