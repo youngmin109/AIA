@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import os
@@ -585,9 +586,24 @@ def _recent_run_diagnostic(control_root: Path) -> dict[str, object] | None:
     }
 
 
-def _doctor(args: argparse.Namespace) -> int:
-    """Check prerequisites without starting a Protected Run."""
+@dataclass
+class _DoctorPrerequisites:
+    checks: list[dict[str, object]]
+    supported_python: bool
+    executable: Path | None
+    executable_version: str
+    cli_prefix: str
+    hook_installed: bool
+    stale_hook_detected: bool
+    posttool_installed: bool
+    codex_hook_trust: dict[str, object]
+    pretool_status: str | None
+    recent_run: dict[str, object] | None
+    hook_verified: bool
+    writable: bool
 
+
+def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisites:
     checks: list[dict[str, object]] = []
 
     supported_python = sys.version_info[:2] == (3, 13)
@@ -746,60 +762,106 @@ def _doctor(args: argparse.Namespace) -> int:
         }
     )
 
-    if not supported_python:
+    return _DoctorPrerequisites(
+        checks=checks,
+        supported_python=supported_python,
+        executable=executable,
+        executable_version=executable_version,
+        cli_prefix=cli_prefix,
+        hook_installed=hook_installed,
+        stale_hook_detected=stale_hook_detected,
+        posttool_installed=posttool_installed,
+        codex_hook_trust=codex_hook_trust,
+        pretool_status=pretool_status,
+        recent_run=recent_run,
+        hook_verified=hook_verified,
+        writable=writable,
+    )
+
+
+def _doctor_readiness_summary(prerequisites: _DoctorPrerequisites) -> dict[str, object]:
+    if not prerequisites.supported_python:
         readiness_code = "PYTHON_VERSION_UNSUPPORTED"
         next_step = "Python 3.13 환경에서 AIA를 다시 실행하세요."
-    elif executable is None:
+    elif prerequisites.executable is None:
         readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
-        next_step = f"Codex CLI 설치와 PATH를 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
-    elif not hook_installed:
+        next_step = (
+            "Codex CLI 설치와 PATH를 확인한 뒤 "
+            f"'{prerequisites.cli_prefix} doctor'를 다시 실행하세요."
+        )
+    elif not prerequisites.hook_installed:
         readiness_code = "CODEX_HOOK_NOT_INSTALLED"
         next_step = (
-            f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
-            if stale_hook_detected
-            else f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
+            f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{prerequisites.cli_prefix} setup'을 실행하세요."
+            if prerequisites.stale_hook_detected
+            else f"'{prerequisites.cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
         )
-    elif pretool_status not in {"TRUSTED", "MANAGED"}:
+    elif prerequisites.pretool_status not in {"TRUSTED", "MANAGED"}:
         readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
         next_step = (
             "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
-            f"'{cli_prefix} hook verify'와 '{cli_prefix} doctor'를 순서대로 실행하세요."
+            f"'{prerequisites.cli_prefix} hook verify'와 "
+            f"'{prerequisites.cli_prefix} doctor'를 순서대로 실행하세요."
         )
-    elif not hook_verified:
+    elif not prerequisites.hook_verified:
         readiness_code = "HOOK_VERIFICATION_REQUIRED"
-        next_step = f"'{cli_prefix} hook verify'를 실행한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
-    elif not writable:
+        next_step = (
+            f"'{prerequisites.cli_prefix} hook verify'를 실행한 뒤 "
+            f"'{prerequisites.cli_prefix} doctor'를 다시 실행하세요."
+        )
+    elif not prerequisites.writable:
         readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
-        next_step = f"AIA Control Root 권한을 확인한 뒤 '{cli_prefix} doctor'를 다시 실행하세요."
+        next_step = (
+            "AIA Control Root 권한을 확인한 뒤 "
+            f"'{prerequisites.cli_prefix} doctor'를 다시 실행하세요."
+        )
     else:
         readiness_code = "READY"
-        next_step = f"'{cli_prefix} protect <workspace>'로 보호 실행을 시작할 수 있습니다."
+        next_step = (
+            f"'{prerequisites.cli_prefix} protect <workspace>'로 "
+            "보호 실행을 시작할 수 있습니다."
+        )
 
-    payload = {
+    return {
         "product": "AIA",
-        "checks": checks,
-        "ready": all(bool(item["ok"]) for item in checks),
+        "checks": prerequisites.checks,
+        "ready": all(bool(item["ok"]) for item in prerequisites.checks),
         "readiness_code": readiness_code,
         "next_step": next_step,
-        "codex_executable": str(executable) if executable is not None else None,
-        "codex_version": executable_version,
+        "codex_executable": (
+            str(prerequisites.executable) if prerequisites.executable is not None else None
+        ),
+        "codex_version": prerequisites.executable_version,
         "optional_capabilities": {
             "posttool_observation": {
-                "installed": posttool_installed,
+                "installed": prerequisites.posttool_installed,
                 "detail": (
                     "PostToolUse evidence is enabled"
-                    if posttool_installed
+                    if prerequisites.posttool_installed
                     else "Run 'aia hook install' to add PostToolUse evidence"
                 ),
             }
         },
-        "codex_hook_trust": codex_hook_trust,
-        "recent_protected_run": recent_run,
+        "codex_hook_trust": prerequisites.codex_hook_trust,
+        "recent_protected_run": prerequisites.recent_run,
         "limitations": [
             "Hook trust is reviewed in Codex and cannot be proven by this local preflight command.",
             "The protected scope is Windows 11 + Codex CLI + supported PreToolUse matchers.",
         ],
     }
+
+
+def _doctor(args: argparse.Namespace) -> int:
+    """Check prerequisites without starting a Protected Run."""
+
+    prerequisites = _doctor_prerequisite_checks(args)
+    payload = _doctor_readiness_summary(prerequisites)
+    checks = prerequisites.checks
+    cli_prefix = prerequisites.cli_prefix
+    posttool_installed = prerequisites.posttool_installed
+    codex_hook_trust = prerequisites.codex_hook_trust
+    recent_run = prerequisites.recent_run
+    next_step = payload["next_step"]
     if args.json:
         print(_json_text(payload))
     else:
