@@ -48,6 +48,7 @@ _CODEX_EVENT_BATCH_MAX_CHARS = 64 * 1024
 _CODEX_SEND_TIMEOUT_SECONDS = 5.0
 _CODEX_STREAM_TYPES = frozenset({"message.delta", "command.output", "reasoning.delta"})
 _CODEX_TERMINAL_STATUSES = frozenset({"EXITED", "FAILED"})
+_CODEX_RUN_NOT_FOUND = "보호 실행을 찾을 수 없습니다. 실행 목록을 새로 고친 뒤 다시 열어 주세요."
 
 
 def _coalesce_codex_events(events: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
@@ -683,7 +684,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                     result = await to_thread.run_sync(handler, message)
                 except (KeyError, CodexAppServerError) as error:
                     await send({"type": "error", "client_id": client_id, "action": message.get("type"),
-                                "message": str(error) if not isinstance(error, KeyError) else "Run not found"})
+                                "message": str(error) if not isinstance(error, KeyError) else _CODEX_RUN_NOT_FOUND})
                     continue
                 await send({"type": "accepted", "client_id": client_id, "action": message.get("type"), **result})
 
@@ -697,7 +698,7 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                 pass  # the viewer's connection is gone
             except (KeyError, ValueError):
                 with contextlib.suppress(WebSocketDisconnect, asyncio.TimeoutError, RuntimeError):
-                    await send({"type": "error", "message": "Run not found"})
+                    await send({"type": "error", "message": _CODEX_RUN_NOT_FOUND})
             finally:
                 group.cancel_scope.cancel()
 

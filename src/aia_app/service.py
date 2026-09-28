@@ -13,7 +13,7 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from threading import Event, RLock
+from threading import Event, RLock, Thread
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -166,6 +166,10 @@ def _event_tool_name(event: Any | None) -> str | None:
 _AIA_REVIEW_PREFIX = "aia-review-"
 _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
 
+# Cross-process request (stop-requests/<id>.json) asking the AIA process that
+# owns a conversation to end it gracefully rather than abort it.
+_END_SESSION_REQUEST = "END_SESSION"
+
 # app-server reports sandbox modes in camelCase; the Result Bundle and the
 # requested-policy comparison use the CLI spelling.
 _APP_SERVER_SANDBOX_NAMES = {
@@ -233,6 +237,17 @@ def _runtime_coordinator_reconciliation(state: Mapping[str, Any]) -> dict[str, A
         )
     except (OSError, ValueError, TypeError):
         process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE
+    if process_status is ProcessIdentityStatus.PID_REUSED:
+        # The coordinator create time is recorded with process_create_time
+        # (as for the Workspace lease owner).  psutil reports the same instant
+        # with different float rounding for most processes, so a live
+        # coordinator would look reused.  psutil already proved the PID is
+        # live; confirm the identity with the reader that recorded it.
+        try:
+            if process_create_time(pid) == float(create_time):
+                process_status = ProcessIdentityStatus.LIVE_MATCH
+        except (OSError, ValueError, TypeError):
+            pass
 
     managed_process = state.get("managed_process")
     agent_process_status = "NOT_RECORDED"
@@ -1629,6 +1644,12 @@ class RunApplicationService:
     def _codex_session(self, session_id: str) -> CodexAppServerSession:
         record = self.registry.get(session_id)
         if record is None:
+            external = self._externally_coordinated_run(session_id)
+            if external is not None:
+                owner = (external.get("coordinator") or {}).get("pid")
+                raise CodexAppServerError(
+                    f"이 보호 실행은 다른 AIA 창(PID {owner})에서 진행 중입니다. 그 창에서 계속하세요."
+                )
             raise KeyError(session_id)
         if record.launch_mode != "codex_app_server":
             raise CodexAppServerError("this run is not using the Codex conversation")
@@ -1656,6 +1677,17 @@ class RunApplicationService:
         }
         record = self.registry.get(session_id)
         if record is None:
+            external = self._externally_coordinated_run(session_id)
+            if external is not None:
+                # The conversation lives in the other AIA process; this one
+                # can only show that and forward an end request.
+                return {
+                    **detached,
+                    "mode": external.get("launch_mode", "inherit"),
+                    "status": "EXTERNAL",
+                    "owner_pid": (external.get("coordinator") or {}).get("pid"),
+                    "end_requested": self._stop_request_reason(session_id) == _END_SESSION_REQUEST,
+                }
             status = self.get_run_status(session_id)
             ended = status.get("session", {}).get("status") in {"COMPLETED", "ABORTED", "FAILED"}
             return {
@@ -1701,6 +1733,9 @@ class RunApplicationService:
         record = self.registry.get(session_id)
         if record is None:
             self.get_run_status(session_id)
+            # Nothing can arrive here (the run is finished or coordinated by
+            # another AIA process); pace the caller's long-poll loop.
+            time.sleep(min(timeout, 1.0))
             return []
         codex_session = record.runtime.get("codex_session")
         if codex_session is None:
@@ -1783,10 +1818,32 @@ class RunApplicationService:
         return decision in {"accept", "acceptForSession"}
 
     def end_codex_session(self, session_id: str) -> dict[str, Any]:
-        """Let Codex exit so the run finalizes through the Agent-exited path."""
+        """Let Codex exit so the run finalizes through the Agent-exited path.
 
+        A run coordinated by another live AIA process (a second desktop
+        window on the same control root) cannot be closed from here; the
+        request is forwarded through the control root and that process ends
+        the conversation the same way.
+        """
+
+        if self.registry.get(session_id) is None and self._externally_coordinated_run(session_id) is not None:
+            self._write_stop_request(session_id, reason=_END_SESSION_REQUEST)
+            return {"accepted": True, "session_id": session_id, "mode": "requested_owner"}
         self._codex_session(session_id).close(force=False)
-        return {"accepted": True, "session_id": session_id}
+        return {"accepted": True, "session_id": session_id, "mode": "closed"}
+
+    def _externally_coordinated_run(self, session_id: str) -> dict[str, Any] | None:
+        """Return the runtime state of a run another live AIA process owns."""
+
+        state = self._read_runtime_state(session_id)
+        if state is None:
+            return None
+        coordinator = state.get("coordinator")
+        if not isinstance(coordinator, Mapping) or coordinator.get("pid") == os.getpid():
+            return None
+        if _runtime_coordinator_reconciliation(state).get("status") != "LIVE_MATCH":
+            return None
+        return state
 
     def _open_codex_conversation(self, record: RunRecord) -> None:
         """Start the Workbench thread once Codex is registered and protected.
@@ -2945,6 +3002,25 @@ class RunApplicationService:
             try:
                 return int(process.wait(timeout=0.5))
             except subprocess.TimeoutExpired:
+                if (
+                    not record.runtime.get("end_session_requested")
+                    and self._stop_request_reason(record.session_id) == _END_SESSION_REQUEST
+                ):
+                    # Another AIA window asked to end this conversation.  Close
+                    # it the same way this window's own "end session" does so
+                    # the run finalizes as Agent-exited, not as an abort.
+                    record.runtime["end_session_requested"] = True
+                    codex_session = record.runtime.get("codex_session")
+                    if codex_session is not None:
+                        Thread(
+                            target=codex_session.close,
+                            kwargs={"force": False},
+                            name=f"aia-end-session-{record.session_id[:8]}",
+                            daemon=True,
+                        ).start()
+                    else:
+                        record.stop_requested = True
+                    continue
                 if self._is_stop_requested(record):
                     if record.runtime.get("stop_action_attempted"):
                         continue
@@ -3016,15 +3092,32 @@ class RunApplicationService:
     def _is_stop_requested(self, record: RunRecord) -> bool:
         if record.stop_requested:
             return True
-        try:
-            requested = self._stop_request_path(record.session_id).is_file()
-        except (OSError, ValueError):
-            requested = False
+        # A graceful end request is handled separately in _wait_for_agent and
+        # must not turn the run into a user abort.
+        requested = self._stop_request_reason(record.session_id) not in {None, _END_SESSION_REQUEST}
         if requested:
             record.stop_requested = True
         return requested
 
-    def _write_stop_request(self, session_id: str) -> Path:
+    def _stop_request_reason(self, session_id: str) -> str | None:
+        """Return the pending cross-process request reason, if any.
+
+        An unreadable request file still counts as a user stop, as before.
+        """
+
+        try:
+            path = self._stop_request_path(session_id)
+            if not path.is_file():
+                return None
+        except (OSError, ValueError):
+            return None
+        try:
+            reason = json.loads(path.read_text(encoding="utf-8")).get("reason")
+        except (OSError, ValueError, AttributeError):
+            return "USER_ABORT"
+        return reason if reason == _END_SESSION_REQUEST else "USER_ABORT"
+
+    def _write_stop_request(self, session_id: str, *, reason: str = "USER_ABORT") -> Path:
         path = self._stop_request_path(session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
@@ -3033,7 +3126,7 @@ class RunApplicationService:
                 {
                     "session_id": session_id,
                     "requested_at": _now().isoformat(),
-                    "reason": "USER_ABORT",
+                    "reason": reason,
                 },
                 ensure_ascii=True,
             )

@@ -190,3 +190,41 @@ def test_codex_status_endpoint_and_unknown_run(conversation) -> None:
     client, _ = conversation
     assert client.get("/api/runs/run-1/codex/status").json()["status"] == "READY"
     assert client.get("/api/runs/missing/codex/status").status_code == 404
+
+
+def test_socket_for_a_run_owned_by_another_aia_window(tmp_path: Path) -> None:
+    import json
+    import subprocess
+
+    from aia import process_create_time
+
+    session_id = "33333333-2222-4333-8444-555555555555"
+    service = RunApplicationService(tmp_path / "control")
+    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        path = service._runtime_state_path(session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "schema_version": 1,
+            "session_id": session_id,
+            "coordinator": {"pid": owner.pid, "create_time": process_create_time(owner.pid)},
+            "session": {"session_id": session_id, "status": "RUNNING", "workspace": str(tmp_path), "agent": "codex"},
+            "launch_mode": "codex_app_server",
+            "phase": "RUNNING",
+        }), encoding="utf-8")
+        client = TestClient(create_app(service))
+        with client.websocket_connect(f"/api/runs/{session_id}/codex") as websocket:
+            status = _receive_until(websocket, lambda m: m["type"] == "status")[-1]
+            assert status["status"] == "EXTERNAL"
+            assert status["owner_pid"] == owner.pid
+            websocket.send_json({"type": "user_message", "text": "hello"})
+            error = _receive_until(websocket, lambda m: m["type"] == "error")[-1]
+            assert "다른 AIA 창" in error["message"]
+            websocket.send_json({"type": "end_session", "client_id": "e1"})
+            accepted = _receive_until(websocket, lambda m: m["type"] == "accepted")[-1]
+            assert accepted["mode"] == "requested_owner"
+        assert service._stop_request_reason(session_id) == "END_SESSION"
+    finally:
+        owner.kill()
+        owner.wait()
+        service.shutdown()

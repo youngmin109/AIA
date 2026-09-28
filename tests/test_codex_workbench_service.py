@@ -173,7 +173,7 @@ def test_conversation_api_delegates_to_the_attached_session(service, tmp_path) -
     assert service.interrupt_codex_turn("session-1")["accepted"] is True
     assert service.respond_codex_approval("session-1", "approval-1", "decline")["decision"] == "decline"
     assert service.read_codex_events("session-1") == [{"sequence": 3, "type": "turn.started"}]
-    assert service.end_codex_session("session-1") == {"accepted": True, "session_id": "session-1"}
+    assert service.end_codex_session("session-1") == {"accepted": True, "session_id": "session-1", "mode": "closed"}
     assert session.calls == [
         ("send", "hello"),
         ("interrupt",),
@@ -290,3 +290,129 @@ def test_unsupported_tool_review_rejects_codex_only_decisions(service, review_ru
 def test_unsupported_tool_review_needs_the_conversation(service, tmp_path) -> None:
     record = make_record(tmp_path)
     assert service._review_unsupported_tool(record, REVIEW) is False
+
+
+# -- runs coordinated by another AIA process (second desktop window) --------
+
+EXTERNAL_ID = "11111111-2222-4333-8444-555555555555"
+
+
+@pytest.fixture
+def external_run(service, tmp_path):
+    """A live run whose runtime state names another running process as its coordinator."""
+
+    import json as _json
+    import subprocess
+    import sys
+
+    from aia import process_create_time
+
+    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        path = service._runtime_state_path(EXTERNAL_ID)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            _json.dumps({
+                "schema_version": 1,
+                "session_id": EXTERNAL_ID,
+                "coordinator": {"pid": owner.pid, "create_time": process_create_time(owner.pid)},
+                "session": {"session_id": EXTERNAL_ID, "status": "RUNNING", "workspace": str(tmp_path), "agent": "codex"},
+                "launch_mode": "codex_app_server",
+                "phase": "RUNNING",
+            }),
+            encoding="utf-8",
+        )
+        yield owner
+    finally:
+        owner.kill()
+        owner.wait()
+
+
+def test_a_run_owned_by_another_aia_window_is_reported_as_external(service, external_run) -> None:
+    status = service.get_codex_status(EXTERNAL_ID)
+    assert status["status"] == "EXTERNAL"
+    assert status["owner_pid"] == external_run.pid
+    assert status["end_requested"] is False
+    with pytest.raises(CodexAppServerError, match="다른 AIA 창"):
+        service.send_codex_message(EXTERNAL_ID, "hello")
+
+
+def test_ending_an_external_run_forwards_a_graceful_end_request(service, external_run) -> None:
+    result = service.end_codex_session(EXTERNAL_ID)
+
+    assert result == {"accepted": True, "session_id": EXTERNAL_ID, "mode": "requested_owner"}
+    assert service._stop_request_reason(EXTERNAL_ID) == "END_SESSION"
+    assert service.get_codex_status(EXTERNAL_ID)["end_requested"] is True
+    # The request asks for a graceful end; it is not a user abort.
+    record = make_record(service.control_root)
+    record.session_id = EXTERNAL_ID
+    assert service._is_stop_requested(record) is False
+    assert record.stop_requested is False
+
+
+def test_unreadable_stop_request_still_counts_as_a_user_stop(service) -> None:
+    service._stop_request_path(EXTERNAL_ID).write_text("{not json", encoding="utf-8")
+    assert service._stop_request_reason(EXTERNAL_ID) == "USER_ABORT"
+    record = make_record(service.control_root)
+    record.session_id = EXTERNAL_ID
+    assert service._is_stop_requested(record) is True
+
+
+def test_a_finished_or_unknown_run_is_not_external(service, external_run) -> None:
+    external_run.kill()
+    external_run.wait()
+    assert service._externally_coordinated_run(EXTERNAL_ID) is None
+    assert service._externally_coordinated_run("22222222-2222-4333-8444-555555555555") is None
+
+
+def test_owner_ends_its_conversation_when_another_window_requests_it(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.session_id = EXTERNAL_ID
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    closed = threading.Event()
+    session.close = lambda *, force=False: (session.calls.append(("close", force)), closed.set())
+
+    class Process:
+        def wait(self, timeout=None):
+            if closed.wait(timeout):
+                return 0
+            raise service_module.subprocess.TimeoutExpired("codex", timeout)
+
+    service._write_stop_request(EXTERNAL_ID, reason="END_SESSION")
+    assert service._wait_for_agent(record, Process(), launcher=None) == 0
+    assert ("close", False) in session.calls
+    assert record.runtime["end_session_requested"] is True
+    assert record.stop_requested is False
+
+
+def test_live_coordinator_recorded_with_the_product_reader_is_not_misjudged_stale() -> None:
+    # process_create_time and psutil disagree in float rounding for most
+    # processes; a live coordinator must still be recognized as live.
+    import os
+
+    from aia import process_create_time
+
+    state = {
+        "session": {"status": "RUNNING"},
+        "phase": "RUNNING",
+        "coordinator": {"pid": os.getpid(), "create_time": process_create_time(os.getpid())},
+    }
+    result = service_module._runtime_coordinator_reconciliation(state)
+    assert result["status"] == "LIVE_MATCH"
+    assert result["orphaned"] is False
+
+
+def test_dead_coordinator_is_still_reported_gone() -> None:
+    import subprocess
+    import sys
+
+    from aia import process_create_time
+
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    create_time = process_create_time(child.pid)
+    child.wait()
+    state = {"session": {"status": "RUNNING"}, "phase": "RUNNING", "coordinator": {"pid": child.pid, "create_time": create_time}}
+    del child
+    result = service_module._runtime_coordinator_reconciliation(state)
+    assert result["orphaned"] is True

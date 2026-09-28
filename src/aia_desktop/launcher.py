@@ -8,6 +8,8 @@ the existing local web application.
 from __future__ import annotations
 
 import ctypes
+import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -100,6 +102,176 @@ def _remove_webview_storage(path: Path) -> None:
         # window closes. Stale run-scoped folders are harmless and are not
         # allowed to affect a later run.
         return
+
+
+WINDOW_TITLE = "AIA · Protected Workbench"
+_ERROR_ALREADY_EXISTS = 183
+_SW_RESTORE = 9
+
+
+def _desktop_instance_key() -> str:
+    """Identify the control root this desktop window serves.
+
+    Protected runs, their conversations and their Codex processes live inside
+    the AIA process that started them.  A second window on the same control
+    root lists those runs from disk but cannot drive them, so one desktop
+    instance is allowed per control root.
+    """
+
+    configured = os.environ.get("AIA_CONTROL_ROOT")
+    root = Path(configured).expanduser() if configured else Path.home() / ".aia" / "control"
+    normalized = str(root.resolve(strict=False)).casefold()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+
+
+def _desktop_instance_record(key: str) -> Path:
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    root = Path(local_app_data).expanduser() if local_app_data else Path.home() / "AppData" / "Local"
+    return root / "AIA" / "desktop-instances" / f"{key}.json"
+
+
+class _DesktopInstanceLock:
+    """Hold the per-control-root desktop mutex for this process's lifetime."""
+
+    def __init__(self, handle: int | None, record: Path | None) -> None:
+        self._handle = handle
+        self._record = record
+
+    def release(self) -> None:
+        if self._record is not None:
+            try:
+                if json.loads(self._record.read_text(encoding="utf-8")).get("pid") == os.getpid():
+                    self._record.unlink()
+            except (OSError, ValueError, AttributeError):
+                pass
+        if self._handle:
+            ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(self._handle))
+            self._handle = None
+
+
+def _acquire_desktop_instance() -> _DesktopInstanceLock | None:
+    """Return the instance lock, or ``None`` when another window owns it.
+
+    If the mutex cannot be created at all the window still starts: refusing
+    to open is worse than the duplicate-window problem this guards against.
+    """
+
+    key = _desktop_instance_key()
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    handle = kernel32.CreateMutexW(None, False, f"Local\\AIA-Desktop-{key}")
+    if not handle:
+        return _DesktopInstanceLock(None, None)
+    if ctypes.get_last_error() == _ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+        return None
+    record = _desktop_instance_record(key)
+    try:
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    except OSError:
+        record = None
+    return _DesktopInstanceLock(handle, record)
+
+
+def _activate_existing_desktop() -> bool:
+    """Bring the window of the running instance to the front."""
+
+    try:
+        owner = int(json.loads(_desktop_instance_record(_desktop_instance_key()).read_text(encoding="utf-8"))["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    user32 = ctypes.windll.user32
+    found: list[int] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def visit(hwnd, _lparam):  # type: ignore[no-untyped-def]
+        pid = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(ctypes.c_void_p(hwnd), ctypes.byref(pid))
+        if pid.value == owner and user32.IsWindowVisible(ctypes.c_void_p(hwnd)):
+            length = user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd))
+            buffer = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(ctypes.c_void_p(hwnd), buffer, length + 1)
+            if buffer.value == WINDOW_TITLE:
+                found.append(hwnd)
+                return False
+        return True
+
+    user32.EnumWindows(visit, None)
+    if not found:
+        return False
+    hwnd = ctypes.c_void_p(found[0])
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, _SW_RESTORE)
+    if not user32.SetForegroundWindow(hwnd):
+        # Windows may refuse to hand over focus (for example when this launch
+        # did not come from the user's own click); flash the taskbar button so
+        # the running window is still easy to find.
+        user32.FlashWindow(hwnd, True)
+    return True
+
+
+_TERMINAL_RUN_STATUSES = frozenset({"COMPLETED", "ABORTED", "FAILED"})
+_MB_YESNO = 0x04
+_MB_ICONWARNING = 0x30
+_MB_SETFOREGROUND = 0x10000
+_MB_TOPMOST = 0x40000
+_IDYES = 6
+
+
+def _embedded_service() -> Any | None:
+    """Return the application service of the in-process console, if loaded."""
+
+    module = sys.modules.get("aia_web.app")
+    app = getattr(module, "app", None) if module is not None else None
+    return getattr(getattr(app, "state", None), "service", None)
+
+
+def _live_run_count(service: Any) -> int:
+    try:
+        return sum(1 for record in service.registry.snapshots() if record.status not in _TERMINAL_RUN_STATUSES)
+    except Exception:
+        return 0
+
+
+def _confirm_close_with_live_runs() -> bool:
+    """Ask before a window close stops protected runs; ``False`` keeps it open."""
+
+    service = _embedded_service()
+    count = _live_run_count(service) if service is not None else 0
+    if count == 0:
+        return True
+    answer = ctypes.windll.user32.MessageBoxW(
+        None,
+        f"진행 중인 보호 실행이 {count}건 있습니다.\n\n"
+        "창을 닫으면 Codex를 중지하고 결과를 확정합니다. 닫을까요?",
+        "AIA",
+        _MB_YESNO | _MB_ICONWARNING | _MB_SETFOREGROUND | _MB_TOPMOST,
+    )
+    return answer == _IDYES
+
+
+def _stop_live_runs(timeout: float = 60.0) -> None:
+    """Stop this window's protected runs before the console server stops.
+
+    Runs, their conversations and their Codex processes belong to this
+    process, and the executor thread that finalizes them keeps the process
+    alive.  The server's lifespan shutdown also stops runs, but it is skipped
+    whenever the server has to be forced down, which left AIA running without
+    a window and with a live Codex.  Request the stop here directly and give
+    finalization a bounded time to record the result.
+    """
+
+    service = _embedded_service()
+    if service is None:
+        return
+    try:
+        service.shutdown(wait=False)
+    except Exception:
+        return
+    deadline = time.monotonic() + timeout
+    while _live_run_count(service) and time.monotonic() < deadline:
+        time.sleep(0.2)
 
 
 def _show_message(title: str, message: str, *, error: bool = False) -> None:
@@ -277,6 +449,16 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         )
         return 2
 
+    instance = _acquire_desktop_instance()
+    if instance is None:
+        if not _activate_existing_desktop():
+            _show_message(
+                "AIA",
+                "AIA가 이미 실행 중입니다.\n\n작업 표시줄에서 열려 있는 AIA 창을 사용하세요. "
+                "보호 실행과 Codex 대화는 그 창에서만 이어갈 수 있습니다.",
+            )
+        return 0
+
     import webview
 
     port = choose_loopback_port(preferred_port)
@@ -287,7 +469,7 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         server = _start_local_server(host, port)
         _wait_for_server(f"http://{host}:{port}/", server)
         window = webview.create_window(
-            "AIA · Protected Workbench",
+            WINDOW_TITLE,
             f"http://{host}:{port}/",
             width=1440,
             height=900,
@@ -296,6 +478,8 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
             js_api=bridge,
         )
         bridge.attach(window)
+        # Returning False from a closing handler keeps the window open.
+        window.events.closing += _confirm_close_with_live_runs
         webview.start(
             gui="edgechromium",
             debug=False,
@@ -310,9 +494,11 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         )
         return 1
     finally:
+        _stop_live_runs()
         if server is not None:
             server.stop()
         _remove_webview_storage(webview_storage_path)
+        instance.release()
     return 0
 
 

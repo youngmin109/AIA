@@ -167,9 +167,11 @@ function ApprovalDialog({
   )
 }
 
-function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: number, silent: number): string {
+function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: number, silent: number, ownerPid: number | null): string {
   if (approvals > 0) return '승인 결정을 기다리는 중'
   switch (statusName) {
+    case 'EXTERNAL':
+      return `다른 AIA 창${ownerPid ? `(PID ${ownerPid})` : ''}에서 진행 중`
     case 'READY':
       return '입력 대기 중'
     case 'WORKING':
@@ -258,7 +260,7 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
       <div className="terminal-toolbar">
         <span className={`badge is-${session.connection.tone}`}>{session.connection.label}</span>
         <span className="terminal-activity-label">
-          {activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent)}
+          {activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid)}
         </span>
         <div className="tab-strip-spacer" />
         {session.status?.pid ? <span className="terminal-pid">PID {session.status.pid}</span> : null}
@@ -271,12 +273,15 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
           <button
             type="button"
             className="icon-button-text"
-            disabled={session.endPending || !session.connected}
+            disabled={session.endPending || session.endRequested || !session.connected}
             onClick={() => {
-              if (window.confirm('Codex 세션을 종료하고 보호 실행 결과를 확정할까요?')) session.endSession()
+              const question = session.external
+                ? '이 보호 실행은 다른 AIA 창에서 진행 중입니다. 그 창에 세션 종료를 요청할까요?'
+                : 'Codex 세션을 종료하고 보호 실행 결과를 확정할까요?'
+              if (window.confirm(question)) session.endSession()
             }}
           >
-            {session.endPending ? '종료하는 중…' : '세션 종료'}
+            {session.endRequested ? '종료 요청됨' : session.endPending ? '종료하는 중…' : '세션 종료'}
           </button>
         )}
       </div>
@@ -291,10 +296,19 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
           stickToBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80
         }}
       >
-        {session.conversation.items.length === 0 && (
-          <div className="codex-row codex-notice is-info">
-            {session.statusName === 'READY' ? 'Codex가 준비되었습니다. 아래에 작업을 입력하세요.' : 'Codex 세션을 준비하는 중입니다…'}
+        {session.external ? (
+          <div className="codex-row codex-notice is-warn">
+            {`이 보호 실행은 다른 AIA 창${session.ownerPid ? `(PID ${session.ownerPid})` : ''}에서 진행 중입니다. Codex 대화는 그 창에서만 이어갈 수 있습니다.\n`}
+            {session.endRequested
+              ? '세션 종료를 요청했습니다. 그 창에서 Codex를 종료하고 결과를 확정하면 여기에도 표시됩니다.'
+              : '작업 표시줄에서 그 AIA 창을 열어 계속하거나, 여기서 "세션 종료"를 눌러 종료를 요청할 수 있습니다.'}
           </div>
+        ) : (
+          session.conversation.items.length === 0 && (
+            <div className="codex-row codex-notice is-info">
+              {session.statusName === 'READY' ? 'Codex가 준비되었습니다. 아래에 작업을 입력하세요.' : 'Codex 세션을 준비하는 중입니다…'}
+            </div>
+          )
         )}
         {session.conversation.items.map((item) => (
           <TranscriptRow key={item.key} item={item} />

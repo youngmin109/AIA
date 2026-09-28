@@ -147,6 +147,73 @@ def test_user_abort_result_is_separate_and_verified(
         cleanup_running_launcher(values, launcher)
 
 
+class _FakeTreeProcess:
+    """Minimal psutil.Process stand-in for verified tree termination tests."""
+
+    def __init__(self, table: dict, pid: int, parent_pid: int | None, *, vanish_on_parent_check: bool = False,
+                 ancestry_denied: bool = False) -> None:
+        self.table = table
+        self.pid = pid
+        self.parent_pid = parent_pid
+        self.alive = True
+        self.vanish_on_parent_check = vanish_on_parent_check
+        self.ancestry_denied = ancestry_denied
+        table[pid] = self
+
+    def create_time(self) -> float:
+        if not self.alive:
+            raise psutil.NoSuchProcess(self.pid)
+        return 1000.0 + self.pid
+
+    def children(self, recursive: bool = False):
+        return [process for process in self.table.values() if process.parent_pid == self.pid]
+
+    def parent(self):
+        if self.vanish_on_parent_check:
+            # The helper exits on its own right as its ancestry is checked.
+            self.alive = False
+            raise psutil.NoSuchProcess(self.pid)
+        if self.ancestry_denied:
+            raise psutil.AccessDenied(self.pid)
+        return self.table.get(self.parent_pid)
+
+    def terminate(self) -> None:
+        self.alive = False
+
+    kill = terminate
+
+
+def _tree_launcher(table: dict) -> ProtectedLauncher:
+    def factory(pid: int):
+        process = table.get(pid)
+        if process is None or not process.alive:
+            raise psutil.NoSuchProcess(pid)
+        return process
+
+    launcher = object.__new__(ProtectedLauncher)
+    launcher.process_factory = factory
+    return launcher
+
+
+def test_verified_tree_termination_skips_a_descendant_that_exits_during_the_check() -> None:
+    table: dict = {}
+    root = _FakeTreeProcess(table, 10, None)
+    _FakeTreeProcess(table, 11, 10)
+    _FakeTreeProcess(table, 12, 10, vanish_on_parent_check=True)
+
+    assert _tree_launcher(table)._terminate_verified_tree(ProcessIdentity(10, root.create_time()), wait_seconds=0.1) is True
+    assert not any(process.alive for process in table.values())
+
+
+def test_verified_tree_termination_still_fails_for_a_live_descendant_with_unproven_ancestry() -> None:
+    table: dict = {}
+    root = _FakeTreeProcess(table, 20, None)
+    _FakeTreeProcess(table, 21, 20, ancestry_denied=True)
+
+    assert _tree_launcher(table)._terminate_verified_tree(ProcessIdentity(20, root.create_time()), wait_seconds=0.1) is False
+    assert table[20].alive is True
+
+
 def test_user_abort_during_starting_uses_verified_startup_identity(
     readiness_inputs: dict,
 ) -> None:

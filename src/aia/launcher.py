@@ -569,6 +569,17 @@ class ProtectedLauncher:
                 return False
             depth = self._verified_descendant_depth(candidate, root_identity)
             if depth is None:
+                # A descendant can exit on its own between enumeration and
+                # the ancestry check (Codex tool helpers, MCP servers and their
+                # console hosts do this during shutdown).  A process that is
+                # verifiably gone needs no termination; a live one whose
+                # ancestry cannot be proven still fails the stop.
+                status, _ = inspect_process_identity(
+                    identity,
+                    process_factory=self.process_factory,
+                )
+                if status is ProcessIdentityStatus.PROCESS_GONE:
+                    continue
                 return False
             descendants.append((depth, identity))
 

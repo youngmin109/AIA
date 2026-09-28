@@ -7,7 +7,9 @@ import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent,
 // Codex state: the input is usable whenever the conversation is READY or
 // WORKING (a message during a turn steers it).
 
-export type CodexStatusName = 'NOT_ATTACHED' | 'NOT_STARTED' | 'STARTING' | 'READY' | 'WORKING' | 'CLOSING' | 'EXITED' | 'FAILED'
+// EXTERNAL: the run is coordinated by another AIA window on the same control
+// root; this window can only show that and forward an end request.
+export type CodexStatusName = 'NOT_ATTACHED' | 'NOT_STARTED' | 'STARTING' | 'READY' | 'WORKING' | 'CLOSING' | 'EXITED' | 'FAILED' | 'EXTERNAL'
 
 export interface CodexStatus {
   status: CodexStatusName
@@ -17,6 +19,8 @@ export interface CodexStatus {
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
+  owner_pid?: number | null
+  end_requested?: boolean
 }
 
 export type ConnectionTone = 'ok' | 'warn' | 'bad'
@@ -202,6 +206,9 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     ended,
     canSend: connected && !ended && (statusName === 'READY' || statusName === 'WORKING'),
     working: statusName === 'WORKING',
+    external: statusName === 'EXTERNAL',
+    ownerPid: status?.owner_pid ?? null,
+    endRequested: Boolean(status?.end_requested),
     pendingApprovals,
     errorMessage,
     interruptPending,
