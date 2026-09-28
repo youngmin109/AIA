@@ -6,9 +6,10 @@ Run from the repository root (no extra dependencies):
 .venv\Scripts\python.exe scripts\bench_run_history_listing.py
 ```
 
-The benchmark creates temporary control roots at three documented sizes:
-100, 500, and 1,000 persisted runtime states. Each size also has half as many
-valid Result Bundles. Half of those bundles overlap runtime-state sessions,
+The benchmark creates temporary control roots at four documented sizes:
+100, 500, 1,000, and 5,000 persisted runtime states. Each size also has half as
+many valid Result Bundles (the largest case has 2,500). Half of those bundles
+overlap runtime-state sessions,
 leaving runtime-only and bundle-only sessions in the same listing. It measures
 cold calls on fresh service instances and repeated calls in warmed batches of
 up to three calls, reporting separate p50 and p95 latency for each. Batches

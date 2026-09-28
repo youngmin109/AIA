@@ -30,7 +30,7 @@ from aia.evidence import RawEvidenceStore
 from aia_app.service import RunApplicationService
 
 
-RUNTIME_STATE_COUNTS = (100, 500, 1_000)
+RUNTIME_STATE_COUNTS = (100, 500, 1_000, 5_000)
 STARTED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 OVERLAP_LAUNCH_MODE = "codex_app_server"
 RUNTIME_ONLY_LAUNCH_MODE = "web_terminal"
@@ -230,7 +230,8 @@ def main() -> None:
     if args.runs < 3:
         parser.error("--runs must be at least 3")
 
-    print(f"runs_per_size={args.runs} collection_sizes=100,500,1000")
+    collection_sizes = ",".join(str(count) for count in RUNTIME_STATE_COUNTS)
+    print(f"runs_per_size={args.runs} collection_sizes={collection_sizes}")
     for runtime_state_count in RUNTIME_STATE_COUNTS:
         cold_timings, repeated_timings, counts, bundle_count = _benchmark(
             runtime_state_count,
