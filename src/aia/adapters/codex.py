@@ -64,6 +64,7 @@ class CodexAdapter:
     _ALLOWED_OPTIONS = frozenset(
         {
             "add_dir",
+            "app_server",
             "approve_for_me",
             "approval_policy",
             "color",
@@ -267,6 +268,13 @@ class CodexAdapter:
             raise AdapterError("workbench_terminal must be a boolean")
         if workbench_terminal and not interactive:
             raise AdapterError("workbench_terminal requires interactive mode")
+        app_server = options.pop("app_server", False)
+        if not isinstance(app_server, bool):
+            raise AdapterError("app_server must be a boolean")
+        if app_server:
+            if not interactive or workbench_terminal:
+                raise AdapterError("app_server requires interactive mode without workbench_terminal")
+            return self._build_app_server_launch(request, executable, options)
         if interactive and any(
             key in options for key in ("ignore_rules", "json", "skip_git_repo_check")
         ):
@@ -369,6 +377,49 @@ class CodexAdapter:
         return (
             f"hooks.PreToolUse={handler}",
             f"hooks.PostToolUse={handler}",
+        )
+
+    def _build_app_server_launch(
+        self,
+        request: ProtectedLaunchRequest,
+        executable: Path,
+        options: Mapping[str, Any],
+    ) -> AgentLaunchSpec:
+        """Launch ``codex app-server`` for the Workbench conversation.
+
+        The app-server has no TUI flags, so the protected sandbox and approval
+        policy are applied as inline config overrides.  The Workbench passes
+        them again when it starts the thread and records what Codex reports as
+        applied.  The workspace and model are thread parameters, not argv.
+        """
+
+        unsupported = set(options) - {"approval_policy", "sandbox"}
+        if unsupported:
+            raise AdapterError("the requested Codex option is not supported by app-server")
+        if self.hook_command is not None or not self.enable_hooks:
+            # Only the product path (installed, user-trusted Hook definition)
+            # is verified with app-server; inline Hook definitions are not.
+            raise AdapterError("app-server launches require the installed Codex Hook")
+        if request.prompt.strip():
+            raise AdapterError("interactive Codex launch cannot receive an initial prompt")
+        argv: list[str] = [str(executable), "app-server"]
+        approval_policy = options.get("approval_policy", "on-request")
+        if approval_policy not in {"on-request", "on-failure", "untrusted"}:
+            raise AdapterError("Codex approval policy is not allowed for protected launches")
+        sandbox = options.get("sandbox", "workspace-write")
+        if sandbox not in {"read-only", "workspace-write"}:
+            raise AdapterError("Codex sandbox is not allowed for protected launches")
+        import json
+
+        argv.extend(("-c", f"approval_policy={json.dumps(approval_policy)}"))
+        argv.extend(("-c", f"sandbox_mode={json.dumps(sandbox)}"))
+        argv.extend(("-c", "features.hooks=true"))
+        return AgentLaunchSpec(
+            adapter=self.name,
+            executable=executable,
+            argv=tuple(argv),
+            stdin_bytes=b"",
+            interactive=True,
         )
 
     @staticmethod

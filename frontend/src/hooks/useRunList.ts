@@ -16,5 +16,10 @@ export function useRunList({ hasActiveRun = false }: { hasActiveRun?: boolean } 
 const RUNNING_STATUSES = new Set(['RUNNING', 'CREATED', 'PROTECTING', 'STARTING'])
 
 export function isRunActive(run: RunSummary): boolean {
+  // A run whose AIA coordinator is gone keeps its last RUNNING snapshot on
+  // purpose (evidence is preserved), but nothing is running any more: it
+  // must not count as active or be auto-opened as the current run.
+  const reconciliation = run.runtime_reconciliation as { orphaned?: boolean } | undefined
+  if (reconciliation?.orphaned) return false
   return RUNNING_STATUSES.has(String(run.status))
 }

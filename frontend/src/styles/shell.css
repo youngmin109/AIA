@@ -1051,6 +1051,203 @@
   cursor: default;
 }
 
+/* Codex app-server conversation (Agent CLI). Same dark console card as the
+   legacy terminal; every row is rendered from a structured Codex event. */
+.codex-transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: #101827;
+  color: #d8e2f4;
+  font: 13px/1.6 var(--font-mono);
+}
+
+.codex-row {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.codex-user {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  color: #ffffff;
+}
+
+.codex-prompt {
+  flex: 0 0 auto;
+  color: #6ea8ff;
+  font-weight: 700;
+}
+
+.codex-agent {
+  color: #d8e2f4;
+  white-space: normal;
+}
+
+.codex-agent .md > :first-child {
+  margin-top: 0;
+}
+
+.codex-agent .md > :last-child {
+  margin-bottom: 0;
+}
+
+.codex-agent .md p,
+.codex-agent .md ul,
+.codex-agent .md ol,
+.codex-agent .md blockquote {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.codex-agent .md ul,
+.codex-agent .md ol {
+  padding-left: 22px;
+}
+
+.codex-agent .md-heading {
+  margin: 12px 0 6px;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.codex-agent .md-h1 {
+  font-size: 15px;
+}
+
+.codex-agent .md-h2,
+.codex-agent .md-h3 {
+  font-size: 14px;
+}
+
+.codex-agent .md code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #1b2842;
+  color: #9fe2b8;
+}
+
+.codex-agent .md-code {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #273756;
+  border-radius: 8px;
+  background: #0c1526;
+  color: #c3cfe6;
+  font: 12px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.codex-agent .md blockquote {
+  padding-left: 10px;
+  border-left: 3px solid #344a70;
+  color: #9db0d4;
+}
+
+.codex-agent .md hr {
+  border: 0;
+  border-top: 1px solid #273756;
+  margin: 10px 0;
+}
+
+.codex-agent .md-link {
+  color: #6ea8ff;
+}
+
+.codex-agent .md-link-url {
+  color: #7f92b5;
+  font-size: 11px;
+}
+
+.codex-caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: #6ea8ff;
+  animation: codex-caret-blink 1s steps(2, start) infinite;
+}
+
+@keyframes codex-caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.codex-reasoning,
+.codex-meta {
+  color: #7f92b5;
+  font-size: 12px;
+}
+
+.codex-hook {
+  color: #e8c46a;
+  font-size: 12px;
+}
+
+.codex-hook.is-bad,
+.codex-notice.is-bad {
+  color: #ff8a8a;
+}
+
+.codex-hook.is-warn,
+.codex-notice.is-warn {
+  color: #e8c46a;
+}
+
+.codex-notice.is-info {
+  color: #7f92b5;
+  font-size: 12px;
+}
+
+.codex-command {
+  margin: 0 0 10px;
+  border: 1px solid #273756;
+  border-radius: 8px;
+  background: #0c1526;
+}
+
+.codex-command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #1d2a44;
+}
+
+.codex-command-line {
+  color: #9fe2b8;
+  overflow-wrap: anywhere;
+}
+
+.codex-command-output {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  color: #c3cfe6;
+  font: 12px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.codex-approval-code {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--text);
+  font: 12px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .explainer {
   padding: 20px;
   overflow-y: auto;

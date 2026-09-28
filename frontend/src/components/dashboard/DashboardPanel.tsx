@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useShellStore } from '../../state/shellStore'
 import { usePreflight } from '../../hooks/usePreflight'
-import { useRunList } from '../../hooks/useRunList'
+import { useRunList, isRunActive } from '../../hooks/useRunList'
 
 const READINESS_LABELS: Record<string, string> = {
   READY: '준비 완료',
@@ -36,7 +36,7 @@ export function DashboardPanel() {
   const hookTrustStatus = preflight?.hook_trust?.status ?? 'UNKNOWN'
   const hookTrustTone = ['TRUSTED', 'MANAGED'].includes(hookTrustStatus) ? 'ok' : 'warn'
 
-  const activeRuns = (runs ?? []).filter((run) => run.status === 'RUNNING').length
+  const activeRuns = (runs ?? []).filter(isRunActive).length
   const totalRuns = runs?.length ?? 0
 
   return (

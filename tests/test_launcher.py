@@ -147,6 +147,73 @@ def test_user_abort_result_is_separate_and_verified(
         cleanup_running_launcher(values, launcher)
 
 
+class _FakeTreeProcess:
+    """Minimal psutil.Process stand-in for verified tree termination tests."""
+
+    def __init__(self, table: dict, pid: int, parent_pid: int | None, *, vanish_on_parent_check: bool = False,
+                 ancestry_denied: bool = False) -> None:
+        self.table = table
+        self.pid = pid
+        self.parent_pid = parent_pid
+        self.alive = True
+        self.vanish_on_parent_check = vanish_on_parent_check
+        self.ancestry_denied = ancestry_denied
+        table[pid] = self
+
+    def create_time(self) -> float:
+        if not self.alive:
+            raise psutil.NoSuchProcess(self.pid)
+        return 1000.0 + self.pid
+
+    def children(self, recursive: bool = False):
+        return [process for process in self.table.values() if process.parent_pid == self.pid]
+
+    def parent(self):
+        if self.vanish_on_parent_check:
+            # The helper exits on its own right as its ancestry is checked.
+            self.alive = False
+            raise psutil.NoSuchProcess(self.pid)
+        if self.ancestry_denied:
+            raise psutil.AccessDenied(self.pid)
+        return self.table.get(self.parent_pid)
+
+    def terminate(self) -> None:
+        self.alive = False
+
+    kill = terminate
+
+
+def _tree_launcher(table: dict) -> ProtectedLauncher:
+    def factory(pid: int):
+        process = table.get(pid)
+        if process is None or not process.alive:
+            raise psutil.NoSuchProcess(pid)
+        return process
+
+    launcher = object.__new__(ProtectedLauncher)
+    launcher.process_factory = factory
+    return launcher
+
+
+def test_verified_tree_termination_skips_a_descendant_that_exits_during_the_check() -> None:
+    table: dict = {}
+    root = _FakeTreeProcess(table, 10, None)
+    _FakeTreeProcess(table, 11, 10)
+    _FakeTreeProcess(table, 12, 10, vanish_on_parent_check=True)
+
+    assert _tree_launcher(table)._terminate_verified_tree(ProcessIdentity(10, root.create_time()), wait_seconds=0.1) is True
+    assert not any(process.alive for process in table.values())
+
+
+def test_verified_tree_termination_still_fails_for_a_live_descendant_with_unproven_ancestry() -> None:
+    table: dict = {}
+    root = _FakeTreeProcess(table, 20, None)
+    _FakeTreeProcess(table, 21, 20, ancestry_denied=True)
+
+    assert _tree_launcher(table)._terminate_verified_tree(ProcessIdentity(20, root.create_time()), wait_seconds=0.1) is False
+    assert table[20].alive is True
+
+
 def test_user_abort_during_starting_uses_verified_startup_identity(
     readiness_inputs: dict,
 ) -> None:
@@ -494,6 +561,68 @@ def test_codex_adapter_rejects_workbench_terminal_for_exec_mode(tmp_path: Path) 
     )
 
     with pytest.raises(AdapterError, match="interactive mode"):
+        adapter.build_launch(request, Path(sys.executable))
+
+
+def test_codex_adapter_builds_app_server_launch_with_protected_overrides(
+    tmp_path: Path,
+) -> None:
+    adapter = CodexAdapter(enable_hooks=True)
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        model="gpt-test",
+        adapter_options={"interactive": True, "app_server": True, "sandbox": "workspace-write"},
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert spec.interactive is True
+    assert spec.stdin_bytes == b""
+    assert spec.argv == (
+        str(sys.executable),
+        "app-server",
+        "-c",
+        'approval_policy="on-request"',
+        "-c",
+        'sandbox_mode="workspace-write"',
+        "-c",
+        "features.hooks=true",
+    )
+    assert "--no-alt-screen" not in spec.argv
+    assert "gpt-test" not in spec.argv
+
+
+@pytest.mark.parametrize(
+    ("adapter", "options"),
+    [
+        (CodexAdapter(enable_hooks=True), {"app_server": True}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "workbench_terminal": True}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "sandbox": "danger-full-access"}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "approval_policy": "never"}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "add_dir": "C:/other"}),
+        (CodexAdapter(), {"interactive": True, "app_server": True}),
+        (
+            CodexAdapter(hook_command="aia hook runtime", allow_hook_trust_bypass=True),
+            {"interactive": True, "app_server": True},
+        ),
+    ],
+)
+def test_codex_adapter_rejects_unprotected_app_server_launches(
+    tmp_path: Path,
+    adapter: CodexAdapter,
+    options: dict,
+) -> None:
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="" if options.get("interactive") else "safe",
+        adapter_options=options,
+    )
+
+    with pytest.raises(AdapterError):
         adapter.build_launch(request, Path(sys.executable))
 
 

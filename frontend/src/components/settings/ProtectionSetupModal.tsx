@@ -115,7 +115,9 @@ export function ProtectionSetupModal() {
         policy_profile: policyProfile || undefined,
         mode: 'ENFORCE',
         interactive: true,
-        launch_mode: 'web_terminal',
+        // Structured Codex conversation (app-server) instead of the PTY/TUI
+        // terminal; runs created earlier keep their original surface.
+        launch_mode: 'codex_app_server',
       })
       setActiveRun(result.session_id)
       setView('terminal')

@@ -15,6 +15,12 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+import contextlib
+
+import anyio
+from anyio import to_thread
+
+from aia_app.codex_app_server import CodexAppServerError
 from aia_app.service import RunApplicationService
 from aia_app.terminal import TerminalSessionError
 from aia.capabilities import product_capabilities
@@ -35,6 +41,50 @@ _TERMINAL_STATUS_POLL_INTERVAL_SECONDS = 0.25
 # dominant knob for perceived output latency. Kept well above 0 so idle
 # sessions don't spin the event loop.
 _TERMINAL_OUTPUT_POLL_TIMEOUT_SECONDS = 0.02
+
+
+_CODEX_EVENT_WAIT_SECONDS = 5.0
+_CODEX_EVENT_BATCH_MAX_CHARS = 64 * 1024
+_CODEX_SEND_TIMEOUT_SECONDS = 5.0
+_CODEX_STREAM_TYPES = frozenset({"message.delta", "command.output", "reasoning.delta"})
+_CODEX_TERMINAL_STATUSES = frozenset({"EXITED", "FAILED"})
+_CODEX_RUN_NOT_FOUND = "보호 실행을 찾을 수 없습니다. 실행 목록을 새로 고친 뒤 다시 열어 주세요."
+
+
+def _coalesce_codex_events(events: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Merge adjacent stream deltas and split into bounded WebSocket batches.
+
+    Consecutive text deltas for the same item are concatenated (keeping the
+    last sequence) so a burst of tokens costs one render instead of hundreds.
+    Every other event is forwarded unchanged and in order.
+    """
+
+    merged: list[dict[str, Any]] = []
+    for event in events:
+        previous = merged[-1] if merged else None
+        if (
+            previous is not None
+            and event.get("type") in _CODEX_STREAM_TYPES
+            and previous.get("type") == event.get("type")
+            and previous.get("item_id") == event.get("item_id")
+        ):
+            merged[-1] = {**previous, "text": str(previous.get("text", "")) + str(event.get("text", "")),
+                          "sequence": event["sequence"], "recorded_at": event.get("recorded_at")}
+        else:
+            merged.append(dict(event))
+    batches: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_chars = 0
+    for event in merged:
+        size = len(str(event.get("text", ""))) + 200
+        if current and current_chars + size > _CODEX_EVENT_BATCH_MAX_CHARS:
+            batches.append(current)
+            current, current_chars = [], 0
+        current.append(event)
+        current_chars += size
+    if current:
+        batches.append(current)
+    return batches
 
 
 def _hidden_process_kwargs() -> dict[str, int]:
@@ -544,6 +594,119 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
                         return
         except WebSocketDisconnect:
             return
+
+    @app.get("/api/runs/{session_id}/codex/status")
+    def codex_status(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.get_codex_status(session_id))
+        except (KeyError, ValueError):
+            # An unknown session has no live record and no readable Bundle.
+            return JSONResponse({"error": "Run not found"}, status_code=404)
+
+    @app.websocket("/api/runs/{session_id}/codex")
+    async def codex_socket(websocket: WebSocket, session_id: str) -> None:
+        """Stream one Workbench conversation and accept user commands.
+
+        Events are pushed as soon as Codex produces them: a sender task waits
+        for new events off the event loop, and a receiver task waits for user
+        commands without ever being cancelled mid-receive.  ``?after=N``
+        resumes after the last event a reconnecting viewer already rendered.
+        """
+
+        service = app.state.service
+        await websocket.accept()
+        try:
+            cursor = max(0, int(websocket.query_params.get("after", "0")))
+        except ValueError:
+            cursor = 0
+        send_lock = asyncio.Lock()
+
+        async def send(message: dict[str, Any]) -> None:
+            async with send_lock:
+                await asyncio.wait_for(websocket.send_json(message), timeout=_CODEX_SEND_TIMEOUT_SECONDS)
+
+        async def status() -> dict[str, Any]:
+            return await to_thread.run_sync(service.get_codex_status, session_id)
+
+        async def pump() -> None:
+            nonlocal cursor
+            last_status: dict[str, Any] | None = None
+            first = True
+            while True:
+                if first:
+                    # Replay the backlog and report status right away; only
+                    # later iterations long-poll for new events.
+                    events = await to_thread.run_sync(
+                        lambda: service.read_codex_events(session_id, after_sequence=cursor)
+                    )
+                    first = False
+                else:
+                    # A disconnect must not wait for this bounded long-poll
+                    # to return; the worker thread ends on its own timeout.
+                    events = await to_thread.run_sync(
+                        lambda: service.wait_codex_events(
+                            session_id,
+                            after_sequence=cursor,
+                            timeout=_CODEX_EVENT_WAIT_SECONDS,
+                        ),
+                        abandon_on_cancel=True,
+                    )
+                for batch in _coalesce_codex_events(events):
+                    await send({"type": "events", "events": batch})
+                    cursor = batch[-1]["sequence"]
+                current = await status()
+                if current != last_status:
+                    await send({"type": "status", **current})
+                    last_status = current
+                if current.get("status") in _CODEX_TERMINAL_STATUSES and not events:
+                    await send({"type": "closed", "status": current.get("status")})
+                    return
+
+        async def receive() -> None:
+            handlers = {
+                "user_message": lambda message: service.send_codex_message(session_id, str(message.get("text", ""))),
+                "interrupt": lambda message: service.interrupt_codex_turn(session_id),
+                "approval_decision": lambda message: service.respond_codex_approval(
+                    session_id,
+                    str(message.get("approval_id", "")),
+                    str(message.get("decision", "")),
+                ),
+                "end_session": lambda message: service.end_codex_session(session_id),
+            }
+            while True:
+                message = await websocket.receive_json()
+                client_id = message.get("client_id") if isinstance(message, dict) else None
+                handler = handlers.get(message.get("type")) if isinstance(message, dict) else None
+                if handler is None:
+                    await send({"type": "error", "client_id": client_id, "message": "unsupported conversation message"})
+                    continue
+                try:
+                    result = await to_thread.run_sync(handler, message)
+                except (KeyError, CodexAppServerError) as error:
+                    await send({"type": "error", "client_id": client_id, "action": message.get("type"),
+                                "message": str(error) if not isinstance(error, KeyError) else _CODEX_RUN_NOT_FOUND})
+                    continue
+                await send({"type": "accepted", "client_id": client_id, "action": message.get("type"), **result})
+
+        async def guarded(part, group: anyio.abc.TaskGroup) -> None:
+            # Whichever side ends first (viewer left, Codex exited, unknown
+            # run) ends the other one; structured cancellation keeps the
+            # handler well-behaved when the server itself cancels it.
+            try:
+                await part()
+            except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError):
+                pass  # the viewer's connection is gone
+            except (KeyError, ValueError):
+                with contextlib.suppress(WebSocketDisconnect, asyncio.TimeoutError, RuntimeError):
+                    await send({"type": "error", "message": _CODEX_RUN_NOT_FOUND})
+            finally:
+                group.cancel_scope.cancel()
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(guarded, pump, group)
+            group.start_soon(guarded, receive, group)
+        with contextlib.suppress(WebSocketDisconnect, RuntimeError):
+            await websocket.close()
 
     @app.post("/api/runs/{session_id}/stop")
     def stop_run(session_id: str) -> JSONResponse:
