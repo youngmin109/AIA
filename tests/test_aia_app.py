@@ -2524,6 +2524,33 @@ def test_list_runs_includes_runtime_state_from_another_service_process(tmp_path)
         writer.shutdown()
 
 
+def test_list_runs_skips_malformed_and_mismatched_runtime_state_files(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    run_status = tmp_path / "control" / "run-status"
+    run_status.mkdir(parents=True)
+    service._write_runtime_state_payload(
+        "valid-session",
+        {
+            "schema_version": 1,
+            "session_id": "valid-session",
+            "session": {"status": "COMPLETED", "created_at": "2026-01-01T00:00:00+00:00"},
+            "result_available": False,
+        },
+    )
+    (run_status / "malformed-session.json").write_text("{", encoding="utf-8")
+    (run_status / "mismatched-session.json").write_text(
+        json.dumps({"session_id": "another-session", "session": {"status": "FAILED"}}),
+        encoding="utf-8",
+    )
+    try:
+        runs = service.list_runs()
+
+        assert [run["session_id"] for run in runs] == ["valid-session"]
+        assert runs[0]["run_classification"] == "UNVERIFIED_RUNTIME_STATE"
+    finally:
+        service.shutdown()
+
+
 def test_list_runs_reuses_verified_history_for_refresh_burst(tmp_path, monkeypatch) -> None:
     service = RunApplicationService(tmp_path / "control")
     calls = 0

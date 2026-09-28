@@ -3591,19 +3591,17 @@ class RunApplicationService:
             return []
         states: list[dict[str, Any]] = []
         for path in root.glob("*.json"):
+            session_id = path.stem
+            try:
+                if self._runtime_state_path(session_id) != path:
+                    continue
+            except ValueError:
+                continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError, json.JSONDecodeError):
                 continue
-            if not isinstance(payload, dict):
-                continue
-            session_id = payload.get("session_id")
-            if not isinstance(session_id, str):
-                continue
-            try:
-                if self._runtime_state_path(session_id) != path.resolve(strict=False):
-                    continue
-            except ValueError:
+            if not isinstance(payload, dict) or payload.get("session_id") != session_id:
                 continue
             states.append(payload)
         return states
