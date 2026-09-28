@@ -11,7 +11,8 @@ EPIC-019는 AIA Core 위에 붙는 P1 로컬 애플리케이션 계층이다. �
 - 기본 HTTP bind: `127.0.0.1:8787`
 - 외부 인증/로그인 없음
 - 외부 네트워크 연동 없음
-- HTTP polling 사용, WebSocket 미사용
+- Live Run 상태와 Action 목록은 HTTP polling으로 갱신
+- Workbench 대화는 Codex `app-server` stdio JSON-RPC와 `/api/runs/{session_id}/codex` WebSocket 사용
 - 저장소는 기존 Core의 Control Root와 Result Bundle을 사용
 - 별도 Database를 추가하지 않음
 - frontend framework 없이 Jinja2, vanilla JavaScript, CSS만 사용
@@ -32,6 +33,11 @@ Raw Evidence → Normalization → Attribution / Policy → Enforcement
   ↓
 Session Finalizer → Result Bundle / Audit / Integrity Verification
 ```
+
+Workbench 대화 경로는 위의 상태 조회와 별도로 동작한다. 브라우저는
+`/api/runs/{session_id}/codex` WebSocket에서 메시지와 대화 이벤트를 주고받고,
+RunApplicationService의 Codex Workbench가 보호 실행의 Codex `app-server`를
+stdio JSON-RPC로 제어한다. 이 경로는 대화 UI를 제공하며 정책 판단 권한을 갖지 않는다.
 
 `RunRegistry`는 프로세스 내부에서 빠른 화면 갱신에 사용하는 in-memory registry다. 동시에
 Control Root의 `run-status/<session_id>.json`에 raw command와 비밀값을 제외한 실행 상태를
@@ -59,7 +65,7 @@ Result Bundle에서 다시 읽을 수 있다.
 - Policy 판단과 Attribution 판단은 Web 계층에서 만들지 않는다.
 - 사용자가 고른 Profile은 Run 생성 시 Core `resolve_profile`을 통해 한 번 해석하고, 실행 중에는 해당 resolved policy를 사용한다.
 
-## HTTP 계약
+## HTTP / WebSocket 계약
 
 ```text
 GET  /                         New Protected Run
@@ -67,6 +73,8 @@ POST /api/runs                 202 + redirect_url/session_id/status
 GET  /runs/{session_id}        Live Run
 GET  /api/runs/{session_id}    Live status JSON
 GET  /api/runs/{session_id}/actions
+GET  /api/runs/{session_id}/codex/status  Workbench conversation status
+WS   /api/runs/{session_id}/codex         Workbench conversation
 GET  /runs/{session_id}/incidents/{action_id}
 GET  /runs/{session_id}/result
 GET  /runs/{session_id}/report
@@ -89,7 +97,7 @@ uv run aia console --open
 
 ## 범위 밖
 
-이번 EPIC에서는 로그인/원격 접근, 다중 사용자 권한, Database persistence, WebSocket, GUI 기반 policy authoring, Network Security, Claude 지원, 새 Core 보안 기능을 구현하지 않는다. 대규모 Workspace 성능, 결과 bundle 보존 정책, OS 수준 Agent 복구와 중지 실패 시 자동 복구는 제공하지 않는다.
+이번 EPIC에서는 로그인/원격 접근, 다중 사용자 권한, Database persistence, GUI 기반 policy authoring, Network Security, Claude 지원, 새 Core 보안 기능을 구현하지 않는다. WebSocket은 Codex Workbench 대화 전송에만 사용하며, 별도의 원격 관리나 정책 권한을 제공하지 않는다. 대규모 Workspace 성능, 결과 bundle 보존 정책, OS 수준 Agent 복구와 중지 실패 시 자동 복구는 제공하지 않는다.
 
 ## 검증
 

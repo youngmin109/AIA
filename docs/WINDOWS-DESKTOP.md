@@ -5,6 +5,12 @@ the FastAPI console on `127.0.0.1`, opens it in WebView2, and closes the local
 server when the window closes. Policy evaluation, Hook Sensor, File Sensor,
 Process Sensor, Evidence, and enforcement remain in AIA Core.
 
+The Workbench conversation runs through Codex `app-server`: the browser connects
+to `/api/runs/{session_id}/codex` over WebSocket, and the local FastAPI service
+bridges conversation messages and events to the app-server process. Run status
+and action history continue to use HTTP polling. The conversation UI does not
+make policy or enforcement decisions.
+
 ## 사용자 실행
 
 설치 후 시작 메뉴 또는 바탕 화면의 `AIA`를 실행합니다.

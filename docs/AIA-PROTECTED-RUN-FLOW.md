@@ -8,12 +8,20 @@
 4. Workspace Lease는 동일 Workspace에 중복 보호 Session이 생성되지 않도록 소유권을 기록한다.
 5. Checkpoint Manager는 실행 전 파일 경로·존재 여부·SHA-256 Manifest를 저장해 복구 기준점을 만든다.
 6. File Sensor는 Workspace의 생성·수정·삭제·이동을 파일 시스템 Evidence로 수집한다.
-7. 보호 준비가 완료되면 AIA가 `subprocess`로 Codex를 생성하고 PID와 `create_time`을 Root Identity로 등록한다.
+7. 보호 준비가 완료되면 Protected Launcher가 Codex `app-server` conversation을 시작하고, 관리 대상 Codex 프로세스의 PID와 `create_time`을 Root Identity로 등록한다.
 8. Process Sensor는 등록된 Codex Root와 자식 프로세스 트리만 PID·생존 상태·생성 시각으로 관찰한다.
 9. Codex의 PreTool 요청은 Hook을 통해 AIA로 전달되고, AIA는 명령·경로·도구 정보만 Raw Evidence로 보존한다.
 10. Normalizer는 Hook·File·Process Evidence를 `Canonical Action`으로 통합한 뒤 Policy Evaluation과 Attribution을 독립적으로 수행한다.
 11. Enforcement Gate는 정책 결과·귀속 수준·Session·Lease·Sensor 상태를 검증해 `CONTINUE`, `CONTAIN`, `REFUSE`를 결정한다.
 12. 실제 차단·프로세스 종료·복구는 별도 실행기가 수행하고, AIA는 실제 성공 여부를 확인한 뒤 Enforcement·Recovery·Integrity·Audit 결과를 확정한다.
+
+## Workbench 대화 경로
+
+브라우저의 Workbench는 `/api/runs/{session_id}/codex` WebSocket을 통해 Codex 대화를 표시하고,
+사용자 메시지·중단 요청·승인 응답을 전달한다. FastAPI의 Codex Workbench는 이를 보호 실행에
+연결된 Codex `app-server`의 stdio JSON-RPC 세션으로 중계한다. 실행 상태와 Action 목록은 별도
+HTTP polling으로 읽는다. Workbench는 대화를 표시하고 입력을 전달하는 UI 경로이며, 정책 결정과
+강제조치는 기존 AIA Core 흐름이 담당한다.
 
 ## 용어 주석
 

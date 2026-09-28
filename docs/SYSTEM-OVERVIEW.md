@@ -14,6 +14,7 @@ flowchart TB
     subgraph APP[Application Layer · 제품 사용을 연결하는 계층]
         UI[Local Security Console<br/>FastAPI + Jinja2 + Vanilla JS]
         SVC[RunApplicationService<br/>Protected Run 시작·상태 조회]
+        WB[Codex Workbench<br/>Codex app-server conversation]
         REG[RunRegistry<br/>진행 중 화면 상태만 보관]
         READER[ResultBundleReader<br/>완료된 VALID Bundle 읽기]
     end
@@ -46,6 +47,8 @@ flowchart TB
     end
 
     U --> B --> UI --> SVC
+    B <-->|WebSocket /api/runs/{session_id}/codex| UI
+    SVC --> WB --> AGENT
     SVC --> SESSION
     SVC --> POLICY --> LEASE --> CP --> SENSORS --> READY --> LAUNCH --> AGENT
     SENSORS --> RAW
@@ -59,7 +62,7 @@ flowchart TB
     RAW --> EVIDENCE
     AUDIT --> RESULT
 
-    SVC -. live status .-> REG -. polling .-> UI
+    SVC -. live run status .-> REG -. HTTP polling .-> UI
     RESULT --> READER -. completed result .-> SVC
 ```
 
@@ -79,7 +82,11 @@ sequenceDiagram
     App->>Core: Session 생성 + 보호 준비 시작
     App-->>Web: session_id 즉시 반환
     Core->>Core: Policy 고정·Lease·Checkpoint·Sensor·Readiness
-    Core->>Agent: 보호된 실행 시작
+    Core->>Agent: 보호된 Codex app-server 실행 시작
+    Web<->>App: WebSocket /api/runs/{session_id}/codex
+    App<->>Agent: app-server stdio JSON-RPC conversation
+    Web->>App: user_message · interrupt · approval_decision
+    App-->>Web: conversation events · status
     loop 1초 polling
         Web->>App: 실행 상태·Action 조회
         App-->>Web: Phase·Sensor·Canonical Action
@@ -92,6 +99,12 @@ sequenceDiagram
     App->>Bundle: Bundle 무결성 확인 후 읽기
     Bundle-->>Web: Result·Report·Evidence metadata 표시
 ```
+
+Workbench 대화는 보호 실행에서 시작된 Codex `app-server` 세션을 사용한다.
+브라우저는 `/api/runs/{session_id}/codex` WebSocket으로 대화를 주고받고,
+FastAPI는 app-server의 stdio JSON-RPC와 연결한다. 실행 상태와 Action 타임라인은
+별도의 HTTP polling으로 갱신한다. 이 대화 경로는 화면 기능이며 정책 판정이나
+집행 권한을 갖지 않는다.
 
 ## 각 계층의 역할
 
