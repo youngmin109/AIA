@@ -988,24 +988,9 @@ def attribution_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
-    incidents = incident_views_for_result(result)
-    incident_action_ids = {
-        item.get("action_id")
-        for item in incidents
-        if item.get("action_id") is not None
-    }
-    actions = [
-        {
-            **action_view(item),
-            "incident": item.get("action_id") in incident_action_ids,
-        }
-        for item in result.get("action_outcomes", [])
-    ]
-    policy = result.get("policy") or {}
-    recovery = result.get("recovery_result") or {}
-    integrity = result.get("integrity_result") or {}
-    action_outcomes = result.get("action_outcomes") or []
+def _result_execution_policy(
+    result: Mapping[str, Any], action_outcomes: list[Mapping[str, Any]]
+) -> dict[str, Any]:
     agent_execution = result.get("agent_execution") or {}
     output_observation = agent_execution.get("output_observation") or {}
     effective_sandbox = (
@@ -1041,6 +1026,63 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         codex_block_confirmation = "NOT_CONFIRMED"
     else:
         codex_block_confirmation = "NOT_AVAILABLE"
+    return {
+        "codex_block_confirmation": codex_block_confirmation,
+        "codex_block_confirmation_reason": output_observation.get("reason"),
+        "execution_policy_status": execution_policy_status,
+        "requested_sandbox": requested_sandbox,
+        "requested_approval_policy": requested_approval_policy,
+        "effective_sandbox": effective_sandbox,
+        "effective_approval_policy": effective_approval_policy,
+    }
+
+
+def _recovery_summary(recovery: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": recovery.get("recovery_status") or recovery.get("status") or "NOT_ATTEMPTED",
+        "reason": recovery.get("reason"),
+        "planned_operations": int(recovery.get("planned_operation_count") or 0),
+        "attempted_operations": int(recovery.get("attempted_operation_count") or 0),
+        "succeeded_operations": int(recovery.get("succeeded_operation_count") or 0),
+        "failed_operations": int(recovery.get("failed_operation_count") or 0),
+        "restored_paths": len(recovery.get("restored_paths") or []),
+        "removed_paths": len(recovery.get("removed_paths") or []),
+        "failed_paths": len(recovery.get("failed_paths") or []),
+    }
+
+
+def _integrity_summary(integrity: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": integrity.get("integrity_status") or integrity.get("status") or "NOT_ATTEMPTED",
+        "reason": integrity.get("reason"),
+        "expected_entries": int(integrity.get("expected_entry_count") or 0),
+        "actual_entries": int(integrity.get("actual_entry_count") or 0),
+        "missing_paths": len(integrity.get("missing_paths") or []),
+        "unexpected_paths": len(integrity.get("unexpected_paths") or []),
+        "changed_paths": len(integrity.get("changed_paths") or []),
+        "verification_errors": len(integrity.get("verification_errors") or []),
+    }
+
+
+def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
+    incidents = incident_views_for_result(result)
+    incident_action_ids = {
+        item.get("action_id")
+        for item in incidents
+        if item.get("action_id") is not None
+    }
+    actions = [
+        {
+            **action_view(item),
+            "incident": item.get("action_id") in incident_action_ids,
+        }
+        for item in result.get("action_outcomes", [])
+    ]
+    policy = result.get("policy") or {}
+    recovery = result.get("recovery_result") or {}
+    integrity = result.get("integrity_result") or {}
+    action_outcomes = result.get("action_outcomes") or []
+    execution_policy = _result_execution_policy(result, action_outcomes)
     limitations = list(result.get("limitations") or [])
     unsupported_tool_review_decisions = [
         item
@@ -1062,27 +1104,8 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         if item not in limitations
     )
     first_action = actions[0] if actions else {}
-    recovery_summary = {
-        "status": recovery.get("recovery_status") or recovery.get("status") or "NOT_ATTEMPTED",
-        "reason": recovery.get("reason"),
-        "planned_operations": int(recovery.get("planned_operation_count") or 0),
-        "attempted_operations": int(recovery.get("attempted_operation_count") or 0),
-        "succeeded_operations": int(recovery.get("succeeded_operation_count") or 0),
-        "failed_operations": int(recovery.get("failed_operation_count") or 0),
-        "restored_paths": len(recovery.get("restored_paths") or []),
-        "removed_paths": len(recovery.get("removed_paths") or []),
-        "failed_paths": len(recovery.get("failed_paths") or []),
-    }
-    integrity_summary = {
-        "status": integrity.get("integrity_status") or integrity.get("status") or "NOT_ATTEMPTED",
-        "reason": integrity.get("reason"),
-        "expected_entries": int(integrity.get("expected_entry_count") or 0),
-        "actual_entries": int(integrity.get("actual_entry_count") or 0),
-        "missing_paths": len(integrity.get("missing_paths") or []),
-        "unexpected_paths": len(integrity.get("unexpected_paths") or []),
-        "changed_paths": len(integrity.get("changed_paths") or []),
-        "verification_errors": len(integrity.get("verification_errors") or []),
-    }
+    recovery_summary = _recovery_summary(recovery)
+    integrity_summary = _integrity_summary(integrity)
     return {
         "action_summary": action_summary(result),
         "attribution_summary": attribution_summary(result),
@@ -1090,13 +1113,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "agent": result.get("agent"),
         "attribution_results": list(result.get("attribution_results") or []),
         "bundle_status": bundle_status,
-        "codex_block_confirmation": codex_block_confirmation,
-        "codex_block_confirmation_reason": output_observation.get("reason"),
-        "execution_policy_status": execution_policy_status,
-        "requested_sandbox": requested_sandbox,
-        "requested_approval_policy": requested_approval_policy,
-        "effective_sandbox": effective_sandbox,
-        "effective_approval_policy": effective_approval_policy,
+        **execution_policy,
         "ended_at": result.get("ended_at"),
         "enforcement_results": list(result.get("enforcement_results") or []),
         "incidents": incidents,

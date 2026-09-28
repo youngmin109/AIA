@@ -1385,6 +1385,12 @@ def test_result_presenter_exposes_codex_block_confirmation() -> None:
     assert view["codex_block_confirmation_reason"] == "CODEX_HOOK_BLOCKED_EVENT"
 
 
+def test_result_presenter_reports_unavailable_block_confirmation() -> None:
+    view = result_view({"action_outcomes": []}, "VALID")
+
+    assert view["codex_block_confirmation"] == "NOT_AVAILABLE"
+
+
 def test_result_presenter_exposes_effective_codex_execution_policy() -> None:
     view = result_view(
         {
@@ -1406,6 +1412,33 @@ def test_result_presenter_exposes_effective_codex_execution_policy() -> None:
     assert view["requested_sandbox"] == "workspace-write"
     assert view["effective_sandbox"] == "read-only"
     assert view["effective_approval_policy"] == "never"
+
+
+@pytest.mark.parametrize(
+    ("observation", "expected_status"),
+    [
+        (
+            {
+                "effective_sandbox": "workspace-write",
+                "effective_approval_policy": "on-request",
+            },
+            "MATCHED",
+        ),
+        ({}, "NOT_OBSERVED"),
+    ],
+)
+def test_result_presenter_reports_execution_policy_status(
+    observation: dict[str, str], expected_status: str
+) -> None:
+    view = result_view(
+        {
+            "agent_execution": {"output_observation": observation},
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+
+    assert view["execution_policy_status"] == expected_status
 
 
 def test_result_presenter_does_not_confirm_from_output_metadata_alone() -> None:
