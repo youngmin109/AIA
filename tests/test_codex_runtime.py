@@ -191,6 +191,91 @@ def test_bound_pretool_unknown_tool_is_denied_and_marked_unsupported(
     assert controller.errors == ("UNSUPPORTED_TOOL_PATH: mcp__unknown__write_file",)
 
 
+def _unsupported_tool_controller(monkeypatch, reviewer) -> CodexPreToolController:
+    controller = object.__new__(CodexPreToolController)
+    controller.session = SimpleNamespace(session_id="aia-session", workspace=Path("C:/workspace/demo"), agent="codex")
+    controller.bridge = SimpleNamespace(capability_secret="capability")
+    controller.launch_context_provider = lambda: None
+    controller.hook_sensor = SimpleNamespace(observe=lambda payload: ())
+    controller.unsupported_tool_reviewer = reviewer
+    controller._lock = RLock()
+    controller._errors = []
+    controller._unsupported_tool_names = []
+    controller._user_approved_unsupported_tools = []
+    monkeypatch.setattr(
+        codex_runtime.CodexHookAdapter,
+        "verify_ingress",
+        staticmethod(
+            lambda payload, **kwargs: SimpleNamespace(
+                status=codex_runtime.HookTrustStatus.VERIFIED,
+                reason="",
+                agent_native_session_id="native-session",
+                turn_id="turn-1",
+                tool_use_id="tool-1",
+                tool_name="web_search",
+            )
+        ),
+    )
+    return controller
+
+
+def _unsupported_payload() -> dict[str, object]:
+    payload = _native_hook_payload()
+    payload["tool_name"] = "web_search"
+    payload["tool_input"] = {"query": "훈민정음 창제 연도"}
+    return payload
+
+
+def test_user_approved_unsupported_tool_continues_without_an_explicit_allow(monkeypatch) -> None:
+    reviews = []
+
+    def reviewer(review):
+        reviews.append(review)
+        return True
+
+    controller = _unsupported_tool_controller(monkeypatch, reviewer)
+    result = controller.evaluate(_unsupported_payload())
+
+    assert result == {}
+    assert reviews[0].tool_name == "web_search"
+    assert reviews[0].tool_use_id == "tool-1"
+    assert json.loads(reviews[0].input_summary) == {"query": "훈민정음 창제 연도"}
+    assert controller.user_approved_unsupported_tools == ("web_search",)
+    # The run still used a path AIA cannot interpret.
+    assert controller.unsupported_tool_names == ("web_search",)
+    assert controller.errors == ("UNSUPPORTED_TOOL_PATH: web_search",)
+
+
+@pytest.mark.parametrize("answer", [False, None, "yes"])
+def test_unsupported_tool_is_refused_unless_the_user_explicitly_approves(monkeypatch, answer) -> None:
+    controller = _unsupported_tool_controller(monkeypatch, lambda review: answer)
+    result = controller.evaluate(_unsupported_payload())
+
+    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "UNSUPPORTED_TOOL_PATH" in result["reason"]
+    assert controller.user_approved_unsupported_tools == ()
+
+
+def test_unsupported_tool_review_failure_is_a_refusal(monkeypatch) -> None:
+    def reviewer(review):
+        raise TimeoutError("no decision")
+
+    controller = _unsupported_tool_controller(monkeypatch, reviewer)
+    result = controller.evaluate(_unsupported_payload())
+
+    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "UNSUPPORTED_TOOL_REVIEW_FAILED: TimeoutError" in controller.errors
+
+
+def test_unsupported_tool_review_summary_is_bounded(monkeypatch) -> None:
+    reviews = []
+    controller = _unsupported_tool_controller(monkeypatch, lambda review: reviews.append(review) or False)
+    payload = _unsupported_payload()
+    payload["tool_input"] = {"query": "x" * 5000}
+    controller.evaluate(payload)
+    assert len(reviews[0].input_summary) == codex_runtime.UnsupportedToolReview.MAX_SUMMARY_CHARS
+
+
 def test_codex_hook_broker_round_trip_is_capability_authenticated(
     tmp_path: Path,
     monkeypatch,

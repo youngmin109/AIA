@@ -74,6 +74,22 @@ class CodexPreToolEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class UnsupportedToolReview:
+    """One unsupported tool call waiting for the user's decision.
+
+    ``input_summary`` is a bounded JSON rendering of the tool input for the
+    user to judge.  It is shown in the local Workbench only and is never
+    written to evidence or the Result Bundle.
+    """
+
+    MAX_SUMMARY_CHARS = 600
+
+    tool_name: str
+    tool_use_id: str
+    input_summary: str
+
+
+@dataclass(frozen=True, slots=True)
 class CodexPostActionContainment:
     """A verified post-action containment attempt for a bypassed PreTool deny."""
 
@@ -104,6 +120,7 @@ class CodexPreToolController:
         post_action_containment_callback: Callable[
             [CodexPostActionContainment], ProcessTerminationResult | None
         ] | None = None,
+        unsupported_tool_reviewer: Callable[["UnsupportedToolReview"], bool] | None = None,
     ) -> None:
         self.session = session
         self.preparation_context = preparation_context
@@ -115,10 +132,12 @@ class CodexPreToolController:
         self.launch_context_provider = launch_context_provider
         self.process_sensor_provider = process_sensor_provider
         self.post_action_containment_callback = post_action_containment_callback
+        self.unsupported_tool_reviewer = unsupported_tool_reviewer
         self._events: list[CodexPreToolEvent] = []
         self._post_action_containments: list[CodexPostActionContainment] = []
         self._errors: list[str] = []
         self._unsupported_tool_names: list[str] = []
+        self._user_approved_unsupported_tools: list[str] = []
         self._lock = threading.RLock()
 
     @property
@@ -142,6 +161,13 @@ class CodexPreToolController:
 
         with self._lock:
             return tuple(self._unsupported_tool_names)
+
+    @property
+    def user_approved_unsupported_tools(self) -> tuple[str, ...]:
+        """Unsupported tools the user explicitly let Codex run anyway."""
+
+        with self._lock:
+            return tuple(getattr(self, "_user_approved_unsupported_tools", ()))
 
     def evaluate(self, native_payload: Mapping[str, Any]) -> Mapping[str, Any]:
         """Evaluate one native Codex payload and return the Codex wire response."""
@@ -167,6 +193,11 @@ class CodexPreToolController:
             )
             if native.tool_name not in AIA_CODEX_SUPPORTED_MATCHERS:
                 self._record_unsupported_tool(native.tool_name)
+                if self._user_allows_unsupported_tool(native.tool_name, native.tool_use_id, native_payload):
+                    # Empty output keeps Codex's own sandbox and approval
+                    # handling; AIA never emits an explicit allow.  The run
+                    # stays marked as having used an unsupported path.
+                    return {}
                 return protected_pretool_deny("UNSUPPORTED_TOOL_PATH")
             normalized = normalize_evidence(
                 records,
@@ -513,6 +544,43 @@ class CodexPreToolController:
         with self._lock:
             self._errors.append(value)
 
+    def _user_allows_unsupported_tool(
+        self,
+        tool_name: str,
+        tool_use_id: str | None,
+        native_payload: Mapping[str, Any],
+    ) -> bool:
+        """Ask the user (human-in-the-loop) whether an unsupported tool may run.
+
+        Without a reviewer, or on any reviewer failure, the tool is refused as
+        before.  The reviewer blocks this Hook request, so it must answer
+        within the Codex Hook timeout; a timeout is a refusal.
+        """
+
+        reviewer = getattr(self, "unsupported_tool_reviewer", None)
+        if reviewer is None:
+            return False
+        tool_input = native_payload.get("tool_input")
+        try:
+            summary = json.dumps(tool_input, ensure_ascii=False, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            summary = ""
+        review = UnsupportedToolReview(
+            tool_name=tool_name,
+            tool_use_id=tool_use_id or "",
+            input_summary=summary[:UnsupportedToolReview.MAX_SUMMARY_CHARS],
+        )
+        try:
+            approved = reviewer(review) is True
+        except Exception as error:
+            self._record_error(f"UNSUPPORTED_TOOL_REVIEW_FAILED: {type(error).__name__}")
+            return False
+        if approved:
+            with self._lock:
+                if tool_name not in self._user_approved_unsupported_tools:
+                    self._user_approved_unsupported_tools.append(tool_name)
+        return approved
+
     def _record_unsupported_tool(self, tool_name: str) -> None:
         """Record a path refusal without retaining the tool input here."""
 
@@ -685,5 +753,6 @@ __all__ = [
     "CodexPostActionContainment",
     "CodexPreToolController",
     "CodexPreToolEvent",
+    "UnsupportedToolReview",
     "send_hook_payload",
 ]

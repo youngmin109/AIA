@@ -497,6 +497,68 @@ def test_codex_adapter_rejects_workbench_terminal_for_exec_mode(tmp_path: Path) 
         adapter.build_launch(request, Path(sys.executable))
 
 
+def test_codex_adapter_builds_app_server_launch_with_protected_overrides(
+    tmp_path: Path,
+) -> None:
+    adapter = CodexAdapter(enable_hooks=True)
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        model="gpt-test",
+        adapter_options={"interactive": True, "app_server": True, "sandbox": "workspace-write"},
+    )
+
+    spec = adapter.build_launch(request, Path(sys.executable))
+
+    assert spec.interactive is True
+    assert spec.stdin_bytes == b""
+    assert spec.argv == (
+        str(sys.executable),
+        "app-server",
+        "-c",
+        'approval_policy="on-request"',
+        "-c",
+        'sandbox_mode="workspace-write"',
+        "-c",
+        "features.hooks=true",
+    )
+    assert "--no-alt-screen" not in spec.argv
+    assert "gpt-test" not in spec.argv
+
+
+@pytest.mark.parametrize(
+    ("adapter", "options"),
+    [
+        (CodexAdapter(enable_hooks=True), {"app_server": True}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "workbench_terminal": True}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "sandbox": "danger-full-access"}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "approval_policy": "never"}),
+        (CodexAdapter(enable_hooks=True), {"interactive": True, "app_server": True, "add_dir": "C:/other"}),
+        (CodexAdapter(), {"interactive": True, "app_server": True}),
+        (
+            CodexAdapter(hook_command="aia hook runtime", allow_hook_trust_bypass=True),
+            {"interactive": True, "app_server": True},
+        ),
+    ],
+)
+def test_codex_adapter_rejects_unprotected_app_server_launches(
+    tmp_path: Path,
+    adapter: CodexAdapter,
+    options: dict,
+) -> None:
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="" if options.get("interactive") else "safe",
+        adapter_options=options,
+    )
+
+    with pytest.raises(AdapterError):
+        adapter.build_launch(request, Path(sys.executable))
+
+
 def test_codex_adapter_rejects_permission_bypass_option(tmp_path: Path) -> None:
     adapter = CodexAdapter()
     request = ProtectedLaunchRequest(

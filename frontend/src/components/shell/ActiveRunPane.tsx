@@ -1,6 +1,7 @@
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { TerminalPane } from '../terminal/TerminalPane'
+import { CodexConversationPane } from '../terminal/CodexConversationPane'
 import { StepsExplainer } from '../terminal/StepsExplainer'
 import { ResultView } from '../results/ResultView'
 import { useRunStatus } from '../../hooks/useRunStatus'
@@ -13,6 +14,9 @@ export function ActiveRunPane() {
 
   const sessionStatus = status?.session?.status
   const isEnded = Boolean(sessionStatus && ENDED_STATUSES.has(sessionStatus))
+  // Wait for the run's launch mode before opening a socket so an app-server
+  // run never attaches the legacy PTY terminal (or the reverse).
+  const launchMode = status ? status.session?.launch_mode ?? (status.launch_mode as string | undefined) ?? 'inherit' : null
 
   return (
     <div className="center-pane">
@@ -52,7 +56,15 @@ export function ActiveRunPane() {
           ) : (
             <div className="terminal-grid">
               <div className="terminal-card">
-                <TerminalPane runId={activeRunId} isFocused />
+                {launchMode === null ? (
+                  <div className="codex-transcript">
+                    <div className="codex-row codex-notice is-info">보호 실행 정보를 불러오는 중입니다…</div>
+                  </div>
+                ) : launchMode === 'codex_app_server' ? (
+                  <CodexConversationPane key={activeRunId} runId={activeRunId} runEnded={isEnded} />
+                ) : (
+                  <TerminalPane runId={activeRunId} isFocused />
+                )}
               </div>
               <StepsExplainer />
             </div>

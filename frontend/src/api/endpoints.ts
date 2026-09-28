@@ -59,7 +59,7 @@ export interface CreateRunPayload {
   policy_profile?: string
   mode?: string
   interactive?: boolean
-  launch_mode?: 'inherit' | 'new_terminal' | 'web_terminal'
+  launch_mode?: 'inherit' | 'new_terminal' | 'web_terminal' | 'codex_app_server'
 }
 
 export interface CreateRunResult {

@@ -13,13 +13,14 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from threading import RLock
+from threading import Event, RLock
 from typing import Any
 from uuid import UUID, uuid4
 
 from aia import (
     AttributionEngine,
     CodexAdapter,
+    CodexExecutionObservation,
     CodexHookBroker,
     CodexHookInstaller,
     CodexPreToolController,
@@ -52,7 +53,9 @@ from aia import (
     process_create_time,
     resolve_profile,
     verify_process_identity,
+    __version__,
 )
+from aia.codex_runtime import UnsupportedToolReview
 from aia.session import SessionEndReason, WorkspaceValidationError
 from aia.readiness import ProtectionReadinessBarrier
 from aia.hook_verification import HookVerificationStore
@@ -73,6 +76,7 @@ from .presenters import (
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
 from .terminal import TerminalSessionError, WinPtyTerminalSession
+from .codex_app_server import CodexAppServerError, CodexAppServerSession
 
 
 # The dashboard refreshes active runs every five seconds. Keep the verified
@@ -154,6 +158,21 @@ def _event_tool_name(event: Any | None) -> str | None:
             if tool_name:
                 return tool_name
     return None
+
+
+# Human-in-the-loop for unsupported tools.  The review blocks one Hook
+# request, so it must end well inside Codex's 30 s Hook timeout (and the
+# Hook runtime's 30 s broker timeout); no decision means refusal.
+_AIA_REVIEW_PREFIX = "aia-review-"
+_UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
+
+# app-server reports sandbox modes in camelCase; the Result Bundle and the
+# requested-policy comparison use the CLI spelling.
+_APP_SERVER_SANDBOX_NAMES = {
+    "readOnly": "read-only",
+    "workspaceWrite": "workspace-write",
+    "dangerFullAccess": "danger-full-access",
+}
 
 
 def _popen_kwargs_for_launch_mode(launch_mode: str) -> dict[str, Any]:
@@ -540,6 +559,7 @@ class RunApplicationService:
         self.require_hook_verification = require_hook_verification
         self._runtime_state_lock = RLock()
         self._completed_runs_cache_lock = RLock()
+        self._tool_review_lock = RLock()
         self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers,
@@ -1216,7 +1236,7 @@ class RunApplicationService:
         return {
             "redirect_url": (
                 f"/runs/{session.session_id}/workbench"
-                if request.launch_mode == "web_terminal"
+                if request.launch_mode in {"web_terminal", "codex_app_server"}
                 else f"/runs/{session.session_id}"
             ),
             "session_id": session.session_id,
@@ -1605,6 +1625,246 @@ class RunApplicationService:
             raise TerminalSessionError("Workbench terminal is not attached")
         terminal.resize(rows, cols)
         return {"accepted": True, "session_id": session_id, "rows": rows, "cols": cols}
+
+    def _codex_session(self, session_id: str) -> CodexAppServerSession:
+        record = self.registry.get(session_id)
+        if record is None:
+            raise KeyError(session_id)
+        if record.launch_mode != "codex_app_server":
+            raise CodexAppServerError("this run is not using the Codex conversation")
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is None:
+            raise CodexAppServerError("Codex conversation is not attached")
+        return codex_session
+
+    def get_codex_status(self, session_id: str) -> dict[str, Any]:
+        """Return the Workbench conversation state without exposing its content."""
+
+        detached = {
+            "mode": "codex_app_server",
+            "status": "NOT_ATTACHED",
+            "pid": None,
+            "thread_id": None,
+            "active_turn_id": None,
+            "pending_approvals": [],
+            "effective": {},
+            "started_at": None,
+            "ended_at": None,
+            "exit_code": None,
+            "error": None,
+            "last_sequence": 0,
+        }
+        record = self.registry.get(session_id)
+        if record is None:
+            status = self.get_run_status(session_id)
+            ended = status.get("session", {}).get("status") in {"COMPLETED", "ABORTED", "FAILED"}
+            return {
+                **detached,
+                "mode": status.get("launch_mode", "inherit"),
+                "status": "EXITED" if ended else "NOT_ATTACHED",
+            }
+        error = record.runtime.get("codex_app_server_error")
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is None:
+            return {**detached, "mode": record.launch_mode, "error": error}
+        snapshot = codex_session.snapshot()
+        if error:
+            snapshot["error"] = error
+        with self._tool_review_lock:
+            reviews = [
+                dict(item["request"])
+                for item in record.runtime.get("unsupported_tool_reviews", {}).values()
+                if not item["event"].is_set()
+            ]
+        snapshot["pending_approvals"] = [*snapshot.get("pending_approvals", []), *reviews]
+        return snapshot
+
+    def read_codex_events(self, session_id: str, *, after_sequence: int = 0) -> list[dict[str, Any]]:
+        record = self.registry.get(session_id)
+        if record is None:
+            self.get_run_status(session_id)
+            return []
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is None:
+            return []
+        return codex_session.read_events(after_sequence)
+
+    def wait_codex_events(
+        self,
+        session_id: str,
+        *,
+        after_sequence: int = 0,
+        timeout: float = 15.0,
+    ) -> list[dict[str, Any]]:
+        """Block until new conversation events exist (used off the event loop)."""
+
+        record = self.registry.get(session_id)
+        if record is None:
+            self.get_run_status(session_id)
+            return []
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is None:
+            time.sleep(min(timeout, 0.25))
+            return []
+        return codex_session.wait_events(after_sequence, timeout=timeout)
+
+    def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
+        return {**self._codex_session(session_id).send_message(text), "session_id": session_id}
+
+    def interrupt_codex_turn(self, session_id: str) -> dict[str, Any]:
+        return {**self._codex_session(session_id).interrupt(), "session_id": session_id}
+
+    def respond_codex_approval(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
+        codex_session = self._codex_session(session_id)
+        if approval_id.startswith(_AIA_REVIEW_PREFIX):
+            return {**self._resolve_unsupported_tool_review(session_id, approval_id, decision), "session_id": session_id}
+        return {**codex_session.respond_approval(approval_id, decision), "session_id": session_id}
+
+    def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
+        if decision not in {"accept", "acceptForSession", "decline"}:
+            raise CodexAppServerError("approval decision is not supported")
+        record = self.registry.get(session_id)
+        reviews = record.runtime.get("unsupported_tool_reviews", {}) if record is not None else {}
+        with self._tool_review_lock:
+            review = reviews.get(approval_id)
+            if review is None or review["event"].is_set():
+                raise CodexAppServerError("approval request is no longer pending")
+            review["decision"] = decision
+            review["event"].set()
+        return {"accepted": True, "approval_id": approval_id, "decision": decision}
+
+    def _review_unsupported_tool(self, record: RunRecord, review: UnsupportedToolReview) -> bool:
+        """Ask the Workbench user whether Codex may use an unsupported tool.
+
+        Runs on the Hook broker's request thread and blocks it until the user
+        decides or the review window (kept inside Codex's Hook timeout)
+        closes.  No decision is a refusal.  "Allow for this session" is
+        remembered per tool name for the rest of the run.
+        """
+
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is None:
+            return False
+        with self._tool_review_lock:
+            session_allowed = record.runtime.setdefault("unsupported_tools_allowed_for_session", set())
+            if review.tool_name in session_allowed:
+                allowed_for_session = True
+            else:
+                allowed_for_session = False
+                approval_id = f"{_AIA_REVIEW_PREFIX}{uuid4().hex[:12]}"
+                pending = {
+                    "event": Event(),
+                    "decision": None,
+                    "request": {
+                        "approval_id": approval_id,
+                        "kind": "aia_tool",
+                        "tool": review.tool_name,
+                        "command": review.input_summary,
+                        "cwd": "",
+                        "reason": "AIA가 의미를 해석하지 못하는 도구라서 정책으로 판정할 수 없습니다.",
+                        "paths": [],
+                        "timeout_seconds": _UNSUPPORTED_TOOL_REVIEW_SECONDS,
+                    },
+                }
+                record.runtime.setdefault("unsupported_tool_reviews", {})[approval_id] = pending
+        if allowed_for_session:
+            codex_session.post_event(
+                {"type": "warning", "message": f"보호 범위 밖 도구 {review.tool_name} · 이 세션 동안 허용됨"}
+            )
+            return True
+        codex_session.post_event({"type": "approval.requested", **pending["request"]})
+        decided = pending["event"].wait(_UNSUPPORTED_TOOL_REVIEW_SECONDS)
+        with self._tool_review_lock:
+            record.runtime["unsupported_tool_reviews"].pop(approval_id, None)
+            decision = pending["decision"] if decided else "timeout"
+            if decision == "acceptForSession":
+                session_allowed.add(review.tool_name)
+        codex_session.post_event({"type": "approval.resolved", "approval_id": approval_id, "decision": decision})
+        return decision in {"accept", "acceptForSession"}
+
+    def end_codex_session(self, session_id: str) -> dict[str, Any]:
+        """Let Codex exit so the run finalizes through the Agent-exited path."""
+
+        self._codex_session(session_id).close(force=False)
+        return {"accepted": True, "session_id": session_id}
+
+    def _open_codex_conversation(self, record: RunRecord) -> None:
+        """Start the Workbench thread once Codex is registered and protected.
+
+        Opening waits until the launcher has registered the app-server root and
+        started the Process Sensor, because starting a thread can launch
+        configured MCP servers as Codex children.  The applied sandbox and
+        approval policy come from Codex's own response instead of being
+        inferred from output.
+        """
+
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is None:
+            return
+        try:
+            effective = codex_session.open(
+                sandbox="workspace-write",
+                approval_policy="on-request",
+                model=record.model,
+            )
+        except CodexAppServerError as error:
+            record.runtime["codex_app_server_error"] = f"CODEX_APP_SERVER_OPEN_FAILED: {error}"
+            codex_session.close(force=True)
+            return
+        record.runtime["codex_effective_settings"] = effective
+        sandbox = str(effective.get("sandbox") or "")
+        approval_policy = str(effective.get("approval_policy") or "")
+        # Codex reports the applied settings itself in the thread/start
+        # response.  Record them as the run's execution observation so the
+        # Result Bundle states what was applied instead of NOT_OBSERVED.  No
+        # output stream is retained, so text-based block confirmation stays
+        # unavailable and blocks are confirmed through Hook evidence only.
+        record.runtime["codex_output_observation"] = CodexExecutionObservation(
+            output_sha256=hashlib.sha256(b"").hexdigest(),
+            output_bytes=0,
+            block_message_count=0,
+            no_run_message_count=0,
+            block_confirmation_available=False,
+            reason="APP_SERVER_THREAD_SETTINGS",
+            effective_approval_policy=approval_policy or None,
+            effective_sandbox=_APP_SERVER_SANDBOX_NAMES.get(sandbox, sandbox) or None,
+        )
+        if sandbox == "dangerFullAccess" or approval_policy == "never":
+            # Codex applied a less protected mode than AIA requested (for
+            # example from a managed config).  No task has been sent yet; end
+            # the run through the same verified termination as a lost Hook
+            # broker instead of trusting a plain process close.
+            reason = "CODEX_UNPROTECTED_SETTINGS_APPLIED"
+            record.runtime["codex_app_server_error"] = reason
+            record.runtime["protection_failure_termination_attempted"] = True
+            record.runtime["protection_failure_reason"] = reason
+            record.protection_state = "DEGRADED"
+            launcher = record.runtime.get("launcher")
+            result: dict[str, Any] | None = None
+            try:
+                if launcher is not None:
+                    result = launcher.request_protection_failure_termination_result(reason)
+            except Exception as error:
+                result = {
+                    "status": "FAILED",
+                    "outcome": "FAILED",
+                    "verified_tree_gone": False,
+                    "reason": f"{type(error).__name__}",
+                    "control": "PROTECTION_FAILURE",
+                }
+            record.runtime["protection_failure_termination_result"] = result or {
+                "status": "FAILED",
+                "outcome": "FAILED",
+                "verified_tree_gone": False,
+                "reason": "PROTECTION_FAILURE_TERMINATION_UNAVAILABLE",
+                "control": "PROTECTION_FAILURE",
+            }
+            self._persist_runtime_state(record)
+            return
+        if sandbox == "readOnly":
+            record.runtime["codex_sandbox_downgraded"] = True
+        if approval_policy != "on-request":
+            record.runtime["codex_approval_policy_downgraded"] = True
 
     def list_runs(self) -> list[dict[str, Any]]:
         """Return live runs plus valid persisted Bundles for the local console."""
@@ -2276,6 +2536,13 @@ class RunApplicationService:
                 launch_context_provider=lambda: launch_holder.get("context"),
                 process_sensor_provider=lambda: launcher.process_sensor,
                 post_action_containment_callback=execute_post_action_containment,
+                # Human-in-the-loop for tools AIA cannot interpret: only the
+                # structured Workbench conversation can ask the user in time.
+                unsupported_tool_reviewer=(
+                    (lambda review: self._review_unsupported_tool(record, review))
+                    if record.launch_mode == "codex_app_server"
+                    else None
+                ),
             )
 
             def broker_factory(launch_id: str, prepared_bridge: HookEnforcementBridge) -> CodexHookBroker:
@@ -2304,6 +2571,19 @@ class RunApplicationService:
                         raise RuntimeError(f"WEB_TERMINAL_START_FAILED: {error}") from error
                     record.runtime["terminal_session"] = terminal
                     return terminal.process_handle
+                if record.launch_mode == "codex_app_server":
+                    try:
+                        codex_session = CodexAppServerSession(
+                            argv,
+                            cwd=Path(kwargs["cwd"]),
+                            env=kwargs["env"],
+                            client_version=__version__,
+                        )
+                        codex_session.start()
+                    except (KeyError, CodexAppServerError) as error:
+                        raise RuntimeError(f"CODEX_APP_SERVER_START_FAILED: {error}") from error
+                    record.runtime["codex_session"] = codex_session
+                    return codex_session.process_handle
                 if record.interactive:
                     kwargs.update(_popen_kwargs_for_launch_mode(record.launch_mode))
                     return subprocess.Popen(argv, **kwargs)
@@ -2357,6 +2637,8 @@ class RunApplicationService:
                     }
                 )
                 adapter_options["interactive"] = True
+                if record.launch_mode == "codex_app_server":
+                    adapter_options["app_server"] = True
                 if record.launch_mode == "web_terminal":
                     adapter_options["workbench_terminal"] = True
                     # A browser terminal is line-oriented.  Codex's
@@ -2438,6 +2720,7 @@ class RunApplicationService:
             self._refresh_sensors(record, sensors)
             self._phase(record, "RUNNING", SessionStatus.RUNNING)
             record.protection_state = "ACTIVE_UNVERIFIED"
+            self._open_codex_conversation(record)
             process = launcher.process_handle
             exit_code = self._wait_for_agent(record, process, launcher)
             record.runtime["exit_code"] = exit_code
@@ -2483,6 +2766,10 @@ class RunApplicationService:
                 limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
             if getattr(controller, "unsupported_tool_names", ()):
                 limitations.append("UNSUPPORTED_TOOL_PATH")
+            if getattr(controller, "user_approved_unsupported_tools", ()):
+                # The user let a tool AIA cannot interpret run; the Bundle
+                # records that decision instead of claiming protection for it.
+                limitations.append("UNSUPPORTED_TOOL_USER_APPROVED")
             if record.runtime.get("codex_sandbox_downgraded"):
                 limitations.append("CODEX_SANDBOX_DOWNGRADED")
             if record.runtime.get("codex_approval_policy_downgraded"):
@@ -2590,6 +2877,12 @@ class RunApplicationService:
             if terminal is not None:
                 try:
                     terminal.close(force=False)
+                except Exception:
+                    pass
+            codex_session = record.runtime.get("codex_session")
+            if codex_session is not None:
+                try:
+                    codex_session.close(force=False)
                 except Exception:
                     pass
             if not finalization_done:
