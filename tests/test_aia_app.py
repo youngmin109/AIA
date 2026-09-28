@@ -1921,6 +1921,34 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         service.shutdown()
 
 
+def test_new_interactive_run_uses_codex_app_server_without_web_terminal(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    records = []
+    service._run = records.append
+    monkeypatch.setattr(
+        service._executor,
+        "submit",
+        lambda callback, record: callback(record),
+    )
+    try:
+        created = service.create_protected_run(
+            {
+                "workspace": str(tmp_path),
+                "interactive": True,
+                "launch_mode": "codex_app_server",
+            }
+        )
+
+        assert created["redirect_url"].endswith("/workbench")
+        assert len(records) == 1
+        assert records[0].launch_mode == "codex_app_server"
+        assert "terminal_session" not in records[0].runtime
+    finally:
+        service.shutdown()
+
+
 def test_new_run_persists_aia_coordinator_identity(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     service._run = lambda record: None
