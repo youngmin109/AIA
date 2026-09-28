@@ -6,13 +6,35 @@ Run from the repository root (no extra dependencies):
 .venv\Scripts\python.exe scripts\bench_result_bundle_history.py
 ```
 
-The script creates committed Result Bundles in a temporary directory, then
-measures 20 scans with a new reader for each cold scan and 20 repeated scans
-with one warm reader. “Cold” means the reader's parsed-data caches start empty;
-the operating system file cache is not cleared. Every scan must return the
-complete expected set and report `bundle_status=VALID` for every bundle.
-Use `--bundles` and `--iterations` to change the sample size; at least 100
-bundles are required.
+The script creates committed Result Bundles in a temporary directory. Before
+finalizing each bundle, it appends 10 `AGENT_HOOK` `PRETOOL_REQUEST` records.
+Fixture creation is outside the timed scans. It measures 20 scans with a new
+reader for each cold scan and 20 repeated scans with one warm reader. “Cold”
+means the reader's parsed-data caches start empty; the operating system file
+cache is not cleared. Every scan must return the complete expected set, report
+`bundle_status=VALID` for every bundle, and return the expected evidence-derived
+`hook_event_count` for each one. Use `--bundles`, `--evidence-records-per-bundle`,
+and `--iterations` to change the workload; at least 100 bundles are required.
+Evidence payload values are not printed.
+
+## Evidence-dense completed-history scan
+
+Run on 2026-09-29 with Python 3.13.5, 100 bundles, 10 evidence records per
+bundle (1,000 total records), and 5 scans per mode:
+
+```powershell
+.venv\Scripts\python.exe scripts\bench_result_bundle_history.py --bundles 100 --evidence-records-per-bundle 10 --iterations 5
+```
+
+```text
+bundles=100 evidence_records_per_bundle=10 total_evidence_records=1000 iterations_per_mode=5
+scan_validation=all 100 bundles returned with bundle_status=VALID and hook_event_count=10
+cold_ms_p50=190.354 cold_ms_p95=220.388
+warm_ms_p50=187.487 warm_ms_p95=190.989
+```
+
+Every scan passed the bundle-status and hook-count validations. Timings are
+local observations, not performance thresholds.
 
 ## Recorded run
 
