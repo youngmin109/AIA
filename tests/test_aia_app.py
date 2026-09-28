@@ -1743,9 +1743,38 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
     assert reader.checkpoint_status(session_id) == "UNKNOWN"
 
 
-def test_result_bundle_reader_preserves_protection_downgrade_in_history(
+@pytest.mark.parametrize(
+    ("status", "end_reason", "hook_event", "limitations", "expected_state"),
+    [
+        ("COMPLETED", "AGENT_EXITED", True, [], "COMPLETED_VERIFIED"),
+        ("COMPLETED", "AGENT_EXITED", False, [], "COMPLETED_DEGRADED"),
+        (
+            "COMPLETED",
+            "AGENT_EXITED",
+            True,
+            ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+            "COMPLETED_DEGRADED",
+        ),
+        ("ABORTED", "USER_ABORT", True, [], "ABORTED_VERIFIED"),
+        ("ABORTED", "USER_ABORT", False, [], "ABORTED_DEGRADED"),
+        (
+            "ABORTED",
+            "USER_ABORT",
+            True,
+            ["PROTECTION_BOUNDARY_LOST"],
+            "ABORTED_DEGRADED",
+        ),
+        ("FAILED", "PROTECTION_FAILURE", True, [], "FAILED_DEGRADED"),
+    ],
+)
+def test_result_bundle_reader_classifies_protection_state_in_history(
     tmp_path,
     monkeypatch,
+    status,
+    end_reason,
+    hook_event,
+    limitations,
+    expected_state,
 ) -> None:
     reader = ResultBundleReader(tmp_path)
     session_dir = tmp_path / "sessions" / "session-1"
@@ -1755,10 +1784,10 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
         "_read_verified_result",
         lambda _session_id: (
             {
-                "session_status": "COMPLETED",
-                "session_end_reason": "AGENT_EXITED",
+                "session_status": status,
+                "session_end_reason": end_reason,
                 "launch_mode": "web_terminal",
-                "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+                "limitations": limitations,
                 "action_outcomes": [],
             },
             SimpleNamespace(status=SimpleNamespace(value="VALID")),
@@ -1768,14 +1797,21 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
         reader,
         "read_evidence_metadata",
         lambda _session_id, *, require_valid=True: [
-            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
-        ],
+            {
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "payload": {"command": "secret command"},
+            }
+        ]
+        if hook_event
+        else [],
     )
 
     runs = reader.list_completed()
 
-    assert runs[0]["protection_state"] == "COMPLETED_DEGRADED"
+    assert runs[0]["protection_state"] == expected_state
     assert runs[0]["launch_mode"] == "web_terminal"
+    assert "secret command" not in repr(runs)
 
 
 def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
