@@ -19,6 +19,12 @@ export interface ResultView {
   bundle_status?: string
   launch_mode?: string
   session_status?: string
+  limitations?: string[]
+  unsupported_tool_review_decisions?: Array<
+    | 'UNSUPPORTED_TOOL_REVIEW_APPROVED'
+    | 'UNSUPPORTED_TOOL_REVIEW_DECLINED'
+    | 'UNSUPPORTED_TOOL_REVIEW_TIMED_OUT'
+  >
   recovery_status?: string
   integrity_status?: string
   policy_id?: string

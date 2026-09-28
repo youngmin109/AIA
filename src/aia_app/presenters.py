@@ -1042,6 +1042,15 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     else:
         codex_block_confirmation = "NOT_AVAILABLE"
     limitations = list(result.get("limitations") or [])
+    unsupported_tool_review_decisions = [
+        item
+        for item in limitations
+        if item in {
+            "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+            "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+            "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+        }
+    ]
     limitations.extend(
         item
         for item in (
@@ -1097,6 +1106,7 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
             "protection_failure_termination_result"
         ),
         "limitations": limitations,
+        "unsupported_tool_review_decisions": unsupported_tool_review_decisions,
         "mode": result.get("mode"),
         "posttool_event_count": int(result.get("posttool_event_count") or 0),
         "policy": result.get("policy"),

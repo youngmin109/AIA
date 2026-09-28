@@ -233,8 +233,16 @@ def review_run(service, tmp_path):
     return record, session
 
 
-@pytest.mark.parametrize(("decision", "allowed"), [("accept", True), ("decline", False)])
-def test_unsupported_tool_review_waits_for_the_users_decision(service, review_run, decision, allowed) -> None:
+@pytest.mark.parametrize(
+    ("decision", "allowed", "recorded"),
+    [
+        ("accept", True, "UNSUPPORTED_TOOL_REVIEW_APPROVED"),
+        ("decline", False, "UNSUPPORTED_TOOL_REVIEW_DECLINED"),
+    ],
+)
+def test_unsupported_tool_review_waits_for_the_users_decision(
+    service, review_run, decision, allowed, recorded
+) -> None:
     record, session = review_run
     thread, outcome = _start_review(service, record)
     approval_id = _pending_review_id(service, session)
@@ -249,6 +257,7 @@ def test_unsupported_tool_review_waits_for_the_users_decision(service, review_ru
     thread.join(timeout=5)
 
     assert outcome["allowed"] is allowed
+    assert record.runtime["unsupported_tool_review_decisions"] == [recorded]
     assert session.posted("approval.resolved")[-1] == {"type": "approval.resolved", "approval_id": approval_id, "decision": decision}
     assert service.get_codex_status("session-1")["pending_approvals"] == []
     with pytest.raises(CodexAppServerError):
@@ -261,6 +270,7 @@ def test_unsupported_tool_review_times_out_as_a_refusal(service, review_run, mon
 
     assert service._review_unsupported_tool(record, REVIEW) is False
     assert session.posted("approval.resolved")[-1]["decision"] == "timeout"
+    assert record.runtime["unsupported_tool_review_decisions"] == ["UNSUPPORTED_TOOL_REVIEW_TIMED_OUT"]
     assert service.get_codex_status("session-1")["pending_approvals"] == []
 
 

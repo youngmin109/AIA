@@ -2630,6 +2630,7 @@ class RunApplicationService:
                 # The user let a tool AIA cannot interpret run; the Bundle
                 # records that decision instead of claiming protection for it.
                 limitations.append("UNSUPPORTED_TOOL_USER_APPROVED")
+            limitations.extend(record.runtime.get("unsupported_tool_review_decisions", ()))
             if record.runtime.get("codex_sandbox_downgraded"):
                 limitations.append("CODEX_SANDBOX_DOWNGRADED")
             if record.runtime.get("codex_approval_policy_downgraded"):

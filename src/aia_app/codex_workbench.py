@@ -213,6 +213,15 @@ class CodexWorkbench:
             decision = pending["decision"] if decided else "timeout"
             if decision == "acceptForSession":
                 session_allowed.add(review.tool_name)
+            decision_code = {
+                "accept": "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+                "acceptForSession": "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+                "decline": "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+                "timeout": "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+            }[decision]
+            decisions = record.runtime.setdefault("unsupported_tool_review_decisions", [])
+            if decision_code not in decisions:
+                decisions.append(decision_code)
         codex_session.post_event({"type": "approval.resolved", "approval_id": approval_id, "decision": decision})
         return decision in {"accept", "acceptForSession"}
 

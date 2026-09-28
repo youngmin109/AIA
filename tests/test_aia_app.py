@@ -1207,6 +1207,30 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["bundle_status"] == "VALID"
 
 
+def test_result_presenter_exposes_unsupported_tool_review_decisions() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "limitations": [
+                "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+                "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+                "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+                "UNSUPPORTED_TOOL_USER_APPROVED",
+            ],
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+
+    assert view["unsupported_tool_review_decisions"] == [
+        "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+        "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+        "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+    ]
+    assert "UNSUPPORTED_TOOL_USER_APPROVED" in view["limitations"]
+
+
 def test_recovery_status_presenter_keeps_restore_and_integrity_separate() -> None:
     view = recovery_status_view(
         {

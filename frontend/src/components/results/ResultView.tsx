@@ -87,6 +87,22 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         <p>무결성 불일치 파일: {recovery?.mismatched_file_count ?? '확인 불가'}</p>
       </div>
 
+      {data.unsupported_tool_review_decisions && data.unsupported_tool_review_decisions.length > 0 && (
+        <div className="panel-section">
+          <p className="panel-section-title">지원 범위 밖 도구 검토</p>
+          <div className="run-list">
+            {data.unsupported_tool_review_decisions.map((decision) => (
+              <div className="event-row" key={decision}>
+                <span>{unsupportedToolReviewDecisionLabel(decision)}</span>
+              </div>
+            ))}
+          </div>
+          {data.limitations?.includes('UNSUPPORTED_TOOL_USER_APPROVED') && (
+            <p>승인된 도구는 AIA가 의미를 해석하지 못해 정책 판정 및 보호 대상에서 제외됩니다.</p>
+          )}
+        </div>
+      )}
+
       <div className="panel-section">
         <p className="panel-section-title">행위 귀속 요약</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -169,6 +185,19 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       )}
     </div>
   )
+}
+
+function unsupportedToolReviewDecisionLabel(decision: string): string {
+  switch (decision) {
+    case 'UNSUPPORTED_TOOL_REVIEW_APPROVED':
+      return '사용자가 검토 후 승인함'
+    case 'UNSUPPORTED_TOOL_REVIEW_DECLINED':
+      return '사용자가 검토 후 거절함'
+    case 'UNSUPPORTED_TOOL_REVIEW_TIMED_OUT':
+      return '검토 시간 초과로 거절됨'
+    default:
+      return '검토 결정 기록'
+  }
 }
 
 function IncidentRow({ incident }: { incident: IncidentView }) {
