@@ -72,6 +72,43 @@ def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
     )
 
 
+def capture_service_launcher_factory(
+    service, record, monkeypatch, output_handles=None
+):
+    captured = {}
+
+    class FakeLauncher:
+        def __init__(self, *_args, **kwargs):
+            captured.update(kwargs)
+            self.managed_process_registry = object()
+            self.process_sensor = None
+
+    class InstalledHooks:
+        def is_installed(self):
+            return True
+
+    monkeypatch.setattr(service_module, "CodexHookInstaller", InstalledHooks)
+    monkeypatch.setattr(
+        service_module,
+        "CodexPreToolController",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(service_module, "ProtectedLauncher", FakeLauncher)
+    monkeypatch.setattr(service_module, "ProcessManager", lambda *_args: object())
+    launcher, _controller, options = service._create_protected_launcher(
+        record,
+        SimpleNamespace(session_id=record.session_id, workspace=record.workspace),
+        SimpleNamespace(control_directory=record.workspace),
+        object(),
+        object(),
+        object(),
+        object(),
+        SimpleNamespace(readiness_context=object()),
+        output_handles if output_handles is not None else [],
+    )
+    return launcher, captured, options
+
+
 def test_create_request_rejects_unknown_fields_and_bounds_task() -> None:
     with pytest.raises(DTOValidationError, match="unknown request fields"):
         CreateRunRequest.from_mapping({"workspace": ".", "unexpected": True})
@@ -2216,6 +2253,81 @@ def test_protected_run_lifecycle_cleans_up_after_exception_without_losing_failur
         assert events == [("cleanup", "FAILED")]
         assert record.status == "FAILED"
         assert record.error == "RuntimeError: launcher setup failed"
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("launch_mode", "expected_app_server"),
+    [
+        ("inherit", False),
+        ("codex_app_server", True),
+        ("new_terminal", False),
+    ],
+)
+def test_interactive_launcher_keeps_protected_adapter_configuration(
+    tmp_path, monkeypatch, launch_mode, expected_app_server
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.interactive = True
+    record.launch_mode = launch_mode
+    try:
+        _launcher, captured, options = capture_service_launcher_factory(
+            service, record, monkeypatch
+        )
+
+        assert options == {
+            "approval_policy": "on-request",
+            "sandbox": "workspace-write",
+            "interactive": True,
+            **({"app_server": True} if expected_app_server else {}),
+        }
+        assert captured["adapter"].enable_hooks is True
+    finally:
+        service.shutdown()
+
+
+def test_non_interactive_launcher_keeps_current_adapter_options(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    try:
+        _launcher, _captured, options = capture_service_launcher_factory(
+            service, record, monkeypatch
+        )
+
+        assert options == {
+            "approve_for_me": True,
+            "skip_git_repo_check": True,
+        }
+    finally:
+        service.shutdown()
+
+
+def test_non_interactive_launch_failure_closes_temporary_output_handles(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    output_handles = []
+    try:
+        _launcher, captured, _options = capture_service_launcher_factory(
+            service, record, monkeypatch, output_handles
+        )
+
+        def fail_popen(*_args, **_kwargs):
+            raise OSError("simulated process launch failure")
+
+        monkeypatch.setattr(service_module.subprocess, "Popen", fail_popen)
+        with pytest.raises(OSError, match="simulated process launch failure"):
+            captured["popen_factory"](
+                ["codex", "exec"], cwd=str(tmp_path), env={}
+            )
+
+        assert len(output_handles) == 2
+        assert all(handle.closed for handle in output_handles)
     finally:
         service.shutdown()
 
