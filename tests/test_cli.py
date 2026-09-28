@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -71,6 +72,37 @@ def test_cli_help_matches_existing_command_tree() -> None:
         return result
 
     assert help_hashes(_parser()) == expected
+
+
+def test_documented_cli_subcommands_exist() -> None:
+    parser = _parser()
+    commands = next(
+        action.choices
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    documented: dict[str, set[str]] = {}
+    for document_name in ("README.md", "docs/QUICKSTART.md", "docs/USER-GUIDE.md"):
+        content = (Path(__file__).resolve().parents[1] / document_name).read_text(
+            encoding="utf-8"
+        )
+        documented[document_name] = {
+            match.group(1)
+            for match in re.finditer(r"\baia\s+([A-Za-z][A-Za-z0-9_-]*)", content)
+        }
+        assert documented[document_name], (
+            f"No documented aia commands found in {document_name}"
+        )
+
+    missing = {
+        f"{document_name}: aia {command}"
+        for document_name, subcommands in documented.items()
+        for command in subcommands
+        if command not in commands
+    }
+    assert not missing, "Documented CLI subcommands do not exist: " + ", ".join(
+        sorted(missing)
+    )
 
 
 def test_protect_without_task_selects_interactive_mode() -> None:
