@@ -192,6 +192,16 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aia")
     parser.add_argument("--version", action="version", version=f"AIA {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
+    _add_overview_commands(commands)
+    _add_run_history_commands(commands)
+    _add_policy_commands(commands)
+    _add_hook_commands(commands)
+    _add_utility_commands(commands)
+    _add_protected_run_commands(commands)
+    return parser
+
+
+def _add_overview_commands(commands: argparse._SubParsersAction) -> None:
     capabilities = commands.add_parser(
         "capabilities",
         help="show the bounded AIA support and claim contract",
@@ -260,6 +270,9 @@ def _parser() -> argparse.ArgumentParser:
         default=180.0,
         help="maximum wait for the live proof in seconds",
     )
+
+
+def _add_run_history_commands(commands: argparse._SubParsersAction) -> None:
     runs = commands.add_parser(
         "runs",
         help="list protected-run history from the local Control Root",
@@ -288,6 +301,9 @@ def _parser() -> argparse.ArgumentParser:
     reconcile.add_argument("session_id")
     reconcile.add_argument("--json", action="store_true", help="print machine-readable output")
     reconcile.add_argument("--control-root", type=Path, help="AIA control root")
+
+
+def _add_policy_commands(commands: argparse._SubParsersAction) -> None:
     policy = commands.add_parser("policy", help="validate and inspect a policy")
     policy_commands = policy.add_subparsers(dest="policy_command", required=True)
     profiles = policy_commands.add_parser(
@@ -359,6 +375,9 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print machine-readable output",
     )
+
+
+def _add_hook_commands(commands: argparse._SubParsersAction) -> None:
     hook = commands.add_parser("hook", help="manage the stable Codex Hook Adapter")
     hook_commands = hook.add_subparsers(dest="hook_command", required=True)
     install = hook_commands.add_parser("install", help="install the AIA Hook definition")
@@ -400,6 +419,8 @@ def _parser() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
 
+
+def _add_utility_commands(commands: argparse._SubParsersAction) -> None:
     setup = commands.add_parser(
         "setup",
         help="install the AIA Hook and print the remaining trust steps",
@@ -462,6 +483,8 @@ def _parser() -> argparse.ArgumentParser:
         help="local console path to open when --open is used",
     )
 
+
+def _add_protected_run_commands(commands: argparse._SubParsersAction) -> None:
     protect = commands.add_parser(
         "protect",
         help="run Codex inside an AIA Protected Run",
@@ -505,7 +528,6 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print the complete machine-readable proof report",
     )
-    return parser
 
 
 def _control_root(value: Path | None) -> Path:
