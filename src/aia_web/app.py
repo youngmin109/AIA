@@ -21,6 +21,7 @@ import anyio
 from anyio import to_thread
 
 from aia_app.codex_app_server import CodexAppServerError
+from aia_app.presenters import recovery_status_view
 from aia_app.service import RunApplicationService
 from aia.capabilities import product_capabilities
 from aia.codex_installation import CodexHookInstaller
@@ -383,7 +384,13 @@ def _register_run_details_routes(app: FastAPI) -> None:
     @app.get("/api/runs/{session_id}/recovery")
     def recovery_status(session_id: str) -> JSONResponse:
         try:
-            return JSONResponse(app.state.service.get_recovery_status(session_id))
+            status = app.state.service.get_recovery_status(session_id)
+            response = {
+                key: value
+                for key, value in status.items()
+                if key not in {"recovery_result", "integrity_result"}
+            }
+            return JSONResponse({**response, **recovery_status_view(status)})
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
         except (OSError, ValueError) as error:

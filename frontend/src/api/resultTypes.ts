@@ -41,3 +41,9 @@ export interface ResultView {
   execution_policy_status?: string
   [key: string]: unknown
 }
+
+export interface RecoveryStatusView {
+  recovery_status?: string
+  integrity_status?: string
+  mismatched_file_count?: number | null
+}

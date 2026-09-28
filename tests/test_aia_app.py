@@ -25,6 +25,7 @@ from aia_app.presenters import (
     incident_views_for_result,
     result_action_chain_views,
     result_view,
+    recovery_status_view,
     safe_event_views,
     evidence_timeline_views,
 )
@@ -1204,6 +1205,29 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["recovery_status"] == "RESTORED"
     assert view["integrity_status"] == "FAILED"
     assert view["bundle_status"] == "VALID"
+
+
+def test_recovery_status_presenter_keeps_restore_and_integrity_separate() -> None:
+    view = recovery_status_view(
+        {
+            "status": "RESTORED",
+            "integrity_status": "FAILED",
+            "recovery_result": {"recovery_status": "RESTORED"},
+            "integrity_result": {
+                "integrity_status": "FAILED",
+                "missing_paths": ["missing.txt"],
+                "changed_paths": ["changed.txt", "missing.txt"],
+                "unexpected_paths": [],
+                "type_mismatches": [],
+            },
+        }
+    )
+
+    assert view == {
+        "recovery_status": "RESTORED",
+        "integrity_status": "FAILED",
+        "mismatched_file_count": 2,
+    }
 
 
 def test_evidence_summary_counts_safe_record_metadata() -> None:

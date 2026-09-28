@@ -1136,3 +1136,34 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         ),
         "evidence_timeline": [],
     }
+
+
+def recovery_status_view(recovery_status: Mapping[str, Any]) -> dict[str, Any]:
+    """Present the independent recovery and integrity axes from the recovery API."""
+    recovery = recovery_status.get("recovery_result")
+    integrity = recovery_status.get("integrity_result")
+    recovery = recovery if isinstance(recovery, Mapping) else {}
+    integrity = integrity if isinstance(integrity, Mapping) else {}
+    mismatch_paths: set[str] = set()
+    mismatch_details_available = False
+    for key in ("missing_paths", "unexpected_paths", "type_mismatches", "changed_paths"):
+        paths = integrity.get(key) or []
+        if isinstance(paths, (list, tuple)):
+            mismatch_details_available = True
+            mismatch_paths.update(str(path) for path in paths)
+    integrity_status = (
+        integrity.get("integrity_status")
+        or recovery_status.get("integrity_status")
+        or "NOT_CHECKED"
+    )
+    return {
+        "recovery_status": recovery.get("recovery_status")
+        or recovery_status.get("status")
+        or "NOT_ATTEMPTED",
+        "integrity_status": integrity_status,
+        "mismatched_file_count": (
+            len(mismatch_paths)
+            if mismatch_details_available
+            else 0 if integrity_status == "VERIFIED" else None
+        ),
+    }

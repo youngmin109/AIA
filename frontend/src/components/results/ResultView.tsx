@@ -3,6 +3,7 @@ import { useResult } from '../../hooks/useResult'
 import type { IncidentView } from '../../api/resultTypes'
 import { deriveVerdict } from '../../api/resultVerdict'
 import { EvidenceLogView } from './EvidenceLogView'
+import { useRecoveryStatus } from '../../hooks/useRecoveryStatus'
 
 function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   const upper = String(value || '').toUpperCase()
@@ -13,6 +14,7 @@ function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
 
 export function ResultView({ runId, showEvidenceLog = false }: { runId: string; showEvidenceLog?: boolean }) {
   const { data, error, isLoading } = useResult(runId)
+  const recovery = useRecoveryStatus(runId)
 
   if (isLoading) {
     return (
@@ -79,9 +81,10 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       <div className="panel-section">
         <p className="panel-section-title">복구 · 무결성</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className={`badge is-${toneFor(data.recovery_status)}`}>Recovery: {data.recovery_status ?? 'NOT_ATTEMPTED'}</span>
-          <span className={`badge is-${toneFor(data.integrity_status)}`}>Integrity: {data.integrity_status ?? 'NOT_CHECKED'}</span>
+          <span className={`badge is-${toneFor(recovery?.recovery_status ?? data.recovery_status)}`}>Recovery: {recovery?.recovery_status ?? data.recovery_status ?? 'NOT_ATTEMPTED'}</span>
+          <span className={`badge is-${toneFor(recovery?.integrity_status ?? data.integrity_status)}`}>Integrity: {recovery?.integrity_status ?? data.integrity_status ?? 'NOT_CHECKED'}</span>
         </div>
+        <p>무결성 불일치 파일: {recovery?.mismatched_file_count ?? '확인 불가'}</p>
       </div>
 
       <div className="panel-section">

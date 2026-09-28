@@ -2090,13 +2090,28 @@ class RunApplicationService:
                 "available": False,
                 "status": (manual.get("recovery_result") or {}).get("recovery_status"),
                 "integrity_status": (manual.get("integrity_result") or {}).get("integrity_status"),
+                "recovery_result": manual.get("recovery_result"),
+                "integrity_result": manual.get("integrity_result"),
                 "manual_recovery": True,
             }
         else:
+            raw_result = context.get("raw_result") or {}
+            recovery_result = raw_result.get("recovery_result")
+            integrity_result = raw_result.get("integrity_result")
             context = {
                 **context,
-                "status": "NOT_REQUIRED" if context.get("workspace_matches") else "NOT_ATTEMPTED",
-                "integrity_status": "VERIFIED" if context.get("workspace_matches") else "NOT_CHECKED",
+                "status": (
+                    recovery_result.get("recovery_status") or recovery_result.get("status")
+                    if isinstance(recovery_result, Mapping)
+                    else None
+                ) or ("NOT_REQUIRED" if context.get("workspace_matches") else "NOT_ATTEMPTED"),
+                "integrity_status": (
+                    integrity_result.get("integrity_status") or integrity_result.get("status")
+                    if isinstance(integrity_result, Mapping)
+                    else None
+                ) or ("VERIFIED" if context.get("workspace_matches") else "NOT_CHECKED"),
+                "recovery_result": recovery_result,
+                "integrity_result": integrity_result,
                 "manual_recovery": False,
             }
         return {
