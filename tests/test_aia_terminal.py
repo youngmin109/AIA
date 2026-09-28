@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from collections import deque
 from datetime import datetime, timezone
 from threading import Lock
@@ -68,12 +69,32 @@ def test_winpty_terminal_supports_input_output_and_resize(tmp_path) -> None:
     try:
         session.start()
         assert session.snapshot()["status"] == "RUNNING"
+
+        output = ""
+        sequence = 0
+        deadline = time.monotonic() + 10
+        while "AIA_TERMINAL_READY" not in output and time.monotonic() < deadline:
+            chunks = session.read_output(after_sequence=sequence)
+            if chunks:
+                sequence = chunks[-1]["sequence"]
+                output += "".join(item["data"] for item in chunks)
+            else:
+                time.sleep(0.01)
+        assert "AIA_TERMINAL_READY" in output
+
         session.resize(40, 140)
         session.send_input("workbench-input\r")
-        assert session.wait(timeout=10) == 0
-        output = "".join(item["data"] for item in session.drain_output())
-        assert "AIA_TERMINAL_READY" in output
+
+        deadline = time.monotonic() + 10
+        while "AIA_TERMINAL_ECHO:workbench-input" not in output and time.monotonic() < deadline:
+            chunks = session.read_output(after_sequence=sequence)
+            if chunks:
+                sequence = chunks[-1]["sequence"]
+                output += "".join(item["data"] for item in chunks)
+            else:
+                time.sleep(0.01)
         assert "AIA_TERMINAL_ECHO:workbench-input" in output
+        assert session.wait(timeout=10) == 0
         assert session.snapshot()["status"] == "EXITED"
     finally:
         session.close(force=True)
