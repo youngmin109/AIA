@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -23,6 +25,50 @@ from aia.codex_hook_trust import summarize_aia_hooks
 from aia.diagnostics import build_support_bundle
 from aia._version import __version__
 from aia_web.__main__ import run as run_console, validate_local_bind
+
+
+def test_cli_help_matches_existing_command_tree() -> None:
+    expected = {
+        "aia": "bf00c942afbca1c38fcd70addd1ef397c96afd9abb035fc5f2b45d564915672b",
+        "aia capabilities": "e4d1fecf21e880925884b6e73c3c0abd2e69ad9d1a97afd33dee07d56858e48e",
+        "aia doctor": "e8044389ee6a0f83820c77d57d7798e69f958832e6b4ce70266a5bb7fafa2ae3",
+        "aia self-test": "3bf6889c413d88aaccc4ea96a9e85c8f4009f362607c36414ef41145de5e2a07",
+        "aia demo": "39939dcaa3c7e0ea53030f60eeebd358357d8fae0f75e320a1cc52aaf2ee2024",
+        "aia runs": "763e498ed814d72f9704e1505bf49464589731f3085cb0688671a5033d3ba1b6",
+        "aia status": "362e685b051261e95212dc4b0a5c30c429fb41d3afb52a52bb3a9ef681eaa287",
+        "aia stop": "88179c5704042fe5c4e3cf94777cb8583b0ea2611b61009b2ca0af04a75a1c58",
+        "aia reconcile": "40a017bafb5cb089ea0aecda0b73e474aaeb26b4915babb5852feea544558f87",
+        "aia policy": "87c58e4556b0a9705f3af02c8ad43f215b35c95d204bde0441501b370c2d22e7",
+        "aia policy profiles": "e28bd46c0e50f8d3ea0dee31d500e5fb522d52a8ed577dca0b6390c7f592c788",
+        "aia policy init": "b491276ac50bfd74c9b73596939ef241f47c2c7121f0d1b633f4764ea2df4f58",
+        "aia policy validate": "f3fb3eb5123f2e8e3b4ce6cb0ea43fc44b1a01dee0f0f997ced49f98e9a1a231",
+        "aia policy evaluate": "73182a7659ff02c7cf796460c8a38372ced75e389b482a3ca97a0e9b99d06853",
+        "aia hook": "2c611190a986ddd28bf573b7a6066ee18535f91f05975fab05ed2afb2cfde34f",
+        "aia hook install": "fc37b8023a157db8b5bef66819898d47bab073420c1bccf38a65452a8637e0b7",
+        "aia hook uninstall": "1cc7adb2a01563b9725c8963fad09e440de9393e7f2fe0fee199d61919c339f6",
+        "aia hook status": "2ffcaafe1de44dfd939be58a416c251d0ff1f806c7997d75c664bb2615b0920c",
+        "aia hook explain": "170e1c6dc49f3b8c8a116d114200b7fbac6fc9191382dc26018e0b8d59795ceb",
+        "aia hook verify": "ea8bed358661ec632e42ff0148a868f3126eec978735f9168afd9f2c9310a007",
+        "aia hook runtime": "8f3b2ffed73f188747dfaa4fa9d31c78977075aa003be311f655547e47216308",
+        "aia setup": "6bf6cf6f3e3f671bc90048205a808a8c4fa4fd083927ff8826b7d006ab11f1fd",
+        "aia support-bundle": "7e345a4883fc9afb9c355e61d3d4e601aabc9f1c80b74662b509ab674927d0e0",
+        "aia console": "be886cbd69d101035d7d16bad003a6abd6b4d5b8f3f2a951ebcedc059b847be6",
+        "aia protect": "8f0fa70197e6ba324307b3f4c0ae84a37c13ab4e231fd2e45e3c5c79d9aa0def",
+        "aia start": "a9e9a0d6a879e87892b54f9014ce78716159ca848b5ab38454fff0575bd6f26d",
+        "aia proof": "bfbdf74e34febaa8112d1c46b51dc0730f5249b699cba26948a7ba3444bd7d44",
+    }
+
+    def help_hashes(parser: argparse.ArgumentParser) -> dict[str, str]:
+        result = {
+            parser.prog: hashlib.sha256(parser.format_help().encode()).hexdigest()
+        }
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for child in action.choices.values():
+                    result.update(help_hashes(child))
+        return result
+
+    assert help_hashes(_parser()) == expected
 
 
 def test_protect_without_task_selects_interactive_mode() -> None:
