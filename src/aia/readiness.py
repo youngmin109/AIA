@@ -127,6 +127,20 @@ class ReadinessRevalidationResult:
     current_workspace_content_sha256: str | None
 
 
+@dataclass(slots=True)
+class _ReadinessEvaluation:
+    checked_at: datetime
+    checks: list[ReadinessCheck]
+    active_policy: Any
+    current_workspace_fingerprint: str | None
+    filesystem_sequence_at_ready: int | None
+    filesystem_status: SensorStatus | None
+    hook_status: SensorStatus | None
+    hook_ingress_verified: bool | None
+    capability: ProcessObserverCapability | None
+    current_lease: WorkspaceLease | None
+
+
 _READINESS_CONTEXT_TOKEN = object()
 
 
@@ -259,7 +273,10 @@ class ProtectionReadinessBarrier:
         ):
             return self._last_result
 
-        checked_at = _now_utc()
+        state = self._collect_readiness_state(_now_utc())
+        return self._complete_readiness_evaluation(state)
+
+    def _collect_readiness_state(self, checked_at: datetime) -> _ReadinessEvaluation:
         checks: list[ReadinessCheck] = []
         checks.append(
             _check(
@@ -371,56 +388,7 @@ class ProtectionReadinessBarrier:
                 _check("WORKSPACE_STABILITY", False, "DEPENDENCY_NOT_READY")
             )
 
-        if all(item.passed for item in checks):
-            try:
-                self.session.transition_to(SessionStatus.READY, at=checked_at)
-            except Exception:
-                checks.append(
-                    _check("SESSION_TRANSITION", False, "SESSION_TRANSITION_FAILED")
-                )
-                return self._result(
-                    checked_at=checked_at,
-                    checks=checks,
-                    active_policy=active_policy,
-                    current_workspace_fingerprint=current_workspace_fingerprint,
-                    filesystem_sequence_at_ready=filesystem_sequence_at_ready,
-                    filesystem_status=filesystem_status,
-                    hook_status=hook_status,
-                    hook_ingress_verified=hook_ingress_verified,
-                    capability=capability,
-                )
-            if self.session.status is not SessionStatus.READY:
-                checks.append(
-                    _check("SESSION_TRANSITION", False, "SESSION_TRANSITION_FAILED")
-                )
-                return self._result(
-                    checked_at=checked_at,
-                    checks=checks,
-                    active_policy=active_policy,
-                    current_workspace_fingerprint=current_workspace_fingerprint,
-                    filesystem_sequence_at_ready=filesystem_sequence_at_ready,
-                    filesystem_status=filesystem_status,
-                    hook_status=hook_status,
-                    hook_ingress_verified=hook_ingress_verified,
-                    capability=capability,
-                )
-            checks.append(_check("SESSION_TRANSITION", True))
-            result = self._result(
-                checked_at=checked_at,
-                checks=checks,
-                active_policy=active_policy,
-                current_workspace_fingerprint=current_workspace_fingerprint,
-                filesystem_sequence_at_ready=filesystem_sequence_at_ready,
-                filesystem_status=filesystem_status,
-                hook_status=hook_status,
-                hook_ingress_verified=hook_ingress_verified,
-                capability=capability,
-                current_lease=current_lease,
-            )
-            self._last_result = result
-            return result
-
-        return self._result(
+        return _ReadinessEvaluation(
             checked_at=checked_at,
             checks=checks,
             active_policy=active_policy,
@@ -430,6 +398,50 @@ class ProtectionReadinessBarrier:
             hook_status=hook_status,
             hook_ingress_verified=hook_ingress_verified,
             capability=capability,
+            current_lease=current_lease,
+        )
+
+    def _complete_readiness_evaluation(
+        self,
+        state: _ReadinessEvaluation,
+    ) -> ProtectionReadinessResult:
+        if all(item.passed for item in state.checks):
+            try:
+                self.session.transition_to(SessionStatus.READY, at=state.checked_at)
+            except Exception:
+                state.checks.append(
+                    _check("SESSION_TRANSITION", False, "SESSION_TRANSITION_FAILED")
+                )
+                return self._result_for_evaluation(state)
+            if self.session.status is not SessionStatus.READY:
+                state.checks.append(
+                    _check("SESSION_TRANSITION", False, "SESSION_TRANSITION_FAILED")
+                )
+                return self._result_for_evaluation(state)
+            state.checks.append(_check("SESSION_TRANSITION", True))
+            result = self._result_for_evaluation(state, include_lease=True)
+            self._last_result = result
+            return result
+
+        return self._result_for_evaluation(state)
+
+    def _result_for_evaluation(
+        self,
+        state: _ReadinessEvaluation,
+        *,
+        include_lease: bool = False,
+    ) -> ProtectionReadinessResult:
+        return self._result(
+            checked_at=state.checked_at,
+            checks=state.checks,
+            active_policy=state.active_policy,
+            current_workspace_fingerprint=state.current_workspace_fingerprint,
+            filesystem_sequence_at_ready=state.filesystem_sequence_at_ready,
+            filesystem_status=state.filesystem_status,
+            hook_status=state.hook_status,
+            hook_ingress_verified=state.hook_ingress_verified,
+            capability=state.capability,
+            current_lease=state.current_lease if include_lease else None,
         )
 
     assess = evaluate
