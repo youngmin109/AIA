@@ -104,7 +104,7 @@ Process evidence can establish that a process was observed or exited. It does no
 
 The policy evaluator matches a canonical action using its operation, target kind, path or command pattern, asset type, priority, and active policy fingerprint. A matched rule produces an effect such as allow or deny. The runtime caller does not invent an asset type; it uses the matched policy rule's asset type.
 
-Attribution evaluates whether the available evidence supports connecting the action to the Session. The result may be exact, partial, or indeterminate depending on the evidence sources and completeness. Enforcement receives the combined decision and chooses the supported route. The routes represented in the current core include pre-tool blocking and managed process termination.
+Attribution grades how strongly the evidence connects an action to the Session as `EXACT`, `PROCESS`, `TEMPORAL`, or `UNKNOWN`. A policy violation alone does not trigger process termination. Automatic containment through managed process termination can qualify only with `EXACT` attribution; the enforcement gate must also verify process identity and its other required checks. `PROCESS`, `TEMPORAL`, and `UNKNOWN` attribution do not qualify for automatic containment. Enforcement chooses the supported route, which can include pre-tool blocking or managed process termination.
 
 The display phrase `BLOCKED / SUCCEEDED` has a precise meaning: AIA's block action succeeded and the actual tool execution was verified as prevented. A deny response alone is insufficient to claim that the external side effect did not occur.
 
