@@ -762,6 +762,30 @@ def test_codex_adapter_reports_selected_executable_version(
     assert CodexAdapter.executable_version(executable) == "0.154.0"
 
 
+def test_codex_adapter_caches_version_probe_by_path_and_mtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    calls = 0
+
+    def run(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return subprocess.CompletedProcess([], 0, b"Codex 1.2.3", b"")
+
+    monkeypatch.setattr(codex_module.subprocess, "run", run)
+    assert CodexAdapter._executable_version(executable) == (1, 2, 3)
+    assert CodexAdapter._executable_version(executable) == (1, 2, 3)
+    assert calls == 1
+
+    changed_mtime = executable.stat().st_mtime + 2
+    os.utime(executable, (changed_mtime, changed_mtime))
+    assert CodexAdapter._executable_version(executable) == (1, 2, 3)
+    assert calls == 2
+
+
 def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:
     adapter = CodexAdapter(
         hook_command="python -m aia.codex_hook_runtime",

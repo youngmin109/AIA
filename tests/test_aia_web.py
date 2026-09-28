@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
 import importlib
+import shutil
+import subprocess
 import time
+from fastapi.testclient import TestClient
 
 from aia_web.app import (
     _aia_cli_command,
@@ -12,6 +14,9 @@ from aia_web.app import (
 )
 from aia_app.service import RunApplicationService
 from aia.codex_installation import CodexHookInstaller
+from aia.adapters.codex import CodexAdapter
+from aia import ProcessIdentityStatus, SessionFinalizer
+from tests.test_finalization import _session
 
 
 class FakeService:
@@ -569,6 +574,75 @@ def test_console_supports_session_first_interactive_run() -> None:
     )
     assert created.status_code == 202
     assert service.created_payloads[-1]["interactive"] is True
+
+
+def test_many_finished_runs_api_responses_match_with_cached_parsing(tmp_path, monkeypatch) -> None:
+    control_root = tmp_path / "control"
+    sessions_root = control_root / "sessions"
+    sessions_root.mkdir(parents=True)
+    for index in range(150):
+        fixture_root = tmp_path / "fixtures" / str(index)
+        session, store, _action = _session(fixture_root)
+        SessionFinalizer(evidence_store=store).finalize(
+            session,
+            process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+        )
+        source = fixture_root / "control" / "sessions" / session.session_id
+        shutil.move(str(source), str(sessions_root / session.session_id))
+
+    codex_executable = tmp_path / "codex.exe"
+    codex_executable.write_bytes(b"codex fixture")
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_path_candidates",
+        lambda _self: (codex_executable,),
+    )
+    monkeypatch.setattr(CodexAdapter, "_windows_install_candidates", lambda _self: ())
+    version_probes = 0
+
+    def fake_version_probe(*_args, **_kwargs):
+        nonlocal version_probes
+        version_probes += 1
+        return subprocess.CompletedProcess([], 0, b"Codex 1.2.3", b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_version_probe)
+    monkeypatch.setattr(CodexHookInstaller, "is_installed", lambda _self: False)
+    monkeypatch.setattr(CodexHookInstaller, "is_posttool_installed", lambda _self: False)
+    monkeypatch.setattr(CodexHookInstaller, "has_aia_runtime", lambda *_args: False)
+    service = RunApplicationService(control_root)
+    client = TestClient(create_app(service))
+    try:
+        started = time.perf_counter()
+        cold_runs = client.get("/api/runs")
+        cold_runs_ms = (time.perf_counter() - started) * 1000
+        service._completed_runs_cache = None
+        started = time.perf_counter()
+        warm_runs = client.get("/api/runs")
+        warm_runs_ms = (time.perf_counter() - started) * 1000
+
+        service._completed_runs_cache = None
+        service.reader._result_cache.clear()
+        service.reader._metadata_cache.clear()
+        started = time.perf_counter()
+        cold_preflight = client.get("/api/preflight")
+        cold_preflight_ms = (time.perf_counter() - started) * 1000
+        service._completed_runs_cache = None
+        started = time.perf_counter()
+        warm_preflight = client.get("/api/preflight")
+        warm_preflight_ms = (time.perf_counter() - started) * 1000
+        assert cold_runs.status_code == warm_runs.status_code == 200
+        assert cold_preflight.status_code == warm_preflight.status_code == 200
+        assert len(cold_runs.json()["runs"]) == 150
+        assert cold_runs.json() == warm_runs.json()
+        assert cold_preflight.json() == warm_preflight.json()
+        assert version_probes == 1
+        print(
+            "150-run API timings ms: "
+            f"/api/runs {cold_runs_ms:.2f} -> {warm_runs_ms:.2f}; "
+            f"/api/preflight {cold_preflight_ms:.2f} -> {warm_preflight_ms:.2f}"
+        )
+    finally:
+        service.shutdown()
 
 
 def test_console_policy_editor_api_validates_and_saves_strict_document(tmp_path) -> None:

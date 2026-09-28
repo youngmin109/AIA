@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from threading import RLock
 from typing import Any
 
 from ..codex_installation import AIA_CODEX_HOOK_MATCHER
@@ -20,6 +21,10 @@ from ..launcher import (
     AgentRuntimeMetadata,
     ProtectedLaunchRequest,
 )
+
+
+_VERSION_CACHE_LOCK = RLock()
+_VERSION_CACHE: dict[tuple[str, int], tuple[int, int, int] | None] = {}
 
 
 def _hidden_process_kwargs() -> dict[str, int]:
@@ -180,21 +185,40 @@ class CodexAdapter:
         """Read a bounded semantic version without retaining command output."""
 
         try:
-            completed = subprocess.run(
-                [str(path), "--version"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                timeout=5.0,
-                check=False,
-                **_hidden_process_kwargs(),
-            )
-        except (OSError, subprocess.TimeoutExpired):
+            resolved = path.resolve(strict=False)
+            mtime_ns = path.stat().st_mtime_ns
+        except OSError:
             return None
-        output = completed.stdout.decode("utf-8", errors="replace")
-        match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", output)
-        if match is None:
-            return None
-        return tuple(int(group) for group in match.groups())  # type: ignore[return-value]
+        cache_key = (str(resolved), mtime_ns)
+        with _VERSION_CACHE_LOCK:
+            if cache_key in _VERSION_CACHE:
+                return _VERSION_CACHE[cache_key]
+            try:
+                completed = subprocess.run(
+                    [str(path), "--version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5.0,
+                    check=False,
+                    **_hidden_process_kwargs(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                version = None
+            else:
+                output = completed.stdout.decode("utf-8", errors="replace")
+                match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", output)
+                version = (
+                    tuple(int(group) for group in match.groups())
+                    if match is not None
+                    else None
+                )
+            stale_keys = [
+                key for key in _VERSION_CACHE if key[0] == cache_key[0] and key != cache_key
+            ]
+            for key in stale_keys:
+                del _VERSION_CACHE[key]
+            _VERSION_CACHE[cache_key] = version  # type: ignore[assignment]
+            return version  # type: ignore[return-value]
 
     @classmethod
     def executable_version(cls, path: Path | str) -> str:

@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from pathlib import Path
 from pathlib import PurePosixPath
 import re
+from threading import RLock
 from typing import Any
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
 
 
 _SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9-]+$")
+_PARSED_FILE_CACHE_LIMIT = 512
 
 
 class ResultBundleReader:
@@ -19,6 +22,9 @@ class ResultBundleReader:
 
     def __init__(self, control_root: str | Path) -> None:
         self.control_root = Path(control_root).expanduser().resolve(strict=False)
+        self._parsed_cache_lock = RLock()
+        self._result_cache: dict[Path, tuple[int, int, dict[str, Any]]] = {}
+        self._metadata_cache: dict[Path, tuple[int, int, list[dict[str, Any]]]] = {}
 
     def session_directory(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not _SAFE_SESSION_ID.fullmatch(session_id):
@@ -45,7 +51,22 @@ class ResultBundleReader:
         verification = self.verification(session_id)
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
-        return self._read_json(result_directory / "result.json"), verification
+        result_path = result_directory / "result.json"
+        try:
+            stat = result_path.stat()
+        except OSError:
+            return self._read_json(result_path), verification
+        signature = (stat.st_mtime_ns, stat.st_size)
+        with self._parsed_cache_lock:
+            cached = self._result_cache.get(result_path)
+            if cached is not None and cached[:2] == signature:
+                result = deepcopy(cached[2])
+            else:
+                result = self._read_json(result_path)
+                self._result_cache[result_path] = (*signature, result)
+                if len(self._result_cache) > _PARSED_FILE_CACHE_LIMIT:
+                    self._result_cache.pop(next(iter(self._result_cache)))
+        return result, verification
 
     def read_result(self, session_id: str) -> dict[str, Any]:
         result, _ = self._read_verified_result(session_id)
@@ -81,6 +102,18 @@ class ResultBundleReader:
         path = session_directory / "evidence" / "raw-evidence.jsonl"
         if not path.is_file():
             return []
+        try:
+            stat = path.stat()
+        except OSError:
+            return []
+        signature = (stat.st_mtime_ns, stat.st_size)
+        with self._parsed_cache_lock:
+            cached = self._metadata_cache.get(path)
+            if cached is not None and cached[:2] == signature:
+                return [
+                    {**item, "payload_keys": list(item["payload_keys"])}
+                    for item in cached[2]
+                ]
         items: list[dict[str, Any]] = []
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             try:
@@ -100,6 +133,14 @@ class ResultBundleReader:
                     "source": record.get("source"),
                 }
             )
+        with self._parsed_cache_lock:
+            cached_items = [
+                {**item, "payload_keys": list(item["payload_keys"])}
+                for item in items
+            ]
+            self._metadata_cache[path] = (*signature, cached_items)
+            if len(self._metadata_cache) > _PARSED_FILE_CACHE_LIMIT:
+                self._metadata_cache.pop(next(iter(self._metadata_cache)))
         return items
 
     def list_completed(self) -> list[dict[str, Any]]:
