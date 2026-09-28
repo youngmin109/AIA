@@ -7,12 +7,32 @@ from aia.product_e2e import (
     _block_confirmation,
     _copy_current_hook_verification,
     _output_metadata,
+    _parse_args,
     _proof_passed,
     _safe_hook_verification,
     _write_report,
 )
 from aia import BundleVerificationStatus, CodexHookInstaller
 from aia.hook_verification import HookVerificationStore
+
+
+def test_parse_args_preserves_product_e2e_cli_options(tmp_path: Path) -> None:
+    args = _parse_args(
+        [
+            "--output",
+            str(tmp_path),
+            "--timeout",
+            "45",
+            "--json",
+            "--scenario",
+            "block-env",
+        ]
+    )
+
+    assert args.output == tmp_path
+    assert args.timeout == 45
+    assert args.json is True
+    assert args.scenario == "block-env"
 
 
 def _common_kwargs() -> dict[str, object]:
