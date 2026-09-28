@@ -2315,6 +2315,13 @@ class RunApplicationService:
         return None
 
     def _run(self, record: RunRecord) -> None:
+        """Coordinate the protected run and its resource cleanup."""
+
+        self._run_protected_lifecycle(record)
+
+    def _run_protected_lifecycle(self, record: RunRecord) -> None:
+        """Execute preparation, launch, observation, and finalization in order."""
+
         session: ProtectedRunSession = record.runtime["session"]
         resolved = record.runtime["resolved_policy"]
         manager: WorkspaceLeaseManager | None = None
