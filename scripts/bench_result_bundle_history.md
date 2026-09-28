@@ -26,3 +26,19 @@ warm_ms_p50=196.348 warm_ms_p95=222.109
 
 These timings are a local baseline, not a performance threshold. The warm
 reader still verifies each committed bundle on every history scan.
+
+## Cache-miss byte reuse comparison
+
+Run on 2026-09-29 with Python 3.13.5, 100 bundles, and 20 scans per mode.
+Before and after scans used the same benchmark script and verified that every
+scan returned all 100 bundles with `bundle_status=VALID`.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Cold p50 | 232.534 ms | 215.040 ms |
+| Cold p95 | 254.903 ms | 230.949 ms |
+| Warm p50 | 218.895 ms | 218.866 ms |
+| Warm p95 | 233.947 ms | 225.695 ms |
+
+The cache-miss path now parses the same bytes used to compute the content
+digest. Timings are local observations, not performance thresholds.

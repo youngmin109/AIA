@@ -1740,15 +1740,25 @@ def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
         return SimpleNamespace(status=BundleVerificationStatus.VALID)
 
     monkeypatch.setattr(reader, "verification", verified)
-    original_read_json = reader._read_json
+    original_parse_json = reader._parse_json_bytes
     json_reads = 0
 
-    def read_json(path):
+    def parse_json(contents):
         nonlocal json_reads
         json_reads += 1
-        return original_read_json(path)
+        return original_parse_json(contents)
 
-    monkeypatch.setattr(reader, "_read_json", read_json)
+    monkeypatch.setattr(reader, "_parse_json_bytes", parse_json)
+    original_read_bytes = Path.read_bytes
+    result_byte_reads = 0
+
+    def read_bytes(path):
+        nonlocal result_byte_reads
+        if path == result_path:
+            result_byte_reads += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
     first = reader.read_result("session-1")
     original_stat = result_path.stat()
     result_path.write_text('{"value":"b"}', encoding="utf-8")
@@ -1766,6 +1776,7 @@ def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
     assert result_path.stat().st_mtime_ns == original_stat.st_mtime_ns
     assert verification_calls == 3
     assert json_reads == 2
+    assert result_byte_reads == 3
 
 
 def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserved_mtime(
@@ -1785,16 +1796,16 @@ def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserv
         '{"evidence_id":"e1","payload":{"command":"old"}}\n',
         encoding="utf-8",
     )
-    original_read_text = Path.read_text
-    metadata_reads = 0
+    original_read_bytes = Path.read_bytes
+    metadata_byte_reads = 0
 
-    def read_text(path, *args, **kwargs):
-        nonlocal metadata_reads
+    def read_bytes(path):
+        nonlocal metadata_byte_reads
         if path == evidence_path:
-            metadata_reads += 1
-        return original_read_text(path, *args, **kwargs)
+            metadata_byte_reads += 1
+        return original_read_bytes(path)
 
-    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
     first = reader.read_evidence_metadata("session-1", require_valid=False)
     original_stat = evidence_path.stat()
     evidence_path.write_text(
@@ -1816,7 +1827,7 @@ def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserv
     assert "old" not in repr(second)
     assert "new" not in repr(second)
     assert second[0]["payload_keys"] == ["command"]
-    assert metadata_reads == 2
+    assert metadata_byte_reads == 3
 
 
 def test_result_bundle_reader_reports_verified_checkpoint_status(

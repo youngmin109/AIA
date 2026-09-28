@@ -57,14 +57,15 @@ class ResultBundleReader:
             stat = result_path.stat()
         except OSError:
             return self._read_json(result_path), verification
-        digest = hashlib.blake2b(result_path.read_bytes(), digest_size=16).digest()
+        contents = result_path.read_bytes()
+        digest = hashlib.blake2b(contents, digest_size=16).digest()
         signature = (stat.st_mtime_ns, stat.st_size, digest)
         with self._parsed_cache_lock:
             cached = self._result_cache.get(result_path)
             if cached is not None and cached[:3] == signature:
                 result = deepcopy(cached[3])
             else:
-                result = self._read_json(result_path)
+                result = self._parse_json_bytes(contents)
                 self._result_cache[result_path] = (*signature, result)
                 if len(self._result_cache) > _PARSED_FILE_CACHE_LIMIT:
                     self._result_cache.pop(next(iter(self._result_cache)))
@@ -108,7 +109,8 @@ class ResultBundleReader:
             stat = path.stat()
         except OSError:
             return []
-        digest = hashlib.blake2b(path.read_bytes(), digest_size=16).digest()
+        contents = path.read_bytes()
+        digest = hashlib.blake2b(contents, digest_size=16).digest()
         signature = (stat.st_mtime_ns, stat.st_size, digest)
         with self._parsed_cache_lock:
             cached = self._metadata_cache.get(path)
@@ -118,7 +120,7 @@ class ResultBundleReader:
                     for item in cached[3]
                 ]
         items: list[dict[str, Any]] = []
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for line_number, line in enumerate(contents.decode("utf-8").splitlines(), 1):
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
@@ -344,8 +346,15 @@ class ResultBundleReader:
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
         try:
-            value = json.loads(path.read_text(encoding="utf-8"))
+            return ResultBundleReader._parse_json_bytes(path.read_bytes())
         except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("result bundle JSON is invalid") from error
+
+    @staticmethod
+    def _parse_json_bytes(contents: bytes) -> dict[str, Any]:
+        try:
+            value = json.loads(contents)
+        except json.JSONDecodeError as error:
             raise ValueError("result bundle JSON is invalid") from error
         if not isinstance(value, dict):
             raise ValueError("result bundle JSON must be an object")
