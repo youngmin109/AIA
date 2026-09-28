@@ -769,6 +769,86 @@ def evidence_chain_views(
     return chains
 
 
+def result_action_chain_views(
+    actions: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    *,
+    evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    attribution_results: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+    recovery: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Build the result screen's ordered, action-linked evidence chains."""
+    metadata_by_id, attribution_support_by_action, _ = _evidence_chain_indexes(
+        evidence_metadata, attribution_results
+    )
+    recovery_status = _evidence_chain_run_status(recovery, key="recovery_status")
+    chains = []
+    for action in actions:
+        if not isinstance(action, Mapping):
+            continue
+        action_id = str(action.get("action_id") or "")
+        evidence_ids = {
+            str(value)
+            for value in action.get("evidence_ids") or ()
+            if isinstance(value, str) and value
+        }
+        evidence_ids.update(attribution_support_by_action.get(action_id, ()))
+        linked_records = [metadata_by_id[value] for value in evidence_ids if value in metadata_by_id]
+
+        def observed_record(source: str, record_type: str) -> bool:
+            return any(
+                item.get("source") == source and item.get("record_type") == record_type
+                for item in linked_records
+            )
+
+        tool_request_observed = observed_record("AGENT_HOOK", "PRETOOL_REQUEST")
+        process_observed = observed_record("PROCESS_RUNTIME", "PROCESS_OBSERVED")
+        file_change_observed = observed_record("FILESYSTEM_WATCHER", "FILESYSTEM_EVENT")
+        tool_name = safe_tool_name(action.get("tool_name") or action.get("tool"))
+        policy = action.get("policy_decision") or action.get("policy")
+        enforcement = action.get("enforcement_action") or action.get("enforcement")
+        enforcement_decision = action.get("enforcement_decision")
+        stages = [
+            {
+                "stage": "TOOL_REQUEST",
+                "label": "Tool request",
+                "status": "OBSERVED" if tool_request_observed else "NOT_OBSERVED",
+                "value": (tool_name or "observed") if tool_request_observed else "not observed",
+            },
+            {
+                "stage": "PROCESS",
+                "label": "Process",
+                "status": "OBSERVED" if process_observed else "NOT_OBSERVED",
+                "value": "observed" if process_observed else "not observed",
+            },
+            {
+                "stage": "FILE_CHANGE",
+                "label": "File change",
+                "status": "OBSERVED" if file_change_observed else "NOT_OBSERVED",
+                "value": "observed" if file_change_observed else "not observed",
+            },
+            {
+                "stage": "POLICY",
+                "label": "Policy decision",
+                "status": str(policy) if policy else "NOT_OBSERVED",
+                "value": str(policy) if policy else "not observed",
+            },
+            {
+                "stage": "ENFORCEMENT",
+                "label": "Enforcement",
+                "status": str(enforcement or enforcement_decision) if enforcement or enforcement_decision else "NOT_OBSERVED",
+                "value": str(enforcement or enforcement_decision) if enforcement or enforcement_decision else "not observed",
+            },
+            {
+                "stage": "RECOVERY",
+                "label": "Recovery (run level)",
+                "status": recovery_status if recovery_status != "NOT_ATTEMPTED" else "NOT_OBSERVED",
+                "value": recovery_status if recovery_status != "NOT_ATTEMPTED" else "not observed",
+            },
+        ]
+        chains.append({"action_id": action.get("action_id"), "stages": stages})
+    return chains
+
+
 def evidence_timeline_views(
     evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
     *,
@@ -996,6 +1076,11 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "workspace": result.get("workspace"),
         "actions": actions,
         "events": safe_event_views(actions),
+        "result_action_chains": result_action_chain_views(
+            action_outcomes,
+            attribution_results=result.get("attribution_results") or (),
+            recovery=result.get("recovery_result"),
+        ),
         "evidence_chains": evidence_chain_views(
             actions,
             attribution_results=result.get("attribution_results") or (),

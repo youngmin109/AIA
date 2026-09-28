@@ -23,6 +23,7 @@ from aia_app.presenters import (
     evidence_chain_views,
     incident_view,
     incident_views_for_result,
+    result_action_chain_views,
     result_view,
     safe_event_views,
     evidence_timeline_views,
@@ -1436,6 +1437,48 @@ def test_result_presenter_preserves_attribution_in_evidence_chain() -> None:
     )
 
     assert view["evidence_chains"][0]["stages"][3]["status"] == "EXACT"
+
+
+def test_result_action_chain_shows_recorded_stages_and_marks_missing_links() -> None:
+    secret = "FAKE_SECRET_DO_NOT_RENDER"
+    actions = [
+        {
+            "action_id": "complete",
+            "tool_name": "Bash",
+            "policy_decision": "VIOLATION",
+            "enforcement_action": "BLOCKED",
+            "evidence_ids": ["hook", "process", "file"],
+            "target": {"raw_command": secret},
+            "payload": {"content": secret},
+        },
+        {"action_id": "partial", "payload": {"content": secret}},
+    ]
+    metadata = [
+        {"evidence_id": "hook", "source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+        {"evidence_id": "process", "source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+        {"evidence_id": "file", "source": "FILESYSTEM_WATCHER", "record_type": "FILESYSTEM_EVENT"},
+    ]
+
+    chains = result_action_chain_views(
+        actions,
+        evidence_metadata=metadata,
+        recovery={"recovery_status": "RESTORED"},
+    )
+
+    assert [stage["stage"] for stage in chains[0]["stages"]] == [
+        "TOOL_REQUEST",
+        "PROCESS",
+        "FILE_CHANGE",
+        "POLICY",
+        "ENFORCEMENT",
+        "RECOVERY",
+    ]
+    assert [stage["status"] for stage in chains[0]["stages"]] == [
+        "OBSERVED", "OBSERVED", "OBSERVED", "VIOLATION", "BLOCKED", "RESTORED"
+    ]
+    assert all(stage["value"] == "not observed" for stage in chains[1]["stages"][:5])
+    assert chains[1]["stages"][5]["value"] == "RESTORED"
+    assert secret not in repr(chains)
 
 
 def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_path) -> None:

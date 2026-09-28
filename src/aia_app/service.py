@@ -69,6 +69,7 @@ from .presenters import (
     evidence_timeline_views,
     incident_view,
     incident_views_for_result,
+    result_action_chain_views,
     result_view,
     safe_event_views,
     safe_tool_name,
@@ -537,6 +538,12 @@ def _annotate_execution_observations(
         attribution_results=view.get("attribution_results", ()),
         recovery=view.get("recovery"),
         integrity=view.get("integrity"),
+    )
+    view["result_action_chains"] = result_action_chain_views(
+        actions,
+        evidence_metadata=evidence_metadata or (),
+        attribution_results=view.get("attribution_results", ()),
+        recovery=view.get("recovery"),
     )
     view["evidence_timeline"] = evidence_timeline_views(
         evidence_metadata or (),

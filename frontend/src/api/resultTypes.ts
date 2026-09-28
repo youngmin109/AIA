@@ -25,6 +25,10 @@ export interface ResultView {
   policy_version?: string
   workspace?: string
   incidents?: IncidentView[]
+  result_action_chains?: Array<{
+    action_id?: string
+    stages?: Array<{ stage?: string; label?: string; status?: string; value?: string }>
+  }>
   incident_count?: number
   sensor_summary?: Array<{ sensor?: string; runtime_health_before_stop?: string; final_sensor_state?: string }>
   result_available?: boolean

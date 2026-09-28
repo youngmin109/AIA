@@ -84,6 +84,31 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         </div>
       </div>
 
+      {data.result_action_chains && data.result_action_chains.length > 0 && (
+        <div className="panel-section">
+          <p className="panel-section-title">Evidence Chain</p>
+          <div className="run-list">
+            {data.result_action_chains.map((chain, index) => (
+              <div className="event-row" key={chain.action_id ?? index}>
+                <div className="event-row-top">
+                  <span className="event-row-sensor">행위 {chain.action_id ?? index + 1}</span>
+                </div>
+                <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+                  {(chain.stages ?? []).map((stage, stageIndex) => (
+                    <div key={stage.stage ?? stageIndex} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span>{stage.label}</span>
+                      <span className={`badge is-${stage.status === 'NOT_OBSERVED' ? 'warn' : toneFor(stage.status)}`}>
+                        {stage.value ?? 'not observed'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {data.sensor_summary && data.sensor_summary.length > 0 && (
         <div className="panel-section">
           <p className="panel-section-title">센서 결과</p>
