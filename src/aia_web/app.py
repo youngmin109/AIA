@@ -215,40 +215,25 @@ def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tup
     return payload, 200 if payload.get("verified") is True else 409
 
 
-def create_app(service: RunApplicationService | None = None) -> FastAPI:
-    active_service = service or RunApplicationService(
-        default_control_root(),
-        require_hook_verification=True,
-    )
+_SPA_INDEX_PATH = _ROOT / "static" / "app" / "index.html"
 
-    @asynccontextmanager
-    async def lifespan(_app: FastAPI):
-        yield
-        active_service.shutdown(wait=False)
 
-    app = FastAPI(
-        title="AIA Local Security Console",
-        docs_url=None,
-        redoc_url=None,
-        lifespan=lifespan,
-    )
-    app.state.service = active_service
-    app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
+def _serve_spa() -> HTMLResponse | FileResponse:
+    if not _SPA_INDEX_PATH.exists():
+        return HTMLResponse(
+            "AIA SPA build not found. Run `npm run build` in frontend/.",
+            status_code=503,
+        )
+    return FileResponse(_SPA_INDEX_PATH)
 
-    _spa_index_path = _ROOT / "static" / "app" / "index.html"
 
-    def _serve_spa() -> HTMLResponse | FileResponse:
-        if not _spa_index_path.exists():
-            return HTMLResponse(
-                "AIA SPA build not found. Run `npm run build` in frontend/.",
-                status_code=503,
-            )
-        return FileResponse(_spa_index_path)
-
+def _register_spa_index_routes(app: FastAPI) -> None:
     @app.get("/", response_class=HTMLResponse)
     def spa_index():
         return _serve_spa()
 
+
+def _register_catalog_routes(app: FastAPI) -> None:
     @app.get("/api/runs")
     def run_history_api() -> JSONResponse:
         return JSONResponse({"runs": app.state.service.list_runs()})
@@ -261,6 +246,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def capabilities() -> JSONResponse:
         return JSONResponse(product_capabilities())
 
+
+def _register_policy_routes(app: FastAPI) -> None:
     @app.post("/api/policy/preview")
     async def preview_policy(request: Request) -> JSONResponse:
         try:
@@ -287,6 +274,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (json.JSONDecodeError, ValueError, OSError) as exc:
             return JSONResponse({"saved": False, "error": str(exc)}, status_code=400)
 
+
+def _register_readiness_routes(app: FastAPI) -> None:
     @app.get("/api/preflight")
     def preflight() -> JSONResponse:
         return JSONResponse(app.state.service.preflight())
@@ -338,6 +327,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except ValueError as exc:
             return JSONResponse({"valid": False, "error": str(exc)}, status_code=400)
 
+
+def _register_runs_routes(app: FastAPI) -> None:
     @app.post("/api/runs")
     async def create_run(request: Request) -> JSONResponse:
         try:
@@ -354,6 +345,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
 
+
+def _register_run_details_routes(app: FastAPI) -> None:
     @app.get("/api/runs/{session_id}/result")
     def result_api(session_id: str) -> JSONResponse:
         try:
@@ -427,6 +420,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             )
             return JSONResponse({"error": safe_reason}, status_code=409)
 
+
+def _register_codex_routes(app: FastAPI) -> None:
     @app.get("/api/runs/{session_id}/codex/status")
     def codex_status(session_id: str) -> JSONResponse:
         try:
@@ -540,6 +535,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         with contextlib.suppress(WebSocketDisconnect, RuntimeError):
             await websocket.close()
 
+
+def _register_run_controls_routes(app: FastAPI) -> None:
     @app.post("/api/runs/{session_id}/stop")
     def stop_run(session_id: str) -> JSONResponse:
         try:
@@ -556,6 +553,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse({"error": "Run not found"}, status_code=404)
         return JSONResponse(result, status_code=200 if result.get("reconciled") else 409)
 
+
+def _register_result_exports_routes(app: FastAPI) -> None:
     @app.get("/runs/{session_id}/report")
     def report(session_id: str) -> PlainTextResponse:
         try:
@@ -580,13 +579,44 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (KeyError, ValueError) as exc:
             return Response(str(exc), status_code=404, media_type="text/plain")
 
-    # Registered last so it only ever catches paths no earlier route (API,
-    # static, WebSocket, or "/") matched -- the SPA owns client-side routing
-    # for everything else, including a hard reload on a deep link.
+
+def _register_spa_fallback_routes(app: FastAPI) -> None:
+    # Registered last so the SPA only catches paths no earlier route matched.
     @app.get("/{_full_path:path}", response_class=HTMLResponse)
     def spa_catch_all(_full_path: str):
         return _serve_spa()
 
+
+def create_app(service: RunApplicationService | None = None) -> FastAPI:
+    active_service = service or RunApplicationService(
+        default_control_root(),
+        require_hook_verification=True,
+    )
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        yield
+        active_service.shutdown(wait=False)
+
+    app = FastAPI(
+        title="AIA Local Security Console",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
+    app.state.service = active_service
+    app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
+
+    _register_spa_index_routes(app)
+    _register_catalog_routes(app)
+    _register_policy_routes(app)
+    _register_readiness_routes(app)
+    _register_runs_routes(app)
+    _register_run_details_routes(app)
+    _register_codex_routes(app)
+    _register_run_controls_routes(app)
+    _register_result_exports_routes(app)
+    _register_spa_fallback_routes(app)
     return app
 
 
