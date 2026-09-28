@@ -264,4 +264,9 @@ deny JSON을 만든 사실만으로 성공 처리하지 않으며, 실제 도구
 
 실행 결과 화면에서는 센서 상태와 Evidence 건수를 먼저 확인한다. 그 아래에서
 안전한 타임라인, 사건 상세, Recovery와 Integrity, Result Bundle을 확인할 수 있다.
+`Evidence Chain`은 행위별로 Tool request, Process, File change, Policy decision,
+Enforcement 관찰을 연결해 보여준다. Recovery는 개별 행위가 아니라 실행 단위 결과다.
+단계가 `not observed`로 표시되면 해당 연결 증거를 관찰하지 못했다는 뜻이며,
+그 행위가 발생하지 않았다는 뜻은 아니다. Process 증거만으로 특정 프로세스가
+파일을 작성했다고 판단할 수도 없다.
 `/runs`의 실행 기록에는 Workspace·상태·보호 상태·차단 여부·날짜 필터가 있다.
