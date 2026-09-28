@@ -1378,6 +1378,9 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
+        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+    )
+    monkeypatch.setattr(
         "aia.cli.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
@@ -1408,7 +1411,9 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 1
-    trust_check = next(item for item in payload["checks"] if item["name"] == "codex_hook_trust")
+    trust_check = next(
+        item for item in payload["checks"] if item["name"] == "codex_hook_trust"
+    )
     assert trust_check["ok"] is False
     assert "PreToolUse=MODIFIED" in trust_check["value"]
     assert payload["codex_hook_trust"]["hooks"][0]["trust_status"] == "MODIFIED"
@@ -1441,6 +1446,9 @@ def test_doctor_marks_stale_aia_hook_for_refresh(tmp_path, monkeypatch, capsys) 
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+    )
 
     exit_code = main(
         [
@@ -1460,6 +1468,148 @@ def test_doctor_marks_stale_aia_hook_for_refresh(tmp_path, monkeypatch, capsys) 
     assert hook_check["stale"] is True
     assert "기존 AIA Hook 경로" in hook_check["detail"]
     assert "갱신" in payload["next_step"]
+
+
+def test_doctor_reports_unknown_codex_hook_trust_without_launching_codex(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+    )
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [],
+                }
+            },
+        )(),
+    )
+
+    exit_code = main(
+        [
+            "doctor",
+            "--json",
+            "--hook-path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    trust_check = next(
+        item for item in payload["checks"] if item["name"] == "codex_hook_trust"
+    )
+    assert exit_code == 1
+    assert trust_check["ok"] is False
+    assert trust_check["value"] == "PreToolUse=UNKNOWN, PostToolUse=UNKNOWN"
+    assert trust_check["detail"] == "Codex 실제 PreToolUse Trust 상태를 확인할 수 없음"
+
+
+def test_doctor_skips_hook_trust_probe_when_codex_is_unavailable(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    CodexHookInstaller(hook_path).install()
+
+    def unavailable(_adapter):
+        raise RuntimeError("missing")
+
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", unavailable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: pytest.fail("trust inspection needs an executable"),
+    )
+
+    exit_code = main(
+        [
+            "doctor",
+            "--json",
+            "--hook-path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    executable_check = next(
+        item for item in payload["checks"] if item["name"] == "codex_executable"
+    )
+    assert exit_code == 1
+    assert executable_check["version"] == "unknown"
+    assert executable_check["detail"] == "Codex executable unavailable: RuntimeError"
+    assert "codex_hook_trust" not in {item["name"] for item in payload["checks"]}
+    assert payload["codex_hook_trust"]["reason"] == "CODEX_EXECUTABLE_OR_HOOK_UNAVAILABLE"
+
+
+def test_doctor_reports_current_live_hook_verification(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    hook_path = tmp_path / "hooks.json"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+    )
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [
+                        {"event": "preToolUse", "trust_status": "TRUSTED"},
+                        {"event": "postToolUse", "trust_status": "MANAGED"},
+                    ],
+                }
+            },
+        )(),
+    )
+    monkeypatch.setattr("aia.cli.HookVerificationStore.is_current", lambda *args: True)
+
+    exit_code = main(
+        [
+            "doctor",
+            "--json",
+            "--hook-path",
+            str(hook_path),
+            "--control-root",
+            str(tmp_path / "control"),
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    verification_check = next(
+        item for item in payload["checks"] if item["name"] == "hook_verification"
+    )
+    assert exit_code == 0
+    assert verification_check["ok"] is True
+    assert verification_check["detail"] == "Live Codex Hook Event verification is current"
+    assert [item["name"] for item in payload["checks"]] == [
+        "python",
+        "codex_executable",
+        "codex_hook",
+        "codex_hook_trust",
+        "hook_verification",
+        "control_root",
+    ]
 
 
 def test_protected_run_preflight_requires_the_aia_hook(monkeypatch) -> None:

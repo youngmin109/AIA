@@ -616,9 +616,7 @@ class _DoctorPrerequisites:
     writable: bool
 
 
-def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisites:
-    checks: list[dict[str, object]] = []
-
+def _doctor_python_check(checks: list[dict[str, object]]) -> bool:
     supported_python = sys.version_info[:2] == (3, 13)
     checks.append(
         {
@@ -628,7 +626,12 @@ def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisite
             "detail": "Python 3.13 is required",
         }
     )
+    return supported_python
 
+
+def _doctor_codex_executable_check(
+    checks: list[dict[str, object]],
+) -> tuple[Path | None, str]:
     adapter = CodexAdapter()
     executable: Path | None = None
     try:
@@ -654,7 +657,12 @@ def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisite
                 "detail": f"Codex executable unavailable: {type(error).__name__}",
             }
         )
+    return executable, executable_version
 
+
+def _doctor_hook_installation_check(
+    args: argparse.Namespace, checks: list[dict[str, object]]
+) -> tuple[CodexHookInstaller, str, bool, bool, bool]:
     installer = CodexHookInstaller(args.hook_path)
     cli_prefix = _cli_prefix(installer)
     hook_installed = installer.is_installed()
@@ -677,7 +685,15 @@ def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisite
             ),
         }
     )
+    return installer, cli_prefix, hook_installed, stale_hook_detected, posttool_installed
 
+
+def _doctor_hook_trust_check(
+    checks: list[dict[str, object]],
+    executable: Path | None,
+    installer: CodexHookInstaller,
+    hook_installed: bool,
+) -> tuple[dict[str, object], str | None, str | None]:
     codex_hook_trust: dict[str, object] = {
         "available": False,
         "reason": "CODEX_EXECUTABLE_OR_HOOK_UNAVAILABLE",
@@ -729,7 +745,18 @@ def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisite
                 "detail": trust_detail,
             }
         )
+    return codex_hook_trust, pretool_status, posttool_status
 
+
+def _doctor_final_checks(
+    args: argparse.Namespace,
+    checks: list[dict[str, object]],
+    installer: CodexHookInstaller,
+    cli_prefix: str,
+    executable: Path | None,
+    hook_installed: bool,
+    codex_hook_trust: dict[str, object],
+) -> tuple[dict[str, object] | None, bool, bool]:
     control_root = _control_root(args.control_root)
     recent_run = _recent_run_diagnostic(control_root)
     hook_verified = bool(
@@ -774,7 +801,32 @@ def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisite
             "detail": detail,
         }
     )
+    return recent_run, hook_verified, writable
 
+
+def _doctor_prerequisite_checks(args: argparse.Namespace) -> _DoctorPrerequisites:
+    checks: list[dict[str, object]] = []
+    supported_python = _doctor_python_check(checks)
+    executable, executable_version = _doctor_codex_executable_check(checks)
+    (
+        installer,
+        cli_prefix,
+        hook_installed,
+        stale_hook_detected,
+        posttool_installed,
+    ) = _doctor_hook_installation_check(args, checks)
+    codex_hook_trust, pretool_status, posttool_status = _doctor_hook_trust_check(
+        checks, executable, installer, hook_installed
+    )
+    recent_run, hook_verified, writable = _doctor_final_checks(
+        args,
+        checks,
+        installer,
+        cli_prefix,
+        executable,
+        hook_installed,
+        codex_hook_trust,
+    )
     return _DoctorPrerequisites(
         checks=checks,
         supported_python=supported_python,
