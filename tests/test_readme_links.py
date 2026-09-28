@@ -7,9 +7,12 @@ ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\((?:<([^>]+)>|([^\s)]+))")
 
 
-def test_readme_relative_links_point_to_existing_files() -> None:
-    for document_name in ("README.md", "README.ko.md"):
-        document = ROOT / document_name
+def test_public_documentation_relative_links_point_to_existing_files() -> None:
+    documents = [ROOT / "README.md", ROOT / "README.ko.md"]
+    documents.extend(sorted((ROOT / "docs").rglob("*.md")))
+
+    for document in documents:
+        document_name = document.relative_to(ROOT).as_posix()
         content = document.read_text(encoding="utf-8")
 
         for match in MARKDOWN_LINK.finditer(content):
