@@ -1326,6 +1326,168 @@ def test_live_hook_proof_requires_session_event_and_verified_bundle() -> None:
     ) is False
 
 
+def _stub_live_hook_verify_probe(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    *,
+    hook_event_count: int = 1,
+    protection_state: str = "COMPLETED_VERIFIED",
+    bundle_status: str = "VALID",
+    stdout: str = "AIA Protected Run: session-123\n",
+    timeout: bool = False,
+):
+    hook_path = tmp_path / "hooks.json"
+    CodexHookInstaller(hook_path).install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    control_root = tmp_path / "control"
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.cli.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "hooks": [{"event": "preToolUse", "trust_status": "TRUSTED"}],
+                }
+            },
+        )(),
+    )
+
+    def run_probe(command, **kwargs):
+        if timeout:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        workspace = Path(command[command.index("protect") + 1])
+        if hook_event_count == 0:
+            (workspace / "AIA_HOOK_PROBE_MARKER.txt").write_text("ok", encoding="utf-8")
+        return type("Completed", (), {"stdout": stdout, "returncode": 0})()
+
+    monkeypatch.setattr("aia.cli.subprocess.run", run_probe)
+
+    class Reader:
+        def __init__(self, _control_root):
+            pass
+
+        def read_result(self, _session_id):
+            return {"limitations": []}
+
+        def list_completed(self):
+            return [
+                {"session_id": "session-123", "protection_state": protection_state}
+            ]
+
+        def hook_event_count(self, session_id):
+            assert session_id == "session-123"
+            return hook_event_count
+
+        def verification(self, _session_id):
+            status = type("Status", (), {"value": bundle_status})()
+            return type("Verification", (), {"status": status})()
+
+    monkeypatch.setattr("aia.cli.ResultBundleReader", Reader)
+    args = [
+        "hook",
+        "verify",
+        "--json",
+        "--path",
+        str(hook_path),
+        "--control-root",
+        str(control_root),
+    ]
+    exit_code = main(args)
+    payload = json.loads(capsys.readouterr().out)
+    return exit_code, payload, control_root
+
+
+def test_hook_verify_live_probe_persists_session_bound_verified_proof(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    exit_code, payload, control_root = _stub_live_hook_verify_probe(
+        tmp_path, monkeypatch, capsys
+    )
+
+    proof_path = control_root / "hook-verification.json"
+    proof = json.loads(proof_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert payload["verified"] is True
+    assert payload["protection_claim"] == "PROTECTION_PROVEN"
+    assert payload["reason"] == "SESSION_BOUND_HOOK_EVENT_OBSERVED"
+    assert proof["verified"] is True
+    assert proof["session_id"] == "session-123"
+    assert proof["hook_event_count"] == 1
+
+
+def test_hook_verify_live_probe_marker_without_hook_event_stays_unverified(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    exit_code, payload, control_root = _stub_live_hook_verify_probe(
+        tmp_path, monkeypatch, capsys, hook_event_count=0
+    )
+
+    assert exit_code == 1
+    assert payload["verified"] is False
+    assert payload["reason"] == "HOOK_NOT_OBSERVED_PROBE_EXECUTED"
+    assert payload["probe_marker_created"] is True
+    assert not (control_root / "hook-verification.json").exists()
+
+
+def test_hook_verify_live_probe_with_unverified_bundle_does_not_persist_proof(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    exit_code, payload, control_root = _stub_live_hook_verify_probe(
+        tmp_path, monkeypatch, capsys, bundle_status="INVALID"
+    )
+
+    assert exit_code == 1
+    assert payload["verified"] is False
+    assert payload["reason"] == "PROTECTED_RUN_DEGRADED"
+    assert not (control_root / "hook-verification.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("stdout", "timeout", "expected_reason"),
+    [
+        ("Probe started without a session\n", False, "PROTECTED_RUN_SESSION_NOT_CREATED"),
+        ("", True, "HOOK_VERIFY_TIMEOUT"),
+    ],
+)
+def test_hook_verify_live_probe_missing_session_or_timeout_stays_unverified(
+    tmp_path, monkeypatch, capsys, stdout, timeout, expected_reason
+) -> None:
+    exit_code, payload, control_root = _stub_live_hook_verify_probe(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        stdout=stdout,
+        timeout=timeout,
+    )
+
+    assert exit_code == 1
+    assert payload["verified"] is False
+    assert payload["reason"] == expected_reason
+    assert not (control_root / "hook-verification.json").exists()
+
+
+def test_hook_verify_live_probe_persistence_failure_stays_unverified(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    def fail_persist(*args, **kwargs):
+        raise OSError("fixture persistence failure")
+
+    monkeypatch.setattr("aia.cli.HookVerificationStore.write_verified", fail_persist)
+    exit_code, payload, control_root = _stub_live_hook_verify_probe(
+        tmp_path, monkeypatch, capsys
+    )
+
+    assert exit_code == 1
+    assert payload["verified"] is False
+    assert payload["reason"] == "HOOK_VERIFICATION_PERSIST_FAILED:OSError"
+    assert not (control_root / "hook-verification.json").exists()
+
+
 def test_codex_hook_trust_summary_exposes_modified_and_untrusted_entries(tmp_path) -> None:
     path = tmp_path / "hooks.json"
     inspection = summarize_aia_hooks(
