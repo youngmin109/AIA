@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aia import IntegrityStatus
+import aia.integrity as integrity_module
 from aia.integrity import IntegrityVerifier
 
 from tests.test_recovery import _fixture
@@ -19,6 +20,31 @@ def test_integrity_exact_baseline_is_verified(tmp_path: Path):
     assert result.missing_paths == ()
     assert result.unexpected_paths == ()
     assert result.changed_paths == ()
+
+
+def test_integrity_two_pass_scans_workspace_twice(
+    tmp_path: Path,
+    monkeypatch,
+):
+    workspace, session, _, _, checkpoint, _, _ = _fixture(tmp_path)
+    original_scan = integrity_module._scan_workspace
+    scan_count = 0
+
+    def counting_scan(target: Path):
+        nonlocal scan_count
+        scan_count += 1
+        return original_scan(target)
+
+    monkeypatch.setattr(integrity_module, "_scan_workspace", counting_scan)
+
+    result = IntegrityVerifier(two_pass=True).verify(
+        checkpoint,
+        workspace=workspace,
+        session=session,
+    )
+
+    assert result.integrity_status is IntegrityStatus.VERIFIED
+    assert scan_count == 2
 
 
 def test_integrity_reports_missing_unexpected_and_hash_mismatch(tmp_path: Path):

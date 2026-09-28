@@ -312,7 +312,17 @@ def _scan_workspace(workspace: Path) -> tuple[ManifestEntry, ...]:
         for child in children:
             child_path = Path(child.path)
             relative = _relative_path(prefix, child.name)
-            kind = _entry_kind(child_path)
+            try:
+                child_info = child.stat(follow_symlinks=False)
+            except FileNotFoundError as error:
+                raise WorkspaceChangedDuringCheckpoint(
+                    f"Workspace entry disappeared during checkpoint: {child_path}"
+                ) from error
+            except OSError as error:
+                raise CheckpointCreationError(
+                    f"Workspace entry cannot be inspected: {child_path}"
+                ) from error
+            kind = _classify_entry_info(child_path, child_info)
             if kind is ManifestEntryType.DIRECTORY:
                 entries.append(
                     ManifestEntry(relative, ManifestEntryType.DIRECTORY)
@@ -761,17 +771,15 @@ class SafeCheckpointManager:
                     source_entries,
                     staging_workspace,
                 )
-                checkpoint_entries = _scan_workspace(staging_workspace)
-                if checkpoint_entries != source_entries:
-                    raise WorkspaceChangedDuringCheckpoint(
-                        "Checkpoint copy does not match source Manifest"
-                    )
                 source_after = _scan_workspace(session.workspace)
                 if source_after != source_entries:
                     raise WorkspaceChangedDuringCheckpoint(
                         "Workspace changed during Checkpoint creation"
                     )
 
+                # _copy_workspace_snapshot hashes copied bytes against these
+                # entries, and _validate_artifact scans the completed snapshot.
+                checkpoint_entries = source_entries
                 manifest_bytes = _manifest_bytes(checkpoint_entries)
                 manifest_sha256 = _sha256_bytes(manifest_bytes)
                 content_sha256 = _sha256_bytes(

@@ -173,6 +173,44 @@ def test_manifest_records_exact_sha256_and_size(tmp_path: Path) -> None:
     assert entry.sha256 == hashlib.sha256(content).hexdigest()
 
 
+def test_checkpoint_manifest_hashes_match_pinned_fixture(tmp_path: Path) -> None:
+    workspace, session, context, lease_manager = _prepared_workspace(tmp_path)
+    (workspace / "empty").mkdir()
+    (workspace / "alpha.txt").write_bytes(b"alpha\n")
+    (workspace / "empty" / "data.bin").write_bytes(bytes(range(32)))
+
+    checkpoint = create_safe_checkpoint(
+        session,
+        context,
+        lease_manager=lease_manager,
+        checkpoint_id="golden",
+        created_at=datetime(2026, 1, 1, 1, 0, tzinfo=timezone.utc),
+    )
+
+    assert checkpoint.manifest_sha256 == (
+        "9bd39727be93b4e1ebc08d68bc0f2b60a97f9e2f1de00de909338165db3a468c"
+    )
+    assert checkpoint.checkpoint_content_sha256 == (
+        "bcae20fd556874ba5650eb48169f698674d011e47d4f342f6bde553b13b404f8"
+    )
+    assert [
+        (entry.relative_path, entry.size, entry.sha256)
+        for entry in checkpoint.manifest
+        if entry.sha256 is not None
+    ] == [
+        (
+            "alpha.txt",
+            6,
+            "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060",
+        ),
+        (
+            "empty/data.bin",
+            32,
+            "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+        ),
+    ]
+
+
 def test_checkpoint_content_fingerprint_excludes_metadata(
     tmp_path: Path,
 ) -> None:
