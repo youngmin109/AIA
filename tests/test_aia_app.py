@@ -2616,7 +2616,7 @@ def test_list_runs_reuses_verified_history_for_refresh_burst(tmp_path, monkeypat
                 "ended_at": "2026-01-01T00:01:00+00:00",
                 "workspace": str(tmp_path),
                 "agent": "codex",
-                "policy": {},
+                "policy": {"settings": {"mode": "strict"}},
                 "launch_mode": "inherit",
                 "bundle_status": "VALID",
             }
@@ -2624,8 +2624,13 @@ def test_list_runs_reuses_verified_history_for_refresh_burst(tmp_path, monkeypat
 
     monkeypatch.setattr(service.reader, "list_completed", list_completed)
     try:
-        assert service.list_runs()[0]["session_id"] == "completed-1"
-        assert service.list_runs()[0]["session_id"] == "completed-1"
+        first = service.list_runs()
+        assert first[0]["session_id"] == "completed-1"
+        first[0]["policy"]["settings"]["mode"] = "mutated"
+
+        second = service.list_runs()
+        assert second[0]["session_id"] == "completed-1"
+        assert second[0]["policy"]["settings"]["mode"] == "strict"
         assert calls == 1
     finally:
         service.shutdown()

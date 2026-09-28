@@ -605,11 +605,11 @@ class RunApplicationService:
         with self._completed_runs_cache_lock:
             cached = self._completed_runs_cache
             if cached is not None and now - cached[0] < _COMPLETED_RUNS_CACHE_TTL_SECONDS:
-                return [dict(item) for item in cached[1]]
+                return deepcopy(cached[1])
 
             completed = self.reader.list_completed()
             self._completed_runs_cache = (time.monotonic(), completed)
-            return [dict(item) for item in completed]
+            return deepcopy(completed)
 
     @staticmethod
     def policy_profiles() -> list[dict[str, str]]:
