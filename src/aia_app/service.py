@@ -2723,35 +2723,55 @@ class RunApplicationService:
         except Exception as error:
             self._fail_record(record, error)
         finally:
-            launcher = record.runtime.get("launcher")
-            if launcher is not None:
+            self._cleanup_run_lifecycle(
+                record,
+                codex_output_handles,
+                sensors,
+                manager,
+                lease,
+                finalization_done,
+            )
+
+    @staticmethod
+    def _cleanup_run_lifecycle(
+        record: RunRecord,
+        codex_output_handles: list[Any],
+        sensors: tuple[Any, ...],
+        manager: WorkspaceLeaseManager | None,
+        lease: Any,
+        finalization_done: bool,
+    ) -> None:
+        """Release run resources that were not already released by finalization."""
+
+        launcher = record.runtime.get("launcher")
+        if launcher is not None:
+            try:
+                launcher.stop_hook_broker()
+            except Exception:
+                pass
+        for handle in codex_output_handles:
+            try:
+                handle.close()
+            except Exception:
+                pass
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is not None:
+            try:
+                codex_session.close(force=False)
+            except Exception:
+                pass
+        if not finalization_done:
+            for sensor in sensors:
                 try:
-                    launcher.stop_hook_broker()
+                    if getattr(sensor, "status", None) and sensor.status.value != "STOPPED":
+                        sensor.stop()
                 except Exception:
                     pass
-            for handle in codex_output_handles:
+            if manager is not None and lease is not None:
                 try:
-                    handle.close()
+                    manager.release(lease)
                 except Exception:
                     pass
-            codex_session = record.runtime.get("codex_session")
-            if codex_session is not None:
-                try:
-                    codex_session.close(force=False)
-                except Exception:
-                    pass
-            if not finalization_done:
-                for sensor in sensors:
-                    try:
-                        if getattr(sensor, "status", None) and sensor.status.value != "STOPPED":
-                            sensor.stop()
-                    except Exception:
-                        pass
-                if manager is not None and lease is not None:
-                    try:
-                        manager.release(lease)
-                    except Exception:
-                        pass
 
     def _finalize_user_abort_before_launch(
         self,
