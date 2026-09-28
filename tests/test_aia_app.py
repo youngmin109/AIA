@@ -1734,9 +1734,11 @@ def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
     result_path.write_text('{"value":"a"}', encoding="utf-8")
     verification_calls = 0
 
-    def verified(_session_id):
+    def verified(_session_id, *, on_result_bytes=None):
         nonlocal verification_calls
         verification_calls += 1
+        if on_result_bytes is not None:
+            on_result_bytes(result_path.read_bytes())
         return SimpleNamespace(status=BundleVerificationStatus.VALID)
 
     monkeypatch.setattr(reader, "verification", verified)

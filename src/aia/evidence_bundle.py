@@ -111,7 +111,12 @@ def canonical_result_fingerprint(result: SessionResult) -> str:
 class EvidenceBundleVerifier:
     """Verify committed artifacts and external Raw Evidence references."""
 
-    def verify(self, result_directory: str | Path) -> BundleVerificationResult:
+    def verify(
+        self,
+        result_directory: str | Path,
+        *,
+        on_result_bytes: Callable[[bytes], None] | None = None,
+    ) -> BundleVerificationResult:
         result_path = Path(result_directory).expanduser().resolve(strict=False)
         if result_path.name != "result" and (result_path / "result").is_dir():
             result_path = result_path / "result"
@@ -152,6 +157,7 @@ class EvidenceBundleVerifier:
             mandatory = {"result/result.json", "result/audit.jsonl", "result/security-report.md"}
             if not mandatory.issubset(paths):
                 raise EvidenceBundleError("MANDATORY_ARTIFACT_MISSING")
+            result_bytes: bytes | None = None
             for item in artifacts:
                 if not isinstance(item, dict):
                     raise EvidenceBundleError("MANIFEST_ARTIFACT_INVALID")
@@ -164,7 +170,13 @@ class EvidenceBundleVerifier:
                     raise EvidenceBundleError(f"ARTIFACT_HASH_MISMATCH:{relative}")
                 if item.get("session_id") != session_id:
                     raise EvidenceBundleError(f"ARTIFACT_BINDING_MISMATCH:{relative}")
-            result_value = json.loads((result_path / "result.json").read_text(encoding="utf-8"))
+                if relative == "result/result.json":
+                    result_bytes = data
+            if result_bytes is None:
+                raise EvidenceBundleError("MANDATORY_ARTIFACT_MISSING")
+            if on_result_bytes is not None:
+                on_result_bytes(result_bytes)
+            result_value = json.loads(result_bytes)
             if result_value.get("aia_session_id") != session_id or result_value.get("result_id") != result_id:
                 raise EvidenceBundleError("RESULT_BINDING_MISMATCH")
             result = SessionResult.from_mapping(result_value)
@@ -329,8 +341,15 @@ class EvidenceBundleCommitter:
             raise EvidenceBundleError("committed bundle marker is invalid") from error
 
 
-def verify_evidence_bundle(result_directory: str | Path) -> BundleVerificationResult:
-    return EvidenceBundleVerifier().verify(result_directory)
+def verify_evidence_bundle(
+    result_directory: str | Path,
+    *,
+    on_result_bytes: Callable[[bytes], None] | None = None,
+) -> BundleVerificationResult:
+    return EvidenceBundleVerifier().verify(
+        result_directory,
+        on_result_bytes=on_result_bytes,
+    )
 
 
 __all__ = [

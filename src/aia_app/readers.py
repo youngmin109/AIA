@@ -9,7 +9,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 from threading import RLock
-from typing import Any
+from typing import Any, Callable
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
 
@@ -39,25 +39,44 @@ class ResultBundleReader:
     def result_directory(self, session_id: str) -> Path:
         return self.session_directory(session_id) / "result"
 
-    def verification(self, session_id: str):
+    def verification(
+        self,
+        session_id: str,
+        *,
+        on_result_bytes: Callable[[bytes], None] | None = None,
+    ):
         result_directory = self.result_directory(session_id)
         if not result_directory.is_dir():
             return None
-        return verify_evidence_bundle(result_directory)
+        return verify_evidence_bundle(
+            result_directory,
+            on_result_bytes=on_result_bytes,
+        )
 
     def _read_verified_result(self, session_id: str) -> tuple[dict[str, Any], Any]:
         """Read a result together with the single verification used for it."""
 
         result_directory = self.result_directory(session_id)
-        verification = self.verification(session_id)
+        verified_result_bytes: bytes | None = None
+
+        def capture_result_bytes(contents: bytes) -> None:
+            nonlocal verified_result_bytes
+            verified_result_bytes = contents
+
+        verification = self.verification(
+            session_id,
+            on_result_bytes=capture_result_bytes,
+        )
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
         result_path = result_directory / "result.json"
+        if verified_result_bytes is None:
+            return self._read_json(result_path), verification
         try:
             stat = result_path.stat()
         except OSError:
-            return self._read_json(result_path), verification
-        contents = result_path.read_bytes()
+            return self._parse_json_bytes(verified_result_bytes), verification
+        contents = verified_result_bytes
         digest = hashlib.blake2b(contents, digest_size=16).digest()
         signature = (stat.st_mtime_ns, stat.st_size, digest)
         with self._parsed_cache_lock:

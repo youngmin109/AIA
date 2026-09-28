@@ -10,6 +10,7 @@ from aia import (
     SessionFinalizer,
     verify_evidence_bundle,
 )
+from aia_app.readers import ResultBundleReader
 from tests.test_finalization import _session
 
 
@@ -33,6 +34,40 @@ def test_committed_bundle_detects_each_artifact_tamper(tmp_path: Path, relative_
     original = path.read_bytes()
     path.write_bytes(original + b"tamper")
     assert not EvidenceBundleVerifier().verify(final.bundle.result_directory).is_valid
+
+
+def test_history_scan_reuses_verified_result_bytes_and_rechecks_tampering(
+    tmp_path: Path,
+    monkeypatch,
+):
+    session, store, _ = _session(tmp_path)
+    final = SessionFinalizer(evidence_store=store).finalize(
+        session,
+        process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+    )
+    reader = ResultBundleReader(tmp_path / "control")
+    result_path = final.bundle.result_directory / "result.json"
+    original_read_bytes = Path.read_bytes
+    result_byte_reads = 0
+
+    def read_bytes(path: Path) -> bytes:
+        nonlocal result_byte_reads
+        if path == result_path:
+            result_byte_reads += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+
+    for _ in range(2):
+        bundles = reader.list_completed()
+        assert len(bundles) == 1
+        assert bundles[0]["bundle_status"] == "VALID"
+    assert result_byte_reads == 2
+
+    artifact_path = final.bundle.result_directory / "security-report.md"
+    artifact_path.write_bytes(artifact_path.read_bytes() + b"tamper")
+    assert reader.list_completed() == []
+    assert result_byte_reads == 3
 
 
 def test_bundle_verifier_accepts_session_directory_and_result_lineage_index(tmp_path: Path):
