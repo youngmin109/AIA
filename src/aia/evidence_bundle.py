@@ -116,6 +116,7 @@ class EvidenceBundleVerifier:
         result_directory: str | Path,
         *,
         on_result_bytes: Callable[[bytes], None] | None = None,
+        on_raw_evidence_bytes: Callable[[bytes], None] | None = None,
     ) -> BundleVerificationResult:
         result_path = Path(result_directory).expanduser().resolve(strict=False)
         if result_path.name != "result" and (result_path / "result").is_dir():
@@ -172,6 +173,8 @@ class EvidenceBundleVerifier:
                     raise EvidenceBundleError(f"ARTIFACT_BINDING_MISMATCH:{relative}")
                 if relative == "result/result.json":
                     result_bytes = data
+                elif relative == "evidence/raw-evidence.jsonl" and on_raw_evidence_bytes is not None:
+                    on_raw_evidence_bytes(data)
             if result_bytes is None:
                 raise EvidenceBundleError("MANDATORY_ARTIFACT_MISSING")
             if on_result_bytes is not None:
@@ -345,10 +348,12 @@ def verify_evidence_bundle(
     result_directory: str | Path,
     *,
     on_result_bytes: Callable[[bytes], None] | None = None,
+    on_raw_evidence_bytes: Callable[[bytes], None] | None = None,
 ) -> BundleVerificationResult:
     return EvidenceBundleVerifier().verify(
         result_directory,
         on_result_bytes=on_result_bytes,
+        on_raw_evidence_bytes=on_raw_evidence_bytes,
     )
 
 

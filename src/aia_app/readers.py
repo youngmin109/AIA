@@ -44,6 +44,7 @@ class ResultBundleReader:
         session_id: str,
         *,
         on_result_bytes: Callable[[bytes], None] | None = None,
+        on_raw_evidence_bytes: Callable[[bytes], None] | None = None,
     ):
         result_directory = self.result_directory(session_id)
         if not result_directory.is_dir():
@@ -51,27 +52,37 @@ class ResultBundleReader:
         return verify_evidence_bundle(
             result_directory,
             on_result_bytes=on_result_bytes,
+            on_raw_evidence_bytes=on_raw_evidence_bytes,
         )
 
-    def _read_verified_result(self, session_id: str) -> tuple[dict[str, Any], Any]:
+    def _read_verified_result(
+        self,
+        session_id: str,
+    ) -> tuple[dict[str, Any], Any, bytes | None]:
         """Read a result together with the single verification used for it."""
 
         result_directory = self.result_directory(session_id)
         verified_result_bytes: bytes | None = None
+        verified_raw_evidence_bytes: bytes | None = None
 
         def capture_result_bytes(contents: bytes) -> None:
             nonlocal verified_result_bytes
             verified_result_bytes = contents
 
+        def capture_raw_evidence_bytes(contents: bytes) -> None:
+            nonlocal verified_raw_evidence_bytes
+            verified_raw_evidence_bytes = contents
+
         verification = self.verification(
             session_id,
             on_result_bytes=capture_result_bytes,
+            on_raw_evidence_bytes=capture_raw_evidence_bytes,
         )
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
         result_path = result_directory / "result.json"
         if verified_result_bytes is None:
-            return self._read_json(result_path), verification
+            return self._read_json(result_path), verification, verified_raw_evidence_bytes
         try:
             stat = result_path.stat()
         except OSError:
@@ -88,10 +99,10 @@ class ResultBundleReader:
                 self._result_cache[result_path] = (*signature, result)
                 if len(self._result_cache) > _PARSED_FILE_CACHE_LIMIT:
                     self._result_cache.pop(next(iter(self._result_cache)))
-        return result, verification
+        return result, verification, verified_raw_evidence_bytes
 
     def read_result(self, session_id: str) -> dict[str, Any]:
-        result, _ = self._read_verified_result(session_id)
+        result, _, _ = self._read_verified_result(session_id)
         return result
 
     def read_report(self, session_id: str) -> str:
@@ -109,6 +120,7 @@ class ResultBundleReader:
         session_id: str,
         *,
         require_valid: bool = True,
+        verified_bytes: bytes | None = None,
     ) -> list[dict[str, Any]]:
         """Read metadata without returning Evidence payload values.
 
@@ -128,7 +140,7 @@ class ResultBundleReader:
             stat = path.stat()
         except OSError:
             return []
-        contents = path.read_bytes()
+        contents = path.read_bytes() if verified_bytes is None else verified_bytes
         digest = hashlib.blake2b(contents, digest_size=16).digest()
         signature = (stat.st_mtime_ns, stat.st_size, digest)
         with self._parsed_cache_lock:
@@ -178,14 +190,21 @@ class ResultBundleReader:
             if not candidate.is_dir() or not _SAFE_SESSION_ID.fullmatch(candidate.name):
                 continue
             try:
-                result, verification = self._read_verified_result(candidate.name)
+                result, verification, raw_evidence_bytes = self._read_verified_result(
+                    candidate.name
+                )
             except (OSError, ValueError, KeyError):
                 continue
             if verification is None:
                 continue
-            evidence_metadata = self.read_evidence_metadata(
-                candidate.name,
-                require_valid=False,
+            evidence_metadata = (
+                self.read_evidence_metadata(
+                    candidate.name,
+                    require_valid=False,
+                    verified_bytes=raw_evidence_bytes,
+                )
+                if raw_evidence_bytes is not None
+                else []
             )
             hook_event_count = sum(
                 1

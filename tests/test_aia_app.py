@@ -1734,7 +1734,7 @@ def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
     result_path.write_text('{"value":"a"}', encoding="utf-8")
     verification_calls = 0
 
-    def verified(_session_id, *, on_result_bytes=None):
+    def verified(_session_id, *, on_result_bytes=None, on_raw_evidence_bytes=None):
         nonlocal verification_calls
         verification_calls += 1
         if on_result_bytes is not None:
@@ -1938,12 +1938,13 @@ def test_result_bundle_reader_classifies_protection_state_in_history(
                 "action_outcomes": [],
             },
             SimpleNamespace(status=SimpleNamespace(value="VALID")),
+            b"{}\n",
         ),
     )
     monkeypatch.setattr(
         reader,
         "read_evidence_metadata",
-        lambda _session_id, *, require_valid=True: [
+        lambda _session_id, *, require_valid=True, verified_bytes=None: [
             {
                 "source": "AGENT_HOOK",
                 "record_type": "PRETOOL_REQUEST",

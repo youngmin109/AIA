@@ -47,13 +47,19 @@ def test_history_scan_reuses_verified_result_bytes_and_rechecks_tampering(
     )
     reader = ResultBundleReader(tmp_path / "control")
     result_path = final.bundle.result_directory / "result.json"
+    raw_evidence_path = (
+        final.bundle.result_directory.parent / "evidence" / "raw-evidence.jsonl"
+    )
     original_read_bytes = Path.read_bytes
     result_byte_reads = 0
+    raw_evidence_byte_reads = 0
 
     def read_bytes(path: Path) -> bytes:
-        nonlocal result_byte_reads
+        nonlocal result_byte_reads, raw_evidence_byte_reads
         if path == result_path:
             result_byte_reads += 1
+        if path == raw_evidence_path:
+            raw_evidence_byte_reads += 1
         return original_read_bytes(path)
 
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
@@ -62,12 +68,15 @@ def test_history_scan_reuses_verified_result_bytes_and_rechecks_tampering(
         bundles = reader.list_completed()
         assert len(bundles) == 1
         assert bundles[0]["bundle_status"] == "VALID"
+        assert "protected/main.py" not in repr(bundles)
     assert result_byte_reads == 2
+    assert raw_evidence_byte_reads == 2
 
-    artifact_path = final.bundle.result_directory / "security-report.md"
-    artifact_path.write_bytes(artifact_path.read_bytes() + b"tamper")
+    artifact_path = raw_evidence_path
+    artifact_path.write_bytes(original_read_bytes(artifact_path) + b"tamper")
     assert reader.list_completed() == []
-    assert result_byte_reads == 3
+    assert result_byte_reads == 2
+    assert raw_evidence_byte_reads == 3
 
 
 def test_bundle_verifier_accepts_session_directory_and_result_lineage_index(tmp_path: Path):

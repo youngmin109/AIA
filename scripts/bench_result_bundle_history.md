@@ -60,3 +60,22 @@ warm_ms_p50=2267.338 warm_ms_p95=2284.422
 
 Every cold and warm scan returned the complete expected set and all bundles
 verified as `VALID`. Timings are local observations, not performance thresholds.
+
+## Verified raw-evidence byte reuse
+
+Compared the N-039 implementation (which verified raw evidence and then read it
+again for metadata) with the raw-evidence callback implementation on 2026-09-29,
+using 1,000 bundles and 5 scans per mode. Every scan in both runs returned all
+1,000 bundles with `bundle_status=VALID`.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Cold p50 | 2125.010 ms | 1994.756 ms |
+| Cold p95 | 2248.791 ms | 2122.178 ms |
+| Warm p50 | 2137.213 ms | 1955.846 ms |
+| Warm p95 | 2169.611 ms | 2007.362 ms |
+
+The verifier still hashes each artifact on every scan. The history reader parses
+metadata from the same `raw-evidence.jsonl` bytes after verification, which
+removes its second read. Timings are local observations, not performance
+thresholds.
