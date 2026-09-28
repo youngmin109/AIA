@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
+import { createContext, useContext } from 'react'
 
 export type ShellView = 'dashboard' | 'terminal' | 'policy' | 'audit'
 
@@ -19,7 +19,7 @@ function readStoredActiveRunId(): string | null {
   }
 }
 
-interface ShellState {
+export interface ShellState {
   activeView: ShellView
   sidebarCollapsed: boolean
   rightPanelCollapsed: boolean
@@ -33,7 +33,7 @@ interface ShellState {
   codexActivity: CodexActivitySignal | null
 }
 
-type ShellAction =
+export type ShellAction =
   | { type: 'SET_VIEW'; view: ShellView }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'TOGGLE_RIGHT_PANEL' }
@@ -44,7 +44,7 @@ type ShellAction =
   | { type: 'SET_CODEX_ACTIVITY'; signal: CodexActivitySignal }
   | { type: 'CLEAR_CODEX_ACTIVITY'; runId: string }
 
-function initialState(): ShellState {
+export function initialState(): ShellState {
   return {
     activeView: 'dashboard',
     sidebarCollapsed: false,
@@ -55,7 +55,7 @@ function initialState(): ShellState {
   }
 }
 
-function reducer(state: ShellState, action: ShellAction): ShellState {
+export function reducer(state: ShellState, action: ShellAction): ShellState {
   switch (action.type) {
     case 'SET_VIEW':
       return { ...state, activeView: action.view }
@@ -80,7 +80,7 @@ function reducer(state: ShellState, action: ShellAction): ShellState {
   }
 }
 
-interface ShellContextValue extends ShellState {
+export interface ShellContextValue extends ShellState {
   setView: (view: ShellView) => void
   toggleSidebar: () => void
   toggleRightPanel: () => void
@@ -92,59 +92,7 @@ interface ShellContextValue extends ShellState {
   clearCodexActivity: (runId: string) => void
 }
 
-const ShellContext = createContext<ShellContextValue | null>(null)
-
-export function ShellStoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState)
-
-  useEffect(() => {
-    try {
-      if (state.activeRunId) window.localStorage.setItem(ACTIVE_RUN_STORAGE_KEY, state.activeRunId)
-      else window.localStorage.removeItem(ACTIVE_RUN_STORAGE_KEY)
-    } catch {
-      // Per-viewer convenience only; ignore storage failures (private mode, etc).
-    }
-  }, [state.activeRunId])
-
-  const setView = useCallback((view: ShellView) => dispatch({ type: 'SET_VIEW', view }), [])
-  const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), [])
-  const toggleRightPanel = useCallback(() => dispatch({ type: 'TOGGLE_RIGHT_PANEL' }), [])
-  const openSettingsModal = useCallback(() => dispatch({ type: 'OPEN_SETTINGS_MODAL' }), [])
-  const closeSettingsModal = useCallback(() => dispatch({ type: 'CLOSE_SETTINGS_MODAL' }), [])
-  const setActiveRun = useCallback((id: string) => dispatch({ type: 'SET_ACTIVE_RUN', id }), [])
-  const clearActiveRun = useCallback(() => dispatch({ type: 'CLEAR_ACTIVE_RUN' }), [])
-  const reportCodexActivity = useCallback((signal: CodexActivitySignal) => dispatch({ type: 'SET_CODEX_ACTIVITY', signal }), [])
-  const clearCodexActivity = useCallback((runId: string) => dispatch({ type: 'CLEAR_CODEX_ACTIVITY', runId }), [])
-
-  const value = useMemo<ShellContextValue>(
-    () => ({
-      ...state,
-      setView,
-      toggleSidebar,
-      toggleRightPanel,
-      openSettingsModal,
-      closeSettingsModal,
-      setActiveRun,
-      clearActiveRun,
-      reportCodexActivity,
-      clearCodexActivity,
-    }),
-    [
-      state,
-      setView,
-      toggleSidebar,
-      toggleRightPanel,
-      openSettingsModal,
-      closeSettingsModal,
-      setActiveRun,
-      clearActiveRun,
-      reportCodexActivity,
-      clearCodexActivity,
-    ],
-  )
-
-  return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>
-}
+export const ShellContext = createContext<ShellContextValue | null>(null)
 
 export function useShellStore(): ShellContextValue {
   const ctx = useContext(ShellContext)

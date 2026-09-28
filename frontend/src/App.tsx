@@ -1,5 +1,5 @@
 import { Shell } from './components/shell/Shell'
-import { ShellStoreProvider } from './state/shellStore'
+import { ShellStoreProvider } from './state/ShellStoreProvider'
 
 function App() {
   return (

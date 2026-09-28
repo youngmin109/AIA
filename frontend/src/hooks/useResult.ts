@@ -11,13 +11,13 @@ export function useResult(sessionId: string, { enabled = true }: { enabled?: boo
   const [isLoading, setIsLoading] = useState(enabled)
 
   useEffect(() => {
-    if (!enabled) {
-      setIsLoading(false)
-      return
-    }
+    if (!enabled) return
     const controller = new AbortController()
-    setIsLoading(true)
-    setError(null)
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return
+      setIsLoading(true)
+      setError(null)
+    })
     apiGet<ResultView>(`/api/runs/${encodeURIComponent(sessionId)}/result`, controller.signal)
       .then((result) => {
         setData(result)
@@ -31,5 +31,5 @@ export function useResult(sessionId: string, { enabled = true }: { enabled?: boo
     return () => controller.abort()
   }, [sessionId, enabled])
 
-  return { data, error, isLoading }
+  return { data, error, isLoading: enabled && isLoading }
 }

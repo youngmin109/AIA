@@ -45,10 +45,14 @@ export function useEvidenceReview(runId: string | null) {
   const { data: status } = useRunStatus(runId, { enabled: Boolean(runId) })
   const [acked, setAcked] = useState<Record<string, AckMark>>(() => readAcked())
 
-  // Re-sync from storage when switching to a different run (a fresh mount
-  // context), so a stale in-memory map from a prior run doesn't leak.
   useEffect(() => {
-    setAcked(readAcked())
+    let current = true
+    queueMicrotask(() => {
+      if (current) setAcked(readAcked())
+    })
+    return () => {
+      current = false
+    }
   }, [runId])
 
   const events = status?.events ?? []

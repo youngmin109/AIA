@@ -51,13 +51,16 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const pendingDraftsRef = useRef(new Map<string, string>())
   const restoreDraftRef = useRef<((text: string) => void) | null>(null)
   const runEndedRef = useRef(runEnded)
-  runEndedRef.current = runEnded
+
+  useEffect(() => {
+    runEndedRef.current = runEnded
+  }, [runEnded])
 
   useEffect(() => {
     lastSequenceRef.current = conversation.lastSequence
   }, [conversation.lastSequence])
 
-  const connect = useCallback(() => {
+  const connect = useCallback(function connectToCodex() {
     if (closedRef.current) return
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
     const url = `${scheme}://${location.host}/api/runs/${encodeURIComponent(sessionId)}/codex?after=${lastSequenceRef.current}`
@@ -121,19 +124,22 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
       const delay = RECONNECT_DELAYS_MS[Math.min(attemptRef.current, RECONNECT_DELAYS_MS.length - 1)]
       attemptRef.current += 1
       setConnection({ label: '다시 연결하는 중', tone: 'warn' })
-      retryTimerRef.current = setTimeout(connect, delay)
+      retryTimerRef.current = setTimeout(connectToCodex, delay)
     }
   }, [sessionId])
 
   useEffect(() => {
     closedRef.current = false
-    setConversation(EMPTY_CONVERSATION)
     lastSequenceRef.current = 0
-    setStatus(null)
-    setClosed(false)
-    connect()
+    const resetTimer = window.setTimeout(() => {
+      setConversation(EMPTY_CONVERSATION)
+      setStatus(null)
+      setClosed(false)
+      connect()
+    }, 0)
     return () => {
       closedRef.current = true
+      window.clearTimeout(resetTimer)
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
       socketRef.current?.close()
       socketRef.current = null
