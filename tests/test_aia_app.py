@@ -464,6 +464,42 @@ def test_evidence_timeline_links_sensor_records_to_action_without_payload() -> N
     assert "SECRET" not in repr(timeline)
 
 
+def test_evidence_timeline_bounded_selection_matches_stable_full_sort() -> None:
+    metadata = [
+        {"evidence_id": "early", "captured_at": "2026-01-01", "line": 10, "payload": "SECRET"},
+        {"evidence_id": "tie-first", "captured_at": "2026-01-02", "line": "bad", "payload": "SECRET"},
+        {"evidence_id": "invalid", "captured_at": "2026-01-03", "line": 99, "payload": "SECRET"},
+        None,
+        {"evidence_id": "tie-second", "captured_at": "2026-01-02", "line": None, "payload": "SECRET"},
+        {"evidence_id": "latest", "captured_at": "2026-01-04", "line": "2", "payload": "SECRET"},
+        {"evidence_id": "tie-third", "captured_at": "2026-01-02", "line": 0, "payload": "SECRET"},
+    ]
+    valid_metadata = [item for item in metadata if isinstance(item, dict) and item.get("evidence_id")]
+
+    def line_number(value: object) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    legacy_order = sorted(
+        valid_metadata,
+        key=lambda item: (str(item.get("captured_at") or ""), line_number(item.get("line"))),
+    )
+    expected_ids = [item["evidence_id"] for item in legacy_order[-4:]]
+    full_sort_equivalent = evidence_timeline_views(metadata, limit=len(valid_metadata))
+    bounded = evidence_timeline_views(metadata, limit=4)
+
+    assert [item["evidence_id"] for item in bounded] == expected_ids
+    assert bounded == full_sort_equivalent[-4:]
+    assert "SECRET" not in repr(bounded)
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_evidence_timeline_nonpositive_limit_returns_empty(limit: int) -> None:
+    assert evidence_timeline_views([{"evidence_id": "e1", "payload": "SECRET"}], limit=limit) == []
+
+
 def test_safe_event_view_preserves_containment_decision_before_block_confirmation() -> None:
     events = safe_event_views(
         [

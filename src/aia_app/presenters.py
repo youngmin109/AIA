@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import deque
+from heapq import nlargest
 from typing import Any, Mapping
 
 
@@ -864,6 +866,47 @@ def evidence_timeline_views(
     Payload values are never copied into this view.
     """
 
+    if limit <= 0:
+        return []
+
+    def _line_number(value: Any) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _sort_key(indexed_item: tuple[int, Mapping[str, Any]]) -> tuple[str, int, int]:
+        index, item = indexed_item
+        return (str(item.get("captured_at") or ""), _line_number(item.get("line")), index)
+
+    chronological_tail: deque[tuple[int, Mapping[str, Any]]] = deque(maxlen=limit)
+    previous_key: tuple[str, int, int] | None = None
+    input_is_chronological = True
+    for index, item in enumerate(evidence_metadata):
+        if not isinstance(item, Mapping) or not item.get("evidence_id"):
+            continue
+        indexed_item = (index, item)
+        key = _sort_key(indexed_item)
+        if previous_key is not None and key < previous_key:
+            input_is_chronological = False
+            break
+        chronological_tail.append(indexed_item)
+        previous_key = key
+    if input_is_chronological:
+        latest_metadata = list(chronological_tail)
+    else:
+        latest_metadata = nlargest(
+            limit,
+            (
+                (index, item)
+                for index, item in enumerate(evidence_metadata)
+                if isinstance(item, Mapping) and item.get("evidence_id")
+            ),
+            key=_sort_key,
+        )
+        latest_metadata.sort(key=_sort_key)
+    selected_evidence_ids = {str(item["evidence_id"]) for _, item in latest_metadata}
+
     action_by_evidence: dict[str, Mapping[str, Any]] = {}
     attribution_support_by_action: dict[str, tuple[str, ...]] = {}
     for item in attribution_results:
@@ -878,18 +921,11 @@ def evidence_timeline_views(
         if not isinstance(action, Mapping):
             continue
         action_id = str(action.get("action_id")) if action.get("action_id") else ""
-        evidence_ids = tuple(
-            dict.fromkeys(
-                tuple(
-                    value
-                    for value in action.get("evidence_ids") or ()
-                    if isinstance(value, str) and value
-                )
-                + attribution_support_by_action.get(action_id, ())
-            )
-        )
-        for evidence_id in evidence_ids:
-            if isinstance(evidence_id, str) and evidence_id:
+        for evidence_id in action.get("evidence_ids") or ():
+            if isinstance(evidence_id, str) and evidence_id in selected_evidence_ids:
+                action_by_evidence[evidence_id] = action
+        for evidence_id in attribution_support_by_action.get(action_id, ()):
+            if evidence_id in selected_evidence_ids:
                 action_by_evidence[evidence_id] = action
 
     summaries = {
@@ -901,9 +937,7 @@ def evidence_timeline_views(
         "SENSOR_HEALTH": "센서 상태 기록",
     }
     records: list[dict[str, Any]] = []
-    for item in evidence_metadata:
-        if not isinstance(item, Mapping) or not item.get("evidence_id"):
-            continue
+    for _, item in latest_metadata:
         evidence_id = str(item["evidence_id"])
         record_type = str(item.get("record_type") or "EVIDENCE")
         source = str(item.get("source") or "UNKNOWN")
@@ -932,14 +966,7 @@ def evidence_timeline_views(
                 "link_status": "LINKED" if action else "UNLINKED",
             }
         )
-    def _line_number(value: Any) -> int:
-        try:
-            return int(value or 0)
-        except (TypeError, ValueError):
-            return 0
-
-    records.sort(key=lambda item: (str(item.get("captured_at") or ""), _line_number(item.get("line"))))
-    return records[-max(0, limit) :] if limit > 0 else []
+    return records
 
 
 def attribution_summary(result: Mapping[str, Any]) -> dict[str, Any]:

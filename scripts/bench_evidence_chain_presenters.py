@@ -116,7 +116,7 @@ def main() -> None:
         f"p95={_percentile(timeline_times, 0.95):.3f}"
     )
     print(
-        "dominant_scaling_cost=timeline sorts all metadata records before applying its output limit; "
+        "timeline_selection=bounded latest-record selection; "
         "chain indexing scans metadata twice, then processes only the bounded action slice"
     )
     print("payload_output=none")
