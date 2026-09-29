@@ -72,10 +72,6 @@ class ProcessTreeEnumerationError(ProcessRuntimeError):
     code = "OWNER_UNVERIFIABLE"
 
 
-class ProcessTreePollTransientError(ProcessRuntimeError):
-    """Raised when a process disappears during a complete-tree snapshot."""
-
-
 class ProcessRole(StrEnum):
     ROOT = "ROOT"
     DESCENDANT = "DESCENDANT"
@@ -307,8 +303,6 @@ def _validate_preparation(
 class ProcessRuntimeSensor:
     """Observe an explicitly registered process tree and append Raw Evidence."""
 
-    _MAX_CONSECUTIVE_TRANSIENT_POLL_FAILURES = 3
-
     def __init__(
         self,
         session: ProtectedRunSession,
@@ -377,11 +371,6 @@ class ProcessRuntimeSensor:
         self._observed: dict[ProcessIdentity, ProcessObservation] = {}
         self._exit_recorded: set[ProcessIdentity] = set()
         self._root_exit_observed = False
-        self._consecutive_transient_poll_failures = 0
-        self._metadata_cache: dict[
-            ProcessIdentity,
-            tuple[str | None, str | None, ProcessMetadataStatus, str | None],
-        ] = {}
 
     @property
     def status(self) -> SensorStatus:
@@ -545,28 +534,8 @@ class ProcessRuntimeSensor:
         while not self._stop_event.wait(self.poll_interval):
             try:
                 self._poll_once(initial=False)
-                with self._lock:
-                    if self._status is SensorStatus.FAILED:
-                        return
             except ProcessEvidenceStoreError:
                 return
-            except ProcessTreePollTransientError:
-                with self._lock:
-                    if self._status is SensorStatus.HEALTHY:
-                        self._consecutive_transient_poll_failures += 1
-                        if (
-                            self._consecutive_transient_poll_failures
-                            >= self._MAX_CONSECUTIVE_TRANSIENT_POLL_FAILURES
-                        ):
-                            self._set_failed("OWNER_UNVERIFIABLE", append=True)
-                        elif self._health.reason != "POLL_RETRY":
-                            self._set_health(
-                                SensorStatus.HEALTHY,
-                                "POLL_RETRY",
-                                append=True,
-                            )
-                        if self._status is SensorStatus.FAILED:
-                            return
             except Exception as error:
                 with self._lock:
                     if self._status is not SensorStatus.FAILED:
@@ -604,46 +573,13 @@ class ProcessRuntimeSensor:
             if root_process is None:
                 raise ProcessRuntimeError("Root Process handle is unavailable")
             current = self._collect_tree(root_process)
-            self._metadata_cache = {
-                identity: metadata
-                for identity, metadata in self._metadata_cache.items()
-                if identity in current
-            }
             for identity, observation in current.items():
                 if identity not in self._observed:
                     self._append_observation(observation)
             self._record_missing_observations(current, None)
             self._observed.update(current)
-            self._consecutive_transient_poll_failures = 0
-            if self._health.reason == "POLL_RETRY":
-                self._set_health(
-                    SensorStatus.HEALTHY,
-                    "POLL_RECOVERED",
-                    append=True,
-                )
 
     def _collect_tree(self, root_process: Any) -> dict[ProcessIdentity, ProcessObservation]:
-        try:
-            process_snapshot = {
-                int(process.info["pid"]): (
-                    process.info.get("ppid"),
-                    process,
-                )
-                for process in psutil.process_iter(attrs=("pid", "ppid"))
-                if isinstance(process.info.get("pid"), int)
-            }
-        except (psutil.NoSuchProcess, psutil.ZombieProcess, ProcessLookupError) as error:
-            raise ProcessTreePollTransientError(
-                "process disappeared during managed process snapshot"
-            ) from error
-        except Exception as error:
-            raise ProcessTreeEnumerationError(
-                "managed process snapshot could not be enumerated"
-            ) from error
-        children_by_parent: dict[int, list[Any]] = {}
-        for ppid, process in process_snapshot.values():
-            if isinstance(ppid, int) and not isinstance(ppid, bool) and ppid >= 0:
-                children_by_parent.setdefault(ppid, []).append(process)
         current: dict[ProcessIdentity, ProcessObservation] = {}
         root_identity = self.registration.root_process_identity
         root_observation = self._build_observation(
@@ -652,30 +588,16 @@ class ProcessRuntimeSensor:
             ProcessRole.ROOT,
             root_identity,
             parent_identity=None,
-            ppid=self._snapshot_ppid(process_snapshot, root_identity.pid, root_process),
         )
         current[root_identity] = root_observation
-        stack: list[tuple[ProcessIdentity, Any]] = [(root_identity, root_process)]
+        stack: list[tuple[Any, ProcessIdentity]] = [(root_process, root_identity)]
         while stack:
-            parent_identity, parent_process = stack.pop()
-            parent_entry = process_snapshot.get(parent_identity.pid)
-            children = (
-                children_by_parent.get(parent_identity.pid, ())
-                if parent_entry is not None
-                else self._children(parent_process)
-            )
-            for child_process in children:
+            parent_process, parent_identity = stack.pop()
+            for child_process in self._children(parent_process):
                 child_identity, live_child = self._child_identity(child_process)
                 if child_identity is None or live_child is None:
                     continue
                 if child_identity in current:
-                    continue
-                ppid = self._snapshot_ppid(
-                    process_snapshot,
-                    child_identity.pid,
-                    child_process,
-                )
-                if ppid != parent_identity.pid:
                     continue
                 try:
                     observation = self._build_observation(
@@ -684,7 +606,6 @@ class ProcessRuntimeSensor:
                         ProcessRole.DESCENDANT,
                         root_identity,
                         parent_identity=parent_identity,
-                        ppid=ppid,
                     )
                 except ProcessRuntimeError:
                     # Windows process trees can change between the children()
@@ -694,22 +615,8 @@ class ProcessRuntimeSensor:
                     # it on a later poll if the relation becomes stable.
                     continue
                 current[child_identity] = observation
-                stack.append((child_identity, live_child))
+                stack.append((live_child, child_identity))
         return current
-
-    @staticmethod
-    def _snapshot_ppid(
-        process_snapshot: dict[int, tuple[Any, Any]],
-        pid: int,
-        process: Any,
-    ) -> int | None:
-        entry = process_snapshot.get(pid)
-        if entry is not None:
-            ppid = entry[0]
-            if isinstance(ppid, int) and not isinstance(ppid, bool) and ppid >= 0:
-                return ppid
-            return None
-        return ProcessRuntimeSensor._read_ppid(process)
 
     @staticmethod
     def _children(process: Any) -> Iterable[Any]:
@@ -766,21 +673,24 @@ class ProcessRuntimeSensor:
         root_identity: ProcessIdentity,
         *,
         parent_identity: ProcessIdentity | None,
-        ppid: int | None = None,
     ) -> ProcessObservation:
-        if ppid is None:
-            ppid = self._read_ppid(process)
-        metadata = self._metadata_cache.get(identity)
-        if metadata is None:
+        ppid = self._read_ppid(process)
+        previous = self._observed.get(identity)
+        if previous is not None:
+            # Only the first observation of a verified identity (PID + create
+            # time) is recorded, so re-reading name, executable and command line
+            # on every poll is wasted work. Reuse what was captured first.
+            name = previous.name
+            executable = previous.executable
+            metadata_status = previous.metadata_status
+            raw_command = previous.raw_command
+        else:
             name, executable, metadata_status = self._read_metadata(process)
             raw_command = (
                 self._read_command_line(process)
                 if self.capture_command_line
                 else None
             )
-            metadata = (name, executable, metadata_status, raw_command)
-            self._metadata_cache[identity] = metadata
-        name, executable, metadata_status, raw_command = metadata
         return ProcessObservation(
             identity=identity,
             ppid=ppid,

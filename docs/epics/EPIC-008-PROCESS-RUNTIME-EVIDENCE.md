@@ -103,8 +103,6 @@ ROOT
 
 여러 세대의 Process를 지원하며, 각 Child의 PID와 create time을 확인한 뒤에만 Tree에 포함한다. OS 전체 Process를 수집하지 않으며, unrelated Process는 Session Evidence에 추가하지 않는다.
 
-실행 중 전체 Process snapshot 조회에서 `NoSuchProcess`, `ZombieProcess` 또는 `ProcessLookupError`가 발생하면 해당 poll은 불완전하므로 observation이나 exit evidence를 기록하지 않고 다음 polling interval에 다시 시도한다. 처음 실패할 때 health evidence는 `HEALTHY/POLL_RETRY`로 기록하며, 다음 전체 poll이 성공한 뒤 `HEALTHY/POLL_RECOVERED`를 기록한다. 연속 3회 실패하면 health를 `FAILED/OWNER_UNVERIFIABLE`로 바꾸고 observer를 종료한다. 시작 시 같은 오류가 나거나 `AccessDenied`, `PermissionError` 및 다른 OS query 오류가 나면 재시도 가능한 race로 보지 않고 Sensor를 실패시킨다. Root identity가 `OWNER_UNVERIFIABLE`인 경우에도 retry하지 않는다.
-
 Parent 관계는 검증된 경우에만 `parent_create_time`으로 보존한다. 확인하지 못한 Parent Identity를 추측해 채우지 않는다.
 
 ## Polling과 중복 관찰

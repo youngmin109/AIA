@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
 import sys
-from threading import Event
 import time
 
 import psutil
@@ -74,9 +73,6 @@ class FakeProcess:
         self.executable_error = executable_error
         self._cmdline = cmdline if cmdline is not None else [executable, "--fixture"]
         self.children_error = children_error
-        self.name_calls = 0
-        self.executable_calls = 0
-        self.cmdline_calls = 0
 
     def create_time(self) -> float:
         return self._create_time
@@ -85,13 +81,11 @@ class FakeProcess:
         return self._ppid
 
     def name(self) -> str:
-        self.name_calls += 1
         if self.name_error:
             raise psutil.AccessDenied(self.pid)
         return self._name
 
     def exe(self) -> str:
-        self.executable_calls += 1
         if self.executable_error:
             raise psutil.AccessDenied(self.pid)
         return self._executable
@@ -103,21 +97,7 @@ class FakeProcess:
         return list(self.children_list)
 
     def cmdline(self) -> list[str]:
-        self.cmdline_calls += 1
         return list(self._cmdline)
-
-
-class SnapshotProcess:
-    def __init__(self, process: FakeProcess) -> None:
-        self._process = process
-        self.pid = process.pid
-        self.info = {"pid": process.pid, "ppid": process._ppid}
-
-    def create_time(self) -> float:
-        return self._process.create_time()
-
-    def __getattr__(self, name: str):
-        return getattr(self._process, name)
 
 
 class FakeProcessTable:
@@ -386,119 +366,6 @@ def test_child_enumeration_access_denied_fails_sensor_without_claiming_health(
     release_lease(context, lease_manager)
 
 
-def test_transient_process_snapshot_race_retries_without_partial_evidence(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
-        tmp_path,
-        poll_interval=0.01,
-    )
-    sensor.start()
-    original_process_iter = psutil.process_iter
-    failed_once = Event()
-
-    def process_iter(*, attrs):
-        if not failed_once.is_set():
-            failed_once.set()
-            raise psutil.NoSuchProcess(999)
-        return original_process_iter(attrs=attrs)
-
-    monkeypatch.setattr(psutil, "process_iter", process_iter)
-    try:
-        deadline = time.monotonic() + 2
-        while time.monotonic() < deadline:
-            health_reasons = [
-                record.payload.get("reason")
-                for record in sensor.evidence_store.records()
-                if record.record_type is EvidenceRecordType.SENSOR_HEALTH
-            ]
-            if "POLL_RECOVERED" in health_reasons:
-                break
-            time.sleep(0.01)
-
-        assert "POLL_RETRY" in health_reasons
-        assert "POLL_RECOVERED" in health_reasons
-        assert sensor.health.status is SensorStatus.HEALTHY
-        assert sensor.health.reason == "POLL_RECOVERED"
-        assert not any(
-            record.record_type is EvidenceRecordType.PROCESS_EXIT_OBSERVED
-            for record in sensor.evidence_store.records()
-        )
-    finally:
-        stop_sensor_and_release(sensor, context, lease_manager)
-
-
-def test_terminal_process_snapshot_error_fails_running_sensor(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
-        tmp_path,
-        poll_interval=0.01,
-    )
-    sensor.start()
-    failed_poll = Event()
-
-    def process_iter(*, attrs):
-        failed_poll.set()
-        raise psutil.AccessDenied(10)
-
-    monkeypatch.setattr(psutil, "process_iter", process_iter)
-    try:
-        deadline = time.monotonic() + 2
-        while time.monotonic() < deadline and sensor.health.status is not SensorStatus.FAILED:
-            time.sleep(0.01)
-
-        assert failed_poll.is_set()
-        assert sensor.health.status is SensorStatus.FAILED
-        assert sensor.health.reason == "OWNER_UNVERIFIABLE"
-        health = [
-            record.payload
-            for record in sensor.evidence_store.records()
-            if record.record_type is EvidenceRecordType.SENSOR_HEALTH
-        ]
-        assert any(
-            record["status"] == SensorStatus.FAILED.value
-            and record["reason"] == "OWNER_UNVERIFIABLE"
-            for record in health
-        )
-    finally:
-        stop_sensor_and_release(sensor, context, lease_manager)
-
-
-def test_repeated_transient_process_snapshot_errors_fail_after_retry_limit(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
-        tmp_path,
-        poll_interval=0.01,
-    )
-    sensor.start()
-
-    def process_iter(*, attrs):
-        raise psutil.NoSuchProcess(999)
-
-    monkeypatch.setattr(psutil, "process_iter", process_iter)
-    try:
-        deadline = time.monotonic() + 2
-        while time.monotonic() < deadline and sensor.health.status is not SensorStatus.FAILED:
-            time.sleep(0.01)
-
-        assert sensor.health.status is SensorStatus.FAILED
-        assert sensor.health.reason == "OWNER_UNVERIFIABLE"
-        health_reasons = [
-            record.payload.get("reason")
-            for record in sensor.evidence_store.records()
-            if record.record_type is EvidenceRecordType.SENSOR_HEALTH
-        ]
-        assert health_reasons.count("POLL_RETRY") == 1
-        assert health_reasons[-1] == "OWNER_UNVERIFIABLE"
-    finally:
-        stop_sensor_and_release(sensor, context, lease_manager)
-
-
 def test_repeated_polling_does_not_create_duplicate_observation_records(
     tmp_path: Path,
 ) -> None:
@@ -512,89 +379,6 @@ def test_repeated_polling_does_not_create_duplicate_observation_records(
             if record.record_type is EvidenceRecordType.PROCESS_OBSERVED
         ]
         assert len(observations) == 3
-    finally:
-        stop_sensor_and_release(sensor, context, lease_manager)
-
-
-def test_snapshot_and_metadata_cache_preserve_observations_across_pid_reuse(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    root, child, grandchild, _, table = make_tree()
-    snapshot_calls = 0
-
-    def process_iter(*, attrs):
-        nonlocal snapshot_calls
-        assert attrs == ("pid", "ppid")
-        snapshot_calls += 1
-        return [SnapshotProcess(process) for process in table.processes.values()]
-
-    monkeypatch.setattr(psutil, "process_iter", process_iter)
-    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
-        tmp_path,
-        table=table,
-        capture_command_line=True,
-    )
-    uncached = sensor._collect_tree(root)
-    cached = sensor._collect_tree(root)
-    observation_fields = (
-        "identity",
-        "ppid",
-        "process_role",
-        "root_identity",
-        "name",
-        "executable",
-        "metadata_status",
-        "parent_identity",
-        "raw_command",
-    )
-    assert {
-        identity: tuple(getattr(observation, field) for field in observation_fields)
-        for identity, observation in uncached.items()
-    } == {
-        identity: tuple(getattr(observation, field) for field in observation_fields)
-        for identity, observation in cached.items()
-    }
-    sensor.start()
-    try:
-        observations = {
-            record.payload["pid"]: record.payload
-            for record in sensor.evidence_store.records()
-            if record.record_type is EvidenceRecordType.PROCESS_OBSERVED
-        }
-        assert set(observations) == {root.pid, child.pid, grandchild.pid}
-        assert observations[child.pid]["name"] == "child.exe"
-        assert observations[child.pid]["executable"] == child._executable
-        assert observations[child.pid]["raw_command"]
-        first_calls = (child.name_calls, child.executable_calls, child.cmdline_calls)
-
-        sensor._poll_once(initial=False)
-        assert snapshot_calls == 4
-        assert (child.name_calls, child.executable_calls, child.cmdline_calls) == first_calls
-
-        replacement = FakeProcess(
-            child.pid,
-            99.0,
-            root.pid,
-            name="replacement.exe",
-            executable=r"C:\Replacement\replacement.exe",
-        )
-        table.processes[child.pid] = replacement
-        root.children_list = [replacement]
-        sensor._poll_once(initial=False)
-
-        replacement_records = [
-            record.payload
-            for record in sensor.evidence_store.records()
-            if record.record_type is EvidenceRecordType.PROCESS_OBSERVED
-            and record.payload["pid"] == child.pid
-            and record.payload["create_time"] == replacement._create_time
-        ]
-        assert len(replacement_records) == 1
-        assert replacement_records[0]["name"] == "replacement.exe"
-        assert replacement_records[0]["executable"] == replacement._executable
-        assert ProcessIdentity(child.pid, child._create_time) not in sensor._metadata_cache
-        assert ProcessIdentity(child.pid, replacement._create_time) in sensor._metadata_cache
     finally:
         stop_sensor_and_release(sensor, context, lease_manager)
 
@@ -631,6 +415,56 @@ def test_pid_reuse_creates_new_observation_and_exit_for_old_identity(
             and record.payload["create_time"] == 99.0
             for record in observed
         )
+    finally:
+        stop_sensor_and_release(sensor, context, lease_manager)
+
+
+def test_repeated_polls_reuse_metadata_of_observed_identity_but_not_after_pid_reuse(
+    tmp_path: Path,
+) -> None:
+    sensor, table, root, child, _, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        capture_command_line=True,
+    )
+    metadata_reads: list[int] = []
+    for process in table.processes.values():
+        original_exe = process.exe
+
+        def counting_exe(original_exe=original_exe, pid=process.pid) -> str:
+            metadata_reads.append(pid)
+            return original_exe()
+
+        process.exe = counting_exe
+    sensor.start()
+    try:
+        first_reads = sorted(metadata_reads)
+        assert first_reads == [root.pid, 20, 30]
+
+        sensor._poll_once(initial=False)
+        sensor._poll_once(initial=False)
+        assert sorted(metadata_reads) == first_reads
+
+        replacement = FakeProcess(
+            child.pid,
+            99.0,
+            root.pid,
+            name="replacement.exe",
+            executable=r"C:\Replacement\replacement.exe",
+        )
+        table.processes[child.pid] = replacement
+        root.children_list = [replacement]
+        sensor._poll_once(initial=False)
+
+        replacement_records = [
+            record.payload
+            for record in sensor.evidence_store.records()
+            if record.record_type is EvidenceRecordType.PROCESS_OBSERVED
+            and record.payload["pid"] == child.pid
+            and record.payload["create_time"] == 99.0
+        ]
+        assert len(replacement_records) == 1
+        assert replacement_records[0]["name"] == "replacement.exe"
+        assert replacement_records[0]["executable"] == r"C:\Replacement\replacement.exe"
     finally:
         stop_sensor_and_release(sensor, context, lease_manager)
 
