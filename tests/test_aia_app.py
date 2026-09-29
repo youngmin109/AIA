@@ -2443,7 +2443,7 @@ def test_application_create_rejects_currently_untrusted_hook(
         lambda self, installer, executable: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.run_control.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
