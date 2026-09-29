@@ -1054,13 +1054,42 @@ def test_live_state_degrades_when_hook_broker_is_not_running(tmp_path) -> None:
         service.shutdown()
 
 
-def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("session_status", "session_end_reason", "verified_state", "degraded_state"),
+    [
+        ("COMPLETED", "AGENT_EXITED", "COMPLETED_VERIFIED", "COMPLETED_DEGRADED"),
+        ("ABORTED", "USER_ABORT", "ABORTED_VERIFIED", "ABORTED_DEGRADED"),
+    ],
+)
+@pytest.mark.parametrize(
+    "degraded_condition",
+    [
+        None,
+        "missing_hook_event",
+        "unverified_sensor",
+        "failed_sensor_health",
+        "failed_sensor_stop",
+        "CODEX_SANDBOX_DOWNGRADED",
+        "CODEX_APPROVAL_POLICY_DOWNGRADED",
+        "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
+        "PROTECTION_BOUNDARY_LOST",
+    ],
+)
+def test_completed_bundle_protection_status_requires_verified_evidence(
+    tmp_path,
+    monkeypatch,
+    session_status,
+    session_end_reason,
+    verified_state,
+    degraded_state,
+    degraded_condition,
+) -> None:
     service = RunApplicationService(tmp_path / "control")
     session_dir = tmp_path / "control" / "sessions" / "session-1"
     session_dir.mkdir(parents=True)
     base = {
-        "session_status": "COMPLETED",
-        "session_end_reason": "AGENT_EXITED",
+        "session_status": session_status,
+        "session_end_reason": session_end_reason,
         "limitations": [],
         "action_outcomes": [],
         "sensor_summary": [
@@ -1081,6 +1110,20 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
             },
         ],
     }
+    hook_events = [
+        {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
+    ]
+    if degraded_condition == "missing_hook_event":
+        hook_events = []
+    elif degraded_condition == "unverified_sensor":
+        base["sensor_summary"] = base["sensor_summary"][:-1]
+    elif degraded_condition == "failed_sensor_health":
+        base["sensor_summary"][0]["runtime_health_before_stop"] = "FAILED"
+    elif degraded_condition == "failed_sensor_stop":
+        base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
+    elif degraded_condition is not None:
+        base["limitations"] = [degraded_condition]
+
     monkeypatch.setattr(service.reader, "read_result", lambda _session_id: dict(base))
     monkeypatch.setattr(
         service.reader,
@@ -1090,20 +1133,55 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
     monkeypatch.setattr(
         service,
         "_evidence_metadata",
-        lambda _session_id, *, require_valid=True: [
-            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
-        ],
+        lambda _session_id, *, require_valid=True: hook_events,
     )
     monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
     try:
         status = service._status_from_completed_bundle("session-1")
-        assert status["protection"]["state"] == "COMPLETED_VERIFIED"
+        expected_state = verified_state if degraded_condition is None else degraded_state
+        assert status["protection"]["state"] == expected_state
         assert status["checkpoint"] == "READY"
-        base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
-        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
-        base["sensor_summary"][0]["final_sensor_state"] = "STOPPED"
-        base["limitations"] = ["HOOK_BROKER_RUNTIME_NOT_VERIFIED"]
-        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("session_status", "session_end_reason"),
+    [
+        ("FAILED", "AGENT_EXITED"),
+        ("COMPLETED", "PROTECTION_FAILURE"),
+    ],
+)
+def test_completed_bundle_failure_status_is_degraded(
+    tmp_path,
+    monkeypatch,
+    session_status,
+    session_end_reason,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    session_dir = tmp_path / "control" / "sessions" / "session-1"
+    session_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        service.reader,
+        "read_result",
+        lambda _session_id: {
+            "session_status": session_status,
+            "session_end_reason": session_end_reason,
+            "limitations": [],
+            "action_outcomes": [],
+            "sensor_summary": [],
+        },
+    )
+    monkeypatch.setattr(
+        service.reader,
+        "verification",
+        lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
+    )
+    monkeypatch.setattr(service, "_evidence_metadata", lambda *args, **kwargs: [])
+    monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
+    try:
+        status = service._status_from_completed_bundle("session-1")
+        assert status["protection"]["state"] == "FAILED_DEGRADED"
     finally:
         service.shutdown()
 
@@ -1937,7 +2015,8 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
             ["PROTECTION_BOUNDARY_LOST"],
             "ABORTED_DEGRADED",
         ),
-        ("FAILED", "PROTECTION_FAILURE", True, [], "FAILED_DEGRADED"),
+        ("FAILED", "AGENT_EXITED", True, [], "FAILED_DEGRADED"),
+        ("COMPLETED", "PROTECTION_FAILURE", True, [], "FAILED_DEGRADED"),
     ],
 )
 def test_result_bundle_reader_classifies_protection_state_in_history(
