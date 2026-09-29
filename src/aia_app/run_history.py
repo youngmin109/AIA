@@ -108,13 +108,17 @@ def _annotate_execution_observations(
     control_root: Path,
     session_id: str,
     evidence_metadata: list[Mapping[str, Any]] | None = None,
+    execution_observations: tuple[set[str], dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Add display-only PostToolUse status to a result view."""
 
-    observed_evidence_ids, capture_times = _execution_observation_metadata(
-        control_root,
-        session_id,
-    )
+    if execution_observations is None:
+        observed_evidence_ids, capture_times = _execution_observation_metadata(
+            control_root,
+            session_id,
+        )
+    else:
+        observed_evidence_ids, capture_times = execution_observations
     actions = []
     for action in view.get("actions", []):
         item = dict(action)
@@ -307,6 +311,15 @@ def _workspace_key(value: str | Path) -> str | None:
 
 
 class RunHistoryMixin:
+    def _read_live_evidence_snapshot(
+        self,
+        session_id: str,
+    ) -> tuple[list[dict[str, Any]], set[str], dict[str, str]]:
+        try:
+            return self.reader.read_live_evidence_snapshot(session_id)
+        except (KeyError, OSError, TypeError, ValueError):
+            return [], set(), {}
+
     def get_run_status(self, session_id: str) -> dict[str, Any]:
         live_record = self.registry.get(session_id)
         live_hook_broker_healthy: bool | None = None
@@ -350,12 +363,17 @@ class RunHistoryMixin:
         )
         incidents = list(record.incidents)
         display_view = {"actions": [dict(item) for item in record.actions]}
-        evidence_metadata = self._evidence_metadata(session_id, require_valid=False)
+        (
+            evidence_metadata,
+            observed_evidence_ids,
+            capture_times,
+        ) = self._read_live_evidence_snapshot(session_id)
         _annotate_execution_observations(
             display_view,
             control_root=self.control_root,
             session_id=session_id,
             evidence_metadata=evidence_metadata,
+            execution_observations=(observed_evidence_ids, capture_times),
         )
         return {
             "checkpoint": record.checkpoint,

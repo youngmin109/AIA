@@ -599,6 +599,87 @@ def test_result_view_reconnects_pretool_action_to_posttool_evidence(tmp_path) ->
     assert view["events"][0]["execution_observed"] is True
 
 
+def test_live_status_reuses_evidence_and_refreshes_appended_records(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    record.phase = "RUNNING"
+    record.actions = [
+        {
+            "action_id": "action-1",
+            "operation": "EXECUTE",
+            "policy_decision": "COMPLIANT",
+            "execution_result": "SUCCEEDED",
+            "evidence_ids": ["pretool-1"],
+            "target": {"target_kind": "COMMAND"},
+        }
+    ]
+    service.registry.add(record)
+    store = RawEvidenceStore.for_session(control_root, record.session_id)
+    captured_at = datetime.now(timezone.utc)
+    store.append(
+        RawEvidenceRecord(
+            session_id=record.session_id,
+            source=EvidenceSource.AGENT_HOOK,
+            record_type=EvidenceRecordType.PRETOOL_REQUEST,
+            captured_at=captured_at,
+            observation_stage=ObservationStage.PRE_ACTION,
+            payload={"tool_use_id": "tool-1"},
+            evidence_id="pretool-1",
+        )
+    )
+
+    original_loads = readers_module.json.loads
+    parsed_lines = []
+
+    def count_parsed_lines(value, *args, **kwargs):
+        parsed_lines.append(value)
+        return original_loads(value, *args, **kwargs)
+
+    monkeypatch.setattr(readers_module.json, "loads", count_parsed_lines)
+    try:
+        first = service.get_run_status(record.session_id)
+        assert len(parsed_lines) == 1
+        assert first["latest_actions"][0]["execution_observed"] is False
+
+        parsed_lines.clear()
+        assert service.get_run_status(record.session_id) == first
+        assert parsed_lines == []
+
+        store.append(
+            RawEvidenceRecord(
+                session_id=record.session_id,
+                source=EvidenceSource.AGENT_HOOK,
+                record_type=EvidenceRecordType.POSTTOOL_OBSERVED,
+                captured_at=captured_at,
+                observation_stage=ObservationStage.POST_ACTION,
+                payload={"tool_use_id": "tool-1"},
+                evidence_id="posttool-1",
+            )
+        )
+        updated = service.get_run_status(record.session_id)
+        assert len(parsed_lines) == 1
+        assert updated["latest_actions"][0]["execution_observed"] is True
+
+        cold_service = RunApplicationService(control_root)
+        cold_record = make_record(tmp_path)
+        cold_record.created_at = record.created_at
+        cold_record.status = record.status
+        cold_record.phase = record.phase
+        cold_record.actions = [dict(action) for action in record.actions]
+        cold_service.registry.add(cold_record)
+        try:
+            assert updated == cold_service.get_run_status(record.session_id)
+        finally:
+            cold_service.shutdown()
+    finally:
+        service.shutdown()
+
+
 def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:
     document = {
         "정책명": "사용자 보호 정책",

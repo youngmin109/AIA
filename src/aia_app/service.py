@@ -1220,10 +1220,17 @@ class RunApplicationService(
                 )
             )
         display_view = {"actions": action_views}
+        (
+            evidence_metadata,
+            observed_evidence_ids,
+            capture_times,
+        ) = self._read_live_evidence_snapshot(record.session_id)
         _annotate_execution_observations(
             display_view,
             control_root=self.control_root,
             session_id=record.session_id,
+            evidence_metadata=evidence_metadata,
+            execution_observations=(observed_evidence_ids, capture_times),
         )
         record.actions = display_view["actions"]
         record.incidents = [
