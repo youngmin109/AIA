@@ -58,6 +58,7 @@ from aia_app.service import (
     _sensors_runtime_healthy,
 )
 import aia_app.service as service_module
+import aia_app.protected_run as protected_run_module
 
 
 def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
@@ -90,14 +91,14 @@ def capture_service_launcher_factory(
         def is_installed(self):
             return True
 
-    monkeypatch.setattr(service_module, "CodexHookInstaller", InstalledHooks)
+    monkeypatch.setattr(protected_run_module, "CodexHookInstaller", InstalledHooks)
     monkeypatch.setattr(
-        service_module,
+        protected_run_module,
         "CodexPreToolController",
         lambda *_args, **_kwargs: object(),
     )
-    monkeypatch.setattr(service_module, "ProtectedLauncher", FakeLauncher)
-    monkeypatch.setattr(service_module, "ProcessManager", lambda *_args: object())
+    monkeypatch.setattr(protected_run_module, "ProtectedLauncher", FakeLauncher)
+    monkeypatch.setattr(protected_run_module, "ProcessManager", lambda *_args: object())
     launcher, _controller, options = service._create_protected_launcher(
         record,
         SimpleNamespace(session_id=record.session_id, workspace=record.workspace),
