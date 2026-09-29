@@ -10,9 +10,12 @@ export function RightPanel() {
   // both render from the same active-run status, one 1s poll covers both
   // (see useRunStatus, gated to whether a run is active).
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
+  // Without a selected run the panel would only say "nothing to show", so it
+  // gives its width back to the main view until a run is selected.
+  const collapsed = rightPanelCollapsed || !activeRunId
 
   return (
-    <aside className={`right-panel${rightPanelCollapsed ? ' is-collapsed' : ''}`} aria-hidden={rightPanelCollapsed}>
+    <aside className={`right-panel${collapsed ? ' is-collapsed' : ''}`} aria-hidden={collapsed}>
       <div className="right-panel-header">
         <span>실시간 활동</span>
         <button type="button" className="icon-button" title="패널 접기" onClick={toggleRightPanel}>

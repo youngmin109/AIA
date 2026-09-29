@@ -23,27 +23,27 @@ export function DashboardView() {
 
   return (
     <div className="dashboard-view guardian-dashboard">
-      <div className="dashboard-page-heading">
-        <div><span>AIA GUARDIAN / PROTECTED RUN</span><h2>안전한 작업 현황</h2><p>Codex의 요청, 실제 프로세스, Workspace 변화를 함께 확인합니다.</p></div>
-        <b className={preflight?.readiness_code === 'READY' ? 'is-ready' : ''}>● {preflight ? `${healthyChecks}개 보호 조건 정상` : '보호 조건 확인 중'}</b>
-      </div>
-      <div className="dashboard-metrics">
-        {metrics.map((metric) => <div key={metric.label} className="card dashboard-metric"><div className="dashboard-metric-label">{metric.label}</div><div className="dashboard-metric-value">{metric.value}</div><div className="dashboard-metric-hint">{metric.hint}</div></div>)}
+      {/* The page title lives in the topbar; the dashboard opens with status. */}
+      <div className="dashboard-top">
+        <GuardianHero
+          readiness={preflight ? `보호 조건 ${healthyChecks}개 정상` : '보호 조건 확인 중'}
+          ready={preflight?.readiness_code === 'READY'}
+        />
+        <div className="dashboard-metrics">
+          {metrics.map((metric) => <div key={metric.label} className="card dashboard-metric"><div className="dashboard-metric-label">{metric.label}</div><div className="dashboard-metric-value">{metric.value}</div><div className="dashboard-metric-hint">{metric.hint}</div></div>)}
+        </div>
       </div>
       <div className="dashboard-grid">
-        <GuardianHero />
-        <aside className="dashboard-rightcol">
-          <div className="card dashboard-card">
-            <div className="dashboard-card-title">런타임 센서</div>
-            <div className="dashboard-card-desc">Agent 요청과 실제 실행·파일 변화를 서로 독립적으로 확인합니다.</div>
-            {isActive ? <SensorHealthRow sensorHealth={status?.sensor_health} evidenceSummary={summary} /> : <div className="sensor-explainer"><span>● PreTool Hook <small>실행 전 요청 수신</small></span><span>● File Sensor <small>Workspace 파일 변화 감시</small></span><span>● Process Sensor <small>Codex 프로세스 트리 관찰</small></span></div>}
-          </div>
-          <div className="card dashboard-card">
-            <div className="dashboard-card-title">Codex 작업 공간</div>
-            <div className="dashboard-card-desc">{isActive ? '현재 보호 세션에서 Codex가 작업 중입니다.' : 'Workspace와 정책을 선택해 보호 실행을 시작하세요.'}</div>
-            <button type="button" className="dashboard-launch-btn" onClick={isActive ? () => setView('terminal') : openSettingsModal}><Icon name="terminal" size={20} /><span><b>{isActive ? 'Agent CLI 열기' : '보호 실행 설정'}</b><small>{isActive ? 'Codex 세션 연결됨' : preflight?.readiness_code ?? '환경 확인 중'}</small></span><strong>→</strong></button>
-          </div>
-        </aside>
+        <div className="card dashboard-card">
+          <div className="dashboard-card-title">런타임 센서</div>
+          <div className="dashboard-card-desc">Agent 요청과 실제 실행·파일 변화를 서로 독립적으로 확인합니다.</div>
+          {isActive ? <SensorHealthRow sensorHealth={status?.sensor_health} evidenceSummary={summary} /> : <div className="sensor-explainer"><span>● PreTool Hook <small>실행 전 요청 수신</small></span><span>● File Sensor <small>Workspace 파일 변화 감시</small></span><span>● Process Sensor <small>Codex 프로세스 트리 관찰</small></span></div>}
+        </div>
+        <div className="card dashboard-card">
+          <div className="dashboard-card-title">Codex 작업 공간</div>
+          <div className="dashboard-card-desc">{isActive ? '현재 보호 세션에서 Codex가 작업 중입니다.' : 'Workspace와 정책을 선택해 보호 실행을 시작하세요.'}</div>
+          <button type="button" className="dashboard-launch-btn" onClick={isActive ? () => setView('terminal') : openSettingsModal}><Icon name="terminal" size={20} /><span><b>{isActive ? 'Agent CLI 열기' : '보호 실행 설정'}</b><small>{isActive ? 'Codex 세션 연결됨' : preflight?.readiness_code ?? '환경 확인 중'}</small></span><strong>→</strong></button>
+        </div>
       </div>
       <div className="card dashboard-activity-card">
         <div className="dashboard-activity-head"><div><div className="dashboard-card-title">최근 활동</div><div className="dashboard-card-desc">요청 · 실행 · 파일 변경을 하나의 보호 흐름으로 보여줍니다.</div></div>{isActive && <button type="button" className="activity-more" onClick={() => setView('audit')}>전체 활동 보기</button>}</div>

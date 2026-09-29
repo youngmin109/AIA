@@ -183,14 +183,6 @@
   min-width: 0;
 }
 
-.topbar-overline {
-  display: block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-}
-
 .topbar-title {
   margin: 2px 0 0;
   font-size: 17px;
@@ -661,11 +653,6 @@
   margin-bottom: 14px;
 }
 
-.dashboard-rightcol {
-  display: grid;
-  gap: 14px;
-}
-
 .dashboard-card {
   padding: 18px;
 }
@@ -731,23 +718,6 @@
   overflow: hidden;
   background: radial-gradient(circle at 26% 30%, var(--bg-hover) 0 5%, transparent 30%), var(--bg-panel);
 }
-
-.guardian-hero-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.guardian-hero-overline {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: var(--accent);
-}
-
-.guardian-hero.is-review .guardian-hero-overline { color: var(--warning); }
-.guardian-hero.is-blocked .guardian-hero-overline { color: var(--danger); }
-.guardian-hero.is-recovery .guardian-hero-overline { color: var(--success); }
 
 .guardian-hero-main {
   display: flex;
@@ -1563,11 +1533,129 @@
 .right-panel-guide { flex: 0 0 auto; margin: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-panel-alt); color: var(--text-muted); font-size: 10px; line-height: 1.55; }
 .right-panel-guide b, .right-panel-guide span { display: block; }
 .right-panel-guide b { margin-bottom: 3px; color: var(--text); }
-.dashboard-page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 1px 0 16px; }
-.dashboard-page-heading span, .policy-page-heading > span { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
-.dashboard-page-heading h2, .policy-page-heading h2 { margin: 4px 0 0; color: var(--text); font-size: 21px; letter-spacing: -.4px; }
-.dashboard-page-heading p, .policy-page-heading p { margin: 4px 0 0; color: var(--text-muted); font-size: 11px; }
-.dashboard-page-heading > b { flex: 0 0 auto; color: var(--warning); border: 1px solid var(--warning); border-radius: 999px; padding: 6px 9px; background: var(--warning-bg); font-size: 10px; }
-.dashboard-page-heading > b.is-ready { color: var(--success); border-color: var(--success); background: var(--success-bg); }
-.policy-page-heading { margin-bottom: 16px; }
-@media (max-width: 680px) { .dashboard-page-heading { align-items: flex-start; flex-direction: column; } .dashboard-metrics { grid-template-columns: repeat(2, 1fr); } }
+.policy-page-heading p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.policy-page-heading { margin-bottom: var(--space-3); }
+
+/* ---- Compact density (2026-09-29 review: "make the UI more compact") ----
+   Data-dense dashboard targets: 8-12px gaps, 12px card padding, a 224px
+   sidebar, a 48px topbar and no text under 11px. The Guardian mascot stays
+   the one memorable element, shown once and small. Cards drop the heavy
+   elevated shadow; modals and popovers keep it. */
+
+.card {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Sidebar */
+.app-sidebar { width: 224px; }
+.app-sidebar-brand { height: 48px; }
+.app-sidebar-brand-name small { font-size: 10px; }
+.app-sidebar-nav { gap: 2px; padding: var(--space-1) var(--space-2) var(--space-2); }
+.app-sidebar-nav-btn { padding: 8px 10px; font-size: 13px; }
+.app-sidebar.is-collapsed .app-sidebar-nav-btn { padding: 8px 0; }
+.sidebar-guardian { gap: var(--space-2); margin: auto var(--space-2) var(--space-2); padding: 6px var(--space-2); border-radius: var(--radius-control); font-size: 12px; font-weight: 600; }
+.sidebar-guardian img { width: 26px; height: 26px; filter: none; }
+.app-sidebar.is-collapsed .sidebar-guardian { margin: auto 5px var(--space-2); }
+.sidebar-workspace { margin: 0 var(--space-2) var(--space-2); padding: var(--space-2) 10px; border-radius: var(--radius-control); }
+.sidebar-workspace span,
+.sidebar-workspace small { font-size: 11px; }
+.sidebar-workspace b { margin: 2px 0; font-size: 12px; }
+.guardian-guide-popover { left: 232px; }
+.guardian-guide-popover p,
+.guardian-guide-states button { font-size: 12px; }
+
+/* Topbar: one title line, no overline */
+.topbar { height: 48px; padding: 0 var(--space-4); }
+.topbar-title { margin: 0; font-size: 16px; }
+.theme-toggle-btn { width: 30px; height: 30px; }
+.topbar-activity-button { padding: 5px 9px; font-size: 12px; }
+.topbar-activity-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.topbar-activity-button:disabled:hover { color: var(--text-muted); background: var(--bg-panel); }
+.readiness-badge { padding: 4px 8px; font-size: 11px; }
+
+/* Right activity panel: only shown for a selected run */
+.right-panel { width: 280px; }
+.right-panel-header { height: 36px; font-size: 12px; letter-spacing: 0; text-transform: none; }
+.right-panel-subtitle { margin: 0 4px var(--space-2); font-size: 11px; }
+.activity-session-summary span { font-size: 11px; }
+.right-panel-guide { margin: var(--space-2); padding: var(--space-2) 10px; font-size: 11px; }
+
+/* Dashboard: status card and metrics share the first row */
+.dashboard-view { padding: var(--space-3) var(--space-4) var(--space-4); }
+.dashboard-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
+.dashboard-metric { padding: 10px var(--space-3); }
+.dashboard-metric-label { font-size: 12px; }
+.dashboard-metric-value { margin: 2px 0 0; font-size: 20px; font-variant-numeric: tabular-nums; }
+.dashboard-metric-hint { font-size: 11px; }
+.dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3); }
+.dashboard-card,
+.dashboard-activity-card { padding: var(--space-3) 14px; }
+.dashboard-card-desc { margin-top: 2px; font-size: 12px; }
+.dashboard-launch-btn { margin-top: 10px; padding: 9px var(--space-3); border-radius: var(--radius-control); }
+.dashboard-launch-btn small { font-size: 11px; }
+.dashboard-activity-head { margin-bottom: var(--space-2); }
+.activity-more { font-size: 11px; }
+.sensor-explainer { gap: 6px; margin-top: 10px; }
+.sensor-explainer span { font-size: 12px; }
+.sensor-explainer small { font-size: 11px; }
+.guardian-ready-brief { gap: var(--space-3); padding: var(--space-3) 14px; }
+.guardian-ready-checks span { font-size: 11px; }
+
+/* Guardian status card: small mascot, chips, headline, one action */
+.guardian-hero { min-height: 0; padding: var(--space-3) var(--space-4); }
+.guardian-hero-main { min-height: 0; flex-wrap: nowrap; gap: 14px; align-items: center; }
+.guardian-hero-img { width: 84px; height: 84px; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.18)); }
+.guardian-hero:hover .guardian-hero-img { transform: none; }
+.guardian-hero-copy { min-width: 0; }
+.guardian-hero-copy h2 { margin: 6px 0 4px; font-size: 17px; }
+.guardian-hero-copy p { font-size: 12.5px; line-height: 1.5; }
+.guardian-hero-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.guardian-hero-status { padding: 2px 8px; font-size: 11px; }
+.guardian-hero-readiness { border: 1px solid var(--warning); border-radius: 999px; padding: 2px 8px; background: var(--warning-bg); color: var(--warning); font-size: 11px; font-weight: 700; }
+.guardian-hero-readiness.is-ready { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+.guardian-start-button { margin-top: 10px; padding: 7px var(--space-3); border-radius: var(--radius-control); font-size: 12px; }
+
+/* Sensor health: three compact tiles in one row */
+.sensor-health-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.sensor-health-grid .stat-card { min-width: 0; margin: 0; padding: 6px var(--space-2); }
+.sensor-health-grid .stat-card-label { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.sensor-health-grid .stat-card-value { margin-top: 1px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Event rows: badges wrap instead of forcing a horizontal scroll */
+.event-row-top { flex-wrap: wrap; row-gap: var(--space-1); }
+.event-row-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
+.event-row-meta { display: flex; justify-content: space-between; gap: var(--space-2); margin-top: 3px; color: var(--text-faint); font-size: 11px; }
+.event-row-meta-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-row-meta-time { flex: 0 0 auto; }
+
+/* Audit and policy views */
+.audit-grid { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--space-3); }
+.audit-list-title { padding: var(--space-3) var(--space-3) 0; }
+.audit-list-scroll { padding: var(--space-2); }
+.policy-view-notice { margin-bottom: var(--space-3); padding: 10px var(--space-3); }
+.policy-grid { gap: var(--space-3); }
+.policy-choice { padding: 14px; }
+.badge { font-size: 11px; }
+
+@media (max-width: 1180px) {
+  /* Keep the earlier rule that hides the activity panel on narrow windows;
+     the width set above would otherwise leave an empty column. */
+  .right-panel { width: 0; }
+  .guardian-hero { min-height: 0; }
+  .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 980px) {
+  .dashboard-top,
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .guardian-hero-img { width: 64px; height: 64px; }
+  .guardian-guide-popover { left: 14px; }
+}

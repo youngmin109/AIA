@@ -19,19 +19,20 @@ const ALT: Record<GuardianState, string> = {
   recovery: '복구 완료 상태의 AIA 가디언',
 }
 
-export function GuardianHero() {
+/** Compact status card: the one place the Guardian mascot appears on the dashboard. */
+export function GuardianHero({ readiness, ready }: { readiness: string; ready: boolean }) {
   const guardian = useGuardianState()
   const { activeRunId, openSettingsModal, setView } = useShellStore()
 
   return (
     <article className={`card guardian-hero is-${guardian.state}`}>
-      <div className="guardian-hero-head">
-        <span className="guardian-hero-overline">{guardian.overline}</span>
-        <span className={`guardian-hero-status is-${guardian.state}`}>아이아 가디언</span>
-      </div>
       <div className="guardian-hero-main">
         <img className="guardian-hero-img" src={MASCOT[guardian.state]} alt={ALT[guardian.state]} />
         <div className="guardian-hero-copy">
+          <div className="guardian-hero-chips">
+            <span className={`guardian-hero-status is-${guardian.state}`}>{guardian.label}</span>
+            <span className={`guardian-hero-readiness${ready ? ' is-ready' : ''}`}>{readiness}</span>
+          </div>
           <h2>{guardian.headline}</h2>
           <p>{guardian.detail}</p>
           {!activeRunId ? (

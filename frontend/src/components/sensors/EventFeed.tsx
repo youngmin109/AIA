@@ -75,7 +75,7 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
       >
         <div className="event-row-top">
           <span className="event-row-sensor">{event.sensor ?? event.origin_label ?? '센서'}</span>
-          <span style={{ display: 'flex', gap: 4 }}>
+          <span className="event-row-badges">
             <span className={`badge is-${toneFor(event.display_decision ?? event.decision)}`}>
               {event.display_decision ?? event.decision ?? '확인 필요'}
             </span>
@@ -84,9 +84,9 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
         </div>
         <span>{event.display_summary ?? event.summary}</span>
         {(meta || event.observed_at) && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 3, fontSize: 10, color: 'var(--text-faint)' }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</span>
-            <span style={{ flex: '0 0 auto' }}>{formatTime(event.observed_at)}</span>
+          <div className="event-row-meta">
+            <span className="event-row-meta-text">{meta}</span>
+            <span className="event-row-meta-time">{formatTime(event.observed_at)}</span>
           </div>
         )}
       </button>

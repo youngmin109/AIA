@@ -83,8 +83,8 @@ export function Sidebar() {
         ))}
       </nav>
       <button type="button" className="sidebar-guardian" onClick={() => setGuideOpen(true)} title="아이아 가디언 도움말">
-        <img src={guardianNormal} alt="아이아 가디언" />
-        <span><b>아이아 가디언</b><small>실제 실행을 관찰하고<br />안전한 상태를 안내해요.</small></span>
+        <img src={guardianNormal} alt="" />
+        <span>가디언 상태 안내</span>
       </button>
       <section className="sidebar-workspace" aria-label="현재 보호 실행">
         <span>현재 보호 실행</span>

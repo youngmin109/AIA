@@ -22,7 +22,7 @@ export function PolicyView() {
 
   return (
     <div className="dashboard-view">
-      <div className="policy-page-heading"><span>POLICY CONFIGURATION</span><h2>정책 설정</h2><p>선택한 정책은 다음 보호 실행에 고정되며, 실행 중에는 변경되지 않습니다.</p></div>
+      <div className="policy-page-heading"><p>선택한 정책은 다음 보호 실행에 고정되며, 실행 중에는 변경되지 않습니다.</p></div>
       <div className="policy-view-notice">
         선택한 프로필은 <strong>다음에 시작하는 새 보호 실행</strong>의 기본값으로만 저장됩니다(이 브라우저에만 저장됨). 이미 실행 중인 세션의 정책은 바뀌지 않습니다.
       </div>
