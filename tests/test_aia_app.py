@@ -2039,7 +2039,7 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         lambda _installer: False,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -2113,7 +2113,7 @@ def test_application_preflight_reports_actual_trusted_hook_status(tmp_path, monk
         lambda _installer: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -2158,7 +2158,7 @@ def test_application_preflight_requires_live_hook_verification_when_enabled(
         lambda _installer: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -2204,7 +2204,7 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         lambda _installer: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
