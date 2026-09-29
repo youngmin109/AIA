@@ -32,7 +32,7 @@ from aia_app.presenters import (
     evidence_timeline_views,
 )
 import aia_app.readers as readers_module
-from aia_app.readers import ResultBundleReader, _PARSED_FILE_CACHE_LIMIT
+from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
     ActionTargetKind,
@@ -1942,6 +1942,8 @@ def test_result_bundle_reader_bounds_result_cache_and_reparses_evicted_entry(
     tmp_path,
     monkeypatch,
 ) -> None:
+    cache_limit = 8
+    monkeypatch.setattr(readers_module, "_PARSED_FILE_CACHE_LIMIT", cache_limit)
     reader = ResultBundleReader(tmp_path)
     parsed_session_ids = []
     original_parse_json = reader._parse_json_bytes
@@ -1966,30 +1968,32 @@ def test_result_bundle_reader_bounds_result_cache_and_reparses_evicted_entry(
     monkeypatch.setattr(reader, "_parse_json_bytes", parse_json)
     monkeypatch.setattr(reader, "verification", verified)
 
-    for index in range(_PARSED_FILE_CACHE_LIMIT + 1):
+    for index in range(cache_limit + 1):
         session_id = f"session-{index}"
         result_path = reader.result_directory(session_id) / "result.json"
         result_path.parent.mkdir(parents=True)
         result_path.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
 
         assert reader.read_result(session_id) == {"session_id": session_id}
-        assert len(reader._result_cache) <= _PARSED_FILE_CACHE_LIMIT
+        assert len(reader._result_cache) <= cache_limit
 
     evicted_path = reader.result_directory("session-0") / "result.json"
-    assert len(reader._result_cache) == _PARSED_FILE_CACHE_LIMIT
+    assert len(reader._result_cache) == cache_limit
     assert evicted_path not in reader._result_cache
     assert reader.read_result("session-0") == {"session_id": "session-0"}
     assert parsed_session_ids.count("session-0") == 2
-    assert len(reader._result_cache) <= _PARSED_FILE_CACHE_LIMIT
+    assert len(reader._result_cache) <= cache_limit
 
 
 def test_result_bundle_reader_bounds_metadata_cache_and_reparses_evicted_entry(
     tmp_path,
     monkeypatch,
 ) -> None:
+    cache_limit = 8
+    monkeypatch.setattr(readers_module, "_PARSED_FILE_CACHE_LIMIT", cache_limit)
     reader = ResultBundleReader(tmp_path)
 
-    for index in range(_PARSED_FILE_CACHE_LIMIT + 1):
+    for index in range(cache_limit + 1):
         session_id = f"session-{index}"
         evidence_path = (
             reader.session_directory(session_id)
@@ -2005,14 +2009,14 @@ def test_result_bundle_reader_bounds_metadata_cache_and_reparses_evicted_entry(
 
         metadata = reader.read_evidence_metadata(session_id, require_valid=False)
         assert metadata[0]["evidence_id"] == session_id
-        assert len(reader._metadata_cache) <= _PARSED_FILE_CACHE_LIMIT
+        assert len(reader._metadata_cache) <= cache_limit
 
     evicted_path = (
         reader.session_directory("session-0")
         / "evidence"
         / "raw-evidence.jsonl"
     )
-    assert len(reader._metadata_cache) == _PARSED_FILE_CACHE_LIMIT
+    assert len(reader._metadata_cache) == cache_limit
     assert evicted_path not in reader._metadata_cache
 
     parse_calls = []
@@ -2028,7 +2032,7 @@ def test_result_bundle_reader_bounds_metadata_cache_and_reparses_evicted_entry(
     assert metadata[0]["evidence_id"] == "session-0"
     assert len(parse_calls) == 1
     assert evicted_path in reader._metadata_cache
-    assert len(reader._metadata_cache) <= _PARSED_FILE_CACHE_LIMIT
+    assert len(reader._metadata_cache) <= cache_limit
 
 
 def test_result_bundle_reader_reports_verified_checkpoint_status(

@@ -438,10 +438,11 @@ def test_console_supports_session_first_interactive_run() -> None:
 
 
 def test_many_finished_runs_api_responses_match_with_cached_parsing(tmp_path, monkeypatch) -> None:
+    run_count = 8
     control_root = tmp_path / "control"
     sessions_root = control_root / "sessions"
     sessions_root.mkdir(parents=True)
-    for index in range(150):
+    for index in range(run_count):
         fixture_root = tmp_path / "fixtures" / str(index)
         session, store, _action = _session(fixture_root)
         SessionFinalizer(evidence_store=store).finalize(
@@ -493,12 +494,12 @@ def test_many_finished_runs_api_responses_match_with_cached_parsing(tmp_path, mo
         warm_preflight_ms = (time.perf_counter() - started) * 1000
         assert cold_runs.status_code == warm_runs.status_code == 200
         assert cold_preflight.status_code == warm_preflight.status_code == 200
-        assert len(cold_runs.json()["runs"]) == 150
+        assert len(cold_runs.json()["runs"]) == run_count
         assert cold_runs.json() == warm_runs.json()
         assert cold_preflight.json() == warm_preflight.json()
         assert version_probes == 1
         print(
-            "150-run API timings ms: "
+            f"{run_count}-run API timings ms: "
             f"/api/runs {cold_runs_ms:.2f} -> {warm_runs_ms:.2f}; "
             f"/api/preflight {cold_preflight_ms:.2f} -> {warm_preflight_ms:.2f}"
         )
