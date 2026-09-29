@@ -1,4 +1,5 @@
 from pathlib import Path
+import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,3 +25,14 @@ def test_release_verifier_and_ci_build_the_spa_before_packaging() -> None:
     assert "npm ci" in workflow[setup_node:package_build]
     assert "npm run build" in workflow[setup_node:package_build]
     assert "npm run lint" in workflow[setup_node:package_build]
+
+
+def test_packages_ship_the_gitignored_react_console() -> None:
+    # Hatch drops VCS-ignored files from the sdist and uv builds the wheel from
+    # that sdist, so the built console must be declared as a build artifact.
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    artifacts = config["tool"]["hatch"]["build"]["artifacts"]
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+
+    assert "src/aia_web/static/app/" in gitignore
+    assert "src/aia_web/static/app/**" in artifacts

@@ -35,6 +35,12 @@ evaluation = [
     "plotly>=6.0",
 ]
 
+[tool.hatch.build]
+# `npm run build` writes the React console into this gitignored folder.
+# Hatch leaves VCS-ignored files out of the sdist, and `uv build` makes the
+# wheel from that sdist, so ship the built console explicitly.
+artifacts = ["src/aia_web/static/app/**"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/aia", "src/aia_app", "src/aia_desktop", "src/aia_web"]
 
