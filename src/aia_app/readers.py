@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import hashlib
 import json
@@ -190,17 +191,39 @@ class ResultBundleReader:
         if not sessions.is_dir():
             return []
         completed: list[dict[str, Any]] = []
-        for candidate in sessions.iterdir():
-            if not candidate.is_dir() or not _SAFE_SESSION_ID.fullmatch(candidate.name):
-                continue
+
+        candidates = [
+            candidate
+            for candidate in sessions.iterdir()
+            if candidate.is_dir() and _SAFE_SESSION_ID.fullmatch(candidate.name)
+        ]
+        verified_candidates: list[
+            tuple[Path, dict[str, Any], Any, bytes | None]
+        ] = []
+
+        def read_verified_candidate(
+            candidate: Path,
+        ) -> tuple[dict[str, Any], Any, bytes | None] | None:
             try:
-                result, verification, raw_evidence_bytes = self._read_verified_result(
-                    candidate.name
-                )
+                return self._read_verified_result(candidate.name)
             except (OSError, ValueError, KeyError):
-                continue
-            if verification is None:
-                continue
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # executor.map keeps results in candidate order while work overlaps.
+            for candidate, verified_result in zip(
+                candidates, executor.map(read_verified_candidate, candidates)
+            ):
+                if verified_result is None:
+                    continue
+                result, verification, raw_evidence_bytes = verified_result
+                if verification is None:
+                    continue
+                verified_candidates.append(
+                    (candidate, result, verification, raw_evidence_bytes)
+                )
+
+        for candidate, result, verification, raw_evidence_bytes in verified_candidates:
             evidence_metadata = (
                 self.read_evidence_metadata(
                     candidate.name,
