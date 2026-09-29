@@ -31,7 +31,8 @@ from aia_app.presenters import (
     safe_event_views,
     evidence_timeline_views,
 )
-from aia_app.readers import ResultBundleReader
+import aia_app.readers as readers_module
+from aia_app.readers import ResultBundleReader, _PARSED_FILE_CACHE_LIMIT
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
     ActionTargetKind,
@@ -1935,6 +1936,99 @@ def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserv
     assert "new" not in repr(second)
     assert second[0]["payload_keys"] == ["command"]
     assert metadata_byte_reads == 3
+
+
+def test_result_bundle_reader_bounds_result_cache_and_reparses_evicted_entry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    parsed_session_ids = []
+    original_parse_json = reader._parse_json_bytes
+
+    def parse_json(contents):
+        result = original_parse_json(contents)
+        parsed_session_ids.append(result["session_id"])
+        return result
+
+    def verified(
+        session_id,
+        *,
+        on_result_bytes=None,
+        on_raw_evidence_bytes=None,
+    ):
+        result_path = reader.result_directory(session_id) / "result.json"
+        contents = result_path.read_bytes()
+        if on_result_bytes is not None:
+            on_result_bytes(contents)
+        return SimpleNamespace(status=BundleVerificationStatus.VALID)
+
+    monkeypatch.setattr(reader, "_parse_json_bytes", parse_json)
+    monkeypatch.setattr(reader, "verification", verified)
+
+    for index in range(_PARSED_FILE_CACHE_LIMIT + 1):
+        session_id = f"session-{index}"
+        result_path = reader.result_directory(session_id) / "result.json"
+        result_path.parent.mkdir(parents=True)
+        result_path.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
+
+        assert reader.read_result(session_id) == {"session_id": session_id}
+        assert len(reader._result_cache) <= _PARSED_FILE_CACHE_LIMIT
+
+    evicted_path = reader.result_directory("session-0") / "result.json"
+    assert len(reader._result_cache) == _PARSED_FILE_CACHE_LIMIT
+    assert evicted_path not in reader._result_cache
+    assert reader.read_result("session-0") == {"session_id": "session-0"}
+    assert parsed_session_ids.count("session-0") == 2
+    assert len(reader._result_cache) <= _PARSED_FILE_CACHE_LIMIT
+
+
+def test_result_bundle_reader_bounds_metadata_cache_and_reparses_evicted_entry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+
+    for index in range(_PARSED_FILE_CACHE_LIMIT + 1):
+        session_id = f"session-{index}"
+        evidence_path = (
+            reader.session_directory(session_id)
+            / "evidence"
+            / "raw-evidence.jsonl"
+        )
+        evidence_path.parent.mkdir(parents=True)
+        evidence_path.write_text(
+            json.dumps({"evidence_id": session_id, "payload": {"command": "inspect"}})
+            + "\n",
+            encoding="utf-8",
+        )
+
+        metadata = reader.read_evidence_metadata(session_id, require_valid=False)
+        assert metadata[0]["evidence_id"] == session_id
+        assert len(reader._metadata_cache) <= _PARSED_FILE_CACHE_LIMIT
+
+    evicted_path = (
+        reader.session_directory("session-0")
+        / "evidence"
+        / "raw-evidence.jsonl"
+    )
+    assert len(reader._metadata_cache) == _PARSED_FILE_CACHE_LIMIT
+    assert evicted_path not in reader._metadata_cache
+
+    parse_calls = []
+    original_loads = readers_module.json.loads
+
+    def tracked_loads(contents, *args, **kwargs):
+        parse_calls.append(contents)
+        return original_loads(contents, *args, **kwargs)
+
+    monkeypatch.setattr(readers_module.json, "loads", tracked_loads)
+    metadata = reader.read_evidence_metadata("session-0", require_valid=False)
+
+    assert metadata[0]["evidence_id"] == "session-0"
+    assert len(parse_calls) == 1
+    assert evicted_path in reader._metadata_cache
+    assert len(reader._metadata_cache) <= _PARSED_FILE_CACHE_LIMIT
 
 
 def test_result_bundle_reader_reports_verified_checkpoint_status(
