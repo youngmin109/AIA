@@ -3,19 +3,28 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 from aia import CodexAdapter, CodexHookInstallationError, CodexHookInstaller
 from aia.capabilities import product_capabilities
 from aia.cli import (
+    _HOOK_VERIFICATION_PROBE_TOKEN_ENV,
     _cli_prefix,
     _control_root,
     _control_root_write_check,
+    _hidden_process_kwargs,
     _json_text,
+    _self_cli_command,
 )
 from aia.codex_hook_trust import inspect_codex_hook_trust
 from aia.hook_verification import HookVerificationStore
-from aia_app import RunApplicationService
+from aia_app import ApplicationValidationError, RunApplicationService
+from aia_app.readers import ResultBundleReader
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -381,4 +390,356 @@ def _hook_explain(args: argparse.Namespace) -> int:
     print(f"주의: {payload['security_note']}")
     return 0
 
+def _extract_session_id(output: str) -> str | None:
+    for line in output.splitlines():
+        prefix = "AIA Protected Run:"
+        if line.startswith(prefix):
+            value = line[len(prefix) :].strip()
+            if value:
+                return value
+    return None
 
+
+def _live_hook_proof_is_valid(
+    *,
+    hook_event_count: object,
+    protection_state: object,
+    bundle_status: object,
+) -> bool:
+    """Require a session-bound event and a committed verified run."""
+
+    return bool(
+        isinstance(hook_event_count, int)
+        and hook_event_count > 0
+        and protection_state in {"COMPLETED_VERIFIED", "ABORTED_VERIFIED"}
+        and bundle_status == "VALID"
+    )
+
+
+def _hook_verify_installation_failure(
+    args: argparse.Namespace, installer: CodexHookInstaller
+) -> bool:
+    if not installer.is_installed():
+        runtime_detected = installer.has_aia_runtime("PreToolUse")
+        reason = (
+            "PRETOOL_HOOK_COMMAND_MISMATCH"
+            if runtime_detected
+            else "PRETOOL_HOOK_NOT_INSTALLED"
+        )
+        payload = {
+            "verified": False,
+            "reason": reason,
+            "hook_path": str(installer.path),
+            "aia_runtime_detected": runtime_detected,
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print(f"[확인] 읽은 Hook 설정: {installer.path}")
+            if runtime_detected:
+                print(
+                    "Hook 검증 실패: PreToolUse Hook 설정은 있지만 현재 AIA 실행 경로와 일치하지 않습니다."
+                )
+                print(
+                    "[원인] 이전 uv 격리 환경이나 다른 AIA 프로젝트에서 생성된 Hook일 수 있습니다."
+                )
+            else:
+                print("Hook 검증 실패: PreToolUse Hook이 설치되지 않았습니다.")
+            print(f"[예상] 현재 AIA Hook 명령: {installer.command}")
+            print(f"[다음] {_cli_prefix(installer)} setup")
+        return True
+    return False
+
+
+def _hook_verify_codex_executable(args: argparse.Namespace) -> Path | None:
+    try:
+        return CodexAdapter().discover()
+    except Exception as error:
+        payload = {
+            "verified": False,
+            "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
+            "error": type(error).__name__,
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print("Hook 검증 실패: Codex 실행 파일을 찾을 수 없습니다.")
+        return None
+
+
+def _hook_verify_codex_trust(
+    args: argparse.Namespace,
+    installer: CodexHookInstaller,
+    executable: Path,
+) -> dict[str, object] | None:
+    # Trust is a user-controlled security boundary.  Do not start a disposable
+    # Protected Run when Codex already reports that the AIA PreToolUse Hook is
+    # untrusted or missing.  The app-server inspection starts only a short-lived
+    # diagnostic process; it does not start an Agent run or execute a tool.
+    codex_hook_trust = inspect_codex_hook_trust(
+        executable,
+        hook_path=installer.path,
+        cwd=Path.cwd(),
+        timeout=min(8.0, args.timeout),
+    ).to_mapping()
+    trust_entries = codex_hook_trust.get("hooks") or []
+    pretool_trust_status = next(
+        (
+            item.get("trust_status")
+            for item in trust_entries
+            if isinstance(item, dict) and item.get("event") == "preToolUse"
+        ),
+        None,
+    )
+    if codex_hook_trust.get("available") and pretool_trust_status not in {
+        "TRUSTED",
+        "MANAGED",
+    }:
+        reason = (
+            "CODEX_PRETOOL_HOOK_NOT_VISIBLE"
+            if pretool_trust_status is None
+            else "CODEX_HOOK_TRUST_REQUIRED"
+        )
+        payload = {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": reason,
+            "trust_status": pretool_trust_status or "NOT_VISIBLE",
+            "codex_hook_trust": codex_hook_trust,
+            "codex_executable": str(executable),
+            "hook_path": str(installer.path),
+            "probe_started": False,
+            "next_step": "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 다시 실행하세요.",
+        }
+        if args.json:
+            print(_json_text(payload))
+        else:
+            print("AIA Hook 검증을 시작하지 않았습니다.")
+            print(f"Codex 실제 PreToolUse Trust: {payload['trust_status']}")
+            print(payload["next_step"])
+        return None
+    return codex_hook_trust
+
+
+def _hook_probe_payload(
+    args: argparse.Namespace,
+    installer: CodexHookInstaller,
+    executable: Path,
+    control_root: Path,
+    probe_workspace: Path,
+    codex_hook_trust: dict[str, object],
+) -> tuple[Path, list[str], dict[str, str], dict[str, object]]:
+    marker = probe_workspace / "AIA_HOOK_PROBE_MARKER.txt"
+    task = (
+        "Use the Bash tool to run exactly: "
+        "python -c \"from pathlib import Path; "
+        "Path('AIA_HOOK_PROBE_MARKER.txt').write_text('ok', encoding='utf-8')\". "
+        "Do not use another tool."
+    )
+    command = _self_cli_command(
+        "protect",
+        str(probe_workspace),
+        "--task",
+        task,
+        "--profile",
+        "FREE_DEVELOPMENT",
+        "--control-root",
+        str(control_root),
+        "--timeout",
+        str(args.timeout),
+        "--_hook-verification-probe",
+    )
+    probe_environment = os.environ.copy()
+    probe_environment[_HOOK_VERIFICATION_PROBE_TOKEN_ENV] = uuid4().hex
+    payload: dict[str, object] = {
+        "verified": False,
+        "protection_claim": "PROTECTION_NOT_PROVEN",
+        "reason": "HOOK_EVENT_NOT_OBSERVED",
+        "codex_executable": str(executable),
+        "hook_path": str(installer.path),
+        "workspace": str(probe_workspace),
+        "control_root": str(control_root),
+        "session_id": None,
+        "hook_event_count": 0,
+        "protection_state": None,
+        "bundle_status": None,
+        "probe_marker_created": False,
+        "probe_started": False,
+        "codex_hook_trust": codex_hook_trust,
+    }
+    return marker, command, probe_environment, payload
+
+
+def _classify_live_hook_result(
+    payload: dict[str, object],
+    *,
+    installer: CodexHookInstaller,
+    executable: Path,
+    control_root: Path,
+    marker: Path,
+) -> None:
+    session_id = payload["session_id"]
+    if session_id is None:
+        payload["reason"] = "PROTECTED_RUN_SESSION_NOT_CREATED"
+        return
+
+    reader = ResultBundleReader(control_root)
+    result = reader.read_result(str(session_id))
+    entries = [
+        item
+        for item in reader.list_completed()
+        if item.get("session_id") == session_id
+    ]
+    history = entries[0] if entries else {}
+    payload["limitations"] = list(result.get("limitations") or ())
+    observation = result.get("agent_output_observation")
+    if isinstance(observation, dict):
+        payload["effective_approval_policy"] = observation.get(
+            "effective_approval_policy"
+        )
+        payload["effective_sandbox"] = observation.get("effective_sandbox")
+    payload["hook_event_count"] = reader.hook_event_count(str(session_id))
+    payload["protection_state"] = history.get("protection_state")
+    verification = reader.verification(str(session_id))
+    payload["bundle_status"] = verification.status.value if verification else None
+    payload["probe_marker_created"] = marker.exists()
+    if _live_hook_proof_is_valid(
+        hook_event_count=payload["hook_event_count"],
+        protection_state=payload["protection_state"],
+        bundle_status=payload["bundle_status"],
+    ):
+        payload["verified"] = True
+        payload["protection_claim"] = "PROTECTION_PROVEN"
+        payload["reason"] = "SESSION_BOUND_HOOK_EVENT_OBSERVED"
+        try:
+            store = HookVerificationStore(control_root)
+            store.write_verified(
+                installer=installer,
+                executable=executable,
+                session_id=str(session_id),
+                hook_event_count=int(payload["hook_event_count"]),
+            )
+            payload["verification_path"] = str(store.path)
+        except OSError as error:
+            payload["verified"] = False
+            payload["reason"] = f"HOOK_VERIFICATION_PERSIST_FAILED:{type(error).__name__}"
+    elif payload["hook_event_count"] == 0:
+        if any(
+            item in payload.get("limitations", ())
+            for item in (
+                "CODEX_SANDBOX_DOWNGRADED",
+                "CODEX_APPROVAL_POLICY_DOWNGRADED",
+            )
+        ):
+            payload["reason"] = "CODEX_EXECUTION_POLICY_DOWNGRADED"
+        else:
+            payload["reason"] = (
+                "HOOK_NOT_OBSERVED_PROBE_EXECUTED"
+                if payload["probe_marker_created"]
+                else "HOOK_EVENT_NOT_OBSERVED"
+            )
+    else:
+        payload["reason"] = "PROTECTED_RUN_DEGRADED"
+
+
+def _run_hook_verification_probe(
+    args: argparse.Namespace,
+    installer: CodexHookInstaller,
+    executable: Path,
+    codex_hook_trust: dict[str, object],
+) -> dict[str, object]:
+    control_root = _control_root(args.control_root)
+    probe_workspace = Path(tempfile.mkdtemp(prefix="aia-hook-verify-"))
+    marker, command, probe_environment, payload = _hook_probe_payload(
+        args,
+        installer,
+        executable,
+        control_root,
+        probe_workspace,
+        codex_hook_trust,
+    )
+    try:
+        payload["probe_started"] = True
+        completed = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=probe_environment,
+            timeout=args.timeout + 60.0,
+            check=False,
+            **_hidden_process_kwargs(),
+        )
+        payload["session_id"] = _extract_session_id(completed.stdout)
+        payload["cli_exit_code"] = completed.returncode
+        _classify_live_hook_result(
+            payload,
+            installer=installer,
+            executable=executable,
+            control_root=control_root,
+            marker=marker,
+        )
+    except subprocess.TimeoutExpired:
+        payload["reason"] = "HOOK_VERIFY_TIMEOUT"
+    except (OSError, ValueError, KeyError) as error:
+        payload["reason"] = f"HOOK_VERIFY_ERROR:{type(error).__name__}"
+    finally:
+        shutil.rmtree(probe_workspace, ignore_errors=True)
+    return payload
+
+
+def _print_hook_verification_result(
+    args: argparse.Namespace, payload: dict[str, object]
+) -> None:
+    if args.json:
+        print(_json_text(payload))
+        return
+    print("AIA Hook 실시간 검증")
+    print(f"결과: {'VERIFIED' if payload['verified'] else 'NOT_VERIFIED'}")
+    print(f"보호 주장: {payload['protection_claim']}")
+    print(f"이유: {payload['reason']}")
+    print(f"Hook Events: {payload['hook_event_count']}")
+    print(f"Protection: {payload['protection_state']}")
+    if payload.get("effective_sandbox") or payload.get("effective_approval_policy"):
+        print(
+            "Codex 실행 정책: "
+            f"sandbox={payload.get('effective_sandbox') or 'unknown'}, "
+            f"approval={payload.get('effective_approval_policy') or 'unknown'}"
+        )
+    if payload.get("limitations"):
+        print(f"제한사항: {', '.join(str(item) for item in payload['limitations'])}")
+    print("임시 Probe Workspace: 삭제됨")
+    if not payload["verified"]:
+        if payload["reason"] == "CODEX_EXECUTION_POLICY_DOWNGRADED":
+            print(
+                "[다음] Codex의 sandbox/approval 설정을 확인하고, "
+                "AIA가 요청한 workspace-write/on-request가 적용되는 환경에서 다시 실행하세요."
+            )
+        elif payload["reason"] == "HOOK_NOT_OBSERVED_PROBE_EXECUTED":
+            print(
+                "[위험] Probe 명령은 실행됐지만 AIA Hook이 관찰되지 않았습니다. "
+                "이 실행은 보호·차단 증명이 아닙니다. Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요."
+            )
+        else:
+            print("[다음] Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰한 뒤 다시 실행하세요.")
+
+
+def _hook_verify(args: argparse.Namespace) -> int:
+    """Verify the user-level Hook through the normal product launch path."""
+
+    installer = CodexHookInstaller(args.path)
+    if args.timeout <= 0:
+        raise ApplicationValidationError("timeout must be positive")
+    if _hook_verify_installation_failure(args, installer):
+        return 2
+    executable = _hook_verify_codex_executable(args)
+    if executable is None:
+        return 2
+    codex_hook_trust = _hook_verify_codex_trust(args, installer, executable)
+    if codex_hook_trust is None:
+        return 2
+    payload = _run_hook_verification_probe(args, installer, executable, codex_hook_trust)
+    _print_hook_verification_result(args, payload)
+    return 0 if payload["verified"] else 1

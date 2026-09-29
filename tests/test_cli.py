@@ -1159,7 +1159,7 @@ def test_hook_verify_explains_stale_aia_command_before_probe(tmp_path, monkeypat
     old.install()
 
     monkeypatch.setattr(
-        "aia.cli.CodexHookInstaller",
+        "aia.cli_hook.CodexHookInstaller",
         lambda _path=None: CodexHookInstaller(
             hook_path, python_executable=tmp_path / "new-python.exe"
         ),
@@ -1186,7 +1186,7 @@ def test_hook_verify_human_failure_shows_hook_path_and_expected_command(
 ) -> None:
     hook_path = tmp_path / "hooks.json"
     monkeypatch.setattr(
-        "aia.cli.CodexHookInstaller",
+        "aia.cli_hook.CodexHookInstaller",
         lambda _path=None: CodexHookInstaller(
             hook_path, python_executable=tmp_path / "new-python.exe"
         ),
@@ -1216,9 +1216,9 @@ def test_hook_verify_fails_before_probe_when_codex_hook_is_untrusted(
     installer.install()
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_hook.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1237,7 +1237,7 @@ def test_hook_verify_fails_before_probe_when_codex_hook_is_untrusted(
     def fail_if_probe_starts(*args, **kwargs):
         raise AssertionError("untrusted Hook must not start a live probe")
 
-    monkeypatch.setattr("aia.cli.subprocess.run", fail_if_probe_starts)
+    monkeypatch.setattr("aia.cli_hook.subprocess.run", fail_if_probe_starts)
 
     exit_code = main(
         [
@@ -1267,9 +1267,9 @@ def test_hook_verify_fails_before_probe_when_codex_does_not_show_aia_pretool(
     installer.install()
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_hook.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1283,7 +1283,7 @@ def test_hook_verify_fails_before_probe_when_codex_does_not_show_aia_pretool(
         )(),
     )
     monkeypatch.setattr(
-        "aia.cli.subprocess.run",
+        "aia.cli_hook.subprocess.run",
         lambda *args, **kwargs: (_ for _ in ()).throw(
             AssertionError("missing PreToolUse must not start a live probe")
         ),
@@ -1342,9 +1342,9 @@ def _stub_live_hook_verify_probe(
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
     control_root = tmp_path / "control"
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_hook.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1365,7 +1365,7 @@ def _stub_live_hook_verify_probe(
             (workspace / "AIA_HOOK_PROBE_MARKER.txt").write_text("ok", encoding="utf-8")
         return type("Completed", (), {"stdout": stdout, "returncode": 0})()
 
-    monkeypatch.setattr("aia.cli.subprocess.run", run_probe)
+    monkeypatch.setattr("aia.cli_hook.subprocess.run", run_probe)
 
     class Reader:
         def __init__(self, _control_root):
@@ -1387,7 +1387,7 @@ def _stub_live_hook_verify_probe(
             status = type("Status", (), {"value": bundle_status})()
             return type("Verification", (), {"status": status})()
 
-    monkeypatch.setattr("aia.cli.ResultBundleReader", Reader)
+    monkeypatch.setattr("aia.cli_hook.ResultBundleReader", Reader)
     args = [
         "hook",
         "verify",
@@ -1477,7 +1477,7 @@ def test_hook_verify_live_probe_persistence_failure_stays_unverified(
     def fail_persist(*args, **kwargs):
         raise OSError("fixture persistence failure")
 
-    monkeypatch.setattr("aia.cli.HookVerificationStore.write_verified", fail_persist)
+    monkeypatch.setattr("aia.cli_hook.HookVerificationStore.write_verified", fail_persist)
     exit_code, payload, control_root = _stub_live_hook_verify_probe(
         tmp_path, monkeypatch, capsys
     )
