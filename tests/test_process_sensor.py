@@ -196,6 +196,7 @@ def make_sensor(
     registration: RootProcessRegistration | None = None,
     poll_interval: float = 0.02,
     capture_command_line: bool = False,
+    ppid_snapshot=None,
 ) -> tuple[
     ProcessRuntimeSensor,
     FakeProcessTable,
@@ -222,6 +223,7 @@ def make_sensor(
         poll_interval=poll_interval,
         process_factory=table,
         capture_command_line=capture_command_line,
+        ppid_snapshot=ppid_snapshot,
     )
     return (
         sensor,
@@ -467,6 +469,108 @@ def test_repeated_polls_reuse_metadata_of_observed_identity_but_not_after_pid_re
         assert replacement_records[0]["executable"] == r"C:\Replacement\replacement.exe"
     finally:
         stop_sensor_and_release(sensor, context, lease_manager)
+
+
+def _table_ppid_snapshot(table: FakeProcessTable):
+    return lambda: {process.pid: process._ppid for process in table.processes.values()}
+
+
+def _observation_fields(observations: dict) -> dict:
+    return {
+        identity: (
+            observation.ppid,
+            observation.process_role,
+            observation.name,
+            observation.executable,
+            observation.metadata_status,
+            observation.parent_identity,
+            observation.raw_command,
+        )
+        for identity, observation in observations.items()
+    }
+
+
+def test_ppid_snapshot_tree_matches_per_node_walk_without_per_node_queries(
+    tmp_path: Path,
+) -> None:
+    walk_sensor, _, walk_root, _, _, _, _, walk_context, walk_leases = make_sensor(
+        tmp_path / "walk",
+        capture_command_line=True,
+    )
+    expected = _observation_fields(walk_sensor._collect_tree(walk_root))
+    release_lease(walk_context, walk_leases)
+
+    root, child, grandchild, unrelated, table = make_tree()
+    per_node_queries: list[str] = []
+    for process in table.processes.values():
+        def children(recursive: bool = False, pid=process.pid):
+            per_node_queries.append(f"children:{pid}")
+            return []
+
+        def ppid(pid=process.pid):
+            per_node_queries.append(f"ppid:{pid}")
+            return 0
+
+        process.children = children
+        process.ppid = ppid
+    snapshot = {process.pid: process._ppid for process in table.processes.values()}
+    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
+        tmp_path / "snapshot",
+        table=table,
+        capture_command_line=True,
+        ppid_snapshot=lambda: snapshot,
+    )
+    try:
+        observed = _observation_fields(sensor._collect_tree(root))
+    finally:
+        release_lease(context, lease_manager)
+
+    assert observed == expected
+    assert set(observed) == {
+        ProcessIdentity(root.pid, root._create_time),
+        ProcessIdentity(child.pid, child._create_time),
+        ProcessIdentity(grandchild.pid, grandchild._create_time),
+    }
+    assert ProcessIdentity(unrelated.pid, unrelated._create_time) not in observed
+    assert per_node_queries == []
+
+
+def test_ppid_snapshot_skips_child_older_than_its_parent_as_reused_pid(
+    tmp_path: Path,
+) -> None:
+    root, child, grandchild, _, table = make_tree()
+    # A process that claims the root as parent but was created before it is a
+    # reused PID, not a real child.
+    impostor = FakeProcess(50, 0.5, root.pid, name="impostor.exe")
+    table.processes[impostor.pid] = impostor
+    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        table=table,
+        ppid_snapshot=_table_ppid_snapshot(table),
+    )
+    try:
+        observed = sensor._collect_tree(root)
+    finally:
+        release_lease(context, lease_manager)
+
+    pids = {identity.pid for identity in observed}
+    assert pids == {root.pid, child.pid, grandchild.pid}
+
+
+def test_failed_ppid_snapshot_falls_back_to_per_node_walk(tmp_path: Path) -> None:
+    def failing_snapshot():
+        raise OSError("snapshot unavailable")
+
+    sensor, _, root, child, grandchild, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        ppid_snapshot=failing_snapshot,
+    )
+    try:
+        observed = sensor._collect_tree(root)
+    finally:
+        release_lease(context, lease_manager)
+
+    assert {identity.pid for identity in observed} == {root.pid, child.pid, grandchild.pid}
 
 
 def test_process_gone_creates_exit_evidence_but_does_not_fail_sensor(
