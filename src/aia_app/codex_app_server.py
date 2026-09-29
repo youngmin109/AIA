@@ -48,17 +48,21 @@ def _now() -> datetime:
 _UTF8_CODE_PAGE = 65001
 _ERROR_ACCESS_DENIED = 5
 _CONSOLE_ATTACH_LOCK = Lock()
+# The child's console appears a moment after spawn, later on a busy machine.
+# Waiting longer costs nothing when it attaches quickly.
+_CONSOLE_ATTACH_SECONDS = 5.0
 _UTF8_CONSOLE_HELPER = (
     "import ctypes, sys, time\n"
     "k = ctypes.WinDLL('kernel32')\n"
-    "deadline = time.monotonic() + 2.0\n"
+    f"deadline = time.monotonic() + {_CONSOLE_ATTACH_SECONDS}\n"
     "while not k.AttachConsole(int(sys.argv[1])):\n"
     "    if time.monotonic() >= deadline:\n"
-    "        sys.exit(1)\n"
+    "        sys.exit(2)\n"
     "    time.sleep(0.05)\n"
     "ok = k.SetConsoleOutputCP(65001) and k.SetConsoleCP(65001)\n"
-    "sys.exit(0 if ok else 1)\n"
+    "sys.exit(0 if ok else 3)\n"
 )
+_HELPER_EXIT_REASONS = {2: "HELPER_ATTACH_TIMEOUT", 3: "HELPER_SET_CODE_PAGE_FAILED"}
 
 
 def _hidden_console_kwargs() -> dict[str, Any]:
@@ -78,22 +82,29 @@ def _python_helper_executable() -> str | None:
 def _switch_console_to_utf8(pid: int) -> bool:
     """Set the UTF-8 code page on the console owned by process *pid*."""
 
+    return _switch_console_to_utf8_with_reason(pid)[0]
+
+
+def _switch_console_to_utf8_with_reason(pid: int) -> tuple[bool, str | None]:
+    """Like _switch_console_to_utf8, plus a short reason when it fails."""
+
     import ctypes
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     # The child's console is created asynchronously right after spawn;
     # retry briefly until it can be attached.
-    deadline = time.monotonic() + 2.0
+    deadline = time.monotonic() + _CONSOLE_ATTACH_SECONDS
     while True:
         with _CONSOLE_ATTACH_LOCK:
             # The packaged desktop app has no console of its own and can
             # attach to the child's console for the few calls needed.
             if kernel32.AttachConsole(pid):
                 try:
-                    return bool(
+                    switched = bool(
                         kernel32.SetConsoleOutputCP(_UTF8_CODE_PAGE)
                         and kernel32.SetConsoleCP(_UTF8_CODE_PAGE)
                     )
+                    return switched, None if switched else "SET_CODE_PAGE_FAILED"
                 finally:
                     kernel32.FreeConsole()
             error = ctypes.get_last_error()
@@ -101,14 +112,14 @@ def _switch_console_to_utf8(pid: int) -> bool:
             break
         time.sleep(0.05)
     if error != _ERROR_ACCESS_DENIED:
-        return False
+        return False, f"ATTACH_TIMEOUT:{error}"
     # A source-tree server already owns a console; detaching from it would
     # break its logging, so a console-less helper process does the switch.
     # DETACHED_PROCESS (not CREATE_NO_WINDOW, which still allocates a hidden
     # console) leaves the helper free to attach to the child's console.
     helper = _python_helper_executable()
     if helper is None:
-        return False
+        return False, "HELPER_UNAVAILABLE"
     try:
         completed = subprocess.run(
             [helper, "-c", _UTF8_CONSOLE_HELPER, str(pid)],
@@ -116,12 +127,16 @@ def _switch_console_to_utf8(pid: int) -> bool:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=10,
+            timeout=_CONSOLE_ATTACH_SECONDS + 10,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return completed.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False, "HELPER_TIMEOUT"
+    except OSError:
+        return False, "HELPER_START_FAILED"
+    if completed.returncode == 0:
+        return True, None
+    return False, _HELPER_EXIT_REASONS.get(completed.returncode, f"HELPER_EXIT:{completed.returncode}")
 
 
 # Server requests that the Workbench answers through the approval dialog.
@@ -309,6 +324,7 @@ class CodexAppServerSession:
         self._effective: dict[str, Any] = {}
         self._error: str | None = None
         self._console_utf8: bool | None = None
+        self._console_utf8_error: str | None = None
         self._closing = False
         self._started_at: datetime | None = None
         self._ended_at: datetime | None = None
@@ -345,12 +361,16 @@ class CodexAppServerSession:
             )
         except OSError as error:
             raise CodexAppServerError(f"Codex app-server start failed: {type(error).__name__}") from error
-        console_utf8 = _switch_console_to_utf8(process.pid) if os.name == "nt" else None
+        console_utf8: bool | None = None
+        console_utf8_error: str | None = None
+        if os.name == "nt":
+            console_utf8, console_utf8_error = _switch_console_to_utf8_with_reason(process.pid)
         with self._lock:
             self._process = process
             self._status = "STARTING"
             self._started_at = _now()
             self._console_utf8 = console_utf8
+            self._console_utf8_error = console_utf8_error
         for target, name in ((self._read_stdout, "stdout"), (self._read_stderr, "stderr")):
             reader = Thread(target=target, name=f"aia-codex-app-server-{name}-{process.pid}", daemon=True)
             self._readers.append(reader)
@@ -555,6 +575,7 @@ class CodexAppServerSession:
                 "exit_code": process.poll() if process is not None else None,
                 "error": self._error,
                 "console_utf8": self._console_utf8,
+                "console_utf8_error": self._console_utf8_error,
                 "last_sequence": self._events[-1]["sequence"] if self._events else 0,
             }
         return snapshot

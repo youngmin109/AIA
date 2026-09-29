@@ -143,10 +143,10 @@ def test_console_utf8_stops_retrying_at_deadline(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(time, "monotonic", clock.monotonic)
     monkeypatch.setattr(time, "sleep", clock.sleep)
 
-    assert app_server._switch_console_to_utf8(123) is False
-    assert clock.now == pytest.approx(12.0)
-    assert clock.sleeps == 40
-    assert kernel32.attach_calls == 41
+    assert app_server._switch_console_to_utf8_with_reason(123) == (False, "ATTACH_TIMEOUT:123")
+    deadline = 10.0 + app_server._CONSOLE_ATTACH_SECONDS
+    assert deadline <= clock.now < deadline + 0.1
+    assert kernel32.attach_calls == clock.sleeps + 1
 
 
 def test_open_reports_the_sandbox_and_approval_policy_codex_applied(tmp_path: Path) -> None:
@@ -164,10 +164,12 @@ def test_open_reports_the_sandbox_and_approval_policy_codex_applied(tmp_path: Pa
 def test_codex_commands_get_a_utf8_console_and_python_utf8_mode(tmp_path: Path) -> None:
     session = _session(tmp_path)
     try:
+        snapshot = session.snapshot()
+        assert snapshot["console_utf8"] is True, snapshot["console_utf8_error"]
+        assert snapshot["console_utf8_error"] is None
         environment = session._request("initialize", {"clientInfo": {"name": "t", "version": "0"}})
         assert environment["consoleOutputCodePage"] == 65001
         assert environment["pythonUtf8"] == "1"
-        assert session.snapshot()["console_utf8"] is True
     finally:
         session.close(force=True)
 
