@@ -586,6 +586,10 @@ def test_setup_reports_current_codex_pretool_trust(tmp_path, monkeypatch, capsys
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
+        "aia.cli.CodexAdapter.executable_version",
+        lambda _path: "test",
+    )
+    monkeypatch.setattr(
         "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
