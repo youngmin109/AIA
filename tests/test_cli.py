@@ -359,7 +359,7 @@ def test_demo_open_targets_the_created_session_workbench(monkeypatch, tmp_path) 
 def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
     calls: list[bool] = []
     monkeypatch.setattr(
-        "aia.cli._self_test",
+        "aia.cli_diagnostics._self_test",
         lambda args: calls.append(args.json) or 0,
     )
 
@@ -374,7 +374,7 @@ def test_demo_runs_core_only_by_default(monkeypatch, capsys) -> None:
 
 def test_demo_live_delegates_to_real_codex_proof(monkeypatch, tmp_path) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr("aia.cli._self_test", lambda args: 0)
+    monkeypatch.setattr("aia.cli_diagnostics._self_test", lambda args: 0)
     monkeypatch.setattr(
         "aia.product_e2e.main",
         lambda argv: calls.append(argv) or 7,
