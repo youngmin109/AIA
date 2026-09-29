@@ -3060,7 +3060,7 @@ def test_persisted_run_reports_orphaned_when_coordinator_is_gone(tmp_path, monke
     def verify(identity):
         return ProcessIdentityStatus.PROCESS_GONE
 
-    monkeypatch.setattr("aia_app.service.verify_process_identity", verify)
+    monkeypatch.setattr("aia_app.run_history.verify_process_identity", verify)
     state = _orphaned_runtime_state()
     service._write_runtime_state_payload("session-1", state)
     try:
@@ -3084,7 +3084,7 @@ def test_orphan_reconcile_requires_recorded_agent_root_to_be_gone(tmp_path, monk
             else ProcessIdentityStatus.LIVE_MATCH
         )
 
-    monkeypatch.setattr("aia_app.service.verify_process_identity", verify)
+    monkeypatch.setattr("aia_app.run_history.verify_process_identity", verify)
     service._write_runtime_state_payload("session-1", _orphaned_runtime_state())
     try:
         result = service.reconcile_orphaned_run("session-1")
@@ -3103,7 +3103,7 @@ def test_orphan_reconcile_acknowledges_only_after_agent_root_identity_is_gone(
     service = RunApplicationService(control_root)
 
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", _orphaned_runtime_state())
@@ -3130,7 +3130,7 @@ def test_orphan_reconcile_allows_preparing_run_without_recorded_agent_root(
     state["phase"] = "PREPARING"
     state["protection"] = {"state": "STARTING", "hook_events": 0}
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", state)
@@ -3154,7 +3154,7 @@ def test_new_run_refuses_workspace_with_unresolved_orphaned_agent(
     state = _orphaned_runtime_state()
     state["session"]["workspace"] = str(tmp_path)
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: (
             ProcessIdentityStatus.PROCESS_GONE
             if identity.pid == 4242
@@ -3178,7 +3178,7 @@ def test_validate_workspace_exposes_orphan_recovery_action(
     state = _orphaned_runtime_state()
     state["session"]["workspace"] = str(tmp_path)
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", state)
@@ -3205,7 +3205,7 @@ def test_new_run_allows_workspace_after_orphan_reconciliation(
     state = _orphaned_runtime_state()
     state["session"]["workspace"] = str(tmp_path)
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", state)
