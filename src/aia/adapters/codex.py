@@ -202,7 +202,9 @@ class CodexAdapter:
                     **_hidden_process_kwargs(),
                 )
             except (OSError, subprocess.TimeoutExpired):
-                version = None
+                # A failed launch or a timeout under load is transient; caching
+                # it would report Codex as unavailable until the binary changes.
+                return None
             else:
                 output = completed.stdout.decode("utf-8", errors="replace")
                 match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", output)

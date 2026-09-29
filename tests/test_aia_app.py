@@ -1781,6 +1781,32 @@ def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
     assert result_byte_reads == 3
 
 
+def test_result_bundle_reader_uses_verified_bytes_when_result_stat_fails(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    result_path = tmp_path / "sessions" / "session-1" / "result" / "result.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text('{"value":"verified"}', encoding="utf-8")
+
+    def verified(_session_id, *, on_result_bytes=None, on_raw_evidence_bytes=None):
+        on_result_bytes(result_path.read_bytes())
+        return SimpleNamespace(status=BundleVerificationStatus.VALID)
+
+    monkeypatch.setattr(reader, "verification", verified)
+    original_stat = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == result_path:
+            raise PermissionError("result.json became unreadable after verification")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+
+    assert reader.read_result("session-1") == {"value": "verified"}
+
+
 def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserved_mtime(
     tmp_path,
     monkeypatch,

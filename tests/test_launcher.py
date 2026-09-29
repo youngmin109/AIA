@@ -750,6 +750,26 @@ def test_codex_adapter_caches_version_probe_by_path_and_mtime(
     assert calls == 2
 
 
+def test_codex_adapter_does_not_cache_a_timed_out_version_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    outcomes = [subprocess.TimeoutExpired(["codex"], 5.0), b"Codex 1.2.3"]
+
+    def run(*_args, **_kwargs):
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return subprocess.CompletedProcess([], 0, outcome, b"")
+
+    monkeypatch.setattr(codex_module.subprocess, "run", run)
+    assert CodexAdapter._executable_version(executable) is None
+    assert CodexAdapter._executable_version(executable) == (1, 2, 3)
+    assert outcomes == []
+
+
 def test_codex_adapter_embeds_current_hook_handler_schema(tmp_path: Path) -> None:
     adapter = CodexAdapter(
         hook_command="python -m aia.codex_hook_runtime",

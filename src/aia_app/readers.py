@@ -86,7 +86,11 @@ class ResultBundleReader:
         try:
             stat = result_path.stat()
         except OSError:
-            return self._parse_json_bytes(verified_result_bytes), verification
+            return (
+                self._parse_json_bytes(verified_result_bytes),
+                verification,
+                verified_raw_evidence_bytes,
+            )
         contents = verified_result_bytes
         digest = hashlib.blake2b(contents, digest_size=16).digest()
         signature = (stat.st_mtime_ns, stat.st_size, digest)
