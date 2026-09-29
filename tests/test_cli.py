@@ -1090,7 +1090,7 @@ def test_recent_run_diagnostic_explains_downgraded_codex_execution(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        "aia.cli.ResultBundleReader.list_completed",
+        "aia.cli_diagnostics.ResultBundleReader.list_completed",
         lambda _reader: [
             {
                 "session_id": "session-1",
@@ -1102,7 +1102,7 @@ def test_recent_run_diagnostic_explains_downgraded_codex_execution(
         ],
     )
     monkeypatch.setattr(
-        "aia.cli.ResultBundleReader.read_result",
+        "aia.cli_diagnostics.ResultBundleReader.read_result",
         lambda _reader, _session_id: {
             "limitations": [
                 "CODEX_SANDBOX_DOWNGRADED",
@@ -1127,7 +1127,7 @@ def test_recent_run_diagnostic_explains_downgraded_codex_execution(
 
 
 def test_recent_run_diagnostic_is_empty_without_committed_runs(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("aia.cli.ResultBundleReader.list_completed", lambda _reader: [])
+    monkeypatch.setattr("aia.cli_diagnostics.ResultBundleReader.list_completed", lambda _reader: [])
 
     assert _recent_run_diagnostic(tmp_path / "control") is None
 
@@ -1538,12 +1538,12 @@ def test_doctor_reports_actual_codex_hook_trust_state(tmp_path, monkeypatch, cap
     installer.install()
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_diagnostics.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+        "aia.cli_diagnostics.CodexAdapter.executable_version", lambda _adapter, _path: "test"
     )
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_diagnostics.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1607,9 +1607,9 @@ def test_doctor_marks_stale_aia_hook_for_refresh(tmp_path, monkeypatch, capsys) 
     )
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_diagnostics.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+        "aia.cli_diagnostics.CodexAdapter.executable_version", lambda _adapter, _path: "test"
     )
 
     exit_code = main(
@@ -1639,12 +1639,12 @@ def test_doctor_reports_unknown_codex_hook_trust_without_launching_codex(
     CodexHookInstaller(hook_path).install()
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_diagnostics.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+        "aia.cli_diagnostics.CodexAdapter.executable_version", lambda _adapter, _path: "test"
     )
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_diagnostics.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1688,9 +1688,9 @@ def test_doctor_skips_hook_trust_probe_when_codex_is_unavailable(
     def unavailable(_adapter):
         raise RuntimeError("missing")
 
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", unavailable)
+    monkeypatch.setattr("aia.cli_diagnostics.CodexAdapter.discover", unavailable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_diagnostics.inspect_codex_hook_trust",
         lambda *args, **kwargs: pytest.fail("trust inspection needs an executable"),
     )
 
@@ -1723,12 +1723,12 @@ def test_doctor_reports_current_live_hook_verification(
     CodexHookInstaller(hook_path).install()
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
-    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli_diagnostics.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.CodexAdapter.executable_version", lambda _adapter, _path: "test"
+        "aia.cli_diagnostics.CodexAdapter.executable_version", lambda _adapter, _path: "test"
     )
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_diagnostics.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1744,7 +1744,7 @@ def test_doctor_reports_current_live_hook_verification(
             },
         )(),
     )
-    monkeypatch.setattr("aia.cli.HookVerificationStore.is_current", lambda *args: True)
+    monkeypatch.setattr("aia.cli_diagnostics.HookVerificationStore.is_current", lambda *args: True)
 
     exit_code = main(
         [
