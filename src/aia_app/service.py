@@ -19,19 +19,14 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from aia import (
-    AttributionEngine,
     CodexAdapter,
     CodexExecutionObservation,
     CodexHookBroker,
     CodexHookInstaller,
     CodexPreToolController,
-    EnforcementGate,
-    EnforcementGateInput,
     FilesystemSensor,
     HookSensor,
-    HookTrustStatus,
     HookEnforcementBridge,
-    Normalizer,
     Operation,
     PolicyProfile,
     ProcessIdentityStatus,
@@ -43,7 +38,6 @@ from aia import (
     ProcessIdentity,
     RawEvidenceStore,
     RecoveryCoordinator,
-    RuntimePolicyEvaluator,
     SessionFinalizer,
     SessionMode,
     SessionStatus,
@@ -93,8 +87,11 @@ from .preflight import PreflightMixin, _aia_cli_prefix
 from .protected_run import (
     ApplicationValidationError,
     ProtectedRunMixin,
+    _event_tool_name,
     _now,
+    _posttool_use_ids,
     _popen_kwargs_for_launch_mode,
+    _runtime_action_view,
     _sensor_status,
     _sensors_runtime_healthy,
 )
@@ -109,20 +106,6 @@ _RUNTIME_STATES_CACHE_LIMIT = 2_048
 
 # Human-in-the-loop review stays inside Codex's 30 s Hook timeout.
 _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
-
-
-def _event_tool_name(event: Any | None) -> str | None:
-    """Extract only an allowlisted tool label from Hook Evidence."""
-
-    if event is None:
-        return None
-    for record in getattr(event, "records", ()):
-        payload = getattr(record, "payload", None)
-        if isinstance(payload, Mapping):
-            tool_name = safe_tool_name(payload.get("tool_name"))
-            if tool_name:
-                return tool_name
-    return None
 
 
 # app-server reports sandbox modes in camelCase; the Result Bundle and the
@@ -145,77 +128,6 @@ def _product_sensor_set_present(sensors: Any) -> bool:
         if isinstance(name, str):
             names.add(name)
     return _PRODUCT_SENSOR_NAMES.issubset(names)
-
-
-def _runtime_action_view(
-    action: Any,
-    policy_result: Any,
-    attribution_result: Any,
-    gate_result: Any,
-    *,
-    execution_observed: bool = False,
-    tool_name: str | None = None,
-) -> dict[str, Any]:
-    """Build the redacted live/result action view from authoritative facts."""
-
-    observed_at = getattr(action, "observed_at", None)
-    return {
-        "action_id": action.action_id,
-        "attribution_grade": attribution_result.grade.value,
-        "attribution_reason": attribution_result.reason,
-        "enforcement_action": gate_result.action.value,
-        "enforcement_decision": gate_result.decision.value,
-        "execution_result": gate_result.execution_result.value,
-        "execution_observed": execution_observed,
-        "tool_name": safe_tool_name(tool_name),
-        "operation": action.operation.value,
-        "observed_at": observed_at.isoformat() if observed_at is not None else None,
-        "policy_decision": policy_result.policy_decision.value,
-        "operation_effect": (
-            getattr(policy_result.operation_effect, "value", policy_result.operation_effect)
-            if getattr(policy_result, "operation_effect", None) is not None
-            else None
-        ),
-        "enforcement_route": gate_result.route.value,
-        "evidence_ids": list(action.evidence_ids),
-        "matched_rule_ids": list(
-            getattr(policy_result, "matched_rule_ids", ()) or ()
-        ),
-        "matched_asset_types": [
-            getattr(
-                policy_result.asset_type,
-                "value",
-                policy_result.asset_type,
-            )
-        ]
-        if getattr(policy_result, "asset_type", None) is not None
-        else [],
-        "target": {
-            "canonical_path": action.canonical_path,
-            "target_kind": action.target_kind.value,
-        },
-    }
-
-
-def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
-    """Return only tool-use identifiers proven by PostToolUse Evidence.
-
-    This is presentation metadata. It does not alter the Core enforcement
-    result, which intentionally keeps ``NOT_ATTEMPTED`` when no enforcement
-    action was executed.
-    """
-
-    try:
-        records = RawEvidenceStore.for_session(control_root, session_id).records()
-    except (OSError, ValueError):
-        return set()
-    return {
-        str(record.payload["tool_use_id"])
-        for record in records
-        if record.record_type.value == "POSTTOOL_OBSERVED"
-        and isinstance(record.payload.get("tool_use_id"), str)
-        and record.payload.get("tool_use_id")
-    }
 
 
 class RunApplicationService(ProtectedRunMixin, RunHistoryMixin, PreflightMixin):
@@ -1834,127 +1746,6 @@ class RunApplicationService(ProtectedRunMixin, RunHistoryMixin, PreflightMixin):
         record.runtime["recovery_verification"] = verification
         self._persist_runtime_state(record)
         return verification
-
-    def _process_evidence(self, record: RunRecord) -> None:
-        session: ProtectedRunSession = record.runtime["session"]
-        preparation = record.runtime["preparation"]
-        launcher = record.runtime["launcher"]
-        raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
-        records = raw_store.records()
-        normalized = Normalizer(session.session_id, session.workspace).normalize(records)
-        evaluator = RuntimePolicyEvaluator(preparation.active_policy)
-        launch_context = record.runtime["launch"].context
-        attribution_engine = AttributionEngine(session.session_id, records, launch_context=launch_context)
-        gate = EnforcementGate(lease_manager=record.runtime["lease_manager"])
-        policy_results = []
-        attribution_results = []
-        gate_results = []
-        action_views = []
-        codex_controller = record.runtime.get("codex_controller")
-        codex_events = tuple(codex_controller.events) if codex_controller is not None else ()
-        posttool_ids = _posttool_use_ids(self.control_root, session.session_id)
-
-        def matching_codex_event(action: Any) -> Any | None:
-            action_evidence_ids = set(action.evidence_ids)
-            for event in codex_events:
-                if action_evidence_ids == set(event.action.evidence_ids):
-                    return event
-            return None
-
-        def append_action_view(
-            action: Any,
-            policy_result: Any,
-            attribution_result: Any,
-            gate_result: Any,
-            *,
-            execution_observed: bool = False,
-            tool_name: str | None = None,
-        ) -> None:
-            action_views.append(
-                _runtime_action_view(
-                    action,
-                    policy_result,
-                    attribution_result,
-                    gate_result,
-                    execution_observed=execution_observed,
-                    tool_name=tool_name,
-                )
-            )
-
-        for action in normalized.actions:
-            policy_result = evaluator.evaluate(action)
-            attribution_result = attribution_engine.attribute(action)
-            sensors = record.runtime.get("sensors", ())
-            sensor_health = tuple(sensor.health for sensor in sensors if sensor is not None)
-            codex_event = matching_codex_event(action)
-            if codex_event is not None:
-                policy_result = codex_event.policy_evaluation
-                attribution_result = codex_event.attribution
-                gate_result = codex_event.gate_result
-            else:
-                gate_result = gate.evaluate(
-                    EnforcementGateInput(
-                        action=action,
-                        policy_evaluation=policy_result,
-                        attribution=attribution_result,
-                        session=session,
-                        active_policy=preparation.active_policy,
-                        launch_context=launch_context,
-                        workspace_lease=preparation.workspace_lease,
-                        sensor_health=sensor_health,
-                        hook_trust_status=HookTrustStatus.UNVERIFIED,
-                        checked_at=_now(),
-                    )
-                )
-            policy_results.append(policy_result)
-            attribution_results.append(attribution_result)
-            gate_results.append(gate_result)
-            append_action_view(
-                action,
-                policy_result,
-                attribution_result,
-                gate_result,
-                execution_observed=(
-                    codex_event is not None
-                    and codex_event.tool_use_id in posttool_ids
-                ),
-                tool_name=_event_tool_name(codex_event),
-            )
-
-        post_action_containments = (
-            tuple(codex_controller.post_action_containments)
-            if codex_controller is not None
-            else ()
-        )
-        for containment in post_action_containments:
-            policy_results.append(containment.policy_evaluation)
-            attribution_results.append(containment.attribution)
-            gate_results.append(containment.gate_result)
-            append_action_view(
-                containment.action,
-                containment.policy_evaluation,
-                containment.attribution,
-                containment.gate_result,
-                execution_observed=True,
-                tool_name=_event_tool_name(containment.source_event),
-            )
-            if containment.termination_error:
-                record.runtime.setdefault("post_action_containment_errors", []).append(
-                    containment.termination_error
-                )
-        all_actions = tuple(
-            (*normalized.actions, *(item.action for item in post_action_containments))
-        )
-        record.runtime.update(
-            {
-                "normalized_actions": all_actions,
-                "policy_evaluations": tuple(policy_results),
-                "attribution_results": tuple(attribution_results),
-                "gate_results": tuple(gate_results),
-            }
-        )
-        incidents = [item for item in (incident_view(item) for item in action_views) if item]
-        self.registry.update(record.session_id, actions=action_views, incidents=incidents)
 
     def _capture_codex_execution_observation(
         self,
