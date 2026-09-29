@@ -586,7 +586,7 @@ def test_setup_reports_current_codex_pretool_trust(tmp_path, monkeypatch, capsys
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -623,7 +623,7 @@ def test_setup_reports_trusted_codex_pretool_status_without_manual_review_flag(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -658,7 +658,7 @@ def test_setup_reports_ready_only_after_current_live_hook_verification(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -698,7 +698,7 @@ def test_hook_status_reports_actual_trusted_codex_status(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -742,7 +742,7 @@ def test_hook_status_requires_manual_review_when_codex_hook_is_untrusted(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -889,7 +889,7 @@ def test_hook_explain_is_read_only_and_describes_manual_review(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -936,7 +936,7 @@ def test_hook_explain_json_contains_contract_without_raw_hook_payload(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1011,7 +1011,7 @@ def test_hook_status_human_output_explains_trust_and_verification_steps(
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1055,7 +1055,7 @@ def test_hook_status_does_not_report_ready_when_current_fingerprint_is_untrusted
         lambda _store, _installer, _executable: True,
     )
     monkeypatch.setattr(
-        "aia.cli.inspect_codex_hook_trust",
+        "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
