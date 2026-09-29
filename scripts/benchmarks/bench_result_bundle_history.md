@@ -3,7 +3,7 @@
 Run from the repository root (no extra dependencies):
 
 ```powershell
-.venv\Scripts\python.exe scripts\bench_result_bundle_history.py
+.venv\Scripts\python.exe scripts\benchmarks\bench_result_bundle_history.py
 ```
 
 The script creates committed Result Bundles in a temporary directory. Before
@@ -23,7 +23,7 @@ Run on 2026-09-29 with Python 3.13.5, 100 bundles, 10 evidence records per
 bundle (1,000 total records), and 5 scans per mode:
 
 ```powershell
-.venv\Scripts\python.exe scripts\bench_result_bundle_history.py --bundles 100 --evidence-records-per-bundle 10 --iterations 5
+.venv\Scripts\python.exe scripts\benchmarks\bench_result_bundle_history.py --bundles 100 --evidence-records-per-bundle 10 --iterations 5
 ```
 
 ```text
@@ -70,7 +70,7 @@ digest. Timings are local observations, not performance thresholds.
 Run on 2026-09-29 with 1,000 bundles and 5 scans per mode:
 
 ```powershell
-.venv\Scripts\python.exe scripts\bench_result_bundle_history.py --bundles 1000 --iterations 5
+.venv\Scripts\python.exe scripts\benchmarks\bench_result_bundle_history.py --bundles 1000 --iterations 5
 ```
 
 ```text

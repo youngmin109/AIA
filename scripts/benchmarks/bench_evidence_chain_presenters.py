@@ -1,7 +1,7 @@
 """Benchmark Evidence Chain presenters with deterministic large inputs.
 
 Run from the repository root with:
-    .venv\\Scripts\\python.exe scripts\\bench_evidence_chain_presenters.py
+    .venv\\Scripts\\python.exe scripts\\benchmarks\\bench_evidence_chain_presenters.py
 
 The fixture contains 1,000 actions and 10,000 metadata records. Each presenter
 is measured independently; output contains timings and aggregate link counts only.

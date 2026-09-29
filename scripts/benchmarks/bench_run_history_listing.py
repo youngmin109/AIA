@@ -1,7 +1,7 @@
 """Benchmark list_runs with mixed runtime-state and Result Bundle histories.
 
 Run from the repository root with:
-    .venv\\Scripts\\python.exe scripts\\bench_run_history_listing.py
+    .venv\\Scripts\\python.exe scripts\\benchmarks\\bench_run_history_listing.py
 
 Each documented size is the number of runtime states; half also have a
 committed Result Bundle. The other half of each source is source-only, giving

@@ -1,7 +1,7 @@
 """Benchmark ResultBundleReader history scans over committed bundles.
 
 Run from the repository root with:
-    .venv\\Scripts\\python.exe scripts\\bench_result_bundle_history.py
+    .venv\\Scripts\\python.exe scripts\\benchmarks\\bench_result_bundle_history.py
 
 By default this creates 100 valid bundles in a temporary directory, measures
 20 cold scans (a fresh reader each time) and 20 warm scans (one reused reader),

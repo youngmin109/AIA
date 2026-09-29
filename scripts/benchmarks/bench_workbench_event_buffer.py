@@ -1,7 +1,7 @@
 """Benchmark Workbench notification normalization, append, and replay.
 
 Run from the repository root with:
-    .venv\\Scripts\\python.exe scripts\\bench_workbench_event_buffer.py
+    .venv\\Scripts\\python.exe scripts\\benchmarks\\bench_workbench_event_buffer.py
 
 The fixture is synthetic and stays in memory. Output contains event counts and
 timings only; no conversation or tool payload is printed or persisted.

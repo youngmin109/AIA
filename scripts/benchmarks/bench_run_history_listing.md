@@ -3,7 +3,7 @@
 Run from the repository root (no extra dependencies):
 
 ```powershell
-.venv\Scripts\python.exe scripts\bench_run_history_listing.py
+.venv\Scripts\python.exe scripts\benchmarks\bench_run_history_listing.py
 ```
 
 The benchmark creates temporary control roots at four documented sizes:

@@ -28,7 +28,7 @@ class _ProcessIdentity:
 
 
 def main() -> None:
-    repository = Path(__file__).resolve().parents[1]
+    repository = Path(__file__).resolve().parents[2]
     temporary_parent = repository / "tmp"
     temporary_parent.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="checkpoint-integrity-", dir=temporary_parent) as raw:
