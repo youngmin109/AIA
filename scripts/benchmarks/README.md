@@ -13,6 +13,7 @@ Micro-benchmarks written during the 2026-09-29 self-improvement loop. Run each o
 | `bench_run_history_listing.py` | `list_runs` with many runtime states and bundles |
 | `bench_evidence_chain_presenters.py` | Evidence Chain presenter scaling |
 | `bench_workbench_event_buffer.py` | Workbench event buffering and replay |
+| `bench_process_sensor_fallback.py` | Process tree polling with real helper processes and snapshot disabled |
 
 ## Read the numbers as relative, not absolute
 

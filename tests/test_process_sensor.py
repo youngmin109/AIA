@@ -535,6 +535,45 @@ def test_ppid_snapshot_tree_matches_per_node_walk_without_per_node_queries(
     assert per_node_queries == []
 
 
+def test_unavailable_ppid_snapshot_reuses_observed_identity_ppids(
+    tmp_path: Path,
+) -> None:
+    root, child, grandchild, unrelated, table = make_tree()
+    ppid_reads = {pid: 0 for pid in table.processes}
+    for process in table.processes.values():
+        original_ppid = process.ppid
+
+        def counted_ppid(pid=process.pid, read=original_ppid):
+            ppid_reads[pid] += 1
+            return read()
+
+        process.ppid = counted_ppid
+    sensor, _, _, _, _, _, _, context, lease_manager = make_sensor(
+        tmp_path,
+        table=table,
+        ppid_snapshot=lambda: None,
+    )
+    try:
+        first = sensor._collect_tree(root)
+        sensor._observed.update(first)
+        second = sensor._collect_tree(root)
+    finally:
+        release_lease(context, lease_manager)
+
+    assert _observation_fields(second) == _observation_fields(first)
+    assert set(second) == {
+        ProcessIdentity(root.pid, root._create_time),
+        ProcessIdentity(child.pid, child._create_time),
+        ProcessIdentity(grandchild.pid, grandchild._create_time),
+    }
+    assert ppid_reads == {
+        root.pid: 1,
+        child.pid: 1,
+        grandchild.pid: 1,
+        unrelated.pid: 0,
+    }
+
+
 def test_ppid_snapshot_skips_child_older_than_its_parent_as_reused_pid(
     tmp_path: Path,
 ) -> None:

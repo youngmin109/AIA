@@ -768,9 +768,13 @@ class ProcessRuntimeSensor:
         parent_identity: ProcessIdentity | None,
         ppid: int | None = None,
     ) -> ProcessObservation:
-        if ppid is None:
-            ppid = self._read_ppid(process)
         previous = self._observed.get(identity)
+        if ppid is None:
+            ppid = (
+                previous.ppid
+                if previous is not None
+                else self._read_ppid(process)
+            )
         if previous is not None:
             # Only the first observation of a verified identity (PID + create
             # time) is recorded, so re-reading name, executable and command line
