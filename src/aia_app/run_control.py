@@ -7,6 +7,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
+from threading import Thread
 from typing import Any
 from uuid import UUID
 
@@ -16,14 +18,17 @@ from aia import (
     PolicyProfile,
     ProtectedLauncher,
     ProtectedRunSession,
+    RawEvidenceStore,
+    SessionFinalizer,
     SessionMode,
+    WorkspaceLeaseManager,
     load_policy_document,
     process_create_time,
     resolve_profile,
 )
 from aia.codex_hook_trust import inspect_codex_hook_trust
 from aia.hook_verification import HookVerificationStore
-from aia.session import WorkspaceValidationError
+from aia.session import SessionEndReason, WorkspaceValidationError
 
 from .codex_workbench import _END_SESSION_REQUEST
 from .dto import CreateRunRequest, DTOValidationError
@@ -34,6 +39,27 @@ from .run_history import _runtime_coordinator_reconciliation, _workspace_key
 
 
 class RunControlMixin:
+
+    def shutdown(self, wait: bool = True) -> None:
+        """Stop live Protected Runs before closing the application service.
+
+        A console process can be interrupted while a Codex child is still
+        running.  Leaving the executor to shut down by itself would close the
+        AIA coordinator while the managed Agent remains alive.  Requesting a
+        user abort first lets the existing identity-safe launcher cleanup path
+        terminate the registered tree and finalize the run honestly.
+        """
+
+        for record in self.registry.snapshots():
+            if record.status in {"COMPLETED", "ABORTED", "FAILED"}:
+                continue
+            try:
+                self.request_stop(record.session_id)
+            except (KeyError, OSError, ValueError):
+                # The worker may have finalized between the snapshot and the
+                # stop request.  Its own finalization remains authoritative.
+                continue
+        self._executor.shutdown(wait=wait, cancel_futures=False)
 
     @staticmethod
     def validate_policy_document(document: Mapping[str, Any]) -> dict[str, Any]:
@@ -539,3 +565,114 @@ class RunControlMixin:
         if not candidate.is_relative_to(requests):
             raise ValueError("stop request path escaped control root")
         return candidate
+
+    def _finalize_user_abort_before_launch(
+        self,
+        record: RunRecord,
+        session: ProtectedRunSession,
+        preparation: Any,
+        checkpoint: Any,
+        sensors: tuple[Any, ...],
+        manager: WorkspaceLeaseManager,
+        lease: Any,
+    ) -> None:
+        raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
+        final = SessionFinalizer(
+            evidence_store=raw_store,
+            sensors=sensors,
+            lease_manager=manager,
+            workspace_lease=lease,
+        ).finalize(
+            session,
+            end_reason=SessionEndReason.USER_ABORT,
+            active_policy=preparation.active_policy,
+            checkpoint=checkpoint,
+            run_classification="PRODUCT_PROTECTED_RUN",
+            limitations=("AGENT_NOT_LAUNCHED",),
+        )
+        verification = final.bundle_verification
+        self.registry.update(
+            record.session_id,
+            status=final.result.session_status.value,
+            phase=final.result.session_status.value,
+            lease="RELEASED",
+            result_path=final.bundle.result_directory / "result.json",
+            result=final.result.to_mapping(),
+            bundle_status=verification.status.value,
+            protection_state="ABORTED_BEFORE_LAUNCH",
+        )
+        self._persist_runtime_state(record)
+
+    def _wait_for_agent(
+        self,
+        record: RunRecord,
+        process: Any,
+        launcher: ProtectedLauncher,
+    ) -> int:
+        while True:
+            try:
+                return int(process.wait(timeout=0.5))
+            except subprocess.TimeoutExpired:
+                if (
+                    not record.runtime.get("end_session_requested")
+                    and self._stop_request_reason(record.session_id) == _END_SESSION_REQUEST
+                ):
+                    # Another AIA window asked to end this conversation.  Close
+                    # it the same way this window's own "end session" does so
+                    # the run finalizes as Agent-exited, not as an abort.
+                    record.runtime["end_session_requested"] = True
+                    codex_session = record.runtime.get("codex_session")
+                    if codex_session is not None:
+                        Thread(
+                            target=codex_session.close,
+                            kwargs={"force": False},
+                            name=f"aia-end-session-{record.session_id[:8]}",
+                            daemon=True,
+                        ).start()
+                    else:
+                        record.stop_requested = True
+                    continue
+                if self._is_stop_requested(record):
+                    if record.runtime.get("stop_action_attempted"):
+                        continue
+                    record.runtime["stop_action_attempted"] = True
+                    record.protection_state = "STOP_REQUESTED"
+                    if not self._request_user_abort(record, launcher):
+                        record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
+                        record.protection_state = "DEGRADED"
+                    self._persist_runtime_state(record)
+                    continue
+                broker = getattr(launcher, "hook_broker", None)
+                broker_running = (
+                    broker is not None and bool(getattr(broker, "is_running", False))
+                )
+                if not broker_running:
+                    reason = "HOOK_BROKER_LOST"
+                    if not record.runtime.get("protection_failure_termination_attempted"):
+                        record.runtime["protection_failure_termination_attempted"] = True
+                        record.runtime["protection_failure_reason"] = reason
+                        record.protection_state = "DEGRADED"
+                        try:
+                            result = launcher.request_protection_failure_termination_result(
+                                reason
+                            )
+                        except Exception as error:
+                            result = {
+                                "status": "FAILED",
+                                "outcome": "FAILED",
+                                "verified_tree_gone": False,
+                                "reason": f"{type(error).__name__}",
+                                "control": "PROTECTION_FAILURE",
+                            }
+                        if result is None:
+                            result = {
+                                "status": "FAILED",
+                                "outcome": "FAILED",
+                                "verified_tree_gone": False,
+                                "reason": "PROTECTION_FAILURE_TERMINATION_UNAVAILABLE",
+                                "control": "PROTECTION_FAILURE",
+                            }
+                        record.runtime["protection_failure_termination_result"] = result
+                        self._persist_runtime_state(record)
+                    continue
+                continue
