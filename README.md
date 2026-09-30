@@ -1,22 +1,27 @@
-# AIA MVP
+# AIA: runtime assurance for AI coding agents
 
-AIA는 Codex와 같은 Agent의 보호 실행을 위한 독립적인 제품형 MVP Repository다. MVP는 실행 증거를 수집하고, 정규화·귀속·정책 평가·집행·복구·무결성 검증·감사를 연결한다.
+AIA treats the AI agent itself as the control target. It applies Zero Trust at runtime by checking observed behavior against policy and independent evidence, rather than relying on an agent's account of its actions.
 
-EPIC-018 평가 결과는 [MVP 최종 판정](docs/validation/MVP-FINAL-VERDICT.md)과 [제한사항](docs/LIMITATIONS.md)에 기록되어 있다. 최신 Actual Codex 검증에서는 Bash와 `apply_patch`의 사전 차단을 확인했다. MCP는 현재 제품 범위에서 제외하며, 파괴적 PROCESS 시나리오는 별도 제한사항으로 남아 있다.
+## What AIA does
 
-제품 정의와 개발 규칙은 [PROJECT.md](PROJECT.md), [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md)를 참조한다.
+1. **Controls the agent runtime:** observes supported file, command, and process activity during a protected run.
+2. **Verifies runtime behavior:** bases decisions on observed evidence, not the agent's self-report.
+3. **Combines independent sensors:** Hook evidence records requests, Process evidence records observed processes, and File evidence records observed changes.
+4. **Ties control to evidence:** grades attribution as `EXACT`, `PROCESS`, `TEMPORAL`, or `UNKNOWN`; PROCESS evidence alone does not identify a file writer.
+5. **Connects the assurance stages:** policy evaluation, enforcement, checkpoint recovery, and SHA-256 integrity verification are reported as distinct stages within their supported scope.
+6. **Builds a traceable evidence chain:** links tool requests, process and file observations, policy decisions, enforcement, and recovery where evidence is available.
 
-현재 배포 후보의 지원 계약과 검증 상태는 [AIA 0.1.29 릴리스 기준](docs/RELEASE-0.1.29.md)에서 확인할 수 있다.
-현재 설치에서 AIA가 보호한다고 주장하는 범위는 `uv run --isolated --project . python -m aia.cli capabilities`로 확인할 수 있다.
-현재 코드와 배포 후보의 최신 재검증 결과는 [현재 재검증 기록](docs/validation/CURRENT-REVALIDATION.md)에서 확인할 수 있다.
-현재 제품 성숙도와 남은 제품화 항목은 [제품 상태](docs/PRODUCT-STATUS.md)에서 확인할 수 있다.
-공개 버전별 변경 사항은 [변경 이력](CHANGELOG.md)에서 확인할 수 있다.
-릴리스 wheel·sdist와 SHA-256 manifest 생성 방법은 [배포 패키지 가이드](docs/DISTRIBUTION.md)를 참조한다.
+A policy violation alone does not terminate an agent. Automatic containment requires exact attribution and a verified process identity. See the [claim matrix](docs/validation/CLAIM-MATRIX.md) and [limitations](docs/LIMITATIONS.md) for the supported scope and claim boundaries.
 
-새 Windows 환경에서 설치하려면 [설치 가이드](INSTALL.md)를 먼저 읽는다.
-처음 실제 실행까지는 [빠른 시작](docs/QUICKSTART.md)을 따른다. 오류가 발생하면
-[문제 해결](docs/TROUBLESHOOTING.md)을 확인한다.
-처음 사용하는 사람은 [사용자 가이드](docs/USER-GUIDE.md)를 먼저 읽는다.
+## Get started
+
+- [Quickstart](docs/QUICKSTART.md)
+- [Limitations and supported scope](docs/LIMITATIONS.md)
+- [한국어 안내](README.ko.md)
+
+The detailed guide below is currently in Korean.
+
+## 상세 안내 (한국어)
 
 릴리스 ZIP을 사용하는 경우에는 압축을 푼 폴더에서 포함된 `install.ps1`을 실행하면
 wheel이 사용자 도구로 설치된다. 소스 저장소에서 개발하거나 실행할 때는 아래의

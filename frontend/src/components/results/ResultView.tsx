@@ -3,6 +3,7 @@ import { useResult } from '../../hooks/useResult'
 import type { IncidentView } from '../../api/resultTypes'
 import { deriveVerdict } from '../../api/resultVerdict'
 import { EvidenceLogView } from './EvidenceLogView'
+import { useRecoveryStatus } from '../../hooks/useRecoveryStatus'
 
 function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   const upper = String(value || '').toUpperCase()
@@ -13,6 +14,7 @@ function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
 
 export function ResultView({ runId, showEvidenceLog = false }: { runId: string; showEvidenceLog?: boolean }) {
   const { data, error, isLoading } = useResult(runId)
+  const recovery = useRecoveryStatus(runId)
 
   if (isLoading) {
     return (
@@ -79,10 +81,69 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       <div className="panel-section">
         <p className="panel-section-title">복구 · 무결성</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className={`badge is-${toneFor(data.recovery_status)}`}>Recovery: {data.recovery_status ?? 'NOT_ATTEMPTED'}</span>
-          <span className={`badge is-${toneFor(data.integrity_status)}`}>Integrity: {data.integrity_status ?? 'NOT_CHECKED'}</span>
+          <span className={`badge is-${toneFor(recovery?.recovery_status ?? data.recovery_status)}`}>Recovery: {recovery?.recovery_status ?? data.recovery_status ?? 'NOT_ATTEMPTED'}</span>
+          <span className={`badge is-${toneFor(recovery?.integrity_status ?? data.integrity_status)}`}>Integrity: {recovery?.integrity_status ?? data.integrity_status ?? 'NOT_CHECKED'}</span>
         </div>
+        <p>무결성 불일치 파일: {recovery?.mismatched_file_count ?? '확인 불가'}</p>
       </div>
+
+      {data.unsupported_tool_review_decisions && data.unsupported_tool_review_decisions.length > 0 && (
+        <div className="panel-section">
+          <p className="panel-section-title">지원 범위 밖 도구 검토</p>
+          <div className="run-list">
+            {data.unsupported_tool_review_decisions.map((decision) => (
+              <div className="event-row" key={decision}>
+                <span>{unsupportedToolReviewDecisionLabel(decision)}</span>
+              </div>
+            ))}
+          </div>
+          {data.limitations?.includes('UNSUPPORTED_TOOL_USER_APPROVED') && (
+            <p>승인된 도구는 AIA가 의미를 해석하지 못해 정책 판정 및 보호 대상에서 제외됩니다.</p>
+          )}
+        </div>
+      )}
+
+      <div className="panel-section">
+        <p className="panel-section-title">행위 귀속 요약</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {(['EXACT', 'PROCESS', 'TEMPORAL', 'UNKNOWN'] as const).map((grade) => (
+            <span className="badge is-warn" key={grade}>
+              {grade} {data.attribution_summary?.counts?.[grade] ?? 0}건
+            </span>
+          ))}
+        </div>
+        <p>
+          자동 통제: {data.attribution_summary?.automatic_control_happened
+            ? `발생 (${data.attribution_summary.automatic_control_grades?.join(', ') || '귀속 등급 미확인'})`
+            : '기록되지 않음'}
+        </p>
+        <span>정책 위반만으로는 에이전트를 중지하지 않습니다.</span>
+      </div>
+
+      {data.result_action_chains && data.result_action_chains.length > 0 && (
+        <div className="panel-section">
+          <p className="panel-section-title">Evidence Chain</p>
+          <div className="run-list">
+            {data.result_action_chains.map((chain, index) => (
+              <div className="event-row" key={chain.action_id ?? index}>
+                <div className="event-row-top">
+                  <span className="event-row-sensor">행위 {chain.action_id ?? index + 1}</span>
+                </div>
+                <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+                  {(chain.stages ?? []).map((stage, stageIndex) => (
+                    <div key={stage.stage ?? stageIndex} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span>{stage.label}</span>
+                      <span className={`badge is-${stage.status === 'NOT_OBSERVED' ? 'warn' : toneFor(stage.status)}`}>
+                        {stage.value ?? 'not observed'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {data.sensor_summary && data.sensor_summary.length > 0 && (
         <div className="panel-section">
@@ -124,6 +185,19 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       )}
     </div>
   )
+}
+
+function unsupportedToolReviewDecisionLabel(decision: string): string {
+  switch (decision) {
+    case 'UNSUPPORTED_TOOL_REVIEW_APPROVED':
+      return '사용자가 검토 후 승인함'
+    case 'UNSUPPORTED_TOOL_REVIEW_DECLINED':
+      return '사용자가 검토 후 거절함'
+    case 'UNSUPPORTED_TOOL_REVIEW_TIMED_OUT':
+      return '검토 시간 초과로 거절됨'
+    default:
+      return '검토 결정 기록'
+  }
 }
 
 function IncidentRow({ incident }: { incident: IncidentView }) {

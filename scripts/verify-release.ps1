@@ -174,18 +174,18 @@ from pathlib import Path
 import aia_web
 
 root = Path(aia_web.__file__).resolve().parent
-required = (
-    root / "templates" / "new_run.html",
-    root / "templates" / "live_run.html",
-    root / "static" / "app.css",
-)
+app_root = root / "static" / "app"
+required = (app_root / "index.html",)
 missing = [str(path) for path in required if not path.is_file()]
+javascript_assets = list((app_root / "assets").glob("*.js"))
+if not javascript_assets:
+    missing.append(str(app_root / "assets" / "<built JavaScript asset>"))
 if missing:
-    raise SystemExit("missing installed web assets: " + "; ".join(missing))
-print("installed web assets: PASS")
+    raise SystemExit("missing installed SPA assets: " + "; ".join(missing))
+print("installed SPA assets: PASS")
 '@
     $webAssetsOutput = $webAssetsCheck | & $verifyPython -
-    if ($LASTEXITCODE -ne 0 -or $webAssetsOutput -notmatch "installed web assets: PASS") {
+    if ($LASTEXITCODE -ne 0 -or $webAssetsOutput -notmatch "installed SPA assets: PASS") {
         throw "installed wheel local console assets failed: $webAssetsOutput"
     }
 }

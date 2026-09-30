@@ -34,8 +34,8 @@ uv run aia capabilities --json
 powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 ```
 
-실제 Codex 차단 결과와 지원 범위는 [현재 재검증 기록](validation/CURRENT-REVALIDATION.md),
-[제품 지원 범위](PRODUCT-SUPPORT.md), [제한사항](LIMITATIONS.md)을 함께 확인한다.
+실제 Codex 차단 결과와 지원 범위는 [현재 재검증 기록](../validation/CURRENT-REVALIDATION.md),
+[제품 지원 범위](../PRODUCT-SUPPORT.md), [제한사항](../LIMITATIONS.md)을 함께 확인한다.
 현재 0.1.13의 disposable Actual Codex 차단 요약은
-[Actual Codex 증명 기록](validation/evidence/actual-codex-pretool-20260911-0.1.13.json)에서
+[Actual Codex 증명 기록](../validation/evidence/actual-codex-pretool-20260911-0.1.13.json)에서
 확인할 수 있다.

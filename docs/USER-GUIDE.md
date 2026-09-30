@@ -215,6 +215,18 @@ Integrity: VERIFIED
 Session-bound Hook Event와 센서 상태, 검증된 Result Bundle이 함께 확인된
 경우에만 사용한다. `COMPLETED_DEGRADED`는 실행은 끝났지만 보호 경계에
 제한이 있었음을 뜻한다.
+
+감사 과정에서 Result Bundle을 다시 확인하려면 Result Bundle 디렉터리나 Session
+디렉터리를 지정한다.
+
+```powershell
+uv run --isolated --project . python -m aia.cli verify-bundle <result-dir> [--json]
+```
+
+기계가 읽을 출력이 필요하면 `--json`을 추가한다. 검증 결과가 `VALID`이면
+종료 코드 0을 반환하고, `INVALID` 등 `VALID`가 아닌 결과는 종료 코드 1을
+반환한다. 이 명령은 Bundle 파일을 수정하지 않는다.
+
 실행 중 Hook Broker가 사라져 보호 경계가 끊기면 `FAILED_DEGRADED`가 기록될 수
 있습니다. 이 경우 AIA는 관리 Agent 트리 중지를 시도하지만, 종료 성공 여부는
 결과의 `protection_failure_termination_result`에서 별도로 확인해야 합니다.
@@ -264,4 +276,9 @@ deny JSON을 만든 사실만으로 성공 처리하지 않으며, 실제 도구
 
 실행 결과 화면에서는 센서 상태와 Evidence 건수를 먼저 확인한다. 그 아래에서
 안전한 타임라인, 사건 상세, Recovery와 Integrity, Result Bundle을 확인할 수 있다.
+`Evidence Chain`은 행위별로 Tool request, Process, File change, Policy decision,
+Enforcement 관찰을 연결해 보여준다. Recovery는 개별 행위가 아니라 실행 단위 결과다.
+단계가 `not observed`로 표시되면 해당 연결 증거를 관찰하지 못했다는 뜻이며,
+그 행위가 발생하지 않았다는 뜻은 아니다. Process 증거만으로 특정 프로세스가
+파일을 작성했다고 판단할 수도 없다.
 `/runs`의 실행 기록에는 Workspace·상태·보호 상태·차단 여부·날짜 필터가 있다.

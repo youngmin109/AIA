@@ -21,28 +21,13 @@ import anyio
 from anyio import to_thread
 
 from aia_app.codex_app_server import CodexAppServerError
+from aia_app.presenters import recovery_status_view
 from aia_app.service import RunApplicationService
-from aia_app.terminal import TerminalSessionError
 from aia.capabilities import product_capabilities
 from aia.codex_installation import CodexHookInstaller
 
 
 _ROOT = Path(__file__).resolve().parent
-_TERMINAL_OUTPUT_BATCH_MIN_ITEMS = 2
-# Keep one browser callback bounded. A smaller batch lets the Workbench's
-# frame budget yield to keyboard input while still reducing WebSocket churn.
-_TERMINAL_OUTPUT_BATCH_MAX_CHARS = 32 * 1024
-_TERMINAL_OUTPUT_MAX_ITEMS_PER_TICK = 128
-_TERMINAL_OUTPUT_SEND_TIMEOUT_SECONDS = 2.0
-_TERMINAL_STATUS_POLL_INTERVAL_SECONDS = 0.25
-# Ceiling on how long freshly-buffered PTY output can sit before this loop's
-# next send_pending_output() flushes it to the browser -- the PTY reader
-# thread itself blocks on the OS pipe with no added delay, so this is the
-# dominant knob for perceived output latency. Kept well above 0 so idle
-# sessions don't spin the event loop.
-_TERMINAL_OUTPUT_POLL_TIMEOUT_SECONDS = 0.02
-
-
 _CODEX_EVENT_WAIT_SECONDS = 5.0
 _CODEX_EVENT_BATCH_MAX_CHARS = 64 * 1024
 _CODEX_SEND_TIMEOUT_SECONDS = 5.0
@@ -121,50 +106,6 @@ def _aia_cli_command(*arguments: str) -> list[str]:
         raise FileNotFoundError("aia-cli.exe is not installed next to AIA.exe")
 
     return [sys.executable, "-m", "aia.cli", *arguments]
-
-
-def _coalesce_terminal_output(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Reduce WebSocket message overhead when replaying terminal history.
-
-    A Workbench reconnect can replay up to 2,000 bounded PTY chunks. Sending
-    every chunk as a separate JSON message makes the browser spend most of the
-    reconnect window parsing and rendering transport overhead. Keep small live
-    reads unchanged for latency and coalesce only a large replay into ordered
-    output batches. The final sequence in a batch is sufficient for the
-    connection cursor because all preceding data is included in that batch.
-    """
-
-    if len(items) < _TERMINAL_OUTPUT_BATCH_MIN_ITEMS:
-        return items
-
-    batches: list[dict[str, Any]] = []
-    current: list[dict[str, Any]] = []
-    current_chars = 0
-
-    def flush() -> None:
-        nonlocal current, current_chars
-        if not current:
-            return
-        last = current[-1]
-        batches.append(
-            {
-                "type": "output",
-                "sequence": last.get("sequence", 0),
-                "data": "".join(str(item.get("data", "")) for item in current),
-                "recorded_at": last.get("recorded_at"),
-            }
-        )
-        current = []
-        current_chars = 0
-
-    for item in items:
-        data = str(item.get("data", ""))
-        if current and current_chars + len(data) > _TERMINAL_OUTPUT_BATCH_MAX_CHARS:
-            flush()
-        current.append(item)
-        current_chars += len(data)
-    flush()
-    return batches
 
 
 def default_control_root() -> Path:
@@ -275,40 +216,25 @@ def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tup
     return payload, 200 if payload.get("verified") is True else 409
 
 
-def create_app(service: RunApplicationService | None = None) -> FastAPI:
-    active_service = service or RunApplicationService(
-        default_control_root(),
-        require_hook_verification=True,
-    )
+_SPA_INDEX_PATH = _ROOT / "static" / "app" / "index.html"
 
-    @asynccontextmanager
-    async def lifespan(_app: FastAPI):
-        yield
-        active_service.shutdown(wait=False)
 
-    app = FastAPI(
-        title="AIA Local Security Console",
-        docs_url=None,
-        redoc_url=None,
-        lifespan=lifespan,
-    )
-    app.state.service = active_service
-    app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
+def _serve_spa() -> HTMLResponse | FileResponse:
+    if not _SPA_INDEX_PATH.exists():
+        return HTMLResponse(
+            "AIA SPA build not found. Run `npm run build` in frontend/.",
+            status_code=503,
+        )
+    return FileResponse(_SPA_INDEX_PATH)
 
-    _spa_index_path = _ROOT / "static" / "app" / "index.html"
 
-    def _serve_spa() -> HTMLResponse | FileResponse:
-        if not _spa_index_path.exists():
-            return HTMLResponse(
-                "AIA SPA build not found. Run `npm run build` in frontend/.",
-                status_code=503,
-            )
-        return FileResponse(_spa_index_path)
-
+def _register_spa_index_routes(app: FastAPI) -> None:
     @app.get("/", response_class=HTMLResponse)
     def spa_index():
         return _serve_spa()
 
+
+def _register_catalog_routes(app: FastAPI) -> None:
     @app.get("/api/runs")
     def run_history_api() -> JSONResponse:
         return JSONResponse({"runs": app.state.service.list_runs()})
@@ -321,6 +247,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     def capabilities() -> JSONResponse:
         return JSONResponse(product_capabilities())
 
+
+def _register_policy_routes(app: FastAPI) -> None:
     @app.post("/api/policy/preview")
     async def preview_policy(request: Request) -> JSONResponse:
         try:
@@ -347,6 +275,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (json.JSONDecodeError, ValueError, OSError) as exc:
             return JSONResponse({"saved": False, "error": str(exc)}, status_code=400)
 
+
+def _register_readiness_routes(app: FastAPI) -> None:
     @app.get("/api/preflight")
     def preflight() -> JSONResponse:
         return JSONResponse(app.state.service.preflight())
@@ -398,6 +328,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except ValueError as exc:
             return JSONResponse({"valid": False, "error": str(exc)}, status_code=400)
 
+
+def _register_runs_routes(app: FastAPI) -> None:
     @app.post("/api/runs")
     async def create_run(request: Request) -> JSONResponse:
         try:
@@ -414,6 +346,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
 
+
+def _register_run_details_routes(app: FastAPI) -> None:
     @app.get("/api/runs/{session_id}/result")
     def result_api(session_id: str) -> JSONResponse:
         try:
@@ -450,7 +384,13 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
     @app.get("/api/runs/{session_id}/recovery")
     def recovery_status(session_id: str) -> JSONResponse:
         try:
-            return JSONResponse(app.state.service.get_recovery_status(session_id))
+            status = app.state.service.get_recovery_status(session_id)
+            response = {
+                key: value
+                for key, value in status.items()
+                if key not in {"recovery_result", "integrity_result"}
+            }
+            return JSONResponse({**response, **recovery_status_view(status)})
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
         except (OSError, ValueError) as error:
@@ -487,114 +427,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             )
             return JSONResponse({"error": safe_reason}, status_code=409)
 
-    @app.get("/api/runs/{session_id}/terminal/status")
-    def terminal_status(session_id: str) -> JSONResponse:
-        try:
-            return JSONResponse(app.state.service.get_terminal_status(session_id))
-        except KeyError:
-            return JSONResponse({"error": "Run not found"}, status_code=404)
 
-    @app.websocket("/api/runs/{session_id}/terminal")
-    async def terminal_socket(websocket: WebSocket, session_id: str) -> None:
-        await websocket.accept()
-        last_status: str | None = None
-        last_status_check = 0.0
-        last_sequence = 0
-
-        async def send_message(message: dict[str, Any]) -> None:
-            """Send one terminal message without starving other local routes.
-
-            The Workbench and its status API share one local Uvicorn event
-            loop.  A slow or overloaded browser must not let a burst of PTY
-            output monopolize that loop and make new input or status requests
-            appear frozen.  The explicit yield also matters on Windows,
-            where a small local socket write can complete synchronously.
-            """
-
-            try:
-                await asyncio.wait_for(
-                    websocket.send_json(message),
-                    timeout=_TERMINAL_OUTPUT_SEND_TIMEOUT_SECONDS,
-                )
-            except asyncio.TimeoutError as error:
-                raise WebSocketDisconnect(code=1013) from error
-            await asyncio.sleep(0)
-
-        async def send_pending_output() -> None:
-            nonlocal last_sequence
-            items = app.state.service.read_terminal_output(
-                session_id,
-                after_sequence=last_sequence,
-            )
-            # Never flush the whole bounded replay in one event-loop turn.
-            # Remaining chunks are picked up on the next turn using the final
-            # sequence acknowledged below, so a reconnect remains lossless
-            # within the PTY ring buffer while live API requests stay usable.
-            items = items[:_TERMINAL_OUTPUT_MAX_ITEMS_PER_TICK]
-            for item in _coalesce_terminal_output(items):
-                await send_message(item)
-                last_sequence = max(last_sequence, int(item.get("sequence", last_sequence)))
-
-        try:
-            while True:
-                try:
-                    message = await asyncio.wait_for(
-                        websocket.receive_json(),
-                        timeout=_TERMINAL_OUTPUT_POLL_TIMEOUT_SECONDS,
-                    )
-                    if not isinstance(message, dict):
-                        await send_message(
-                            {"type": "error", "message": "terminal message must be an object"}
-                        )
-                    elif message.get("type") == "input":
-                        result = app.state.service.send_terminal_input(
-                            session_id,
-                            message.get("data", ""),
-                        )
-                        await send_message(
-                            {"type": "accepted", "action": "input", **result}
-                        )
-                    elif message.get("type") == "submit":
-                        result = app.state.service.submit_terminal_input(session_id)
-                        await send_message(
-                            {"type": "accepted", "action": "submit", **result}
-                        )
-                    elif message.get("type") == "resize":
-                        result = app.state.service.resize_terminal(
-                            session_id,
-                            int(message.get("rows", 32)),
-                            int(message.get("cols", 120)),
-                        )
-                        await send_message(
-                            {"type": "accepted", "action": "resize", **result}
-                        )
-                    else:
-                        await send_message(
-                            {"type": "error", "message": "unsupported terminal message"}
-                        )
-                except asyncio.TimeoutError:
-                    pass
-                except (KeyError, ValueError, TypeError, TerminalSessionError) as error:
-                    await send_message({"type": "error", "message": str(error)})
-
-                await send_pending_output()
-                now = asyncio.get_running_loop().time()
-                if now - last_status_check >= _TERMINAL_STATUS_POLL_INTERVAL_SECONDS:
-                    last_status_check = now
-                    status = app.state.service.get_terminal_status(session_id)
-                    status_name = str(status.get("status", "UNKNOWN"))
-                    if status_name != last_status:
-                        await send_message({"type": "status", **status})
-                        last_status = status_name
-                    if status_name in {"FAILED", "EXITED"}:
-                        # Send once more before closing so the last prompt/output
-                        # is visible in the Workbench.
-                        await send_pending_output()
-                        await send_message({"type": "closed", "status": status_name})
-                        return
-        except WebSocketDisconnect:
-            return
-
+def _register_codex_routes(app: FastAPI) -> None:
     @app.get("/api/runs/{session_id}/codex/status")
     def codex_status(session_id: str) -> JSONResponse:
         try:
@@ -708,6 +542,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         with contextlib.suppress(WebSocketDisconnect, RuntimeError):
             await websocket.close()
 
+
+def _register_run_controls_routes(app: FastAPI) -> None:
     @app.post("/api/runs/{session_id}/stop")
     def stop_run(session_id: str) -> JSONResponse:
         try:
@@ -724,6 +560,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
             return JSONResponse({"error": "Run not found"}, status_code=404)
         return JSONResponse(result, status_code=200 if result.get("reconciled") else 409)
 
+
+def _register_result_exports_routes(app: FastAPI) -> None:
     @app.get("/runs/{session_id}/report")
     def report(session_id: str) -> PlainTextResponse:
         try:
@@ -748,13 +586,44 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         except (KeyError, ValueError) as exc:
             return Response(str(exc), status_code=404, media_type="text/plain")
 
-    # Registered last so it only ever catches paths no earlier route (API,
-    # static, WebSocket, or "/") matched -- the SPA owns client-side routing
-    # for everything else, including a hard reload on a deep link.
+
+def _register_spa_fallback_routes(app: FastAPI) -> None:
+    # Registered last so the SPA only catches paths no earlier route matched.
     @app.get("/{_full_path:path}", response_class=HTMLResponse)
     def spa_catch_all(_full_path: str):
         return _serve_spa()
 
+
+def create_app(service: RunApplicationService | None = None) -> FastAPI:
+    active_service = service or RunApplicationService(
+        default_control_root(),
+        require_hook_verification=True,
+    )
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        yield
+        active_service.shutdown(wait=False)
+
+    app = FastAPI(
+        title="AIA Local Security Console",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
+    app.state.service = active_service
+    app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
+
+    _register_spa_index_routes(app)
+    _register_catalog_routes(app)
+    _register_policy_routes(app)
+    _register_readiness_routes(app)
+    _register_runs_routes(app)
+    _register_run_details_routes(app)
+    _register_codex_routes(app)
+    _register_run_controls_routes(app)
+    _register_result_exports_routes(app)
+    _register_spa_fallback_routes(app)
     return app
 
 

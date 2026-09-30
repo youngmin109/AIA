@@ -26,6 +26,6 @@ uv run aia demo
 powershell -ExecutionPolicy Bypass -File .\\scripts\\package-release.ps1 -Force
 ```
 
-Actual Codex 보호 증거와 지원 범위는 [제품 상태](PRODUCT-STATUS.md),
-[현재 재검증 기록](validation/CURRENT-REVALIDATION.md), [제한사항](LIMITATIONS.md)을
+Actual Codex 보호 증거와 지원 범위는 [제품 상태](../PRODUCT-STATUS.md),
+[현재 재검증 기록](../validation/CURRENT-REVALIDATION.md), [제한사항](../LIMITATIONS.md)을
 함께 확인한다.

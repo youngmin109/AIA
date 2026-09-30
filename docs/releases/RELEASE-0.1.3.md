@@ -83,6 +83,6 @@ uv run aia protect C:\workspace\my-project
   보편적인 완료 보장으로 주장하지 않는다.
 - Network Security, Database state, ACL/ADS와 대규모 Workspace SLA는 지원 범위 밖이다.
 
-상세한 최신 검증 결과는 [현재 재검증 기록](validation/CURRENT-REVALIDATION.md),
-보안 주장 범위는 [제품 지원 범위](PRODUCT-SUPPORT.md)와
-[제한사항](LIMITATIONS.md)에서 확인한다.
+상세한 최신 검증 결과는 [현재 재검증 기록](../validation/CURRENT-REVALIDATION.md),
+보안 주장 범위는 [제품 지원 범위](../PRODUCT-SUPPORT.md)와
+[제한사항](../LIMITATIONS.md)에서 확인한다.

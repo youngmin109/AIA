@@ -3,18 +3,6 @@
 // actually reads; unknown additional fields pass through untyped rather
 // than being exhaustively modeled (no codegen from the Python side yet).
 
-export interface TerminalSnapshot {
-  mode?: string
-  status?: string
-  pid?: number | null
-  rows?: number
-  cols?: number
-  started_at?: string | null
-  ended_at?: string | null
-  exit_code?: number | null
-  error?: string | null
-}
-
 export interface SecurityEvent {
   event_id?: string
   category?: string
@@ -91,7 +79,6 @@ export interface RunStatus {
   policy?: { id?: string; profile?: string; version?: string }
   protection?: { state?: string; hook_events?: number; hook_broker?: string }
   runtime_reconciliation?: { orphaned?: boolean; [key: string]: unknown }
-  terminal?: TerminalSnapshot
   events?: SecurityEvent[]
   sensor_health?: Record<string, string>
   evidence_summary?: EvidenceSummary

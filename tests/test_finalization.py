@@ -179,6 +179,33 @@ def test_normal_exit_completes_and_commits_bundle(tmp_path: Path):
     assert restored.action_outcomes[0].operation_effect == "ALLOW"
 
 
+@pytest.mark.parametrize(
+    "decision",
+    [
+        "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+        "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+        "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+    ],
+)
+def test_unsupported_tool_review_decision_is_recorded_in_result_bundle(tmp_path: Path, decision: str):
+    session, store, _ = _session(tmp_path)
+    final = SessionFinalizer(evidence_store=store).finalize(
+        session,
+        process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+        limitations=(
+            (decision, "UNSUPPORTED_TOOL_USER_APPROVED")
+            if decision.endswith("APPROVED")
+            else (decision,)
+        ),
+    )
+
+    bundle_result = json.loads((final.bundle.result_directory / "result.json").read_text(encoding="utf-8"))
+    assert final.bundle_valid
+    assert decision in bundle_result["limitations"]
+    if decision.endswith("APPROVED"):
+        assert "UNSUPPORTED_TOOL_USER_APPROVED" in bundle_result["limitations"]
+
+
 def test_security_containment_is_aborted_even_after_successful_recovery_axis(tmp_path: Path):
     session, store, action = _session(tmp_path)
     result = SessionFinalizer(evidence_store=store).finalize(

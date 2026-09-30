@@ -10,7 +10,7 @@ import {
   type WorkspaceRecovery,
 } from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
-import { readDefaultPolicyProfile } from '../policy/PolicyView'
+import { readDefaultPolicyProfile } from '../policy/policyStorage'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }

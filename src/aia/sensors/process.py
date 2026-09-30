@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -300,6 +300,22 @@ def _validate_preparation(
         raise SensorStartError("Checkpoint validation failed")
 
 
+PpidSnapshot = Callable[[], Mapping[int, int] | None]
+
+
+def _psutil_ppid_snapshot() -> Mapping[int, int] | None:
+    """Return one system-wide pid -> ppid map.
+
+    psutil takes this snapshot inside every children() call and every Windows
+    ppid() call. The sensor takes it once per poll instead of twice per tracked
+    process. It is a psutil internal, so when it is missing this returns None
+    and the sensor keeps the per-node children() walk.
+    """
+
+    snapshot = getattr(getattr(psutil, "_psplatform", None), "ppid_map", None)
+    return snapshot() if snapshot is not None else None
+
+
 class ProcessRuntimeSensor:
     """Observe an explicitly registered process tree and append Raw Evidence."""
 
@@ -316,6 +332,7 @@ class ProcessRuntimeSensor:
         process_factory: ProcessFactory = psutil.Process,
         allow_ready: bool = False,
         capture_command_line: bool = False,
+        ppid_snapshot: PpidSnapshot | None = None,
     ) -> None:
         if not isinstance(poll_interval, (int, float)) or isinstance(
             poll_interval,
@@ -333,6 +350,12 @@ class ProcessRuntimeSensor:
         self.lease_manager = lease_manager
         self.poll_interval = float(poll_interval)
         self.process_factory = process_factory
+        # Only the real psutil backend gets the per-poll snapshot by default.
+        # An injected process factory keeps the per-node children() walk
+        # unless it also supplies a snapshot of the same process table.
+        if ppid_snapshot is None and process_factory is psutil.Process:
+            ppid_snapshot = _psutil_ppid_snapshot
+        self.ppid_snapshot = ppid_snapshot
         self.allow_ready = allow_ready
         self.capture_command_line = capture_command_line
         self._control_root: ControlRoot | None = None
@@ -580,6 +603,7 @@ class ProcessRuntimeSensor:
             self._observed.update(current)
 
     def _collect_tree(self, root_process: Any) -> dict[ProcessIdentity, ProcessObservation]:
+        children_by_parent, ppids = self._take_ppid_snapshot()
         current: dict[ProcessIdentity, ProcessObservation] = {}
         root_identity = self.registration.root_process_identity
         root_observation = self._build_observation(
@@ -588,12 +612,18 @@ class ProcessRuntimeSensor:
             ProcessRole.ROOT,
             root_identity,
             parent_identity=None,
+            ppid=ppids.get(root_identity.pid) if ppids is not None else None,
         )
         current[root_identity] = root_observation
         stack: list[tuple[Any, ProcessIdentity]] = [(root_process, root_identity)]
         while stack:
             parent_process, parent_identity = stack.pop()
-            for child_process in self._children(parent_process):
+            children = (
+                self._snapshot_children(parent_process, children_by_parent)
+                if children_by_parent is not None
+                else self._children(parent_process)
+            )
+            for child_process in children:
                 child_identity, live_child = self._child_identity(child_process)
                 if child_identity is None or live_child is None:
                     continue
@@ -606,6 +636,11 @@ class ProcessRuntimeSensor:
                         ProcessRole.DESCENDANT,
                         root_identity,
                         parent_identity=parent_identity,
+                        ppid=(
+                            ppids.get(child_identity.pid)
+                            if ppids is not None
+                            else None
+                        ),
                     )
                 except ProcessRuntimeError:
                     # Windows process trees can change between the children()
@@ -617,6 +652,64 @@ class ProcessRuntimeSensor:
                 current[child_identity] = observation
                 stack.append((live_child, child_identity))
         return current
+
+    def _take_ppid_snapshot(
+        self,
+    ) -> tuple[dict[int, list[int]] | None, dict[int, int] | None]:
+        """Take this poll's pid -> ppid snapshot, or None to walk per node."""
+
+        if self.ppid_snapshot is None:
+            return None, None
+        try:
+            snapshot = self.ppid_snapshot()
+        except Exception:
+            return None, None
+        if snapshot is None:
+            return None, None
+        ppids = {
+            pid: ppid
+            for pid, ppid in snapshot.items()
+            if type(pid) is int and type(ppid) is int and pid >= 0 and ppid >= 0
+        }
+        children_by_parent: dict[int, list[int]] = {}
+        for pid, ppid in ppids.items():
+            if pid != ppid:
+                children_by_parent.setdefault(ppid, []).append(pid)
+        return children_by_parent, ppids
+
+    def _snapshot_children(
+        self,
+        parent_process: Any,
+        children_by_parent: dict[int, list[int]],
+    ) -> list[Any]:
+        """Return a parent's children from the poll snapshot, as children() would."""
+
+        child_pids = children_by_parent.get(int(parent_process.pid), ())
+        if not child_pids:
+            return []
+        try:
+            parent_created = parent_process.create_time()
+        except (psutil.NoSuchProcess, psutil.ZombieProcess, ProcessLookupError):
+            return []
+        except (psutil.AccessDenied, PermissionError, OSError) as error:
+            raise ProcessTreeEnumerationError(
+                "managed process children could not be enumerated"
+            ) from error
+        children: list[Any] = []
+        for pid in child_pids:
+            try:
+                child = self.process_factory(pid)
+                # A child cannot be older than its parent. An older one means
+                # the PID was reused; psutil children() applies the same guard.
+                if parent_created <= child.create_time():
+                    children.append(child)
+            except (psutil.NoSuchProcess, psutil.ZombieProcess, ProcessLookupError):
+                continue
+            except (psutil.AccessDenied, PermissionError, OSError) as error:
+                raise ProcessTreeEnumerationError(
+                    "managed process children could not be enumerated"
+                ) from error
+        return children
 
     @staticmethod
     def _children(process: Any) -> Iterable[Any]:
@@ -673,14 +766,30 @@ class ProcessRuntimeSensor:
         root_identity: ProcessIdentity,
         *,
         parent_identity: ProcessIdentity | None,
+        ppid: int | None = None,
     ) -> ProcessObservation:
-        ppid = self._read_ppid(process)
-        name, executable, metadata_status = self._read_metadata(process)
-        raw_command = (
-            self._read_command_line(process)
-            if self.capture_command_line
-            else None
-        )
+        previous = self._observed.get(identity)
+        if ppid is None:
+            ppid = (
+                previous.ppid
+                if previous is not None
+                else self._read_ppid(process)
+            )
+        if previous is not None:
+            # Only the first observation of a verified identity (PID + create
+            # time) is recorded, so re-reading name, executable and command line
+            # on every poll is wasted work. Reuse what was captured first.
+            name = previous.name
+            executable = previous.executable
+            metadata_status = previous.metadata_status
+            raw_command = previous.raw_command
+        else:
+            name, executable, metadata_status = self._read_metadata(process)
+            raw_command = (
+                self._read_command_line(process)
+                if self.capture_command_line
+                else None
+            )
         return ProcessObservation(
             identity=identity,
             ppid=ppid,

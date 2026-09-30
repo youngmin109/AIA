@@ -297,6 +297,6 @@
 - Network Security, Database state, ACL/ADS, 대규모 Workspace SLA는 지원 범위 밖이다.
 
 자세한 지원 계약과 현재 재검증 결과는
-[docs/RELEASE-0.1.0.md](docs/RELEASE-0.1.0.md)와
+[docs/releases/RELEASE-0.1.0.md](docs/releases/RELEASE-0.1.0.md)와
 [docs/validation/CURRENT-REVALIDATION.md](docs/validation/CURRENT-REVALIDATION.md)를
 참조한다.

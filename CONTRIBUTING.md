@@ -10,28 +10,13 @@
 
 ## 검증
 
-변경 후 다음을 실행한다.
+변경 후 저장소 루트에서 다음 명령을 실행한다. 프론트엔드를 변경한 경우에는
+빌드와 린트도 실행한다.
 
 ```powershell
-uv sync
-uv run pytest
-```
-
-GitHub Actions는 동일한 Windows 기반 잠금 환경에서 이 회귀 테스트와 wheel·source
-distribution 빌드를 자동으로 다시 실행한다. 로컬에서는 다음 Release Gate 하나로
-배포 후보를 확인한다.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release-gate.ps1
-```
-
-Release Gate는 잠금 환경 동기화, 전체 pytest, 안전한 `aia demo`, 릴리스 패키지
-생성, SHA-256·clean wheel·로컬 콘솔 asset 검증을 같은 순서로 실행한다. 이미 만든
-Bundle만 다시 검사하려면 다음처럼 사용할 수 있다.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release-gate.ps1 `
-  -SkipTests -SkipPackage -BundlePath .\dist\release\aia-0.1.25
+.venv\Scripts\python.exe -m pytest -q
+npm --prefix frontend run build
+npm --prefix frontend run lint
 ```
 
 Codex Hook 또는 Process Manager 변경은 disposable Workspace에서 실제 증명을

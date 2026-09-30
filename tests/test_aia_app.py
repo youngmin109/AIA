@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
+from pathlib import Path
 import subprocess
 from types import SimpleNamespace
 from uuid import uuid4
@@ -23,15 +25,19 @@ from aia_app.presenters import (
     evidence_chain_views,
     incident_view,
     incident_views_for_result,
+    result_action_chain_views,
     result_view,
+    recovery_status_view,
     safe_event_views,
     evidence_timeline_views,
 )
+import aia_app.readers as readers_module
 from aia_app.readers import ResultBundleReader
 from aia_app.registry import RunRecord, RunRegistry
 from aia import (
     ActionTargetKind,
     AttributionGrade,
+    BundleVerificationStatus,
     EnforcementAction,
     EnforcementDecision,
     EnforcementExecutionResult,
@@ -53,6 +59,7 @@ from aia_app.service import (
     _sensors_runtime_healthy,
 )
 import aia_app.service as service_module
+import aia_app.protected_run as protected_run_module
 
 
 def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
@@ -68,6 +75,43 @@ def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
         task="inspect",
         created_at=datetime.now(timezone.utc),
     )
+
+
+def capture_service_launcher_factory(
+    service, record, monkeypatch, output_handles=None
+):
+    captured = {}
+
+    class FakeLauncher:
+        def __init__(self, *_args, **kwargs):
+            captured.update(kwargs)
+            self.managed_process_registry = object()
+            self.process_sensor = None
+
+    class InstalledHooks:
+        def is_installed(self):
+            return True
+
+    monkeypatch.setattr(protected_run_module, "CodexHookInstaller", InstalledHooks)
+    monkeypatch.setattr(
+        protected_run_module,
+        "CodexPreToolController",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(protected_run_module, "ProtectedLauncher", FakeLauncher)
+    monkeypatch.setattr(protected_run_module, "ProcessManager", lambda *_args: object())
+    launcher, _controller, options = service._create_protected_launcher(
+        record,
+        SimpleNamespace(session_id=record.session_id, workspace=record.workspace),
+        SimpleNamespace(control_directory=record.workspace),
+        object(),
+        object(),
+        object(),
+        object(),
+        SimpleNamespace(readiness_context=object()),
+        output_handles if output_handles is not None else [],
+    )
+    return launcher, captured, options
 
 
 def test_create_request_rejects_unknown_fields_and_bounds_task() -> None:
@@ -124,14 +168,10 @@ def test_create_request_supports_separate_windows_terminal_only_for_interactive(
         )
 
 
-def test_create_request_supports_workbench_terminal_only_for_interactive() -> None:
-    request = CreateRunRequest.from_mapping(
-        {"workspace": ".", "interactive": True, "launch_mode": "web_terminal"}
-    )
-    assert request.launch_mode == "web_terminal"
-    with pytest.raises(DTOValidationError, match="requires interactive"):
+def test_create_request_rejects_retired_workbench_terminal() -> None:
+    with pytest.raises(DTOValidationError, match="launch_mode must be"):
         CreateRunRequest.from_mapping(
-            {"workspace": ".", "task": "inspect", "launch_mode": "web_terminal"}
+            {"workspace": ".", "interactive": True, "launch_mode": "web_terminal"}
         )
 
 
@@ -429,6 +469,42 @@ def test_evidence_timeline_links_sensor_records_to_action_without_payload() -> N
     assert "SECRET" not in repr(timeline)
 
 
+def test_evidence_timeline_bounded_selection_matches_stable_full_sort() -> None:
+    metadata = [
+        {"evidence_id": "early", "captured_at": "2026-01-01", "line": 10, "payload": "SECRET"},
+        {"evidence_id": "tie-first", "captured_at": "2026-01-02", "line": "bad", "payload": "SECRET"},
+        {"evidence_id": "invalid", "captured_at": "2026-01-03", "line": 99, "payload": "SECRET"},
+        None,
+        {"evidence_id": "tie-second", "captured_at": "2026-01-02", "line": None, "payload": "SECRET"},
+        {"evidence_id": "latest", "captured_at": "2026-01-04", "line": "2", "payload": "SECRET"},
+        {"evidence_id": "tie-third", "captured_at": "2026-01-02", "line": 0, "payload": "SECRET"},
+    ]
+    valid_metadata = [item for item in metadata if isinstance(item, dict) and item.get("evidence_id")]
+
+    def line_number(value: object) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    legacy_order = sorted(
+        valid_metadata,
+        key=lambda item: (str(item.get("captured_at") or ""), line_number(item.get("line"))),
+    )
+    expected_ids = [item["evidence_id"] for item in legacy_order[-4:]]
+    full_sort_equivalent = evidence_timeline_views(metadata, limit=len(valid_metadata))
+    bounded = evidence_timeline_views(metadata, limit=4)
+
+    assert [item["evidence_id"] for item in bounded] == expected_ids
+    assert bounded == full_sort_equivalent[-4:]
+    assert "SECRET" not in repr(bounded)
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_evidence_timeline_nonpositive_limit_returns_empty(limit: int) -> None:
+    assert evidence_timeline_views([{"evidence_id": "e1", "payload": "SECRET"}], limit=limit) == []
+
+
 def test_safe_event_view_preserves_containment_decision_before_block_confirmation() -> None:
     events = safe_event_views(
         [
@@ -521,6 +597,87 @@ def test_result_view_reconnects_pretool_action_to_posttool_evidence(tmp_path) ->
 
     assert view["actions"][0]["execution_observed"] is True
     assert view["events"][0]["execution_observed"] is True
+
+
+def test_live_status_reuses_evidence_and_refreshes_appended_records(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    control_root = tmp_path / "control"
+    service = RunApplicationService(control_root)
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    record.phase = "RUNNING"
+    record.actions = [
+        {
+            "action_id": "action-1",
+            "operation": "EXECUTE",
+            "policy_decision": "COMPLIANT",
+            "execution_result": "SUCCEEDED",
+            "evidence_ids": ["pretool-1"],
+            "target": {"target_kind": "COMMAND"},
+        }
+    ]
+    service.registry.add(record)
+    store = RawEvidenceStore.for_session(control_root, record.session_id)
+    captured_at = datetime.now(timezone.utc)
+    store.append(
+        RawEvidenceRecord(
+            session_id=record.session_id,
+            source=EvidenceSource.AGENT_HOOK,
+            record_type=EvidenceRecordType.PRETOOL_REQUEST,
+            captured_at=captured_at,
+            observation_stage=ObservationStage.PRE_ACTION,
+            payload={"tool_use_id": "tool-1"},
+            evidence_id="pretool-1",
+        )
+    )
+
+    original_loads = readers_module.json.loads
+    parsed_lines = []
+
+    def count_parsed_lines(value, *args, **kwargs):
+        parsed_lines.append(value)
+        return original_loads(value, *args, **kwargs)
+
+    monkeypatch.setattr(readers_module.json, "loads", count_parsed_lines)
+    try:
+        first = service.get_run_status(record.session_id)
+        assert len(parsed_lines) == 1
+        assert first["latest_actions"][0]["execution_observed"] is False
+
+        parsed_lines.clear()
+        assert service.get_run_status(record.session_id) == first
+        assert parsed_lines == []
+
+        store.append(
+            RawEvidenceRecord(
+                session_id=record.session_id,
+                source=EvidenceSource.AGENT_HOOK,
+                record_type=EvidenceRecordType.POSTTOOL_OBSERVED,
+                captured_at=captured_at,
+                observation_stage=ObservationStage.POST_ACTION,
+                payload={"tool_use_id": "tool-1"},
+                evidence_id="posttool-1",
+            )
+        )
+        updated = service.get_run_status(record.session_id)
+        assert len(parsed_lines) == 1
+        assert updated["latest_actions"][0]["execution_observed"] is True
+
+        cold_service = RunApplicationService(control_root)
+        cold_record = make_record(tmp_path)
+        cold_record.created_at = record.created_at
+        cold_record.status = record.status
+        cold_record.phase = record.phase
+        cold_record.actions = [dict(action) for action in record.actions]
+        cold_service.registry.add(cold_record)
+        try:
+            assert updated == cold_service.get_run_status(record.session_id)
+        finally:
+            cold_service.shutdown()
+    finally:
+        service.shutdown()
 
 
 def test_policy_editor_document_is_strictly_validated_and_can_be_saved(tmp_path) -> None:
@@ -980,13 +1137,42 @@ def test_live_state_degrades_when_hook_broker_is_not_running(tmp_path) -> None:
         service.shutdown()
 
 
-def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("session_status", "session_end_reason", "verified_state", "degraded_state"),
+    [
+        ("COMPLETED", "AGENT_EXITED", "COMPLETED_VERIFIED", "COMPLETED_DEGRADED"),
+        ("ABORTED", "USER_ABORT", "ABORTED_VERIFIED", "ABORTED_DEGRADED"),
+    ],
+)
+@pytest.mark.parametrize(
+    "degraded_condition",
+    [
+        None,
+        "missing_hook_event",
+        "unverified_sensor",
+        "failed_sensor_health",
+        "failed_sensor_stop",
+        "CODEX_SANDBOX_DOWNGRADED",
+        "CODEX_APPROVAL_POLICY_DOWNGRADED",
+        "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
+        "PROTECTION_BOUNDARY_LOST",
+    ],
+)
+def test_completed_bundle_protection_status_requires_verified_evidence(
+    tmp_path,
+    monkeypatch,
+    session_status,
+    session_end_reason,
+    verified_state,
+    degraded_state,
+    degraded_condition,
+) -> None:
     service = RunApplicationService(tmp_path / "control")
     session_dir = tmp_path / "control" / "sessions" / "session-1"
     session_dir.mkdir(parents=True)
     base = {
-        "session_status": "COMPLETED",
-        "session_end_reason": "AGENT_EXITED",
+        "session_status": session_status,
+        "session_end_reason": session_end_reason,
         "limitations": [],
         "action_outcomes": [],
         "sensor_summary": [
@@ -1007,6 +1193,20 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
             },
         ],
     }
+    hook_events = [
+        {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
+    ]
+    if degraded_condition == "missing_hook_event":
+        hook_events = []
+    elif degraded_condition == "unverified_sensor":
+        base["sensor_summary"] = base["sensor_summary"][:-1]
+    elif degraded_condition == "failed_sensor_health":
+        base["sensor_summary"][0]["runtime_health_before_stop"] = "FAILED"
+    elif degraded_condition == "failed_sensor_stop":
+        base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
+    elif degraded_condition is not None:
+        base["limitations"] = [degraded_condition]
+
     monkeypatch.setattr(service.reader, "read_result", lambda _session_id: dict(base))
     monkeypatch.setattr(
         service.reader,
@@ -1016,20 +1216,55 @@ def test_completed_bundle_requires_verified_sensor_summary(tmp_path, monkeypatch
     monkeypatch.setattr(
         service,
         "_evidence_metadata",
-        lambda _session_id, *, require_valid=True: [
-            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
-        ],
+        lambda _session_id, *, require_valid=True: hook_events,
     )
     monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
     try:
         status = service._status_from_completed_bundle("session-1")
-        assert status["protection"]["state"] == "COMPLETED_VERIFIED"
+        expected_state = verified_state if degraded_condition is None else degraded_state
+        assert status["protection"]["state"] == expected_state
         assert status["checkpoint"] == "READY"
-        base["sensor_summary"][0]["final_sensor_state"] = "FAILED"
-        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
-        base["sensor_summary"][0]["final_sensor_state"] = "STOPPED"
-        base["limitations"] = ["HOOK_BROKER_RUNTIME_NOT_VERIFIED"]
-        assert service._status_from_completed_bundle("session-1")["protection"]["state"] == "COMPLETED_DEGRADED"
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("session_status", "session_end_reason"),
+    [
+        ("FAILED", "AGENT_EXITED"),
+        ("COMPLETED", "PROTECTION_FAILURE"),
+    ],
+)
+def test_completed_bundle_failure_status_is_degraded(
+    tmp_path,
+    monkeypatch,
+    session_status,
+    session_end_reason,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    session_dir = tmp_path / "control" / "sessions" / "session-1"
+    session_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        service.reader,
+        "read_result",
+        lambda _session_id: {
+            "session_status": session_status,
+            "session_end_reason": session_end_reason,
+            "limitations": [],
+            "action_outcomes": [],
+            "sensor_summary": [],
+        },
+    )
+    monkeypatch.setattr(
+        service.reader,
+        "verification",
+        lambda _session_id: SimpleNamespace(status=SimpleNamespace(value="VALID")),
+    )
+    monkeypatch.setattr(service, "_evidence_metadata", lambda *args, **kwargs: [])
+    monkeypatch.setattr(service.reader, "checkpoint_status", lambda _session_id: "READY")
+    try:
+        status = service._status_from_completed_bundle("session-1")
+        assert status["protection"]["state"] == "FAILED_DEGRADED"
     finally:
         service.shutdown()
 
@@ -1209,6 +1444,53 @@ def test_result_presenter_exposes_recovery_and_integrity_as_separate_axes() -> N
     assert view["bundle_status"] == "VALID"
 
 
+def test_result_presenter_exposes_unsupported_tool_review_decisions() -> None:
+    view = result_view(
+        {
+            "aia_session_id": "session-1",
+            "session_status": "COMPLETED",
+            "limitations": [
+                "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+                "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+                "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+                "UNSUPPORTED_TOOL_USER_APPROVED",
+            ],
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+
+    assert view["unsupported_tool_review_decisions"] == [
+        "UNSUPPORTED_TOOL_REVIEW_APPROVED",
+        "UNSUPPORTED_TOOL_REVIEW_DECLINED",
+        "UNSUPPORTED_TOOL_REVIEW_TIMED_OUT",
+    ]
+    assert "UNSUPPORTED_TOOL_USER_APPROVED" in view["limitations"]
+
+
+def test_recovery_status_presenter_keeps_restore_and_integrity_separate() -> None:
+    view = recovery_status_view(
+        {
+            "status": "RESTORED",
+            "integrity_status": "FAILED",
+            "recovery_result": {"recovery_status": "RESTORED"},
+            "integrity_result": {
+                "integrity_status": "FAILED",
+                "missing_paths": ["missing.txt"],
+                "changed_paths": ["changed.txt", "missing.txt"],
+                "unexpected_paths": [],
+                "type_mismatches": [],
+            },
+        }
+    )
+
+    assert view == {
+        "recovery_status": "RESTORED",
+        "integrity_status": "FAILED",
+        "mismatched_file_count": 2,
+    }
+
+
 def test_evidence_summary_counts_safe_record_metadata() -> None:
     from aia_app.presenters import evidence_summary
 
@@ -1340,6 +1622,12 @@ def test_result_presenter_exposes_codex_block_confirmation() -> None:
     assert view["codex_block_confirmation_reason"] == "CODEX_HOOK_BLOCKED_EVENT"
 
 
+def test_result_presenter_reports_unavailable_block_confirmation() -> None:
+    view = result_view({"action_outcomes": []}, "VALID")
+
+    assert view["codex_block_confirmation"] == "NOT_AVAILABLE"
+
+
 def test_result_presenter_exposes_effective_codex_execution_policy() -> None:
     view = result_view(
         {
@@ -1361,6 +1649,33 @@ def test_result_presenter_exposes_effective_codex_execution_policy() -> None:
     assert view["requested_sandbox"] == "workspace-write"
     assert view["effective_sandbox"] == "read-only"
     assert view["effective_approval_policy"] == "never"
+
+
+@pytest.mark.parametrize(
+    ("observation", "expected_status"),
+    [
+        (
+            {
+                "effective_sandbox": "workspace-write",
+                "effective_approval_policy": "on-request",
+            },
+            "MATCHED",
+        ),
+        ({}, "NOT_OBSERVED"),
+    ],
+)
+def test_result_presenter_reports_execution_policy_status(
+    observation: dict[str, str], expected_status: str
+) -> None:
+    view = result_view(
+        {
+            "agent_execution": {"output_observation": observation},
+            "action_outcomes": [],
+        },
+        "VALID",
+    )
+
+    assert view["execution_policy_status"] == expected_status
 
 
 def test_result_presenter_does_not_confirm_from_output_metadata_alone() -> None:
@@ -1442,6 +1757,102 @@ def test_result_presenter_preserves_attribution_in_evidence_chain() -> None:
     assert view["evidence_chains"][0]["stages"][3]["status"] == "EXACT"
 
 
+def test_result_presenter_summarizes_attribution_grades_and_control() -> None:
+    view = result_view(
+        {
+            "action_outcomes": [
+                {"action_id": "exact", "attribution_grade": "EXACT"},
+                {"action_id": "process", "attribution_grade": "PROCESS"},
+            ],
+            "attribution_results": [
+                {"action_id": "exact", "grade": "EXACT"},
+                {"action_id": "temporal", "grade": "TEMPORAL"},
+                {"action_id": "unknown", "grade": "UNKNOWN"},
+            ],
+            "enforcement_results": [
+                {
+                    "action_id": "exact",
+                    "attribution_grade": "EXACT",
+                    "enforcement_decision": "CONTAIN",
+                    "enforcement_action": "TERMINATED",
+                    "execution_result": "SUCCEEDED",
+                },
+                {
+                    "action_id": "process",
+                    "attribution_grade": "PROCESS",
+                    "enforcement_decision": "REFUSE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "NOT_ATTEMPTED",
+                },
+            ],
+        },
+        "VALID",
+    )
+
+    assert view["attribution_summary"] == {
+        "counts": {"EXACT": 1, "PROCESS": 1, "TEMPORAL": 1, "UNKNOWN": 1},
+        "automatic_control_happened": True,
+        "automatic_control_grades": ["EXACT"],
+    }
+    refused = result_view(
+        {
+            "enforcement_results": [
+                {
+                    "attribution_grade": "PROCESS",
+                    "enforcement_decision": "REFUSE",
+                    "enforcement_action": "NONE",
+                    "execution_result": "NOT_ATTEMPTED",
+                }
+            ]
+        },
+        "VALID",
+    )
+    assert refused["attribution_summary"]["automatic_control_happened"] is False
+    assert refused["attribution_summary"]["automatic_control_grades"] == []
+
+
+def test_result_action_chain_shows_recorded_stages_and_marks_missing_links() -> None:
+    secret = "FAKE_SECRET_DO_NOT_RENDER"
+    actions = [
+        {
+            "action_id": "complete",
+            "tool_name": "Bash",
+            "policy_decision": "VIOLATION",
+            "enforcement_action": "BLOCKED",
+            "evidence_ids": ["hook", "process", "file"],
+            "target": {"raw_command": secret},
+            "payload": {"content": secret},
+        },
+        {"action_id": "partial", "payload": {"content": secret}},
+    ]
+    metadata = [
+        {"evidence_id": "hook", "source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"},
+        {"evidence_id": "process", "source": "PROCESS_RUNTIME", "record_type": "PROCESS_OBSERVED"},
+        {"evidence_id": "file", "source": "FILESYSTEM_WATCHER", "record_type": "FILESYSTEM_EVENT"},
+    ]
+
+    chains = result_action_chain_views(
+        actions,
+        evidence_metadata=metadata,
+        recovery={"recovery_status": "RESTORED"},
+    )
+
+    assert [stage["stage"] for stage in chains[0]["stages"]] == [
+        "TOOL_REQUEST",
+        "PROCESS",
+        "FILE_CHANGE",
+        "POLICY",
+        "ENFORCEMENT",
+        "RECOVERY",
+    ]
+    assert [stage["status"] for stage in chains[0]["stages"]] == [
+        "OBSERVED", "OBSERVED", "OBSERVED", "VIOLATION", "BLOCKED", "RESTORED"
+    ]
+    assert all(stage["value"] == "not observed" for stage in chains[1]["stages"][:5])
+    assert chains[1]["stages"][5]["value"] == "RESTORED"
+    assert secret not in repr(chains)
+
+
 def test_result_bundle_reader_rejects_path_traversal_and_unverified_bundle(tmp_path) -> None:
     reader = ResultBundleReader(tmp_path)
     with pytest.raises(ValueError, match="invalid session_id"):
@@ -1472,6 +1883,237 @@ def test_result_bundle_reader_can_read_live_metadata_without_valid_bundle(tmp_pa
     assert metadata[0]["record_type"] == "PRETOOL_REQUEST"
     assert "command" in metadata[0]["payload_keys"]
     assert "secret command" not in repr(metadata)
+
+
+def test_result_bundle_reader_refreshes_same_size_result_with_preserved_mtime(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    result_path = tmp_path / "sessions" / "session-1" / "result" / "result.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text('{"value":"a"}', encoding="utf-8")
+    verification_calls = 0
+
+    def verified(_session_id, *, on_result_bytes=None, on_raw_evidence_bytes=None):
+        nonlocal verification_calls
+        verification_calls += 1
+        if on_result_bytes is not None:
+            on_result_bytes(result_path.read_bytes())
+        return SimpleNamespace(status=BundleVerificationStatus.VALID)
+
+    monkeypatch.setattr(reader, "verification", verified)
+    original_parse_json = reader._parse_json_bytes
+    json_reads = 0
+
+    def parse_json(contents):
+        nonlocal json_reads
+        json_reads += 1
+        return original_parse_json(contents)
+
+    monkeypatch.setattr(reader, "_parse_json_bytes", parse_json)
+    original_read_bytes = Path.read_bytes
+    result_byte_reads = 0
+
+    def read_bytes(path):
+        nonlocal result_byte_reads
+        if path == result_path:
+            result_byte_reads += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    first = reader.read_result("session-1")
+    original_stat = result_path.stat()
+    result_path.write_text('{"value":"b"}', encoding="utf-8")
+    os.utime(
+        result_path,
+        ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+    )
+
+    second = reader.read_result("session-1")
+    third = reader.read_result("session-1")
+
+    assert first == {"value": "a"}
+    assert second == {"value": "b"}
+    assert third == second
+    assert result_path.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert verification_calls == 3
+    assert json_reads == 2
+    assert result_byte_reads == 3
+
+
+def test_result_bundle_reader_uses_verified_bytes_when_result_stat_fails(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    result_path = tmp_path / "sessions" / "session-1" / "result" / "result.json"
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text('{"value":"verified"}', encoding="utf-8")
+
+    def verified(_session_id, *, on_result_bytes=None, on_raw_evidence_bytes=None):
+        on_result_bytes(result_path.read_bytes())
+        return SimpleNamespace(status=BundleVerificationStatus.VALID)
+
+    monkeypatch.setattr(reader, "verification", verified)
+    original_stat = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == result_path:
+            raise PermissionError("result.json became unreadable after verification")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+
+    assert reader.read_result("session-1") == {"value": "verified"}
+
+
+def test_result_bundle_reader_refreshes_same_size_evidence_metadata_with_preserved_mtime(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    reader = ResultBundleReader(tmp_path)
+    evidence_path = (
+        tmp_path
+        / "sessions"
+        / "session-1"
+        / "evidence"
+        / "raw-evidence.jsonl"
+    )
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        '{"evidence_id":"e1","payload":{"command":"old"}}\n',
+        encoding="utf-8",
+    )
+    original_read_bytes = Path.read_bytes
+    metadata_byte_reads = 0
+
+    def read_bytes(path):
+        nonlocal metadata_byte_reads
+        if path == evidence_path:
+            metadata_byte_reads += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    first = reader.read_evidence_metadata("session-1", require_valid=False)
+    original_stat = evidence_path.stat()
+    evidence_path.write_text(
+        '{"evidence_id":"e2","payload":{"command":"new"}}\n',
+        encoding="utf-8",
+    )
+    os.utime(
+        evidence_path,
+        ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+    )
+
+    second = reader.read_evidence_metadata("session-1", require_valid=False)
+    third = reader.read_evidence_metadata("session-1", require_valid=False)
+
+    assert first[0]["evidence_id"] == "e1"
+    assert second[0]["evidence_id"] == "e2"
+    assert third == second
+    assert evidence_path.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert "old" not in repr(second)
+    assert "new" not in repr(second)
+    assert second[0]["payload_keys"] == ["command"]
+    assert metadata_byte_reads == 3
+
+
+def test_result_bundle_reader_bounds_result_cache_and_reparses_evicted_entry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    cache_limit = 8
+    monkeypatch.setattr(readers_module, "_PARSED_FILE_CACHE_LIMIT", cache_limit)
+    reader = ResultBundleReader(tmp_path)
+    parsed_session_ids = []
+    original_parse_json = reader._parse_json_bytes
+
+    def parse_json(contents):
+        result = original_parse_json(contents)
+        parsed_session_ids.append(result["session_id"])
+        return result
+
+    def verified(
+        session_id,
+        *,
+        on_result_bytes=None,
+        on_raw_evidence_bytes=None,
+    ):
+        result_path = reader.result_directory(session_id) / "result.json"
+        contents = result_path.read_bytes()
+        if on_result_bytes is not None:
+            on_result_bytes(contents)
+        return SimpleNamespace(status=BundleVerificationStatus.VALID)
+
+    monkeypatch.setattr(reader, "_parse_json_bytes", parse_json)
+    monkeypatch.setattr(reader, "verification", verified)
+
+    for index in range(cache_limit + 1):
+        session_id = f"session-{index}"
+        result_path = reader.result_directory(session_id) / "result.json"
+        result_path.parent.mkdir(parents=True)
+        result_path.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
+
+        assert reader.read_result(session_id) == {"session_id": session_id}
+        assert len(reader._result_cache) <= cache_limit
+
+    evicted_path = reader.result_directory("session-0") / "result.json"
+    assert len(reader._result_cache) == cache_limit
+    assert evicted_path not in reader._result_cache
+    assert reader.read_result("session-0") == {"session_id": "session-0"}
+    assert parsed_session_ids.count("session-0") == 2
+    assert len(reader._result_cache) <= cache_limit
+
+
+def test_result_bundle_reader_bounds_metadata_cache_and_reparses_evicted_entry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    cache_limit = 8
+    monkeypatch.setattr(readers_module, "_PARSED_FILE_CACHE_LIMIT", cache_limit)
+    reader = ResultBundleReader(tmp_path)
+
+    for index in range(cache_limit + 1):
+        session_id = f"session-{index}"
+        evidence_path = (
+            reader.session_directory(session_id)
+            / "evidence"
+            / "raw-evidence.jsonl"
+        )
+        evidence_path.parent.mkdir(parents=True)
+        evidence_path.write_text(
+            json.dumps({"evidence_id": session_id, "payload": {"command": "inspect"}})
+            + "\n",
+            encoding="utf-8",
+        )
+
+        metadata = reader.read_evidence_metadata(session_id, require_valid=False)
+        assert metadata[0]["evidence_id"] == session_id
+        assert len(reader._metadata_cache) <= cache_limit
+
+    evicted_path = (
+        reader.session_directory("session-0")
+        / "evidence"
+        / "raw-evidence.jsonl"
+    )
+    assert len(reader._metadata_cache) == cache_limit
+    assert evicted_path not in reader._metadata_cache
+
+    parse_calls = []
+    original_loads = readers_module.json.loads
+
+    def tracked_loads(contents, *args, **kwargs):
+        parse_calls.append(contents)
+        return original_loads(contents, *args, **kwargs)
+
+    monkeypatch.setattr(readers_module.json, "loads", tracked_loads)
+    metadata = reader.read_evidence_metadata("session-0", require_valid=False)
+
+    assert metadata[0]["evidence_id"] == "session-0"
+    assert len(parse_calls) == 1
+    assert evicted_path in reader._metadata_cache
+    assert len(reader._metadata_cache) <= cache_limit
 
 
 def test_result_bundle_reader_reports_verified_checkpoint_status(
@@ -1532,9 +2174,39 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
     assert reader.checkpoint_status(session_id) == "UNKNOWN"
 
 
-def test_result_bundle_reader_preserves_protection_downgrade_in_history(
+@pytest.mark.parametrize(
+    ("status", "end_reason", "hook_event", "limitations", "expected_state"),
+    [
+        ("COMPLETED", "AGENT_EXITED", True, [], "COMPLETED_VERIFIED"),
+        ("COMPLETED", "AGENT_EXITED", False, [], "COMPLETED_DEGRADED"),
+        (
+            "COMPLETED",
+            "AGENT_EXITED",
+            True,
+            ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+            "COMPLETED_DEGRADED",
+        ),
+        ("ABORTED", "USER_ABORT", True, [], "ABORTED_VERIFIED"),
+        ("ABORTED", "USER_ABORT", False, [], "ABORTED_DEGRADED"),
+        (
+            "ABORTED",
+            "USER_ABORT",
+            True,
+            ["PROTECTION_BOUNDARY_LOST"],
+            "ABORTED_DEGRADED",
+        ),
+        ("FAILED", "AGENT_EXITED", True, [], "FAILED_DEGRADED"),
+        ("COMPLETED", "PROTECTION_FAILURE", True, [], "FAILED_DEGRADED"),
+    ],
+)
+def test_result_bundle_reader_classifies_protection_state_in_history(
     tmp_path,
     monkeypatch,
+    status,
+    end_reason,
+    hook_event,
+    limitations,
+    expected_state,
 ) -> None:
     reader = ResultBundleReader(tmp_path)
     session_dir = tmp_path / "sessions" / "session-1"
@@ -1544,27 +2216,35 @@ def test_result_bundle_reader_preserves_protection_downgrade_in_history(
         "_read_verified_result",
         lambda _session_id: (
             {
-                "session_status": "COMPLETED",
-                "session_end_reason": "AGENT_EXITED",
+                "session_status": status,
+                "session_end_reason": end_reason,
                 "launch_mode": "web_terminal",
-                "limitations": ["CODEX_APPROVAL_POLICY_DOWNGRADED"],
+                "limitations": limitations,
                 "action_outcomes": [],
             },
             SimpleNamespace(status=SimpleNamespace(value="VALID")),
+            b"{}\n",
         ),
     )
     monkeypatch.setattr(
         reader,
         "read_evidence_metadata",
-        lambda _session_id, *, require_valid=True: [
-            {"source": "AGENT_HOOK", "record_type": "PRETOOL_REQUEST"}
-        ],
+        lambda _session_id, *, require_valid=True, verified_bytes=None: [
+            {
+                "source": "AGENT_HOOK",
+                "record_type": "PRETOOL_REQUEST",
+                "payload": {"command": "secret command"},
+            }
+        ]
+        if hook_event
+        else [],
     )
 
     runs = reader.list_completed()
 
-    assert runs[0]["protection_state"] == "COMPLETED_DEGRADED"
+    assert runs[0]["protection_state"] == expected_state
     assert runs[0]["launch_mode"] == "web_terminal"
+    assert "secret command" not in repr(runs)
 
 
 def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
@@ -1618,7 +2298,7 @@ def test_application_preflight_reports_required_and_optional_hook_state(tmp_path
         lambda _installer: False,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1692,7 +2372,7 @@ def test_application_preflight_reports_actual_trusted_hook_status(tmp_path, monk
         lambda _installer: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1737,7 +2417,7 @@ def test_application_preflight_requires_live_hook_verification_when_enabled(
         lambda _installer: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1783,7 +2463,7 @@ def test_application_preflight_exposes_untrusted_hook_remediation(
         lambda _installer: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.preflight.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1844,7 +2524,7 @@ def test_application_create_rejects_currently_untrusted_hook(
         lambda self, installer, executable: True,
     )
     monkeypatch.setattr(
-        "aia_app.service.inspect_codex_hook_trust",
+        "aia_app.run_control.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
             "Inspection",
             (),
@@ -1906,6 +2586,221 @@ def test_application_rejects_empty_non_interactive_task(tmp_path) -> None:
         service.shutdown()
 
 
+def test_protected_run_lifecycle_keeps_successful_phases_in_order(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    events = []
+    session = SimpleNamespace(
+        transition=lambda status, **_kwargs: events.append(f"session:{status.value}")
+    )
+    record.runtime.update({"session": session, "resolved_policy": object()})
+    sensors = (object(), object())
+
+    monkeypatch.setattr(
+        service,
+        "_phase",
+        lambda _record, phase, *_args: events.append(f"phase:{phase}"),
+    )
+
+    def prepare(*_args):
+        events.append("preparation")
+        return object(), object(), sensors, object(), object(), object(), True
+
+    monkeypatch.setattr(service, "_prepare_protected_run", prepare)
+    monkeypatch.setattr(
+        service,
+        "_create_protected_launcher",
+        lambda *_args: (events.append("launcher") or object(), object(), object()),
+    )
+    monkeypatch.setattr(
+        service,
+        "_observe_protected_run",
+        lambda *_args: (
+            events.append("observation") or (object(), sensors, 0, True, None)
+        ),
+    )
+
+    def finalize(*_args):
+        events.append("finalization")
+        record.status = "COMPLETED"
+        return True
+
+    monkeypatch.setattr(service, "_finalize_completed_protected_run", finalize)
+    monkeypatch.setattr(
+        service,
+        "_cleanup_run_lifecycle",
+        lambda *_args: events.append("cleanup"),
+    )
+    try:
+        service._run_protected_lifecycle(record)
+
+        assert events == [
+            "phase:PREPARING",
+            "session:PREPARING",
+            "preparation",
+            "launcher",
+            "phase:LAUNCHING",
+            "observation",
+            "finalization",
+            "cleanup",
+        ]
+        assert record.status == "COMPLETED"
+    finally:
+        service.shutdown()
+
+
+def test_protected_run_lifecycle_cleans_up_after_prelaunch_abort(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    events = []
+    session = SimpleNamespace(transition=lambda *_args, **_kwargs: None)
+    record.runtime.update({"session": session, "resolved_policy": object()})
+    sensors = (object(), object())
+
+    monkeypatch.setattr(service, "_phase", lambda *_args: None)
+
+    def prepare(*_args):
+        record.status = "ABORTED"
+        events.append("abort_finalized")
+        return object(), object(), sensors, object(), object(), object(), False
+
+    monkeypatch.setattr(service, "_prepare_protected_run", prepare)
+
+    def cleanup(*_args):
+        events.append(("cleanup", record.status))
+
+    monkeypatch.setattr(service, "_cleanup_run_lifecycle", cleanup)
+    try:
+        service._run_protected_lifecycle(record)
+
+        assert events == ["abort_finalized", ("cleanup", "ABORTED")]
+        assert record.status == "ABORTED"
+    finally:
+        service.shutdown()
+
+
+def test_protected_run_lifecycle_cleans_up_after_exception_without_losing_failure(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    events = []
+    session = SimpleNamespace(transition=lambda *_args, **_kwargs: None)
+    record.runtime.update({"session": session, "resolved_policy": object()})
+
+    monkeypatch.setattr(service, "_phase", lambda *_args: None)
+    monkeypatch.setattr(
+        service,
+        "_prepare_protected_run",
+        lambda *_args: (
+            object(),
+            object(),
+            (object(), object()),
+            object(),
+            object(),
+            object(),
+            True,
+        ),
+    )
+
+    def fail_launcher(*_args):
+        raise RuntimeError("launcher setup failed")
+
+    monkeypatch.setattr(service, "_create_protected_launcher", fail_launcher)
+
+    def cleanup(*_args):
+        events.append(("cleanup", record.status))
+
+    monkeypatch.setattr(service, "_cleanup_run_lifecycle", cleanup)
+    try:
+        service._run_protected_lifecycle(record)
+
+        assert events == [("cleanup", "FAILED")]
+        assert record.status == "FAILED"
+        assert record.error == "RuntimeError: launcher setup failed"
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("launch_mode", "expected_app_server"),
+    [
+        ("inherit", False),
+        ("codex_app_server", True),
+        ("new_terminal", False),
+    ],
+)
+def test_interactive_launcher_keeps_protected_adapter_configuration(
+    tmp_path, monkeypatch, launch_mode, expected_app_server
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.interactive = True
+    record.launch_mode = launch_mode
+    try:
+        _launcher, captured, options = capture_service_launcher_factory(
+            service, record, monkeypatch
+        )
+
+        assert options == {
+            "approval_policy": "on-request",
+            "sandbox": "workspace-write",
+            "interactive": True,
+            **({"app_server": True} if expected_app_server else {}),
+        }
+        assert captured["adapter"].enable_hooks is True
+    finally:
+        service.shutdown()
+
+
+def test_non_interactive_launcher_keeps_current_adapter_options(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    try:
+        _launcher, _captured, options = capture_service_launcher_factory(
+            service, record, monkeypatch
+        )
+
+        assert options == {
+            "approve_for_me": True,
+            "skip_git_repo_check": True,
+        }
+    finally:
+        service.shutdown()
+
+
+def test_non_interactive_launch_failure_closes_temporary_output_handles(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    output_handles = []
+    try:
+        _launcher, captured, _options = capture_service_launcher_factory(
+            service, record, monkeypatch, output_handles
+        )
+
+        def fail_popen(*_args, **_kwargs):
+            raise OSError("simulated process launch failure")
+
+        monkeypatch.setattr(service_module.subprocess, "Popen", fail_popen)
+        with pytest.raises(OSError, match="simulated process launch failure"):
+            captured["popen_factory"](
+                ["codex", "exec"], cwd=str(tmp_path), env={}
+            )
+
+        assert len(output_handles) == 2
+        assert all(handle.closed for handle in output_handles)
+    finally:
+        service.shutdown()
+
+
 def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     service._run = lambda record: None
@@ -1917,6 +2812,34 @@ def test_application_returns_session_before_worker_finishes(tmp_path) -> None:
         assert created["redirect_url"].endswith(created["session_id"])
         status = service.get_run_status(created["session_id"])
         assert status["protection"]["state"] == "STARTING"
+    finally:
+        service.shutdown()
+
+
+def test_new_interactive_run_uses_codex_app_server_without_web_terminal(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    records = []
+    service._run = records.append
+    monkeypatch.setattr(
+        service._executor,
+        "submit",
+        lambda callback, record: callback(record),
+    )
+    try:
+        created = service.create_protected_run(
+            {
+                "workspace": str(tmp_path),
+                "interactive": True,
+                "launch_mode": "codex_app_server",
+            }
+        )
+
+        assert created["redirect_url"].endswith("/workbench")
+        assert len(records) == 1
+        assert records[0].launch_mode == "codex_app_server"
+        assert "terminal_session" not in records[0].runtime
     finally:
         service.shutdown()
 
@@ -1998,32 +2921,120 @@ def test_list_runs_includes_runtime_state_from_another_service_process(tmp_path)
         writer.shutdown()
 
 
-def test_list_runs_reuses_verified_history_for_refresh_burst(tmp_path, monkeypatch) -> None:
+def test_list_runs_skips_malformed_and_mismatched_runtime_state_files(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
+    run_status = tmp_path / "control" / "run-status"
+    run_status.mkdir(parents=True)
+    service._write_runtime_state_payload(
+        "valid-session",
+        {
+            "schema_version": 1,
+            "session_id": "valid-session",
+            "session": {"status": "COMPLETED", "created_at": "2026-01-01T00:00:00+00:00"},
+            "result_available": False,
+        },
+    )
+    (run_status / "malformed-session.json").write_text("{", encoding="utf-8")
+    (run_status / "mismatched-session.json").write_text(
+        json.dumps({"session_id": "another-session", "session": {"status": "FAILED"}}),
+        encoding="utf-8",
+    )
+    try:
+        runs = service.list_runs()
+
+        assert [run["session_id"] for run in runs] == ["valid-session"]
+        assert runs[0]["run_classification"] == "UNVERIFIED_RUNTIME_STATE"
+    finally:
+        service.shutdown()
+
+
+def test_runtime_state_listing_reuses_unchanged_files_and_refreshes_changes(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    run_status = tmp_path / "control" / "run-status"
+    service._write_runtime_state_payload(
+        "cached-session",
+        {
+            "session_id": "cached-session",
+            "session": {"status": "RUNNING"},
+            "policy": {"id": "initial"},
+        },
+    )
+    original_read_text = Path.read_text
+    reads = 0
+
+    def count_runtime_reads(path: Path, *args, **kwargs):
+        nonlocal reads
+        if path.parent == run_status:
+            reads += 1
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", count_runtime_reads)
+    try:
+        first = service._list_runtime_states()
+        first[0]["policy"]["id"] = "mutated"
+        second = service._list_runtime_states()
+
+        assert reads == 1
+        assert second[0]["policy"]["id"] == "initial"
+
+        service._write_runtime_state_payload(
+            "cached-session",
+            {
+                "session_id": "cached-session",
+                "session": {"status": "COMPLETED"},
+                "policy": {"id": "updated"},
+            },
+        )
+        updated = service._list_runtime_states()
+
+        assert reads == 2
+        assert updated[0]["session"]["status"] == "COMPLETED"
+        assert updated[0]["policy"]["id"] == "updated"
+    finally:
+        service.shutdown()
+
+
+def test_list_completed_runs_refreshes_history_after_cache_expiry(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    clock = [100.0]
+    monkeypatch.setattr(
+        service_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: clock[0]),
+    )
     calls = 0
+    completed = [{
+        "session_id": "completed-1",
+        "status": "COMPLETED",
+        "policy": {"settings": {"mode": "strict"}},
+    }]
 
     def list_completed() -> list[dict[str, object]]:
         nonlocal calls
         calls += 1
-        return [
-            {
-                "session_id": "completed-1",
-                "status": "COMPLETED",
-                "created_at": "2026-01-01T00:00:00+00:00",
-                "ended_at": "2026-01-01T00:01:00+00:00",
-                "workspace": str(tmp_path),
-                "agent": "codex",
-                "policy": {},
-                "launch_mode": "inherit",
-                "bundle_status": "VALID",
-            }
-        ]
+        return [dict(run) for run in completed]
 
     monkeypatch.setattr(service.reader, "list_completed", list_completed)
     try:
-        assert service.list_runs()[0]["session_id"] == "completed-1"
-        assert service.list_runs()[0]["session_id"] == "completed-1"
+        first = service._list_completed_runs()
+        assert first[0]["session_id"] == "completed-1"
+        first[0]["policy"]["settings"]["mode"] = "mutated"
+
+        clock[0] += 5.999
+        completed.append({"session_id": "completed-2", "status": "COMPLETED"})
+        second = service._list_completed_runs()
+        assert second[0]["session_id"] == "completed-1"
+        assert second[0]["policy"]["settings"]["mode"] == "strict"
+        assert [run["session_id"] for run in second] == ["completed-1"]
         assert calls == 1
+
+        clock[0] += 0.002
+        refreshed = service._list_completed_runs()
+        assert [run["session_id"] for run in refreshed] == ["completed-1", "completed-2"]
+        assert calls == 2
     finally:
         service.shutdown()
 
@@ -2308,7 +3319,7 @@ def test_persisted_run_reports_orphaned_when_coordinator_is_gone(tmp_path, monke
     def verify(identity):
         return ProcessIdentityStatus.PROCESS_GONE
 
-    monkeypatch.setattr("aia_app.service.verify_process_identity", verify)
+    monkeypatch.setattr("aia_app.run_history.verify_process_identity", verify)
     state = _orphaned_runtime_state()
     service._write_runtime_state_payload("session-1", state)
     try:
@@ -2332,7 +3343,7 @@ def test_orphan_reconcile_requires_recorded_agent_root_to_be_gone(tmp_path, monk
             else ProcessIdentityStatus.LIVE_MATCH
         )
 
-    monkeypatch.setattr("aia_app.service.verify_process_identity", verify)
+    monkeypatch.setattr("aia_app.run_history.verify_process_identity", verify)
     service._write_runtime_state_payload("session-1", _orphaned_runtime_state())
     try:
         result = service.reconcile_orphaned_run("session-1")
@@ -2351,7 +3362,7 @@ def test_orphan_reconcile_acknowledges_only_after_agent_root_identity_is_gone(
     service = RunApplicationService(control_root)
 
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", _orphaned_runtime_state())
@@ -2378,7 +3389,7 @@ def test_orphan_reconcile_allows_preparing_run_without_recorded_agent_root(
     state["phase"] = "PREPARING"
     state["protection"] = {"state": "STARTING", "hook_events": 0}
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", state)
@@ -2402,7 +3413,7 @@ def test_new_run_refuses_workspace_with_unresolved_orphaned_agent(
     state = _orphaned_runtime_state()
     state["session"]["workspace"] = str(tmp_path)
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: (
             ProcessIdentityStatus.PROCESS_GONE
             if identity.pid == 4242
@@ -2426,7 +3437,7 @@ def test_validate_workspace_exposes_orphan_recovery_action(
     state = _orphaned_runtime_state()
     state["session"]["workspace"] = str(tmp_path)
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", state)
@@ -2453,7 +3464,7 @@ def test_new_run_allows_workspace_after_orphan_reconciliation(
     state = _orphaned_runtime_state()
     state["session"]["workspace"] = str(tmp_path)
     monkeypatch.setattr(
-        "aia_app.service.verify_process_identity",
+        "aia_app.run_history.verify_process_identity",
         lambda identity: ProcessIdentityStatus.PROCESS_GONE,
     )
     service._write_runtime_state_payload("session-1", state)

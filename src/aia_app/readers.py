@@ -2,16 +2,38 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from dataclasses import dataclass, field
+from datetime import datetime
+import hashlib
 import json
 from pathlib import Path
 from pathlib import PurePosixPath
 import re
-from typing import Any
+from threading import RLock
+from typing import Any, Callable
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
+from aia.evidence import RawEvidenceRecord
 
 
 _SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9-]+$")
+_PARSED_FILE_CACHE_LIMIT = 512
+
+
+@dataclass(slots=True)
+class _LiveEvidenceCache:
+    identity: tuple[int, int, int]
+    modified_ns: int
+    read_offset: int = 0
+    pending: bytes = b""
+    metadata: list[dict[str, Any]] = field(default_factory=list)
+    posttool_ids: set[str] = field(default_factory=set)
+    pretool_evidence_ids: dict[str, list[str]] = field(default_factory=dict)
+    observed_evidence_ids: set[str] = field(default_factory=set)
+    captured_at: dict[str, str] = field(default_factory=dict)
+    observations_valid: bool = True
 
 
 class ResultBundleReader:
@@ -19,6 +41,10 @@ class ResultBundleReader:
 
     def __init__(self, control_root: str | Path) -> None:
         self.control_root = Path(control_root).expanduser().resolve(strict=False)
+        self._parsed_cache_lock = RLock()
+        self._result_cache: dict[Path, tuple[int, int, bytes, dict[str, Any]]] = {}
+        self._metadata_cache: dict[Path, tuple[int, int, bytes, list[dict[str, Any]]]] = {}
+        self._live_evidence_cache: dict[Path, _LiveEvidenceCache] = {}
 
     def session_directory(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not _SAFE_SESSION_ID.fullmatch(session_id):
@@ -32,23 +58,74 @@ class ResultBundleReader:
     def result_directory(self, session_id: str) -> Path:
         return self.session_directory(session_id) / "result"
 
-    def verification(self, session_id: str):
+    def verification(
+        self,
+        session_id: str,
+        *,
+        on_result_bytes: Callable[[bytes], None] | None = None,
+        on_raw_evidence_bytes: Callable[[bytes], None] | None = None,
+    ):
         result_directory = self.result_directory(session_id)
         if not result_directory.is_dir():
             return None
-        return verify_evidence_bundle(result_directory)
+        return verify_evidence_bundle(
+            result_directory,
+            on_result_bytes=on_result_bytes,
+            on_raw_evidence_bytes=on_raw_evidence_bytes,
+        )
 
-    def _read_verified_result(self, session_id: str) -> tuple[dict[str, Any], Any]:
+    def _read_verified_result(
+        self,
+        session_id: str,
+    ) -> tuple[dict[str, Any], Any, bytes | None]:
         """Read a result together with the single verification used for it."""
 
         result_directory = self.result_directory(session_id)
-        verification = self.verification(session_id)
+        verified_result_bytes: bytes | None = None
+        verified_raw_evidence_bytes: bytes | None = None
+
+        def capture_result_bytes(contents: bytes) -> None:
+            nonlocal verified_result_bytes
+            verified_result_bytes = contents
+
+        def capture_raw_evidence_bytes(contents: bytes) -> None:
+            nonlocal verified_raw_evidence_bytes
+            verified_raw_evidence_bytes = contents
+
+        verification = self.verification(
+            session_id,
+            on_result_bytes=capture_result_bytes,
+            on_raw_evidence_bytes=capture_raw_evidence_bytes,
+        )
         if verification is None or verification.status is not BundleVerificationStatus.VALID:
             raise ValueError("Evidence Bundle Integrity Failure")
-        return self._read_json(result_directory / "result.json"), verification
+        result_path = result_directory / "result.json"
+        if verified_result_bytes is None:
+            return self._read_json(result_path), verification, verified_raw_evidence_bytes
+        try:
+            stat = result_path.stat()
+        except OSError:
+            return (
+                self._parse_json_bytes(verified_result_bytes),
+                verification,
+                verified_raw_evidence_bytes,
+            )
+        contents = verified_result_bytes
+        digest = hashlib.blake2b(contents, digest_size=16).digest()
+        signature = (stat.st_mtime_ns, stat.st_size, digest)
+        with self._parsed_cache_lock:
+            cached = self._result_cache.get(result_path)
+            if cached is not None and cached[:3] == signature:
+                result = deepcopy(cached[3])
+            else:
+                result = self._parse_json_bytes(contents)
+                self._result_cache[result_path] = (*signature, result)
+                if len(self._result_cache) > _PARSED_FILE_CACHE_LIMIT:
+                    self._result_cache.pop(next(iter(self._result_cache)))
+        return result, verification, verified_raw_evidence_bytes
 
     def read_result(self, session_id: str) -> dict[str, Any]:
-        result, _ = self._read_verified_result(session_id)
+        result, _, _ = self._read_verified_result(session_id)
         return result
 
     def read_report(self, session_id: str) -> str:
@@ -66,6 +143,7 @@ class ResultBundleReader:
         session_id: str,
         *,
         require_valid: bool = True,
+        verified_bytes: bytes | None = None,
     ) -> list[dict[str, Any]]:
         """Read metadata without returning Evidence payload values.
 
@@ -81,8 +159,22 @@ class ResultBundleReader:
         path = session_directory / "evidence" / "raw-evidence.jsonl"
         if not path.is_file():
             return []
+        try:
+            stat = path.stat()
+        except OSError:
+            return []
+        contents = path.read_bytes() if verified_bytes is None else verified_bytes
+        digest = hashlib.blake2b(contents, digest_size=16).digest()
+        signature = (stat.st_mtime_ns, stat.st_size, digest)
+        with self._parsed_cache_lock:
+            cached = self._metadata_cache.get(path)
+            if cached is not None and cached[:3] == signature:
+                return [
+                    {**item, "payload_keys": list(item["payload_keys"])}
+                    for item in cached[3]
+                ]
         items: list[dict[str, Any]] = []
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for line_number, line in enumerate(contents.decode("utf-8").splitlines(), 1):
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
@@ -100,7 +192,190 @@ class ResultBundleReader:
                     "source": record.get("source"),
                 }
             )
+        with self._parsed_cache_lock:
+            cached_items = [
+                {**item, "payload_keys": list(item["payload_keys"])}
+                for item in items
+            ]
+            self._metadata_cache[path] = (*signature, cached_items)
+            if len(self._metadata_cache) > _PARSED_FILE_CACHE_LIMIT:
+                self._metadata_cache.pop(next(iter(self._metadata_cache)))
         return items
+
+    def read_live_evidence_snapshot(
+        self,
+        session_id: str,
+    ) -> tuple[list[dict[str, Any]], set[str], dict[str, str]]:
+        """Read append-only evidence deltas for live, display-only status."""
+
+        session_directory = self.session_directory(session_id)
+        path = session_directory / "evidence" / "raw-evidence.jsonl"
+        if not path.is_file():
+            with self._parsed_cache_lock:
+                self._live_evidence_cache.pop(path, None)
+            return [], set(), {}
+        try:
+            stat = path.stat()
+        except OSError:
+            return [], set(), {}
+        identity = (stat.st_dev, stat.st_ino, stat.st_ctime_ns)
+
+        with self._parsed_cache_lock:
+            cached = self._live_evidence_cache.get(path)
+            if (
+                cached is None
+                or cached.identity != identity
+                or stat.st_size < cached.read_offset
+                or (
+                    stat.st_size == cached.read_offset
+                    and stat.st_mtime_ns != cached.modified_ns
+                )
+            ):
+                cached = _LiveEvidenceCache(
+                    identity=identity,
+                    modified_ns=stat.st_mtime_ns,
+                )
+                self._live_evidence_cache[path] = cached
+                if len(self._live_evidence_cache) > _PARSED_FILE_CACHE_LIMIT:
+                    self._live_evidence_cache.pop(next(iter(self._live_evidence_cache)))
+
+            if stat.st_size > cached.read_offset:
+                remaining = stat.st_size - cached.read_offset
+                try:
+                    with path.open("rb") as stream:
+                        stream.seek(cached.read_offset)
+                        appended = stream.read(remaining)
+                except OSError:
+                    return [], set(), {}
+                cached.read_offset += len(appended)
+                lines = (cached.pending + appended).split(b"\n")
+                cached.pending = lines.pop()
+                try:
+                    for line in lines:
+                        self._append_live_evidence_line(
+                            cached,
+                            line,
+                            line_number=len(cached.metadata) + 1,
+                            session_id=session_id,
+                        )
+                except UnicodeDecodeError:
+                    self._live_evidence_cache.pop(path, None)
+                    return [], set(), {}
+                cached.modified_ns = stat.st_mtime_ns
+
+            metadata = [
+                (
+                    {**item, "payload_keys": list(item["payload_keys"])}
+                    if "payload_keys" in item
+                    else dict(item)
+                )
+                for item in cached.metadata
+            ]
+            observed_evidence_ids = set(cached.observed_evidence_ids)
+            captured_at = dict(cached.captured_at)
+            observations_valid = cached.observations_valid
+
+            if cached.pending:
+                pending_cache = _LiveEvidenceCache(
+                    identity=cached.identity,
+                    modified_ns=cached.modified_ns,
+                    metadata=[],
+                    posttool_ids=set(cached.posttool_ids),
+                    pretool_evidence_ids={
+                        key: list(value)
+                        for key, value in cached.pretool_evidence_ids.items()
+                    },
+                    observed_evidence_ids=observed_evidence_ids,
+                    captured_at=captured_at,
+                    observations_valid=observations_valid,
+                )
+                try:
+                    self._append_live_evidence_line(
+                        pending_cache,
+                        cached.pending,
+                        line_number=len(cached.metadata) + 1,
+                        session_id=session_id,
+                    )
+                except UnicodeDecodeError:
+                    return [], set(), {}
+                metadata.extend(pending_cache.metadata)
+                observed_evidence_ids = pending_cache.observed_evidence_ids
+                captured_at = pending_cache.captured_at
+                observations_valid = pending_cache.observations_valid
+
+            if not observations_valid:
+                return metadata, set(), {}
+            return metadata, observed_evidence_ids, captured_at
+
+    @staticmethod
+    def _append_live_evidence_line(
+        cached: _LiveEvidenceCache,
+        line: bytes,
+        *,
+        line_number: int,
+        session_id: str,
+    ) -> None:
+        text = line.decode("utf-8").removesuffix("\r")
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            cached.metadata.append({"line": line_number, "status": "MALFORMED"})
+            if line.strip():
+                cached.observations_valid = False
+            return
+        if not isinstance(value, dict):
+            cached.metadata.append({"line": line_number, "status": "MALFORMED"})
+            cached.observations_valid = False
+            return
+
+        payload = value.get("payload")
+        cached.metadata.append(
+            {
+                "captured_at": value.get("captured_at"),
+                "evidence_id": value.get("evidence_id"),
+                "line": line_number,
+                "observation_stage": value.get("observation_stage"),
+                "payload_keys": sorted(payload.keys()) if isinstance(payload, dict) else [],
+                "record_type": value.get("record_type"),
+                "source": value.get("source"),
+            }
+        )
+        if not text.strip():
+            return
+
+        try:
+            record = RawEvidenceRecord(
+                session_id=value["session_id"],
+                source=value["source"],
+                record_type=value["record_type"],
+                captured_at=datetime.fromisoformat(value["captured_at"]),
+                observation_stage=value["observation_stage"],
+                payload=payload,
+                evidence_id=value["evidence_id"],
+            )
+            if record.session_id != session_id:
+                raise ValueError("Raw Evidence Session ID does not match")
+        except (KeyError, TypeError, ValueError):
+            cached.observations_valid = False
+            return
+
+        cached.captured_at[record.evidence_id] = record.captured_at.isoformat()
+        tool_use_id = record.payload.get("tool_use_id")
+        if record.record_type.value == "POSTTOOL_OBSERVED":
+            if isinstance(tool_use_id, str) and tool_use_id:
+                cached.posttool_ids.add(tool_use_id)
+                cached.observed_evidence_ids.add(record.evidence_id)
+                cached.observed_evidence_ids.update(
+                    cached.pretool_evidence_ids.pop(tool_use_id, ())
+                )
+        elif record.record_type.value == "PRETOOL_REQUEST":
+            if isinstance(tool_use_id, str) and tool_use_id:
+                if tool_use_id in cached.posttool_ids:
+                    cached.observed_evidence_ids.add(record.evidence_id)
+                else:
+                    cached.pretool_evidence_ids.setdefault(tool_use_id, []).append(
+                        record.evidence_id
+                    )
 
     def list_completed(self) -> list[dict[str, Any]]:
         """List only committed, valid Result Bundles under this Control Root."""
@@ -109,18 +384,47 @@ class ResultBundleReader:
         if not sessions.is_dir():
             return []
         completed: list[dict[str, Any]] = []
-        for candidate in sessions.iterdir():
-            if not candidate.is_dir() or not _SAFE_SESSION_ID.fullmatch(candidate.name):
-                continue
+
+        candidates = [
+            candidate
+            for candidate in sessions.iterdir()
+            if candidate.is_dir() and _SAFE_SESSION_ID.fullmatch(candidate.name)
+        ]
+        verified_candidates: list[
+            tuple[Path, dict[str, Any], Any, bytes | None]
+        ] = []
+
+        def read_verified_candidate(
+            candidate: Path,
+        ) -> tuple[dict[str, Any], Any, bytes | None] | None:
             try:
-                result, verification = self._read_verified_result(candidate.name)
+                return self._read_verified_result(candidate.name)
             except (OSError, ValueError, KeyError):
-                continue
-            if verification is None:
-                continue
-            evidence_metadata = self.read_evidence_metadata(
-                candidate.name,
-                require_valid=False,
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # executor.map keeps results in candidate order while work overlaps.
+            for candidate, verified_result in zip(
+                candidates, executor.map(read_verified_candidate, candidates)
+            ):
+                if verified_result is None:
+                    continue
+                result, verification, raw_evidence_bytes = verified_result
+                if verification is None:
+                    continue
+                verified_candidates.append(
+                    (candidate, result, verification, raw_evidence_bytes)
+                )
+
+        for candidate, result, verification, raw_evidence_bytes in verified_candidates:
+            evidence_metadata = (
+                self.read_evidence_metadata(
+                    candidate.name,
+                    require_valid=False,
+                    verified_bytes=raw_evidence_bytes,
+                )
+                if raw_evidence_bytes is not None
+                else []
             )
             hook_event_count = sum(
                 1
@@ -300,8 +604,15 @@ class ResultBundleReader:
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
         try:
-            value = json.loads(path.read_text(encoding="utf-8"))
+            return ResultBundleReader._parse_json_bytes(path.read_bytes())
         except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("result bundle JSON is invalid") from error
+
+    @staticmethod
+    def _parse_json_bytes(contents: bytes) -> dict[str, Any]:
+        try:
+            value = json.loads(contents)
+        except json.JSONDecodeError as error:
             raise ValueError("result bundle JSON is invalid") from error
         if not isinstance(value, dict):
             raise ValueError("result bundle JSON must be an object")

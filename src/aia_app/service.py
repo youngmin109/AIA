@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
@@ -13,24 +14,19 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from threading import Event, RLock, Thread
+from threading import RLock, Thread
 from typing import Any
 from uuid import UUID, uuid4
 
 from aia import (
-    AttributionEngine,
     CodexAdapter,
     CodexExecutionObservation,
     CodexHookBroker,
     CodexHookInstaller,
     CodexPreToolController,
-    EnforcementGate,
-    EnforcementGateInput,
     FilesystemSensor,
     HookSensor,
-    HookTrustStatus,
     HookEnforcementBridge,
-    Normalizer,
     Operation,
     PolicyProfile,
     ProcessIdentityStatus,
@@ -42,7 +38,6 @@ from aia import (
     ProcessIdentity,
     RawEvidenceStore,
     RecoveryCoordinator,
-    RuntimePolicyEvaluator,
     SessionFinalizer,
     SessionMode,
     SessionStatus,
@@ -69,106 +64,50 @@ from .presenters import (
     evidence_timeline_views,
     incident_view,
     incident_views_for_result,
+    result_action_chain_views,
     result_view,
     safe_event_views,
     safe_tool_name,
 )
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
-from .terminal import TerminalSessionError, WinPtyTerminalSession
 from .codex_app_server import CodexAppServerError, CodexAppServerSession
+from .codex_workbench import CodexWorkbench, _END_SESSION_REQUEST
+from .run_history import (
+    RunHistoryMixin,
+    _runtime_coordinator_reconciliation,
+    _workspace_key,
+    _PRODUCT_SENSOR_NAMES,
+    _annotate_execution_observations,
+    _execution_observation_metadata,
+    _hook_broker_runtime_healthy,
+    _sensor_summary_is_verified,
+)
+from .preflight import PreflightMixin, _aia_cli_prefix
+from .protected_run import (
+    ApplicationValidationError,
+    ProtectedRunMixin,
+    _event_tool_name,
+    _now,
+    _posttool_use_ids,
+    _popen_kwargs_for_launch_mode,
+    _runtime_action_view,
+    _sensor_status,
+    _sensors_runtime_healthy,
+)
+from .run_control import RunControlMixin
 
 
 # The dashboard refreshes active runs every five seconds. Keep the verified
 # history snapshot through one refresh interval so repeated UI requests do
 # not re-hash every completed bundle while a live terminal is active.
 _COMPLETED_RUNS_CACHE_TTL_SECONDS = 6.0
+_RUNTIME_STATES_CACHE_LIMIT = 2_048
 
 
-def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
-    """Return a usable local CLI command for messages shown by the web app."""
-
-    if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve(strict=False)
-        if executable.name.casefold() in {"aia-cli.exe", "aia-cli"}:
-            return subprocess.list2cmdline([str(executable)])
-        candidates = (
-            executable.parent / "aia-cli" / "aia-cli.exe",
-            executable.parent.parent / "aia-cli" / "aia-cli.exe",
-            executable.parent / "aia-cli.exe",
-        )
-        for candidate in candidates:
-            if candidate.is_file():
-                return subprocess.list2cmdline([str(candidate)])
-        if executable.name.casefold() in {"aia.exe", "aia"}:
-            return subprocess.list2cmdline([str(executable)])
-        return subprocess.list2cmdline([str(executable)])
-
-    module_path = Path(__file__).resolve()
-    project_root = next(
-        (
-            candidate
-            for candidate in (module_path.parent, *module_path.parents)
-            if (candidate / "pyproject.toml").is_file()
-        ),
-        None,
-    )
-    if project_root is None:
-        return subprocess.list2cmdline([sys.executable, "-m", "aia.cli"])
-    return subprocess.list2cmdline(
-        [
-            "uv",
-            "run",
-            "--isolated",
-            "--project",
-            str(project_root),
-            "python",
-            "-m",
-            "aia.cli",
-        ]
-    )
-
-
-class ApplicationValidationError(ValueError):
-    """Raised when a console request cannot enter the Core pipeline."""
-
-
-_PRODUCT_SENSOR_NAMES = frozenset(
-    {
-        "AGENT_HOOK",
-        "FILESYSTEM_WATCHER",
-        "PROCESS_RUNTIME",
-    }
-)
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _event_tool_name(event: Any | None) -> str | None:
-    """Extract only an allowlisted tool label from Hook Evidence."""
-
-    if event is None:
-        return None
-    for record in getattr(event, "records", ()):
-        payload = getattr(record, "payload", None)
-        if isinstance(payload, Mapping):
-            tool_name = safe_tool_name(payload.get("tool_name"))
-            if tool_name:
-                return tool_name
-    return None
-
-
-# Human-in-the-loop for unsupported tools.  The review blocks one Hook
-# request, so it must end well inside Codex's 30 s Hook timeout (and the
-# Hook runtime's 30 s broker timeout); no decision means refusal.
-_AIA_REVIEW_PREFIX = "aia-review-"
+# Human-in-the-loop review stays inside Codex's 30 s Hook timeout.
 _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
 
-# Cross-process request (stop-requests/<id>.json) asking the AIA process that
-# owns a conversation to end it gracefully rather than abort it.
-_END_SESSION_REQUEST = "END_SESSION"
 
 # app-server reports sandbox modes in camelCase; the Result Bundle and the
 # requested-policy comparison use the CLI spelling.
@@ -177,194 +116,6 @@ _APP_SERVER_SANDBOX_NAMES = {
     "workspaceWrite": "workspace-write",
     "dangerFullAccess": "danger-full-access",
 }
-
-
-def _popen_kwargs_for_launch_mode(launch_mode: str) -> dict[str, Any]:
-    """Return Windows-only terminal creation options for an interactive run."""
-
-    if launch_mode != "new_terminal":
-        return {}
-    if os.name != "nt":
-        raise ApplicationValidationError("new_terminal launch mode requires Windows 11")
-    return {"creationflags": getattr(subprocess, "CREATE_NEW_CONSOLE", 0)}
-
-
-def _runtime_coordinator_reconciliation(state: Mapping[str, Any]) -> dict[str, Any]:
-    """Classify whether a persisted non-terminal run still has a coordinator.
-
-    Runtime state is a recovery hint, not a termination authority.  A stale
-    state is therefore reported explicitly and never converted into a
-    successful or terminal Session result here.
-    """
-
-    session = state.get("session") if isinstance(state.get("session"), Mapping) else {}
-    session_status = session.get("status")
-    if session_status in {"COMPLETED", "ABORTED", "FAILED"}:
-        return {
-            "status": "TERMINAL",
-            "orphaned": False,
-            "action": "NONE",
-            "detail": "Session is already terminal; the Result Bundle is authoritative.",
-        }
-
-    coordinator = state.get("coordinator")
-    if not isinstance(coordinator, Mapping):
-        return {
-            "status": "UNKNOWN",
-            "orphaned": False,
-            "action": "NO_AUTOMATIC_CONCLUSION",
-            "detail": "This runtime snapshot has no coordinator identity; live state cannot be proven.",
-        }
-    pid = coordinator.get("pid")
-    create_time = coordinator.get("create_time")
-    if (
-        not isinstance(pid, int)
-        or isinstance(pid, bool)
-        or pid <= 0
-        or not isinstance(create_time, (int, float))
-        or isinstance(create_time, bool)
-    ):
-        return {
-            "status": "OWNER_UNVERIFIABLE",
-            "orphaned": False,
-            "action": "DO_NOT_TAKE_OVER",
-            "detail": "The persisted AIA coordinator identity is malformed; takeover is refused.",
-        }
-
-    try:
-        process_status = verify_process_identity(
-            ProcessIdentity(pid=pid, create_time=float(create_time))
-        )
-    except (OSError, ValueError, TypeError):
-        process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE
-    if process_status is ProcessIdentityStatus.PID_REUSED:
-        # The coordinator create time is recorded with process_create_time
-        # (as for the Workspace lease owner).  psutil reports the same instant
-        # with different float rounding for most processes, so a live
-        # coordinator would look reused.  psutil already proved the PID is
-        # live; confirm the identity with the reader that recorded it.
-        try:
-            if process_create_time(pid) == float(create_time):
-                process_status = ProcessIdentityStatus.LIVE_MATCH
-        except (OSError, ValueError, TypeError):
-            pass
-
-    managed_process = state.get("managed_process")
-    agent_process_status = "NOT_RECORDED"
-    phase = state.get("phase")
-    if (
-        managed_process is None
-        and phase == "PREPARING"
-        and session_status == "PREPARING"
-    ):
-        # Preparation can fail before the Agent is spawned and before a root
-        # identity is persisted. In that narrow state there is no Agent root
-        # to terminate; treating it as an evidence gap strands the workspace
-        # behind a stale lease after an AIA crash.
-        agent_process_status = "NOT_STARTED"
-    elif isinstance(managed_process, Mapping):
-        root = managed_process.get("root_process_identity")
-        root_pid = root.get("pid") if isinstance(root, Mapping) else None
-        root_create_time = root.get("create_time") if isinstance(root, Mapping) else None
-        if (
-            isinstance(root_pid, int)
-            and not isinstance(root_pid, bool)
-            and root_pid > 0
-            and isinstance(root_create_time, (int, float))
-            and not isinstance(root_create_time, bool)
-        ):
-            try:
-                agent_process_status = verify_process_identity(
-                    ProcessIdentity(
-                        pid=root_pid,
-                        create_time=float(root_create_time),
-                    )
-                ).value
-            except (OSError, TypeError, ValueError):
-                agent_process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE.value
-        else:
-            agent_process_status = ProcessIdentityStatus.OWNER_UNVERIFIABLE.value
-
-    if process_status is ProcessIdentityStatus.LIVE_MATCH:
-        return {
-            "status": "LIVE_MATCH",
-            "orphaned": False,
-            "action": "NONE",
-            "agent_process_status": agent_process_status,
-            "acknowledged": False,
-            "detail": "The AIA coordinator process identity is still live.",
-        }
-    if process_status in {
-        ProcessIdentityStatus.PROCESS_GONE,
-        ProcessIdentityStatus.PID_REUSED,
-    }:
-        acknowledged = (
-            isinstance(state.get("orphan_reconciliation"), Mapping)
-            and state["orphan_reconciliation"].get("status") == "ACKNOWLEDGED"
-        )
-        return {
-            "status": (
-                "STALE_PROCESS_GONE"
-                if process_status is ProcessIdentityStatus.PROCESS_GONE
-                else "STALE_PID_REUSED"
-            ),
-            "orphaned": True,
-            "action": "RECONCILED" if acknowledged else "REVIEW_AND_RESTART",
-            "agent_process_status": agent_process_status,
-            "acknowledged": acknowledged,
-            "detail": (
-                "The stale run was acknowledged after its recorded Agent root was verified gone."
-                if acknowledged
-                else "The AIA coordinator is no longer live. Protection cannot be assumed; "
-                "review the run and restart only after the old Agent is closed."
-            ),
-        }
-    return {
-        "status": "OWNER_UNVERIFIABLE",
-        "orphaned": False,
-        "action": "DO_NOT_TAKE_OVER",
-        "agent_process_status": agent_process_status,
-        "acknowledged": False,
-        "detail": "The AIA coordinator identity could not be verified; takeover is refused.",
-    }
-
-
-def _workspace_key(value: str | Path) -> str | None:
-    """Return a case-insensitive key for comparing persisted workspaces."""
-
-    try:
-        return str(Path(value).expanduser().resolve(strict=False)).casefold()
-    except (OSError, TypeError, ValueError):
-        return None
-
-
-def _sensor_status(sensor: Any) -> str | None:
-    health = getattr(sensor, "health", None)
-    if callable(health):
-        health = health()
-    status = getattr(health, "status", None)
-    return getattr(status, "value", status)
-
-
-def _sensors_runtime_healthy(sensors: Any) -> bool:
-    items = tuple(item for item in (sensors or ()) if item is not None)
-    return bool(items) and all(_sensor_status(item) == "HEALTHY" for item in items)
-
-
-def _sensor_summary_is_verified(sensor_summary: Any) -> bool:
-    summaries = tuple(
-        item for item in (sensor_summary or ()) if isinstance(item, Mapping)
-    )
-    observed_sensors = {
-        item.get("sensor")
-        for item in summaries
-        if isinstance(item.get("sensor"), str)
-    }
-    return _PRODUCT_SENSOR_NAMES.issubset(observed_sensors) and all(
-        item.get("runtime_health_before_stop") == "HEALTHY"
-        and item.get("final_sensor_state") == "STOPPED"
-        for item in summaries
-    )
 
 
 def _product_sensor_set_present(sensors: Any) -> bool:
@@ -380,180 +131,9 @@ def _product_sensor_set_present(sensors: Any) -> bool:
     return _PRODUCT_SENSOR_NAMES.issubset(names)
 
 
-def _hook_broker_runtime_healthy(record: RunRecord) -> bool | None:
-    """Return per-run Hook transport health when a launcher is available."""
-
-    launcher = record.runtime.get("launcher")
-    if launcher is None:
-        return None
-    broker = getattr(launcher, "hook_broker", None)
-    if broker is None:
-        return False
-    status = getattr(broker, "is_running", None)
-    if callable(status):
-        status = status()
-    return bool(status)
-
-
-def _runtime_action_view(
-    action: Any,
-    policy_result: Any,
-    attribution_result: Any,
-    gate_result: Any,
-    *,
-    execution_observed: bool = False,
-    tool_name: str | None = None,
-) -> dict[str, Any]:
-    """Build the redacted live/result action view from authoritative facts."""
-
-    observed_at = getattr(action, "observed_at", None)
-    return {
-        "action_id": action.action_id,
-        "attribution_grade": attribution_result.grade.value,
-        "attribution_reason": attribution_result.reason,
-        "enforcement_action": gate_result.action.value,
-        "enforcement_decision": gate_result.decision.value,
-        "execution_result": gate_result.execution_result.value,
-        "execution_observed": execution_observed,
-        "tool_name": safe_tool_name(tool_name),
-        "operation": action.operation.value,
-        "observed_at": observed_at.isoformat() if observed_at is not None else None,
-        "policy_decision": policy_result.policy_decision.value,
-        "operation_effect": (
-            getattr(policy_result.operation_effect, "value", policy_result.operation_effect)
-            if getattr(policy_result, "operation_effect", None) is not None
-            else None
-        ),
-        "enforcement_route": gate_result.route.value,
-        "evidence_ids": list(action.evidence_ids),
-        "matched_rule_ids": list(
-            getattr(policy_result, "matched_rule_ids", ()) or ()
-        ),
-        "matched_asset_types": [
-            getattr(
-                policy_result.asset_type,
-                "value",
-                policy_result.asset_type,
-            )
-        ]
-        if getattr(policy_result, "asset_type", None) is not None
-        else [],
-        "target": {
-            "canonical_path": action.canonical_path,
-            "target_kind": action.target_kind.value,
-        },
-    }
-
-
-def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
-    """Return only tool-use identifiers proven by PostToolUse Evidence.
-
-    This is presentation metadata. It does not alter the Core enforcement
-    result, which intentionally keeps ``NOT_ATTEMPTED`` when no enforcement
-    action was executed.
-    """
-
-    try:
-        records = RawEvidenceStore.for_session(control_root, session_id).records()
-    except (OSError, ValueError):
-        return set()
-    return {
-        str(record.payload["tool_use_id"])
-        for record in records
-        if record.record_type.value == "POSTTOOL_OBSERVED"
-        and isinstance(record.payload.get("tool_use_id"), str)
-        and record.payload.get("tool_use_id")
-    }
-
-
-def _execution_observation_metadata(
-    control_root: Path,
-    session_id: str,
-) -> tuple[set[str], dict[str, str]]:
-    """Return PostToolUse links and capture times for display metadata."""
-
-    try:
-        records = RawEvidenceStore.for_session(control_root, session_id).records()
-    except (OSError, ValueError):
-        return set(), {}
-    posttool_ids = {
-        str(record.payload["tool_use_id"])
-        for record in records
-        if record.record_type.value == "POSTTOOL_OBSERVED"
-        and isinstance(record.payload.get("tool_use_id"), str)
-        and record.payload.get("tool_use_id")
-    }
-    observed: set[str] = {
-        record.evidence_id
-        for record in records
-        if record.record_type.value == "POSTTOOL_OBSERVED"
-        and isinstance(record.payload.get("tool_use_id"), str)
-        and record.payload.get("tool_use_id") in posttool_ids
-    }
-    observed.update(
-        record.evidence_id
-        for record in records
-        if record.record_type.value == "PRETOOL_REQUEST"
-        and isinstance(record.payload.get("tool_use_id"), str)
-        and record.payload.get("tool_use_id") in posttool_ids
-    )
-    capture_times = {
-        record.evidence_id: record.captured_at.isoformat()
-        for record in records
-    }
-    return observed, capture_times
-
-
-def _annotate_execution_observations(
-    view: dict[str, Any],
-    *,
-    control_root: Path,
-    session_id: str,
-    evidence_metadata: list[Mapping[str, Any]] | None = None,
-) -> dict[str, Any]:
-    """Add display-only PostToolUse status to a result view."""
-
-    observed_evidence_ids, capture_times = _execution_observation_metadata(
-        control_root,
-        session_id,
-    )
-    actions = []
-    for action in view.get("actions", []):
-        item = dict(action)
-        item["execution_observed"] = any(
-            evidence_id in observed_evidence_ids
-            for evidence_id in item.get("evidence_ids", [])
-        )
-        if not item.get("observed_at"):
-            timestamps = [
-                capture_times[evidence_id]
-                for evidence_id in item.get("evidence_ids", [])
-                if evidence_id in capture_times
-            ]
-            if timestamps:
-                item["observed_at"] = max(timestamps)
-        actions.append(item)
-    view["actions"] = actions
-    view["events"] = safe_event_views(
-        actions,
-        evidence_metadata=evidence_metadata or (),
-    )
-    view["evidence_chains"] = evidence_chain_views(
-        actions,
-        evidence_metadata=evidence_metadata or (),
-        attribution_results=view.get("attribution_results", ()),
-        recovery=view.get("recovery"),
-        integrity=view.get("integrity"),
-    )
-    view["evidence_timeline"] = evidence_timeline_views(
-        evidence_metadata or (),
-        actions=actions,
-        attribution_results=view.get("attribution_results", ()),
-    )
-    return view
-
-
-class RunApplicationService:
+class RunApplicationService(
+    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin
+):
     """Connect UI requests to existing AIA Core APIs.
 
     This class is an orchestrator and presentation boundary. It never creates
@@ -573,8 +153,14 @@ class RunApplicationService:
         self.reader = ResultBundleReader(self.control_root)
         self.require_hook_verification = require_hook_verification
         self._runtime_state_lock = RLock()
+        self._runtime_states_cache_lock = RLock()
+        self._runtime_states_cache: dict[
+            Path,
+            tuple[int, int, int, int, dict[str, Any]],
+        ] = {}
         self._completed_runs_cache_lock = RLock()
         self._tool_review_lock = RLock()
+        self._codex_workbench = CodexWorkbench(self, _runtime_coordinator_reconciliation)
         self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers,
@@ -589,7 +175,7 @@ class RunApplicationService:
         especially when several console views refresh at the same time.  The
         cache does not participate in policy, enforcement, recovery, or
         integrity decisions; those paths continue to read and verify their
-        artifacts directly.  A one-second window is short enough for the
+        artifacts directly.  A six-second window is short enough for the
         history UI while preventing duplicate scans in one refresh burst.
         """
 
@@ -597,11 +183,11 @@ class RunApplicationService:
         with self._completed_runs_cache_lock:
             cached = self._completed_runs_cache
             if cached is not None and now - cached[0] < _COMPLETED_RUNS_CACHE_TTL_SECONDS:
-                return [dict(item) for item in cached[1]]
+                return deepcopy(cached[1])
 
             completed = self.reader.list_completed()
             self._completed_runs_cache = (time.monotonic(), completed)
-            return [dict(item) for item in completed]
+            return deepcopy(completed)
 
     @staticmethod
     def policy_profiles() -> list[dict[str, str]]:
@@ -698,778 +284,7 @@ class RunApplicationService:
             "limitation": evaluation.limitation,
         }
 
-    @staticmethod
-    def validate_policy_document(document: Mapping[str, Any]) -> dict[str, Any]:
-        """Strictly validate a console-authored policy without saving it."""
 
-        if not isinstance(document, Mapping):
-            raise ApplicationValidationError("policy document must be a JSON object")
-        try:
-            policy = load_policy_document(document, source="<console-editor>")
-        except (OSError, ValueError) as error:
-            raise ApplicationValidationError(f"policy validation failed: {error}") from error
-        return {
-            "valid": True,
-            "policy_id": policy.policy_id,
-            "policy_version": policy.policy_version,
-            "rule_count": len(policy.rules),
-            "default_effect": policy.default_effect.value,
-        }
-
-    @staticmethod
-    def save_policy_document(payload: Mapping[str, Any]) -> dict[str, Any]:
-        """Validate then save one user policy JSON for later CUSTOM runs."""
-
-        if not isinstance(payload, Mapping):
-            raise ApplicationValidationError("policy save request must be a JSON object")
-        document = payload.get("document")
-        if not isinstance(document, Mapping):
-            raise ApplicationValidationError("document must be a JSON object")
-        RunApplicationService.validate_policy_document(document)
-        requested_path = payload.get("path")
-        if requested_path is None or not str(requested_path).strip():
-            policy_id = str(document.get("정책ID") or document.get("policy_id") or "custom-policy")
-            safe_name = "".join(
-                character if character.isalnum() or character in {"-", "_"} else "-"
-                for character in policy_id
-            ).strip("-") or "custom-policy"
-            path = Path.home() / ".aia" / "policies" / f"{safe_name}.json"
-        else:
-            if not isinstance(requested_path, str):
-                raise ApplicationValidationError("path must be a string")
-            path = Path(requested_path).expanduser()
-            if path.suffix.casefold() != ".json":
-                raise ApplicationValidationError("policy path must end with .json")
-        path = path.resolve(strict=False)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(dict(document), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
-        summary = RunApplicationService.validate_policy_document(document)
-        return {**summary, "path": str(path)}
-
-    @staticmethod
-    def _workspace_policy_path(
-        workspace: Path,
-        profile_name: str,
-        protected_paths: tuple[str, ...],
-        policy_source: str | Path | Mapping[str, Any] | None = None,
-    ) -> Path | None:
-        """Create a validated custom policy for paths selected in the UI."""
-
-        if not protected_paths:
-            return None
-        try:
-            resolved = resolve_profile(profile_name, policy_source=policy_source)
-        except (OSError, ValueError) as error:
-            raise ApplicationValidationError(f"policy validation failed: {error}") from error
-
-        normalized: list[tuple[str, bool]] = []
-        for raw_path in protected_paths:
-            candidate = Path(raw_path).expanduser().resolve(strict=False)
-            try:
-                relative = candidate.relative_to(workspace).as_posix()
-            except ValueError as error:
-                raise ApplicationValidationError(
-                    "보호할 파일·폴더는 선택한 Workspace 안에 있어야 합니다."
-                ) from error
-            if not relative or relative == ".":
-                raise ApplicationValidationError("Workspace 자체는 보호 목록에 추가할 수 없습니다.")
-            normalized.append((relative, candidate.is_dir()))
-
-        rules: list[dict[str, Any]] = []
-        for rule in resolved.policy.rules:
-            rule_mapping: dict[str, Any] = {
-                "rule_id": rule.rule_id,
-                "priority": rule.priority,
-                "asset_type": rule.asset_type.value,
-                "operation_effects": {
-                    operation.value: effect.value
-                    for operation, effect in rule.operation_effects.items()
-                },
-            }
-            if rule.path_patterns:
-                rule_mapping["path_patterns"] = list(rule.path_patterns)
-            else:
-                rule_mapping["command_patterns"] = list(rule.command_patterns)
-            rules.append(rule_mapping)
-
-        for index, (relative, is_directory) in enumerate(normalized, start=1):
-            patterns = [relative]
-            if is_directory:
-                patterns.append(f"{relative}/**")
-            rules.append(
-                {
-                    "rule_id": f"aia-user-protected-path-{index}",
-                    "priority": 2000 + index,
-                    "asset_type": "WORKSPACE",
-                    "path_patterns": patterns,
-                    "operation_effects": {
-                        "CREATE": "DENY",
-                        "MODIFY": "DENY",
-                        "DELETE": "DENY",
-                        "MOVE": "DENY",
-                        "RENAME": "DENY",
-                    },
-                }
-            )
-
-        policy_document = {
-            "profile": PolicyProfile.CUSTOM.value,
-            "policy_name": "AIA Workspace Protected Paths",
-            "policy_id": "aia-workspace-protected",
-            "policy_version": "1.0",
-            "schema_version": "1",
-            "default_effect": resolved.policy.default_effect.value,
-            "rules": rules,
-        }
-        digest = hashlib.sha256(
-            json.dumps(
-                {"workspace": str(workspace), "paths": normalized},
-                ensure_ascii=False,
-                sort_keys=True,
-            ).encode("utf-8")
-        ).hexdigest()[:16]
-        path = Path.home() / ".aia" / "policies" / f"workspace-{digest}.json"
-        RunApplicationService.save_policy_document(
-            {"document": policy_document, "path": str(path)}
-        )
-        return path
-
-    def preflight(
-        self,
-        *,
-        runs: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        """Report local prerequisites without starting a Protected Run."""
-
-        checks: list[dict[str, Any]] = []
-        executable: Path | None = None
-        try:
-            executable = CodexAdapter().discover()
-            checks.append(
-                {
-                    "name": "codex_executable",
-                    "label": "Codex 실행 파일",
-                    "ok": True,
-                    "detail": str(executable),
-                }
-            )
-        except Exception as error:
-            checks.append(
-                {
-                    "name": "codex_executable",
-                    "label": "Codex 실행 파일",
-                    "ok": False,
-                    "detail": f"찾을 수 없음 ({type(error).__name__})",
-                }
-            )
-
-        installer = CodexHookInstaller()
-        cli_prefix = _aia_cli_prefix(installer)
-        pretool_installed = installer.is_installed()
-        stale_hook_detected = not pretool_installed and installer.has_aia_runtime("PreToolUse")
-        pretool_check: dict[str, Any] = {
-            "name": "pretool_hook",
-            "label": "PreToolUse Hook",
-            "ok": pretool_installed,
-            "stale": stale_hook_detected,
-            "detail": (
-                "설치됨 · Trust 상태 확인 중"
-                if pretool_installed
-                else (
-                    f"기존 AIA Hook 경로가 남아 있음 · {cli_prefix} setup으로 현재 경로 갱신 필요"
-                    if stale_hook_detected
-                    else f"설치되지 않음 · {cli_prefix} setup 필요"
-                )
-            ),
-        }
-        checks.append(pretool_check)
-        posttool_installed = installer.is_posttool_installed()
-        checks.append(
-            {
-                "name": "posttool_hook",
-                "label": "PostToolUse 관찰",
-                "ok": posttool_installed,
-                "optional": True,
-                "detail": (
-                    "설치됨 · 실행 결과 확인 가능"
-                    if posttool_installed
-                    else "선택 기능 미설치 · 차단 결과 확인 범위가 줄어듦"
-                ),
-            }
-        )
-
-        codex_hook_trust: dict[str, object] = {
-            "available": False,
-            "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
-            "hooks": [],
-        }
-        pretool_status: str | None = None
-        if executable is not None and pretool_installed:
-            codex_hook_trust = inspect_codex_hook_trust(
-                executable,
-                hook_path=installer.path,
-                cwd=Path.cwd(),
-                timeout=8.0,
-            ).to_mapping()
-            trust_entries = codex_hook_trust.get("hooks") or []
-            pretool_status = next(
-                (
-                    item.get("trust_status")
-                    for item in trust_entries
-                    if isinstance(item, dict) and item.get("event") == "preToolUse"
-                ),
-                None,
-            )
-            trust_ok = pretool_status in {"TRUSTED", "MANAGED"}
-            pretool_check["detail"] = (
-                "설치됨 · Trust 확인됨"
-                if trust_ok
-                else "설치됨 · Codex /hooks 검토 필요"
-            )
-            checks.append(
-                {
-                    "name": "codex_hook_trust",
-                    "label": "Codex Hook Trust",
-                    "ok": trust_ok,
-                    "optional": True,
-                    "detail": (
-                        f"PreToolUse={pretool_status}"
-                        if pretool_status is not None
-                        else "Codex에서 AIA PreToolUse Trust 상태를 확인할 수 없음"
-                    ),
-                }
-            )
-
-        hook_verified = False
-        if self.require_hook_verification:
-            try:
-                executable = CodexAdapter().discover()
-                hook_verified = HookVerificationStore(self.control_root).is_current(
-                    installer,
-                    executable,
-                )
-            except Exception:
-                hook_verified = False
-            checks.append(
-                {
-                    "name": "hook_verification",
-                    "label": "실제 Hook 연결 증명",
-                    "ok": hook_verified,
-                    "detail": (
-                        "최근 실제 Codex Probe에서 Session-bound Hook Event 확인"
-                        if hook_verified
-                        else f"{cli_prefix} hook verify 필요"
-                    ),
-                }
-            )
-
-        try:
-            self.control_root.mkdir(parents=True, exist_ok=True)
-            probe = self.control_root / ".aia-preflight-write-test"
-            probe.write_text("ok\n", encoding="utf-8")
-            probe.unlink(missing_ok=True)
-            checks.append(
-                {
-                    "name": "control_root",
-                    "label": "AIA Control Root",
-                    "ok": True,
-                    "detail": str(self.control_root),
-                }
-            )
-        except OSError as error:
-            checks.append(
-                {
-                    "name": "control_root",
-                    "label": "AIA Control Root",
-                    "ok": False,
-                    "detail": f"쓰기 불가 ({type(error).__name__})",
-                }
-            )
-
-        control_root_check = next(
-            (item for item in checks if item.get("name") == "control_root"),
-            None,
-        )
-        recent_runs = runs if runs is not None else self.list_runs()
-        recent_verified = [
-            item
-            for item in recent_runs
-            if item.get("hook_event_count", 0) > 0
-            and item.get("protection_state")
-            in {"ACTIVE_VERIFIED", "COMPLETED_VERIFIED", "ABORTED_VERIFIED"}
-        ]
-        recent_verified.sort(
-            key=lambda item: str(item.get("created_at") or ""),
-            reverse=True,
-        )
-        last_verified = recent_verified[0] if recent_verified else None
-        if hook_verified:
-            hook_activation_status = "CURRENTLY_VERIFIED"
-            hook_activation_detail = (
-                "현재 Hook 설정과 Codex 실행 파일에 대한 실제 Session-bound Hook Event가 검증되었습니다."
-            )
-        elif last_verified:
-            hook_activation_status = "OBSERVED_IN_PAST"
-            hook_activation_detail = (
-                "과거 실행에서 Hook Event가 관찰되었지만 현재 검증 증명이 만료되었거나 없습니다. "
-                f"{cli_prefix} hook verify를 다시 실행하세요."
-            )
-        else:
-            hook_activation_status = "NOT_OBSERVED"
-            hook_activation_detail = "현재 환경에서 실제 보호 실행 Hook Event가 아직 관찰되지 않았습니다."
-
-        if not self.require_hook_verification:
-            required_checks_ok = all(
-                bool(item["ok"])
-                for item in checks
-                if not item.get("optional")
-            )
-            readiness_code = "READY" if required_checks_ok else "NOT_READY"
-            next_step = (
-                "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
-                if readiness_code == "READY"
-                else (
-                    f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
-                    if stale_hook_detected
-                    else "위의 필수 확인 항목을 해결한 뒤 다시 검사하세요."
-                )
-            )
-        elif executable is None:
-            readiness_code = "CODEX_EXECUTABLE_UNAVAILABLE"
-            next_step = "Codex CLI 설치와 PATH를 확인한 뒤 다시 검사하세요."
-        elif not pretool_installed:
-            readiness_code = "CODEX_HOOK_NOT_INSTALLED"
-            next_step = (
-                f"기존 AIA Hook 경로를 현재 환경으로 갱신하려면 '{cli_prefix} setup'을 실행하세요."
-                if stale_hook_detected
-                else f"'{cli_prefix} setup'을 실행한 뒤 Codex /hooks에서 AIA Hook을 검토하세요."
-            )
-        elif pretool_status not in {"TRUSTED", "MANAGED"}:
-            readiness_code = "CODEX_HOOK_TRUST_REQUIRED"
-            next_step = (
-                "Codex /hooks에서 AIA PreToolUse Hook을 검토·신뢰한 뒤 "
-                f"'{cli_prefix} hook verify'를 실행하세요."
-            )
-        elif not hook_verified:
-            readiness_code = "HOOK_VERIFICATION_REQUIRED"
-            next_step = f"'{cli_prefix} hook verify'를 실행한 뒤 다시 검사하세요."
-        elif not (control_root_check and control_root_check.get("ok")):
-            readiness_code = "CONTROL_ROOT_NOT_WRITABLE"
-            next_step = "AIA Control Root 권한을 확인한 뒤 다시 검사하세요."
-        else:
-            readiness_code = "READY"
-            next_step = "Workspace와 정책을 선택해 보호 실행을 시작할 수 있습니다."
-
-        ready = readiness_code == "READY"
-
-        hook_trust_status = (
-            pretool_status
-            if pretool_status in {"TRUSTED", "MANAGED"}
-            else "MANUAL_REVIEW_REQUIRED"
-        )
-
-        return {
-            # The machine-readable readiness result must include effective
-            # gates such as Codex Hook Trust, even when that check is marked
-            # optional for telemetry purposes.
-            "ready": ready,
-            "readiness_code": readiness_code,
-            "next_step": next_step,
-            "checks": checks,
-            "hook_trust": {
-                "status": hook_trust_status,
-                "detail": (
-                    "Codex PreToolUse Hook이 신뢰된 상태입니다."
-                    if hook_trust_status in {"TRUSTED", "MANAGED"}
-                    else (
-                        "Codex에서 /hooks를 열어 AIA Hook을 직접 검토·신뢰해야 합니다."
-                        if not codex_hook_trust.get("available")
-                        else "Codex의 실제 Hook Trust 상태를 확인했습니다. TRUSTED가 아니면 /hooks에서 다시 검토·신뢰하세요."
-                    )
-                ),
-            },
-            "codex_hook_trust": codex_hook_trust,
-            "hook_activation": {
-                "status": hook_activation_status,
-                "detail": hook_activation_detail,
-                "last_verified_run": (
-                    {
-                        "session_id": last_verified.get("session_id"),
-                        "created_at": last_verified.get("created_at"),
-                        "protection_state": last_verified.get("protection_state"),
-                        "hook_event_count": last_verified.get("hook_event_count", 0),
-                    }
-                    if last_verified
-                    else None
-                ),
-            },
-            "protection_claim": {
-                "status": "CLAIM_ALLOWED_AFTER_SESSION_EVENT",
-                "detail": (
-                    "사전 조건 READY만으로 보호 성공을 주장하지 않습니다. "
-                    "각 Protected Run에서 Hook Event가 확인된 뒤에만 보호 상태를 검증합니다."
-                ),
-            },
-            "next_steps": [
-                f"PreToolUse Hook이 없으면 '{cli_prefix} setup'을 실행합니다.",
-                "Codex에서 /hooks를 열어 AIA Hook을 검토·신뢰합니다.",
-                "Workspace와 정책을 선택해 보호 실행을 시작합니다.",
-            ],
-        }
-
-    def create_protected_run(self, request: CreateRunRequest | dict[str, Any]) -> dict[str, Any]:
-        if isinstance(request, dict):
-            try:
-                request = CreateRunRequest.from_mapping(request)
-            except DTOValidationError as error:
-                raise ApplicationValidationError(str(error)) from error
-        if not isinstance(request, CreateRunRequest):
-            raise ApplicationValidationError("request is invalid")
-        installer = CodexHookInstaller()
-        cli_prefix = _aia_cli_prefix(installer)
-        if self.require_hook_verification:
-            try:
-                executable = CodexAdapter().discover()
-            except Exception as error:
-                raise ApplicationValidationError(
-                    "Codex 실행 파일을 찾을 수 없습니다"
-                ) from error
-            if not HookVerificationStore(self.control_root).is_current(
-                installer,
-                executable,
-            ):
-                raise ApplicationValidationError(
-                    f"실제 Codex Hook 검증이 없습니다. 먼저 '{cli_prefix} hook verify'를 실행하세요."
-                )
-            inspection = inspect_codex_hook_trust(
-                executable,
-                hook_path=installer.path,
-                cwd=Path.cwd(),
-                timeout=8.0,
-            ).to_mapping()
-            pretool_status = next(
-                (
-                    item.get("trust_status")
-                    for item in (inspection.get("hooks") or [])
-                    if isinstance(item, dict) and item.get("event") == "preToolUse"
-                ),
-                None,
-            )
-            if pretool_status not in {"TRUSTED", "MANAGED"}:
-                raise ApplicationValidationError(
-                    "Codex PreToolUse Hook Trust가 확인되지 않았습니다. "
-                    "Codex /hooks에서 AIA Hook을 검토·신뢰한 뒤 다시 시도하세요."
-                )
-        workspace = self._validate_workspace(request.workspace)
-        orphan = self._unresolved_orphan_for_workspace(workspace)
-        if orphan is not None:
-            session_id = orphan["session_id"]
-            reconciliation = orphan["runtime_reconciliation"]
-            raise ApplicationValidationError(
-                "이 Workspace에는 정리되지 않은 이전 Protected Run이 있습니다 "
-                f"({session_id}, {reconciliation.get('status', 'UNKNOWN')}). "
-                "이전 Codex가 실행 중이면 먼저 종료하고, Agent Root가 사라진 것을 "
-                f"확인한 뒤 '{cli_prefix} reconcile {session_id}'를 실행하세요."
-            )
-        if not request.interactive and not request.task.strip():
-            raise ApplicationValidationError(
-                "task is required for a non-interactive protected run"
-            )
-        if request.agent.lower() != "codex":
-            raise ApplicationValidationError("only Codex is supported in this console")
-        if request.launch_mode in {"new_terminal", "web_terminal"} and os.name != "nt":
-            raise ApplicationValidationError(
-                f"{request.launch_mode} launch mode requires Windows 11"
-            )
-        try:
-            mode = SessionMode(request.mode.upper())
-        except ValueError as error:
-            raise ApplicationValidationError("mode must be ENFORCE or AUDIT") from error
-        workspace_policy_path = self._workspace_policy_path(
-            workspace,
-            request.policy_profile,
-            request.protected_paths,
-            Path(request.custom_policy_path)
-            if request.custom_policy_path is not None
-            else None,
-        )
-        selected_policy_profile = (
-            PolicyProfile.CUSTOM
-            if workspace_policy_path is not None
-            else PolicyProfile.from_value(request.policy_profile)
-        )
-        selected_policy_source = (
-            workspace_policy_path
-            if workspace_policy_path is not None
-            else (
-                Path(request.custom_policy_path)
-                if request.custom_policy_path is not None
-                else None
-            )
-        )
-        try:
-            resolved = resolve_profile(
-                selected_policy_profile,
-                policy_source=selected_policy_source,
-            )
-        except (OSError, ValueError) as error:
-            raise ApplicationValidationError(f"policy validation failed: {error}") from error
-        session = ProtectedRunSession(
-            workspace=workspace,
-            agent="codex",
-            mode=mode,
-            policy_id=resolved.policy_id,
-            policy_version=resolved.policy_version,
-            created_at=_now(),
-        )
-        record = RunRecord(
-            session_id=session.session_id,
-            workspace=workspace,
-            agent=session.agent,
-            model=request.model,
-            policy_profile=selected_policy_profile.value,
-            policy_id=resolved.policy_id,
-            policy_version=resolved.policy_version,
-            mode=mode.value,
-            task=request.task,
-            interactive=request.interactive,
-            launch_mode=request.launch_mode,
-            created_at=session.created_at,
-            protection_state="STARTING",
-            coordinator_pid=os.getpid(),
-            coordinator_process_create_time=process_create_time(os.getpid()),
-        )
-        record.runtime.update({"request": request, "resolved_policy": resolved, "session": session})
-        self._persist_runtime_state(record, strict=True)
-        self.registry.add(record)
-        self._executor.submit(self._run, record)
-        return {
-            "redirect_url": (
-                f"/runs/{session.session_id}/workbench"
-                if request.launch_mode in {"web_terminal", "codex_app_server"}
-                else f"/runs/{session.session_id}"
-            ),
-            "session_id": session.session_id,
-            "status": session.status.value,
-        }
-
-    def get_run_status(self, session_id: str) -> dict[str, Any]:
-        live_record = self.registry.get(session_id)
-        live_hook_broker_healthy: bool | None = None
-        if live_record is not None:
-            self._refresh_protection_state(live_record)
-            live_hook_broker_healthy = _hook_broker_runtime_healthy(live_record)
-        record = self.registry.snapshot(session_id)
-        if record is None:
-            try:
-                status = self._status_from_completed_bundle(session_id)
-            except (KeyError, OSError, ValueError):
-                runtime_state = self._read_runtime_state(session_id)
-                if runtime_state is None:
-                    raise
-                return self._status_from_runtime_state(runtime_state)
-            # Older Result Bundles do not contain the UI-only launch mode.
-            # Preserve it from the durable runtime snapshot so a completed
-            # Workbench run still opens with the correct terminal context.
-            runtime_state = self._read_runtime_state(session_id)
-            runtime_launch_mode = (
-                runtime_state.get("launch_mode")
-                if isinstance(runtime_state, Mapping)
-                else None
-            )
-            if (
-                status.get("launch_mode", "inherit") == "inherit"
-                and runtime_launch_mode
-                and runtime_launch_mode != "inherit"
-            ):
-                status = dict(status)
-                status["launch_mode"] = runtime_launch_mode
-                status["session"] = {
-                    **(status.get("session") or {}),
-                    "launch_mode": runtime_launch_mode,
-                }
-            return status
-        hook_broker_healthy = (
-            live_hook_broker_healthy
-            if live_record is not None
-            else _hook_broker_runtime_healthy(record)
-        )
-        incidents = list(record.incidents)
-        display_view = {"actions": [dict(item) for item in record.actions]}
-        evidence_metadata = self._evidence_metadata(session_id, require_valid=False)
-        _annotate_execution_observations(
-            display_view,
-            control_root=self.control_root,
-            session_id=session_id,
-            evidence_metadata=evidence_metadata,
-        )
-        return {
-            "checkpoint": record.checkpoint,
-            "error": record.error,
-            "incident_count": len(incidents),
-            "latest_actions": display_view["actions"][-20:],
-            "events": safe_event_views(
-                display_view["actions"],
-                sensor_health=record.sensor_health,
-                evidence_metadata=evidence_metadata,
-            ),
-            "evidence_chains": display_view["evidence_chains"],
-            "evidence_timeline": display_view["evidence_timeline"],
-            "lease": record.lease,
-            "mode": record.mode,
-            "interactive": record.interactive,
-            "phase": record.phase,
-            "result_path": str(record.result_path) if record.result_path is not None else None,
-            "protection": {
-                "state": record.protection_state,
-                "hook_events": record.hook_event_count,
-                "hook_broker": (
-                    "HEALTHY"
-                    if hook_broker_healthy is True
-                    else "FAILED"
-                    if hook_broker_healthy is False
-                    else "NOT_STARTED"
-                ),
-            },
-            "stop": {
-                "requested": record.stop_requested,
-                "error": record.stop_error,
-            },
-            "policy": {
-                "id": record.policy_id,
-                "profile": record.policy_profile,
-                "version": record.policy_version,
-            },
-            "bundle_status": record.bundle_status or (
-                "PENDING" if record.result_path is None else "UNVERIFIED"
-            ),
-            "result_available": bool(record.result_path),
-            "evidence_summary": self._evidence_summary(
-                session_id,
-                require_valid=record.result_path is not None,
-                metadata=evidence_metadata,
-            ),
-            "sensor_health": dict(record.sensor_health),
-            "session": {
-                "agent": record.agent,
-                "created_at": record.created_at.isoformat(),
-                "model": record.model,
-                "session_id": record.session_id,
-                "status": record.status,
-                "workspace": str(record.workspace),
-                "launch_mode": record.launch_mode,
-            },
-            "terminal": self.get_terminal_status(session_id),
-            "launch_mode": record.launch_mode,
-        }
-
-    def request_stop(self, session_id: str) -> dict[str, Any]:
-        """Request a user-initiated stop for one live Protected Run.
-
-        The launcher performs identity-safe tree termination.  This method
-        records the request and never turns a failed stop into a success claim.
-        """
-
-        record = self.registry.get(session_id)
-        if record is None:
-            try:
-                result = self.reader.read_result(session_id)
-            except (KeyError, OSError, ValueError):
-                try:
-                    self._write_stop_request(session_id)
-                except (OSError, ValueError):
-                    raise KeyError(session_id) from None
-                return {
-                    "accepted": True,
-                    "session_id": session_id,
-                    "status": "STOP_REQUESTED",
-                    "reason": "STOP_REQUEST_STORED",
-                }
-            return {
-                "accepted": False,
-                "session_id": session_id,
-                "status": result.get("session_status", "UNKNOWN"),
-                "reason": "RUN_ALREADY_TERMINAL",
-            }
-        if record.status in {"COMPLETED", "ABORTED", "FAILED"}:
-            return {
-                "accepted": False,
-                "session_id": session_id,
-                "status": record.status,
-                "reason": "RUN_ALREADY_TERMINAL",
-            }
-        record.stop_requested = True
-        try:
-            self._write_stop_request(session_id)
-        except (OSError, ValueError) as error:
-            record.stop_error = f"STOP_REQUEST_PERSIST_FAILED: {type(error).__name__}"
-        self._persist_runtime_state(record)
-        launcher = record.runtime.get("launcher")
-        launcher_status = getattr(getattr(launcher, "status", None), "value", None)
-        if launcher is not None and launcher_status == "STARTING":
-            try:
-                stopped = self._request_user_abort(record, launcher)
-            except Exception as error:
-                stopped = False
-                record.stop_error = f"{type(error).__name__}: {error}"
-            if stopped:
-                record.protection_state = "STOP_REQUESTED"
-                self._persist_runtime_state(record)
-                return {
-                    "accepted": True,
-                    "session_id": session_id,
-                    "status": "STOP_REQUESTED",
-                    "reason": "USER_ABORT_DURING_LAUNCH",
-                }
-            if record.runtime.get("user_abort_termination_result"):
-                record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
-                record.protection_state = "DEGRADED"
-            else:
-                record.protection_state = "STOP_REQUESTED"
-            self._persist_runtime_state(record)
-            return {
-                "accepted": True,
-                "session_id": session_id,
-                "status": "STOP_REQUESTED",
-                "reason": "STOP_WILL_BE_APPLIED_BEFORE_AGENT_LAUNCH",
-            }
-        if launcher is None or launcher_status != "RUNNING":
-            record.protection_state = "STOP_REQUESTED"
-            self._persist_runtime_state(record)
-            return {
-                "accepted": True,
-                "session_id": session_id,
-                "status": "STOP_REQUESTED",
-                "reason": "STOP_WILL_BE_APPLIED_BEFORE_AGENT_LAUNCH",
-            }
-        try:
-            stopped = self._request_user_abort(record, launcher)
-        except Exception as error:
-            stopped = False
-            record.stop_error = f"{type(error).__name__}: {error}"
-        if not stopped:
-            record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
-            record.protection_state = "DEGRADED"
-            self._persist_runtime_state(record)
-            return {
-                "accepted": False,
-                "session_id": session_id,
-                "status": record.status,
-                "reason": record.stop_error,
-            }
-        record.protection_state = "STOP_REQUESTED"
-        self._persist_runtime_state(record)
-        return {
-            "accepted": True,
-            "session_id": session_id,
-            "status": "STOP_REQUESTED",
-            "reason": "USER_ABORT_REQUESTED",
-        }
 
     def reconcile_orphaned_run(self, session_id: str) -> dict[str, Any]:
         """Acknowledge a crashed coordinator only after the Agent root is gone.
@@ -1542,184 +357,14 @@ class RunApplicationService:
         result = self.reader.read_result(session_id)
         return [action_view(item) for item in result.get("action_outcomes", [])]
 
-    def get_terminal_status(self, session_id: str) -> dict[str, Any]:
-        """Return the live Workbench terminal state without exposing process output."""
-
-        record = self.registry.get(session_id)
-        if record is None:
-            status = self.get_run_status(session_id)
-            return {
-                "mode": status.get("launch_mode", "inherit"),
-                "status": "EXITED" if status.get("session", {}).get("status") in {
-                    "COMPLETED",
-                    "ABORTED",
-                    "FAILED",
-                } else "NOT_ATTACHED",
-                "pid": None,
-                "rows": None,
-                "cols": None,
-                "started_at": None,
-                "ended_at": None,
-                "exit_code": None,
-                "error": None,
-            }
-        terminal = record.runtime.get("terminal_session")
-        if terminal is None:
-            return {
-                "mode": record.launch_mode,
-                "status": "NOT_ATTACHED",
-                "pid": None,
-                "rows": None,
-                "cols": None,
-                "started_at": None,
-                "ended_at": None,
-                "exit_code": None,
-                "error": None,
-            }
-        return terminal.snapshot()
-
-    def drain_terminal_output(self, session_id: str) -> list[dict[str, Any]]:
-        record = self.registry.get(session_id)
-        if record is None:
-            self.get_run_status(session_id)
-            return []
-        terminal = record.runtime.get("terminal_session")
-        if terminal is None:
-            return []
-        return terminal.drain_output()
-
-    def read_terminal_output(
-        self,
-        session_id: str,
-        *,
-        after_sequence: int = 0,
-    ) -> list[dict[str, Any]]:
-        """Read bounded Workbench output from a per-connection sequence."""
-
-        record = self.registry.get(session_id)
-        if record is None:
-            self.get_run_status(session_id)
-            return []
-        terminal = record.runtime.get("terminal_session")
-        if terminal is None:
-            return []
-        return terminal.read_output(after_sequence)
-
-    def send_terminal_input(self, session_id: str, value: str) -> dict[str, Any]:
-        record = self.registry.get(session_id)
-        if record is None:
-            raise KeyError(session_id)
-        if record.launch_mode != "web_terminal":
-            raise TerminalSessionError("this run is not using the Workbench terminal")
-        terminal = record.runtime.get("terminal_session")
-        if terminal is None:
-            raise TerminalSessionError("Workbench terminal is not attached")
-        terminal.send_input(value)
-        return {"accepted": True, "session_id": session_id}
-
-    def submit_terminal_input(self, session_id: str) -> dict[str, Any]:
-        """Submit the current Workbench composer draft to Codex."""
-
-        record = self.registry.get(session_id)
-        if record is None:
-            raise KeyError(session_id)
-        if record.launch_mode != "web_terminal":
-            raise TerminalSessionError("this run is not using the Workbench terminal")
-        terminal = record.runtime.get("terminal_session")
-        if terminal is None:
-            raise TerminalSessionError("Workbench terminal is not attached")
-        terminal.submit_input()
-        return {"accepted": True, "session_id": session_id}
-
-    def resize_terminal(self, session_id: str, rows: int, cols: int) -> dict[str, Any]:
-        record = self.registry.get(session_id)
-        if record is None:
-            raise KeyError(session_id)
-        terminal = record.runtime.get("terminal_session")
-        if terminal is None:
-            raise TerminalSessionError("Workbench terminal is not attached")
-        terminal.resize(rows, cols)
-        return {"accepted": True, "session_id": session_id, "rows": rows, "cols": cols}
-
     def _codex_session(self, session_id: str) -> CodexAppServerSession:
-        record = self.registry.get(session_id)
-        if record is None:
-            external = self._externally_coordinated_run(session_id)
-            if external is not None:
-                owner = (external.get("coordinator") or {}).get("pid")
-                raise CodexAppServerError(
-                    f"이 보호 실행은 다른 AIA 창(PID {owner})에서 진행 중입니다. 그 창에서 계속하세요."
-                )
-            raise KeyError(session_id)
-        if record.launch_mode != "codex_app_server":
-            raise CodexAppServerError("this run is not using the Codex conversation")
-        codex_session = record.runtime.get("codex_session")
-        if codex_session is None:
-            raise CodexAppServerError("Codex conversation is not attached")
-        return codex_session
+        return self._codex_workbench._codex_session(session_id)
 
     def get_codex_status(self, session_id: str) -> dict[str, Any]:
-        """Return the Workbench conversation state without exposing its content."""
-
-        detached = {
-            "mode": "codex_app_server",
-            "status": "NOT_ATTACHED",
-            "pid": None,
-            "thread_id": None,
-            "active_turn_id": None,
-            "pending_approvals": [],
-            "effective": {},
-            "started_at": None,
-            "ended_at": None,
-            "exit_code": None,
-            "error": None,
-            "last_sequence": 0,
-        }
-        record = self.registry.get(session_id)
-        if record is None:
-            external = self._externally_coordinated_run(session_id)
-            if external is not None:
-                # The conversation lives in the other AIA process; this one
-                # can only show that and forward an end request.
-                return {
-                    **detached,
-                    "mode": external.get("launch_mode", "inherit"),
-                    "status": "EXTERNAL",
-                    "owner_pid": (external.get("coordinator") or {}).get("pid"),
-                    "end_requested": self._stop_request_reason(session_id) == _END_SESSION_REQUEST,
-                }
-            status = self.get_run_status(session_id)
-            ended = status.get("session", {}).get("status") in {"COMPLETED", "ABORTED", "FAILED"}
-            return {
-                **detached,
-                "mode": status.get("launch_mode", "inherit"),
-                "status": "EXITED" if ended else "NOT_ATTACHED",
-            }
-        error = record.runtime.get("codex_app_server_error")
-        codex_session = record.runtime.get("codex_session")
-        if codex_session is None:
-            return {**detached, "mode": record.launch_mode, "error": error}
-        snapshot = codex_session.snapshot()
-        if error:
-            snapshot["error"] = error
-        with self._tool_review_lock:
-            reviews = [
-                dict(item["request"])
-                for item in record.runtime.get("unsupported_tool_reviews", {}).values()
-                if not item["event"].is_set()
-            ]
-        snapshot["pending_approvals"] = [*snapshot.get("pending_approvals", []), *reviews]
-        return snapshot
+        return self._codex_workbench.get_codex_status(session_id)
 
     def read_codex_events(self, session_id: str, *, after_sequence: int = 0) -> list[dict[str, Any]]:
-        record = self.registry.get(session_id)
-        if record is None:
-            self.get_run_status(session_id)
-            return []
-        codex_session = record.runtime.get("codex_session")
-        if codex_session is None:
-            return []
-        return codex_session.read_events(after_sequence)
+        return self._codex_workbench.read_codex_events(session_id, after_sequence=after_sequence)
 
     def wait_codex_events(
         self,
@@ -1728,122 +373,36 @@ class RunApplicationService:
         after_sequence: int = 0,
         timeout: float = 15.0,
     ) -> list[dict[str, Any]]:
-        """Block until new conversation events exist (used off the event loop)."""
-
-        record = self.registry.get(session_id)
-        if record is None:
-            self.get_run_status(session_id)
-            # Nothing can arrive here (the run is finished or coordinated by
-            # another AIA process); pace the caller's long-poll loop.
-            time.sleep(min(timeout, 1.0))
-            return []
-        codex_session = record.runtime.get("codex_session")
-        if codex_session is None:
-            time.sleep(min(timeout, 0.25))
-            return []
-        return codex_session.wait_events(after_sequence, timeout=timeout)
+        return self._codex_workbench.wait_codex_events(
+            session_id,
+            after_sequence=after_sequence,
+            timeout=timeout,
+        )
 
     def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
-        return {**self._codex_session(session_id).send_message(text), "session_id": session_id}
+        return self._codex_workbench.send_codex_message(session_id, text)
 
     def interrupt_codex_turn(self, session_id: str) -> dict[str, Any]:
-        return {**self._codex_session(session_id).interrupt(), "session_id": session_id}
+        return self._codex_workbench.interrupt_codex_turn(session_id)
 
     def respond_codex_approval(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
-        codex_session = self._codex_session(session_id)
-        if approval_id.startswith(_AIA_REVIEW_PREFIX):
-            return {**self._resolve_unsupported_tool_review(session_id, approval_id, decision), "session_id": session_id}
-        return {**codex_session.respond_approval(approval_id, decision), "session_id": session_id}
+        return self._codex_workbench.respond_codex_approval(session_id, approval_id, decision)
 
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
-        if decision not in {"accept", "acceptForSession", "decline"}:
-            raise CodexAppServerError("approval decision is not supported")
-        record = self.registry.get(session_id)
-        reviews = record.runtime.get("unsupported_tool_reviews", {}) if record is not None else {}
-        with self._tool_review_lock:
-            review = reviews.get(approval_id)
-            if review is None or review["event"].is_set():
-                raise CodexAppServerError("approval request is no longer pending")
-            review["decision"] = decision
-            review["event"].set()
-        return {"accepted": True, "approval_id": approval_id, "decision": decision}
+        return self._codex_workbench._resolve_unsupported_tool_review(session_id, approval_id, decision)
 
     def _review_unsupported_tool(self, record: RunRecord, review: UnsupportedToolReview) -> bool:
-        """Ask the Workbench user whether Codex may use an unsupported tool.
-
-        Runs on the Hook broker's request thread and blocks it until the user
-        decides or the review window (kept inside Codex's Hook timeout)
-        closes.  No decision is a refusal.  "Allow for this session" is
-        remembered per tool name for the rest of the run.
-        """
-
-        codex_session = record.runtime.get("codex_session")
-        if codex_session is None:
-            return False
-        with self._tool_review_lock:
-            session_allowed = record.runtime.setdefault("unsupported_tools_allowed_for_session", set())
-            if review.tool_name in session_allowed:
-                allowed_for_session = True
-            else:
-                allowed_for_session = False
-                approval_id = f"{_AIA_REVIEW_PREFIX}{uuid4().hex[:12]}"
-                pending = {
-                    "event": Event(),
-                    "decision": None,
-                    "request": {
-                        "approval_id": approval_id,
-                        "kind": "aia_tool",
-                        "tool": review.tool_name,
-                        "command": review.input_summary,
-                        "cwd": "",
-                        "reason": "AIA가 의미를 해석하지 못하는 도구라서 정책으로 판정할 수 없습니다.",
-                        "paths": [],
-                        "timeout_seconds": _UNSUPPORTED_TOOL_REVIEW_SECONDS,
-                    },
-                }
-                record.runtime.setdefault("unsupported_tool_reviews", {})[approval_id] = pending
-        if allowed_for_session:
-            codex_session.post_event(
-                {"type": "warning", "message": f"보호 범위 밖 도구 {review.tool_name} · 이 세션 동안 허용됨"}
-            )
-            return True
-        codex_session.post_event({"type": "approval.requested", **pending["request"]})
-        decided = pending["event"].wait(_UNSUPPORTED_TOOL_REVIEW_SECONDS)
-        with self._tool_review_lock:
-            record.runtime["unsupported_tool_reviews"].pop(approval_id, None)
-            decision = pending["decision"] if decided else "timeout"
-            if decision == "acceptForSession":
-                session_allowed.add(review.tool_name)
-        codex_session.post_event({"type": "approval.resolved", "approval_id": approval_id, "decision": decision})
-        return decision in {"accept", "acceptForSession"}
+        return self._codex_workbench.review_unsupported_tool(
+            record,
+            review,
+            timeout_seconds=_UNSUPPORTED_TOOL_REVIEW_SECONDS,
+        )
 
     def end_codex_session(self, session_id: str) -> dict[str, Any]:
-        """Let Codex exit so the run finalizes through the Agent-exited path.
-
-        A run coordinated by another live AIA process (a second desktop
-        window on the same control root) cannot be closed from here; the
-        request is forwarded through the control root and that process ends
-        the conversation the same way.
-        """
-
-        if self.registry.get(session_id) is None and self._externally_coordinated_run(session_id) is not None:
-            self._write_stop_request(session_id, reason=_END_SESSION_REQUEST)
-            return {"accepted": True, "session_id": session_id, "mode": "requested_owner"}
-        self._codex_session(session_id).close(force=False)
-        return {"accepted": True, "session_id": session_id, "mode": "closed"}
+        return self._codex_workbench.end_codex_session(session_id)
 
     def _externally_coordinated_run(self, session_id: str) -> dict[str, Any] | None:
-        """Return the runtime state of a run another live AIA process owns."""
-
-        state = self._read_runtime_state(session_id)
-        if state is None:
-            return None
-        coordinator = state.get("coordinator")
-        if not isinstance(coordinator, Mapping) or coordinator.get("pid") == os.getpid():
-            return None
-        if _runtime_coordinator_reconciliation(state).get("status") != "LIVE_MATCH":
-            return None
-        return state
+        return self._codex_workbench._externally_coordinated_run(session_id)
 
     def _open_codex_conversation(self, record: RunRecord) -> None:
         """Start the Workbench thread once Codex is registered and protected.
@@ -1922,103 +481,6 @@ class RunApplicationService:
             record.runtime["codex_sandbox_downgraded"] = True
         if approval_policy != "on-request":
             record.runtime["codex_approval_policy_downgraded"] = True
-
-    def list_runs(self) -> list[dict[str, Any]]:
-        """Return live runs plus valid persisted Bundles for the local console."""
-
-        completed_runs = self._list_completed_runs()
-        completed_by_session = {
-            item.get("session_id"): item
-            for item in completed_runs
-            if isinstance(item.get("session_id"), str)
-        }
-        values: dict[str, dict[str, Any]] = {}
-        for state in self._list_runtime_states():
-            state = self._runtime_state_for_display(state)
-            session = state.get("session") if isinstance(state.get("session"), dict) else {}
-            policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
-            protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
-            session_id = state.get("session_id")
-            if not isinstance(session_id, str):
-                continue
-            session_status = session.get("status", "UNKNOWN")
-            result_available = bool(state.get("result_available"))
-            # A runtime snapshot is only a recovery hint. It must not look
-            # like a committed product result when its Result Bundle cannot
-            # be verified (for example after an interrupted probe or an old
-            # incompatible artifact).
-            completed_item = completed_by_session.get(session_id) if result_available else None
-            if completed_item is not None and completed_item.get("bundle_status") == "VALID":
-                run_classification = "PRODUCT_PROTECTED_RUN"
-                bundle_status = "VALID"
-            elif session_status in {"COMPLETED", "ABORTED", "FAILED"}:
-                run_classification = "UNVERIFIED_RUNTIME_STATE"
-                bundle_status = "UNVERIFIED"
-            else:
-                run_classification = "LIVE_PROTECTED_RUN"
-                bundle_status = "PENDING"
-            values[session_id] = {
-                "session_id": session_id,
-                "status": session_status,
-                "ended_at": None,
-                "created_at": session.get("created_at"),
-                "workspace": session.get("workspace"),
-                "agent": session.get("agent"),
-                "policy": {
-                    "id": policy.get("id"),
-                    "version": policy.get("version"),
-                },
-                "run_classification": run_classification,
-                "bundle_status": bundle_status,
-                "incident_count": state.get("incident_count", 0),
-                "result_url": f"/runs/{session_id}/result",
-                "protection_state": protection.get("state", "UNKNOWN"),
-                "hook_event_count": protection.get("hook_events", 0),
-                "launch_mode": state.get("launch_mode", "inherit"),
-                "runtime_reconciliation": state.get("runtime_reconciliation"),
-            }
-        for record in self.registry.snapshots():
-            live_record = self.registry.get(record.session_id)
-            if live_record is not None:
-                self._refresh_protection_state(live_record)
-                record = self.registry.snapshot(record.session_id) or record
-            if record.status in {"COMPLETED", "ABORTED", "FAILED"} and record.bundle_status != "VALID":
-                run_classification = "UNVERIFIED_RUNTIME_STATE"
-                bundle_status = "UNVERIFIED"
-            else:
-                run_classification = "PRODUCT_PROTECTED_RUN"
-                bundle_status = record.bundle_status or "PENDING"
-            values[record.session_id] = {
-                "session_id": record.session_id,
-                "status": record.status,
-                "ended_at": None,
-                "created_at": record.created_at.isoformat(),
-                "workspace": str(record.workspace),
-                "agent": record.agent,
-                "policy": {"id": record.policy_id, "version": record.policy_version},
-                "run_classification": run_classification,
-                "bundle_status": bundle_status,
-                "incident_count": len(record.incidents),
-                "result_url": f"/runs/{record.session_id}/result",
-                "protection_state": record.protection_state,
-                "hook_event_count": record.hook_event_count,
-                "launch_mode": record.launch_mode,
-            }
-        for item in completed_runs:
-            existing = values.get(item["session_id"])
-            # Result Bundles created before launch_mode became a persisted
-            # history field still need to retain the live runtime metadata
-            # while that metadata is available.  Otherwise a Workbench run
-            # falls back to the generic status page after a refresh.
-            if existing and item.get("launch_mode", "inherit") == "inherit":
-                item = dict(item)
-                item["launch_mode"] = existing.get("launch_mode", "inherit")
-            values[item["session_id"]] = item
-        return sorted(
-            values.values(),
-            key=lambda item: str(item.get("ended_at") or item.get("created_at") or ""),
-            reverse=True,
-        )
 
     def get_incidents(self, session_id: str) -> list[dict[str, Any]]:
         record = self.registry.snapshot(session_id)
@@ -2282,13 +744,28 @@ class RunApplicationService:
                 "available": False,
                 "status": (manual.get("recovery_result") or {}).get("recovery_status"),
                 "integrity_status": (manual.get("integrity_result") or {}).get("integrity_status"),
+                "recovery_result": manual.get("recovery_result"),
+                "integrity_result": manual.get("integrity_result"),
                 "manual_recovery": True,
             }
         else:
+            raw_result = context.get("raw_result") or {}
+            recovery_result = raw_result.get("recovery_result")
+            integrity_result = raw_result.get("integrity_result")
             context = {
                 **context,
-                "status": "NOT_REQUIRED" if context.get("workspace_matches") else "NOT_ATTEMPTED",
-                "integrity_status": "VERIFIED" if context.get("workspace_matches") else "NOT_CHECKED",
+                "status": (
+                    recovery_result.get("recovery_status") or recovery_result.get("status")
+                    if isinstance(recovery_result, Mapping)
+                    else None
+                ) or ("NOT_REQUIRED" if context.get("workspace_matches") else "NOT_ATTEMPTED"),
+                "integrity_status": (
+                    integrity_result.get("integrity_status") or integrity_result.get("status")
+                    if isinstance(integrity_result, Mapping)
+                    else None
+                ) or ("VERIFIED" if context.get("workspace_matches") else "NOT_CHECKED"),
+                "recovery_result": recovery_result,
+                "integrity_result": integrity_result,
                 "manual_recovery": False,
             }
         return {
@@ -2427,71 +904,14 @@ class RunApplicationService:
             "recovery": recovery,
         }
 
-    def shutdown(self, wait: bool = True) -> None:
-        """Stop live Protected Runs before closing the application service.
-
-        A console process can be interrupted while a Codex child is still
-        running.  Leaving the executor to shut down by itself would close the
-        AIA coordinator while the managed Agent remains alive.  Requesting a
-        user abort first lets the existing identity-safe launcher cleanup path
-        terminate the registered tree and finalize the run honestly.
-        """
-
-        for record in self.registry.snapshots():
-            if record.status in {"COMPLETED", "ABORTED", "FAILED"}:
-                continue
-            try:
-                self.request_stop(record.session_id)
-            except (KeyError, OSError, ValueError):
-                # The worker may have finalized between the snapshot and the
-                # stop request.  Its own finalization remains authoritative.
-                continue
-        self._executor.shutdown(wait=wait, cancel_futures=False)
-
-    @staticmethod
-    def _validate_workspace(value: str) -> Path:
-        try:
-            from aia import canonicalize_workspace
-
-            return canonicalize_workspace(value)
-        except (WorkspaceValidationError, OSError, ValueError) as error:
-            raise ApplicationValidationError(f"workspace validation failed: {error}") from error
-
-    def _unresolved_orphan_for_workspace(self, workspace: Path) -> dict[str, Any] | None:
-        """Refuse reuse until a stale run's recorded Agent root is reconciled.
-
-        Workspace lease takeover is identity-safe for the AIA owner, but it
-        cannot by itself prove that a crashed coordinator's Agent child has
-        stopped.  The persisted run must therefore be acknowledged after the
-        Agent root is gone before another protected run can use the workspace.
-        """
-
-        workspace_key = _workspace_key(workspace)
-        if workspace_key is None:
-            return None
-        for state in self._list_runtime_states():
-            session = state.get("session")
-            if not isinstance(session, Mapping):
-                continue
-            state_workspace = session.get("workspace")
-            if _workspace_key(state_workspace) != workspace_key:
-                continue
-            reconciliation = _runtime_coordinator_reconciliation(state)
-            if not reconciliation.get("orphaned"):
-                continue
-            if reconciliation.get("action") == "RECONCILED":
-                continue
-            session_id = state.get("session_id")
-            if not isinstance(session_id, str) or not session_id:
-                continue
-            return {
-                "session_id": session_id,
-                "phase": state.get("phase"),
-                "runtime_reconciliation": reconciliation,
-            }
-        return None
-
     def _run(self, record: RunRecord) -> None:
+        """Coordinate the protected run and its resource cleanup."""
+
+        self._run_protected_lifecycle(record)
+
+    def _run_protected_lifecycle(self, record: RunRecord) -> None:
+        """Execute preparation, launch, observation, and finalization in order."""
+
         session: ProtectedRunSession = record.runtime["session"]
         resolved = record.runtime["resolved_policy"]
         manager: WorkspaceLeaseManager | None = None
@@ -2499,218 +919,40 @@ class RunApplicationService:
         sensors: tuple[Any, ...] = ()
         finalization_done = False
         codex_output_handles: list[Any] = []
+        resources: dict[str, Any] = {}
         try:
             self._phase(record, "PREPARING", SessionStatus.PREPARING)
             record.protection_state = "PREPARING"
             session.transition(SessionStatus.PREPARING, at=_now())
-            manager = WorkspaceLeaseManager(
-                self.control_root,
-                process_identity_provider=process_create_time,
-            )
-            preparation = prepare_protection(
-                session,
-                resolved,
-                self.control_root,
-                lease_manager=manager,
-                owner_pid=os.getpid(),
-                owner_process_create_time=process_create_time(os.getpid()),
-            )
-            lease = preparation.workspace_lease
-            record.runtime.update({"preparation": preparation, "lease_manager": manager})
-            record.lease = "ACTIVE"
-            checkpoint = create_safe_checkpoint(session, preparation, lease_manager=manager)
-            record.runtime["checkpoint"] = checkpoint
-            record.checkpoint = "READY"
-
-            filesystem = FilesystemSensor(session, preparation, checkpoint, lease_manager=manager)
-            hook = HookSensor(session, preparation, checkpoint, lease_manager=manager)
-            filesystem.start()
-            hook.start()
-            sensors = (filesystem, hook)
-            record.runtime["sensors"] = sensors
-            self._refresh_sensors(record, sensors)
-            readiness = ProtectionReadinessBarrier(
-                session,
+            (
+                manager,
+                lease,
+                sensors,
                 preparation,
                 checkpoint,
-                filesystem,
-                hook,
-                ProcessObserverCapability(
-                    aia_session_id=session.session_id,
-                    workspace=session.workspace,
-                ),
-                lease_manager=manager,
-            ).evaluate()
-            if readiness.readiness_context is None:
-                raise RuntimeError("readiness barrier failed")
-            if record.stop_requested:
-                self._finalize_user_abort_before_launch(
-                    record,
-                    session,
-                    preparation,
-                    checkpoint,
-                    sensors,
-                    manager,
-                    lease,
-                )
+                readiness,
+                continue_run,
+            ) = self._prepare_protected_run(record, session, resolved, resources)
+            if not continue_run:
                 finalization_done = True
                 return
-            self._phase(record, "READY", SessionStatus.READY)
-            record.protection_state = "READY_UNVERIFIED"
+            filesystem, hook = sensors
 
-            launch_holder: dict[str, Any] = {}
-            bridge = HookEnforcementBridge()
-            launcher: ProtectedLauncher
-
-            def execute_post_action_containment(containment: Any) -> Any:
-                """Execute only a verified compensating containment request."""
-
-                process_manager = record.runtime.get("process_manager")
-                launch_context = launch_holder.get("context")
-                if process_manager is None or launch_context is None:
-                    raise RuntimeError("PROCESS_CONTAINMENT_CONTEXT_UNAVAILABLE")
-                result = process_manager.execute(
-                    containment.gate_result,
-                    session=session,
-                    launch_context=launch_context,
-                    workspace_lease=preparation.workspace_lease,
-                )
-                record.runtime["process_termination_result"] = result
-                record.runtime.setdefault("post_action_gate_results", []).append(
-                    containment.gate_result
-                )
-                self._persist_runtime_state(record)
-                return result
-
-            controller = CodexPreToolController(
+            (
+                launcher,
+                controller,
+                adapter_options,
+            ) = self._create_protected_launcher(
+                record,
                 session,
-                preparation,
-                filesystem,
-                hook,
-                checkpoint=checkpoint,
-                lease_manager=manager,
-                bridge=bridge,
-                launch_context_provider=lambda: launch_holder.get("context"),
-                process_sensor_provider=lambda: launcher.process_sensor,
-                post_action_containment_callback=execute_post_action_containment,
-                # Human-in-the-loop for tools AIA cannot interpret: only the
-                # structured Workbench conversation can ask the user in time.
-                unsupported_tool_reviewer=(
-                    (lambda review: self._review_unsupported_tool(record, review))
-                    if record.launch_mode == "codex_app_server"
-                    else None
-                ),
-            )
-
-            def broker_factory(launch_id: str, prepared_bridge: HookEnforcementBridge) -> CodexHookBroker:
-                if prepared_bridge is not bridge:
-                    raise RuntimeError("Hook bridge identity changed")
-                return CodexHookBroker(
-                    capability_secret=prepared_bridge.capability_secret or "",
-                    session_id=session.session_id,
-                    launch_id=launch_id,
-                    control_root=preparation.control_directory,
-                    handler=controller.handle,
-                )
-
-            def capture_popen(argv: list[str], **kwargs: Any) -> Any:
-                """Capture non-interactive Codex output in temporary handles only."""
-
-                if record.launch_mode == "web_terminal":
-                    try:
-                        terminal = WinPtyTerminalSession(
-                            argv,
-                            cwd=Path(kwargs["cwd"]),
-                            env=kwargs["env"],
-                        )
-                        terminal.start()
-                    except (KeyError, TerminalSessionError) as error:
-                        raise RuntimeError(f"WEB_TERMINAL_START_FAILED: {error}") from error
-                    record.runtime["terminal_session"] = terminal
-                    return terminal.process_handle
-                if record.launch_mode == "codex_app_server":
-                    try:
-                        codex_session = CodexAppServerSession(
-                            argv,
-                            cwd=Path(kwargs["cwd"]),
-                            env=kwargs["env"],
-                            client_version=__version__,
-                        )
-                        codex_session.start()
-                    except (KeyError, CodexAppServerError) as error:
-                        raise RuntimeError(f"CODEX_APP_SERVER_START_FAILED: {error}") from error
-                    record.runtime["codex_session"] = codex_session
-                    return codex_session.process_handle
-                if record.interactive:
-                    kwargs.update(_popen_kwargs_for_launch_mode(record.launch_mode))
-                    return subprocess.Popen(argv, **kwargs)
-                stdout_stream = tempfile.TemporaryFile(mode="w+b")
-                stderr_stream = tempfile.TemporaryFile(mode="w+b")
-                codex_output_handles.extend((stdout_stream, stderr_stream))
-                kwargs["stdout"] = stdout_stream
-                kwargs["stderr"] = stderr_stream
-                if os.name == "nt":
-                    kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
-                try:
-                    return subprocess.Popen(argv, **kwargs)
-                except Exception:
-                    stdout_stream.close()
-                    stderr_stream.close()
-                    raise
-
-            if not CodexHookInstaller().is_installed():
-                raise RuntimeError(
-                    "CODEX_HOOK_NOT_INSTALLED: run 'aia hook install' and review/trust the Hook"
-                )
-            launcher = ProtectedLauncher(
-                session,
-                readiness.readiness_context,
                 preparation,
                 checkpoint,
                 filesystem,
                 hook,
-                adapter=CodexAdapter(enable_hooks=True),
-                lease_manager=manager,
-                hook_bridge=bridge,
-                hook_broker_factory=broker_factory,
-                popen_factory=capture_popen,
-                capture_process_command_line=True,
-                launch_context_callback=lambda context: self._record_launch_context(
-                    record,
-                    launch_holder,
-                    context,
-                ),
-            )
-            record.runtime["process_manager"] = ProcessManager(
-                launcher.managed_process_registry,
                 manager,
+                readiness,
+                codex_output_handles,
             )
-            adapter_options: dict[str, Any] = {}
-            if record.interactive:
-                adapter_options.update(
-                    {
-                        "approval_policy": "on-request",
-                        "sandbox": "workspace-write",
-                    }
-                )
-                adapter_options["interactive"] = True
-                if record.launch_mode == "codex_app_server":
-                    adapter_options["app_server"] = True
-                if record.launch_mode == "web_terminal":
-                    adapter_options["workbench_terminal"] = True
-                    # A browser terminal is line-oriented.  Codex's
-                    # alternate-screen redraw stream is intended for a real
-                    # terminal host and can leave a browser renderer showing
-                    # a stale draft while the response is arriving.  Keep
-                    # the interactive CLI, but disable only this redraw mode
-                    # for the Workbench surface.
-            else:
-                # Codex CLI's current exec contract applies the supported
-                # workspace-write/on-request policy through --approve-for-me.
-                # Passing -c approval_policy=on-request alone is silently
-                # reported as approval=never on some Windows installations.
-                adapter_options["approve_for_me"] = True
-                adapter_options["skip_git_repo_check"] = True
             if record.stop_requested:
                 self._finalize_user_abort_before_launch(
                     record,
@@ -2731,422 +973,96 @@ class RunApplicationService:
             record.runtime.update(
                 {"launcher": launcher, "codex_controller": controller}
             )
-            launch = launcher.launch(
-                ProtectedLaunchRequest(
-                    aia_session_id=session.session_id,
-                    workspace=session.workspace,
-                    agent="codex",
-                    model=record.model,
-                    prompt=record.task,
-                    adapter_options=adapter_options,
-                )
-            )
-            record.runtime["launch"] = launch
-            # The Process Sensor is created before the launcher can report a
-            # startup failure. Preserve it in the run record even when Codex
-            # exits during startup so failed runs still show truthful sensor
-            # health and evidence in the Workbench.
-            process_sensor = launcher.process_sensor
-            if process_sensor is not None:
-                sensors = (filesystem, hook, process_sensor)
-                record.runtime["sensors"] = sensors
-                self._refresh_sensors(record, sensors)
-            if record.stop_requested:
-                if launch.context is None:
-                    self._finalize_user_abort_before_launch(
-                        record,
-                        session,
-                        preparation,
-                        checkpoint,
-                        sensors,
-                        manager,
-                        lease,
-                    )
-                    finalization_done = True
-                    return
-                if not self._request_user_abort(record, launcher):
-                    record.stop_error = "USER_ABORT_TERMINATION_UNCONFIRMED"
-            if launch.context is None or launch.status.value != "RUNNING":
-                raise RuntimeError(launch.failure_code or "Codex launch failed")
-            process_sensor = launcher.process_sensor
-            sensors = (filesystem, hook, process_sensor)
-            record.runtime["sensors"] = sensors
-            # The Process Sensor is created only after Codex has been
-            # registered. Refresh the public runtime snapshot at that point
-            # so the Workbench shows all three product sensors as active.
-            self._refresh_sensors(record, sensors)
-            self._phase(record, "RUNNING", SessionStatus.RUNNING)
-            record.protection_state = "ACTIVE_UNVERIFIED"
-            self._open_codex_conversation(record)
-            process = launcher.process_handle
-            exit_code = self._wait_for_agent(record, process, launcher)
-            record.runtime["exit_code"] = exit_code
-            hook_broker_healthy_before_stop = _hook_broker_runtime_healthy(record)
-            record.runtime["hook_broker_runtime_healthy_before_stop"] = (
-                hook_broker_healthy_before_stop
-            )
-            launcher.stop_hook_broker()
-            self._capture_codex_execution_observation(record, codex_output_handles)
-            self._confirm_codex_blocks(record)
-            self._process_evidence(record)
-            recovery_verification = self._recover_after_containment(
+            observation = self._observe_protected_run(
                 record,
-                session=session,
-                preparation=preparation,
-                checkpoint=checkpoint,
-                lease=lease,
-                launch_context=launch.context,
-            )
-            raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
-            process_identity = launch.context.root_process_identity
-            protection_failure_reason = record.runtime.get("protection_failure_reason")
-            end_reason = (
-                SessionEndReason.PROTECTION_FAILURE
-                if protection_failure_reason
-                else SessionEndReason.USER_ABORT
-                if record.stop_requested
-                else SessionEndReason.AGENT_EXITED
-            )
-            limitations = list(
-                ("USER_ABORT_TERMINATION_UNCONFIRMED",)
-                if record.stop_error
-                else ()
-            )
-            if protection_failure_reason:
-                limitations.append("PROTECTION_BOUNDARY_LOST")
-                protection_failure_result = (
-                    record.runtime.get("protection_failure_termination_result") or {}
-                )
-                if protection_failure_result.get("status") != "SUCCEEDED":
-                    limitations.append("PROTECTION_FAILURE_TERMINATION_UNCONFIRMED")
-            if record.runtime.get("post_action_containment_errors"):
-                limitations.append("POST_ACTION_CONTAINMENT_DEGRADED")
-            if getattr(controller, "unsupported_tool_names", ()):
-                limitations.append("UNSUPPORTED_TOOL_PATH")
-            if getattr(controller, "user_approved_unsupported_tools", ()):
-                # The user let a tool AIA cannot interpret run; the Bundle
-                # records that decision instead of claiming protection for it.
-                limitations.append("UNSUPPORTED_TOOL_USER_APPROVED")
-            if record.runtime.get("codex_sandbox_downgraded"):
-                limitations.append("CODEX_SANDBOX_DOWNGRADED")
-            if record.runtime.get("codex_approval_policy_downgraded"):
-                limitations.append("CODEX_APPROVAL_POLICY_DOWNGRADED")
-            if recovery_verification is not None and not recovery_verification.verified_recovery_success:
-                limitations.append("RECOVERY_NOT_VERIFIED")
-            if not _sensors_runtime_healthy(sensors):
-                limitations.append("SENSOR_RUNTIME_NOT_VERIFIED")
-            if hook_broker_healthy_before_stop is not True:
-                limitations.append("HOOK_BROKER_RUNTIME_NOT_VERIFIED")
-            final = SessionFinalizer(
-                evidence_store=raw_store,
-                sensors=sensors,
-                lease_manager=manager,
-                workspace_lease=lease,
-            ).finalize(
                 session,
-                end_reason=end_reason,
-                process_identity=process_identity,
-                process_end_status=ProcessIdentityStatus.PROCESS_GONE,
-                actions=record.runtime.get("normalized_actions", ()),
-                policy_evaluations=record.runtime.get("policy_evaluations", ()),
-                attribution_results=record.runtime.get("attribution_results", ()),
-                enforcement_results=record.runtime.get("gate_results", ()),
-                termination_result=record.runtime.get("process_termination_result"),
-                recovery_result=recovery_verification,
-                integrity_result=(
-                    recovery_verification.integrity_result
-                    if recovery_verification is not None
-                    else None
-                ),
-                active_policy=preparation.active_policy,
-                checkpoint=checkpoint,
-                launch_context=launch.context,
-                run_classification="PRODUCT_PROTECTED_RUN",
-                agent_exit_code=exit_code,
-                agent_end_observed_at=_now(),
-                agent_end_verification="PROCESS_GONE",
-                agent_output_observation=record.runtime.get("codex_output_observation"),
-                user_abort_termination_result=record.runtime.get("user_abort_termination_result"),
-                protection_failure_termination_result=record.runtime.get(
-                    "protection_failure_termination_result"
-                ),
-                limitations=tuple(limitations),
+                preparation,
+                checkpoint,
+                filesystem,
+                hook,
+                manager,
+                lease,
+                sensors,
+                launcher,
+                adapter_options,
+                codex_output_handles,
             )
-            finalization_done = True
-            result_mapping = final.result.to_mapping()
-            verification = final.bundle_verification
-            record.runtime["final"] = final
-            sensor_verified = _sensor_summary_is_verified(final.result.sensor_summary)
-            self.registry.update(
-                record.session_id,
-                status=final.result.session_status.value,
-                phase="COMPLETED" if final.result.session_status is SessionStatus.COMPLETED else final.result.session_status.value,
-                lease="RELEASED",
-                result_path=final.bundle.result_directory / "result.json",
-                result=result_mapping,
-                bundle_status=verification.status.value,
-                protection_state=(
-                    "FAILED_DEGRADED"
-                    if final.result.session_status is SessionStatus.FAILED
-                    else
-                    "ABORTED_VERIFIED"
-                    if final.result.session_status is SessionStatus.ABORTED
-                    and not record.stop_error
-                    and controller.events
-                    and not controller.errors
-                    and sensor_verified
-                    and hook_broker_healthy_before_stop is True
-                    and not record.runtime.get("codex_sandbox_downgraded")
-                    and not record.runtime.get("codex_approval_policy_downgraded")
-                    else "ABORTED_DEGRADED"
-                    if final.result.session_status is SessionStatus.ABORTED
-                    else "COMPLETED_VERIFIED"
-                    if controller.events and not controller.errors
-                    and sensor_verified
-                    and hook_broker_healthy_before_stop is True
-                    and not record.runtime.get("codex_sandbox_downgraded")
-                    and not record.runtime.get("codex_approval_policy_downgraded")
-                    else "COMPLETED_DEGRADED"
-                ),
-                hook_event_count=len(controller.events),
-                sensor_health={
-                    item.get("sensor"): item.get("runtime_health_before_stop")
-                    for item in final.result.sensor_summary
-                    if hasattr(item, "get")
-                },
+            if observation is None:
+                finalization_done = True
+                return
+            (
+                launch,
+                sensors,
+                exit_code,
+                hook_broker_healthy_before_stop,
+                recovery_verification,
+            ) = observation
+            finalization_done = self._finalize_completed_protected_run(
+                record,
+                session,
+                preparation,
+                checkpoint,
+                sensors,
+                manager,
+                lease,
+                launch,
+                exit_code,
+                controller,
+                hook_broker_healthy_before_stop,
+                recovery_verification,
             )
-            self._persist_runtime_state(record)
         except Exception as error:
             self._fail_record(record, error)
         finally:
-            launcher = record.runtime.get("launcher")
-            if launcher is not None:
-                try:
-                    launcher.stop_hook_broker()
-                except Exception:
-                    pass
-            for handle in codex_output_handles:
-                try:
-                    handle.close()
-                except Exception:
-                    pass
-            terminal = record.runtime.get("terminal_session")
-            if terminal is not None:
-                try:
-                    terminal.close(force=False)
-                except Exception:
-                    pass
-            codex_session = record.runtime.get("codex_session")
-            if codex_session is not None:
-                try:
-                    codex_session.close(force=False)
-                except Exception:
-                    pass
-            if not finalization_done:
-                for sensor in sensors:
-                    try:
-                        if getattr(sensor, "status", None) and sensor.status.value != "STOPPED":
-                            sensor.stop()
-                    except Exception:
-                        pass
-                if manager is not None and lease is not None:
-                    try:
-                        manager.release(lease)
-                    except Exception:
-                        pass
-
-    def _finalize_user_abort_before_launch(
-        self,
-        record: RunRecord,
-        session: ProtectedRunSession,
-        preparation: Any,
-        checkpoint: Any,
-        sensors: tuple[Any, ...],
-        manager: WorkspaceLeaseManager,
-        lease: Any,
-    ) -> None:
-        raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
-        final = SessionFinalizer(
-            evidence_store=raw_store,
-            sensors=sensors,
-            lease_manager=manager,
-            workspace_lease=lease,
-        ).finalize(
-            session,
-            end_reason=SessionEndReason.USER_ABORT,
-            active_policy=preparation.active_policy,
-            checkpoint=checkpoint,
-            run_classification="PRODUCT_PROTECTED_RUN",
-            limitations=("AGENT_NOT_LAUNCHED",),
-        )
-        verification = final.bundle_verification
-        self.registry.update(
-            record.session_id,
-            status=final.result.session_status.value,
-            phase=final.result.session_status.value,
-            lease="RELEASED",
-            result_path=final.bundle.result_directory / "result.json",
-            result=final.result.to_mapping(),
-            bundle_status=verification.status.value,
-            protection_state="ABORTED_BEFORE_LAUNCH",
-        )
-        self._persist_runtime_state(record)
-
-    def _wait_for_agent(
-        self,
-        record: RunRecord,
-        process: Any,
-        launcher: ProtectedLauncher,
-    ) -> int:
-        while True:
-            try:
-                return int(process.wait(timeout=0.5))
-            except subprocess.TimeoutExpired:
-                if (
-                    not record.runtime.get("end_session_requested")
-                    and self._stop_request_reason(record.session_id) == _END_SESSION_REQUEST
-                ):
-                    # Another AIA window asked to end this conversation.  Close
-                    # it the same way this window's own "end session" does so
-                    # the run finalizes as Agent-exited, not as an abort.
-                    record.runtime["end_session_requested"] = True
-                    codex_session = record.runtime.get("codex_session")
-                    if codex_session is not None:
-                        Thread(
-                            target=codex_session.close,
-                            kwargs={"force": False},
-                            name=f"aia-end-session-{record.session_id[:8]}",
-                            daemon=True,
-                        ).start()
-                    else:
-                        record.stop_requested = True
-                    continue
-                if self._is_stop_requested(record):
-                    if record.runtime.get("stop_action_attempted"):
-                        continue
-                    record.runtime["stop_action_attempted"] = True
-                    record.protection_state = "STOP_REQUESTED"
-                    if not self._request_user_abort(record, launcher):
-                        record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
-                        record.protection_state = "DEGRADED"
-                    self._persist_runtime_state(record)
-                    continue
-                broker = getattr(launcher, "hook_broker", None)
-                broker_running = (
-                    broker is not None and bool(getattr(broker, "is_running", False))
-                )
-                if not broker_running:
-                    reason = "HOOK_BROKER_LOST"
-                    if not record.runtime.get("protection_failure_termination_attempted"):
-                        record.runtime["protection_failure_termination_attempted"] = True
-                        record.runtime["protection_failure_reason"] = reason
-                        record.protection_state = "DEGRADED"
-                        try:
-                            result = launcher.request_protection_failure_termination_result(
-                                reason
-                            )
-                        except Exception as error:
-                            result = {
-                                "status": "FAILED",
-                                "outcome": "FAILED",
-                                "verified_tree_gone": False,
-                                "reason": f"{type(error).__name__}",
-                                "control": "PROTECTION_FAILURE",
-                            }
-                        if result is None:
-                            result = {
-                                "status": "FAILED",
-                                "outcome": "FAILED",
-                                "verified_tree_gone": False,
-                                "reason": "PROTECTION_FAILURE_TERMINATION_UNAVAILABLE",
-                                "control": "PROTECTION_FAILURE",
-                            }
-                        record.runtime["protection_failure_termination_result"] = result
-                        self._persist_runtime_state(record)
-                    continue
-                continue
+            self._cleanup_run_lifecycle(
+                record,
+                codex_output_handles,
+                sensors or resources.get("sensors", ()),
+                manager or resources.get("manager"),
+                lease or resources.get("lease"),
+                finalization_done,
+            )
 
     @staticmethod
-    def _request_user_abort(record: RunRecord, launcher: ProtectedLauncher) -> bool:
-        """Request a user stop and retain its verified result separately."""
+    def _cleanup_run_lifecycle(
+        record: RunRecord,
+        codex_output_handles: list[Any],
+        sensors: tuple[Any, ...],
+        manager: WorkspaceLeaseManager | None,
+        lease: Any,
+        finalization_done: bool,
+    ) -> None:
+        """Release run resources that were not already released by finalization."""
 
-        detailed = getattr(launcher, "request_user_abort_result", None)
-        try:
-            if callable(detailed):
-                result = detailed()
-                if result is None:
-                    return False
-                mapping = result.to_mapping() if hasattr(result, "to_mapping") else dict(result)
-                record.runtime["user_abort_termination_result"] = mapping
-                if hasattr(result, "succeeded"):
-                    return bool(result.succeeded)
-                return bool(
-                    mapping.get("status") == "SUCCEEDED"
-                    and mapping.get("verified_tree_gone") is True
-                )
-            return bool(launcher.request_user_abort())
-        except Exception as error:
-            record.stop_error = f"{type(error).__name__}: {error}"
-            return False
-
-    def _is_stop_requested(self, record: RunRecord) -> bool:
-        if record.stop_requested:
-            return True
-        # A graceful end request is handled separately in _wait_for_agent and
-        # must not turn the run into a user abort.
-        requested = self._stop_request_reason(record.session_id) not in {None, _END_SESSION_REQUEST}
-        if requested:
-            record.stop_requested = True
-        return requested
-
-    def _stop_request_reason(self, session_id: str) -> str | None:
-        """Return the pending cross-process request reason, if any.
-
-        An unreadable request file still counts as a user stop, as before.
-        """
-
-        try:
-            path = self._stop_request_path(session_id)
-            if not path.is_file():
-                return None
-        except (OSError, ValueError):
-            return None
-        try:
-            reason = json.loads(path.read_text(encoding="utf-8")).get("reason")
-        except (OSError, ValueError, AttributeError):
-            return "USER_ABORT"
-        return reason if reason == _END_SESSION_REQUEST else "USER_ABORT"
-
-    def _write_stop_request(self, session_id: str, *, reason: str = "USER_ABORT") -> Path:
-        path = self._stop_request_path(session_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(
-            json.dumps(
-                {
-                    "session_id": session_id,
-                    "requested_at": _now().isoformat(),
-                    "reason": reason,
-                },
-                ensure_ascii=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
-        return path
-
-    def _stop_request_path(self, session_id: str) -> Path:
-        try:
-            UUID(session_id)
-        except (ValueError, AttributeError, TypeError) as error:
-            raise ValueError("invalid session_id") from error
-        requests = (self.control_root / "stop-requests").resolve(strict=False)
-        requests.mkdir(parents=True, exist_ok=True)
-        candidate = (requests / f"{session_id}.json").resolve(strict=False)
-        if not candidate.is_relative_to(requests):
-            raise ValueError("stop request path escaped control root")
-        return candidate
+        launcher = record.runtime.get("launcher")
+        if launcher is not None:
+            try:
+                launcher.stop_hook_broker()
+            except Exception:
+                pass
+        for handle in codex_output_handles:
+            try:
+                handle.close()
+            except Exception:
+                pass
+        codex_session = record.runtime.get("codex_session")
+        if codex_session is not None:
+            try:
+                codex_session.close(force=False)
+            except Exception:
+                pass
+        if not finalization_done:
+            for sensor in sensors:
+                try:
+                    if getattr(sensor, "status", None) and sensor.status.value != "STOPPED":
+                        sensor.stop()
+                except Exception:
+                    pass
+            if manager is not None and lease is not None:
+                try:
+                    manager.release(lease)
+                except Exception:
+                    pass
 
     def _recover_after_containment(
         self,
@@ -3198,127 +1114,6 @@ class RunApplicationService:
         record.runtime["recovery_verification"] = verification
         self._persist_runtime_state(record)
         return verification
-
-    def _process_evidence(self, record: RunRecord) -> None:
-        session: ProtectedRunSession = record.runtime["session"]
-        preparation = record.runtime["preparation"]
-        launcher = record.runtime["launcher"]
-        raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
-        records = raw_store.records()
-        normalized = Normalizer(session.session_id, session.workspace).normalize(records)
-        evaluator = RuntimePolicyEvaluator(preparation.active_policy)
-        launch_context = record.runtime["launch"].context
-        attribution_engine = AttributionEngine(session.session_id, records, launch_context=launch_context)
-        gate = EnforcementGate(lease_manager=record.runtime["lease_manager"])
-        policy_results = []
-        attribution_results = []
-        gate_results = []
-        action_views = []
-        codex_controller = record.runtime.get("codex_controller")
-        codex_events = tuple(codex_controller.events) if codex_controller is not None else ()
-        posttool_ids = _posttool_use_ids(self.control_root, session.session_id)
-
-        def matching_codex_event(action: Any) -> Any | None:
-            action_evidence_ids = set(action.evidence_ids)
-            for event in codex_events:
-                if action_evidence_ids == set(event.action.evidence_ids):
-                    return event
-            return None
-
-        def append_action_view(
-            action: Any,
-            policy_result: Any,
-            attribution_result: Any,
-            gate_result: Any,
-            *,
-            execution_observed: bool = False,
-            tool_name: str | None = None,
-        ) -> None:
-            action_views.append(
-                _runtime_action_view(
-                    action,
-                    policy_result,
-                    attribution_result,
-                    gate_result,
-                    execution_observed=execution_observed,
-                    tool_name=tool_name,
-                )
-            )
-
-        for action in normalized.actions:
-            policy_result = evaluator.evaluate(action)
-            attribution_result = attribution_engine.attribute(action)
-            sensors = record.runtime.get("sensors", ())
-            sensor_health = tuple(sensor.health for sensor in sensors if sensor is not None)
-            codex_event = matching_codex_event(action)
-            if codex_event is not None:
-                policy_result = codex_event.policy_evaluation
-                attribution_result = codex_event.attribution
-                gate_result = codex_event.gate_result
-            else:
-                gate_result = gate.evaluate(
-                    EnforcementGateInput(
-                        action=action,
-                        policy_evaluation=policy_result,
-                        attribution=attribution_result,
-                        session=session,
-                        active_policy=preparation.active_policy,
-                        launch_context=launch_context,
-                        workspace_lease=preparation.workspace_lease,
-                        sensor_health=sensor_health,
-                        hook_trust_status=HookTrustStatus.UNVERIFIED,
-                        checked_at=_now(),
-                    )
-                )
-            policy_results.append(policy_result)
-            attribution_results.append(attribution_result)
-            gate_results.append(gate_result)
-            append_action_view(
-                action,
-                policy_result,
-                attribution_result,
-                gate_result,
-                execution_observed=(
-                    codex_event is not None
-                    and codex_event.tool_use_id in posttool_ids
-                ),
-                tool_name=_event_tool_name(codex_event),
-            )
-
-        post_action_containments = (
-            tuple(codex_controller.post_action_containments)
-            if codex_controller is not None
-            else ()
-        )
-        for containment in post_action_containments:
-            policy_results.append(containment.policy_evaluation)
-            attribution_results.append(containment.attribution)
-            gate_results.append(containment.gate_result)
-            append_action_view(
-                containment.action,
-                containment.policy_evaluation,
-                containment.attribution,
-                containment.gate_result,
-                execution_observed=True,
-                tool_name=_event_tool_name(containment.source_event),
-            )
-            if containment.termination_error:
-                record.runtime.setdefault("post_action_containment_errors", []).append(
-                    containment.termination_error
-                )
-        all_actions = tuple(
-            (*normalized.actions, *(item.action for item in post_action_containments))
-        )
-        record.runtime.update(
-            {
-                "normalized_actions": all_actions,
-                "policy_evaluations": tuple(policy_results),
-                "attribution_results": tuple(attribution_results),
-                "gate_results": tuple(gate_results),
-            }
-        )
-        incidents = [item for item in (incident_view(item) for item in action_views) if item]
-        self.registry.update(record.session_id, actions=action_views, incidents=incidents)
 
     def _capture_codex_execution_observation(
         self,
@@ -3425,10 +1220,17 @@ class RunApplicationService:
                 )
             )
         display_view = {"actions": action_views}
+        (
+            evidence_metadata,
+            observed_evidence_ids,
+            capture_times,
+        ) = self._read_live_evidence_snapshot(record.session_id)
         _annotate_execution_observations(
             display_view,
             control_root=self.control_root,
             session_id=record.session_id,
+            evidence_metadata=evidence_metadata,
+            execution_observations=(observed_evidence_ids, capture_times),
         )
         record.actions = display_view["actions"]
         record.incidents = [
@@ -3484,13 +1286,16 @@ class RunApplicationService:
         self._persist_runtime_state(record)
 
     def _runtime_state_path(self, session_id: str) -> Path:
+        root = (self.control_root / "run-status").resolve(strict=False)
+        return self._runtime_state_path_under_root(session_id, root)
+
+    def _runtime_state_path_under_root(self, session_id: str, root: Path) -> Path:
         if (
             not isinstance(session_id, str)
             or not session_id
             or any(not (character.isalnum() or character == "-") for character in session_id)
         ):
             raise ValueError("invalid session_id")
-        root = (self.control_root / "run-status").resolve(strict=False)
         candidate = (root / f"{session_id}.json").resolve(strict=False)
         if not candidate.is_relative_to(root):
             raise ValueError("runtime state path escaped control root")
@@ -3629,188 +1434,45 @@ class RunApplicationService:
     def _list_runtime_states(self) -> list[dict[str, Any]]:
         root = (self.control_root / "run-status").resolve(strict=False)
         if not root.is_dir():
+            with self._runtime_states_cache_lock:
+                self._runtime_states_cache.clear()
             return []
         states: list[dict[str, Any]] = []
+        seen_paths: set[Path] = set()
         for path in root.glob("*.json"):
+            session_id = path.stem
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, json.JSONDecodeError):
-                continue
-            if not isinstance(payload, dict):
-                continue
-            session_id = payload.get("session_id")
-            if not isinstance(session_id, str):
-                continue
-            try:
-                if self._runtime_state_path(session_id) != path.resolve(strict=False):
+                if self._runtime_state_path_under_root(session_id, root) != path:
                     continue
             except ValueError:
                 continue
-            states.append(payload)
+            try:
+                stat = path.stat()
+                signature = (stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns, stat.st_ino)
+            except OSError:
+                continue
+            seen_paths.add(path)
+            with self._runtime_states_cache_lock:
+                cached = self._runtime_states_cache.get(path)
+                payload = cached[4] if cached is not None and cached[:4] == signature else None
+            if payload is None:
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, json.JSONDecodeError):
+                    continue
+                if not isinstance(payload, dict) or payload.get("session_id") != session_id:
+                    continue
+                with self._runtime_states_cache_lock:
+                    self._runtime_states_cache[path] = (*signature, payload)
+                    if len(self._runtime_states_cache) > _RUNTIME_STATES_CACHE_LIMIT:
+                        self._runtime_states_cache.pop(next(iter(self._runtime_states_cache)))
+            if not isinstance(payload, dict) or payload.get("session_id") != session_id:
+                continue
+            states.append(deepcopy(payload))
+        with self._runtime_states_cache_lock:
+            for cached_path in self._runtime_states_cache.keys() - seen_paths:
+                self._runtime_states_cache.pop(cached_path, None)
         return states
-
-    def _runtime_state_for_display(self, state: Mapping[str, Any]) -> dict[str, Any]:
-        """Add crash reconciliation metadata to a persisted runtime view."""
-
-        displayed = dict(state)
-        reconciliation = _runtime_coordinator_reconciliation(state)
-        displayed["runtime_reconciliation"] = reconciliation
-        protection = state.get("protection")
-        if isinstance(protection, Mapping):
-            protection_view = dict(protection)
-            if reconciliation.get("orphaned"):
-                protection_view["state"] = "ORPHANED_DEGRADED"
-            displayed["protection"] = protection_view
-        return displayed
-
-    def _status_from_runtime_state(self, state: dict[str, Any]) -> dict[str, Any]:
-        state = self._runtime_state_for_display(state)
-        session = state.get("session") if isinstance(state.get("session"), dict) else {}
-        protection = state.get("protection") if isinstance(state.get("protection"), dict) else {}
-        policy = state.get("policy") if isinstance(state.get("policy"), dict) else {}
-        stop = state.get("stop") if isinstance(state.get("stop"), dict) else {}
-        actions = [
-            dict(item)
-            for item in state.get("latest_actions", [])
-            if isinstance(item, Mapping)
-        ]
-        display_view = {"actions": actions}
-        evidence_metadata = self._evidence_metadata(
-            str(state.get("session_id")),
-            require_valid=False,
-        )
-        _annotate_execution_observations(
-            display_view,
-            control_root=self.control_root,
-            session_id=str(state.get("session_id")),
-            evidence_metadata=evidence_metadata,
-        )
-        return {
-            "checkpoint": state.get("checkpoint", "UNKNOWN"),
-            "error": state.get("error"),
-            "incident_count": state.get("incident_count", 0),
-            "latest_actions": display_view["actions"],
-            "events": safe_event_views(
-                display_view["actions"],
-                sensor_health=state.get("sensor_health", {}),
-                evidence_metadata=evidence_metadata,
-            ),
-            "evidence_chains": display_view["evidence_chains"],
-            "evidence_timeline": display_view["evidence_timeline"],
-            "lease": state.get("lease", "UNKNOWN"),
-            "mode": state.get("mode"),
-            "phase": state.get("phase", session.get("status", "UNKNOWN")),
-            "result_path": state.get("result_path"),
-            "protection": protection,
-            "stop": stop,
-            "policy": policy,
-            "bundle_status": (
-                "UNVERIFIED"
-                if state.get("result_available")
-                else state.get("bundle_status", "PENDING")
-            ),
-            "result_available": bool(state.get("result_available")),
-            "evidence_summary": self._evidence_summary(
-                str(state.get("session_id")),
-                require_valid=False,
-            ),
-            "sensor_health": state.get("sensor_health", {}),
-            "runtime_reconciliation": state.get("runtime_reconciliation"),
-            "session": session,
-            "launch_mode": state.get("launch_mode", "inherit"),
-        }
-
-    def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
-        result = self.reader.read_result(session_id)
-        view = result_view(result, self.reader.verification(session_id).status.value)
-        evidence_metadata = self._evidence_metadata(
-            session_id,
-            require_valid=False,
-        )
-        _annotate_execution_observations(
-            view,
-            control_root=self.control_root,
-            session_id=session_id,
-            evidence_metadata=evidence_metadata,
-        )
-        hook_events = sum(
-            1
-            for item in evidence_metadata
-            if item.get("source") == "AGENT_HOOK"
-            and item.get("record_type") == "PRETOOL_REQUEST"
-        )
-        sensor_failed = any(
-            item.get("runtime_health_before_stop") == "FAILED"
-            for item in result.get("sensor_summary", [])
-            if isinstance(item, Mapping)
-        )
-        sensor_verified = _sensor_summary_is_verified(result.get("sensor_summary", []))
-        protection_downgraded = any(
-            item in {
-                "CODEX_SANDBOX_DOWNGRADED",
-                "CODEX_APPROVAL_POLICY_DOWNGRADED",
-                "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
-                "PROTECTION_BOUNDARY_LOST",
-            }
-            for item in result.get("limitations", [])
-        )
-        aborted = (
-            result.get("session_status") == "ABORTED"
-            and result.get("session_end_reason") == "USER_ABORT"
-        )
-        if result.get("session_status") == "FAILED" or result.get("session_end_reason") == "PROTECTION_FAILURE":
-            protection_state = "FAILED_DEGRADED"
-        elif aborted:
-            protection_state = (
-                "ABORTED_VERIFIED"
-                if hook_events and sensor_verified and not sensor_failed and not protection_downgraded
-                else "ABORTED_DEGRADED"
-            )
-        else:
-            protection_state = (
-                "COMPLETED_VERIFIED"
-                if hook_events and sensor_verified and not sensor_failed and not protection_downgraded
-                else "COMPLETED_DEGRADED"
-            )
-        return {
-            "checkpoint": self.reader.checkpoint_status(session_id),
-            "error": None,
-            "incident_count": len(view["incidents"]),
-            "latest_actions": view["actions"][-20:],
-            "events": view.get("events", []),
-            "evidence_chains": view.get("evidence_chains", []),
-            "evidence_timeline": view.get("evidence_timeline", []),
-            "lease": "RELEASED",
-            "mode": view["mode"],
-            "phase": view["session_status"],
-            "result_path": str(self.result_directory_for(session_id)),
-            "protection": {
-                "state": protection_state,
-                "hook_events": hook_events,
-            },
-            "stop": {"requested": aborted, "error": None},
-            "policy": view["policy"],
-            "bundle_status": view["bundle_status"],
-            "result_available": True,
-            "evidence_summary": self._evidence_summary(
-                session_id,
-                metadata=evidence_metadata,
-            ),
-            "sensor_health": {
-                item.get("sensor"): item.get("runtime_health_before_stop")
-                for item in result.get("sensor_summary", [])
-            },
-            "session": {
-                "agent": result.get("agent"),
-                "created_at": result.get("created_at"),
-                "model": None,
-                "session_id": session_id,
-                "status": result.get("session_status"),
-                "workspace": result.get("workspace"),
-                "launch_mode": result.get("launch_mode", "inherit"),
-            },
-            "launch_mode": result.get("launch_mode", "inherit"),
-        }
 
     def result_directory_for(self, session_id: str) -> Path:
         return self.reader.result_directory(session_id) / "result.json"

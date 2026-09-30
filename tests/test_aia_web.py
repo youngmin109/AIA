@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
 import importlib
+import shutil
+import subprocess
 import time
+from fastapi.testclient import TestClient
 
 from aia_web.app import (
     _aia_cli_command,
-    _coalesce_terminal_output,
     _console_cli_prefix,
     create_app,
 )
 from aia_app.service import RunApplicationService
 from aia.codex_installation import CodexHookInstaller
+from aia.adapters.codex import CodexAdapter
+from aia import ProcessIdentityStatus, SessionFinalizer
+from tests.test_finalization import _session
 
 
 class FakeService:
@@ -109,46 +113,6 @@ class FakeService:
             "sensor_health": {"FILESYSTEM_WATCHER": "HEALTHY"},
             "session": {"agent": "codex", "status": "RUNNING", "session_id": session_id, "workspace": "C:/workspace"},
         }
-
-    def get_terminal_status(self, session_id):
-        if session_id != "run-1":
-            raise KeyError(session_id)
-        return {
-            "mode": "web_terminal",
-            "status": "RUNNING",
-            "pid": 1234,
-            "rows": 32,
-            "cols": 120,
-            "started_at": None,
-            "ended_at": None,
-            "error": None,
-        }
-
-    def drain_terminal_output(self, session_id):
-        if session_id != "run-1":
-            raise KeyError(session_id)
-        return []
-
-    def read_terminal_output(self, session_id, *, after_sequence=0):
-        if session_id != "run-1":
-            raise KeyError(session_id)
-        assert after_sequence >= 0
-        return []
-
-    def send_terminal_input(self, session_id, value):
-        if session_id != "run-1":
-            raise KeyError(session_id)
-        return {"accepted": True, "session_id": session_id}
-
-    def submit_terminal_input(self, session_id):
-        if session_id != "run-1":
-            raise KeyError(session_id)
-        return {"accepted": True, "session_id": session_id}
-
-    def resize_terminal(self, session_id, rows, cols):
-        if session_id != "run-1":
-            raise KeyError(session_id)
-        return {"accepted": True, "session_id": session_id, "rows": rows, "cols": cols}
 
     def get_run_actions(self, session_id):
         return [
@@ -291,6 +255,15 @@ def test_result_api_returns_the_expected_shape() -> None:
     assert response.json() == service.get_result("run-1")
 
 
+def test_retired_workbench_terminal_routes_are_not_registered() -> None:
+    app = create_app(FakeService())
+
+    route_paths = {route.path for route in app.routes}
+
+    assert "/api/runs/{session_id}/terminal/status" not in route_paths
+    assert "/api/runs/{session_id}/terminal" not in route_paths
+
+
 def test_result_api_returns_safe_reason_on_integrity_failure() -> None:
     client = TestClient(create_app(UnreadableRunService()))
 
@@ -369,113 +342,6 @@ def test_hook_setup_endpoint_installs_hook_without_terminal_command(tmp_path, mo
     assert response.json()["posttool_installed"] is True
     assert response.json()["trust_required"] is True
     assert response.json()["hook_path"] == str(tmp_path / "hooks.json")
-
-
-def test_workbench_terminal_socket_accepts_input_and_resize() -> None:
-    client = TestClient(create_app(FakeService()))
-    with client.websocket_connect("/api/runs/run-1/terminal") as websocket:
-        first = websocket.receive_json()
-        assert first["type"] == "status"
-        assert first["status"] == "RUNNING"
-        websocket.send_json({"type": "input", "data": "hello"})
-        accepted = websocket.receive_json()
-        assert accepted["type"] == "accepted"
-        assert accepted["action"] == "input"
-        websocket.send_json({"type": "submit"})
-        accepted = websocket.receive_json()
-        assert accepted["type"] == "accepted"
-        assert accepted["action"] == "submit"
-        websocket.send_json({"type": "resize", "rows": 40, "cols": 140})
-        accepted = websocket.receive_json()
-        assert accepted["type"] == "accepted"
-        assert accepted["action"] == "resize"
-        assert accepted["cols"] == 140
-
-
-def test_workbench_terminal_status_checks_are_throttled() -> None:
-    class CountingService(FakeService):
-        def __init__(self):
-            super().__init__()
-            self.terminal_status_calls = 0
-
-        def get_terminal_status(self, session_id):
-            self.terminal_status_calls += 1
-            return super().get_terminal_status(session_id)
-
-    service = CountingService()
-    client = TestClient(create_app(service))
-    with client.websocket_connect("/api/runs/run-1/terminal") as websocket:
-        assert websocket.receive_json()["type"] == "status"
-        time.sleep(0.85)
-
-    # The socket loop still notices a terminal exit quickly, but it does not
-    # query the PTY on every 100 ms output tick when no status changed.
-    assert 2 <= service.terminal_status_calls <= 5
-
-
-def test_workbench_terminal_socket_replays_bounded_output_after_reconnect() -> None:
-    class ReplayService(FakeService):
-        _output = [
-            {"type": "output", "sequence": 1, "data": "first", "recorded_at": "2026-01-01T00:00:00+00:00"},
-            {"type": "output", "sequence": 2, "data": "second", "recorded_at": "2026-01-01T00:00:01+00:00"},
-        ]
-
-        def read_terminal_output(self, session_id, *, after_sequence=0):
-            super().read_terminal_output(session_id, after_sequence=after_sequence)
-            return [item for item in self._output if item["sequence"] > after_sequence]
-
-    client = TestClient(create_app(ReplayService()))
-    with client.websocket_connect("/api/runs/run-1/terminal") as first_connection:
-        first_batch = first_connection.receive_json()
-        assert first_batch["sequence"] == 2
-        assert first_batch["data"] == "firstsecond"
-        assert first_connection.receive_json()["type"] == "status"
-
-    with client.websocket_connect("/api/runs/run-1/terminal") as second_connection:
-        second_batch = second_connection.receive_json()
-        assert second_batch["sequence"] == 2
-        assert second_batch["data"] == "firstsecond"
-
-
-def test_large_terminal_replay_is_coalesced_without_losing_order() -> None:
-    items = [
-        {
-            "type": "output",
-            "sequence": index,
-            "data": f"chunk-{index}",
-            "recorded_at": f"2026-01-01T00:00:{index:02d}+00:00",
-        }
-        for index in range(1, 41)
-    ]
-
-    batches = _coalesce_terminal_output(items)
-
-    assert len(batches) < len(items)
-    assert [batch["sequence"] for batch in batches] == [40]
-    assert "".join(batch["data"] for batch in batches) == "".join(item["data"] for item in items)
-
-
-def test_small_live_terminal_output_is_batched_to_reduce_transport_churn() -> None:
-    items = [
-        {
-            "type": "output",
-            "sequence": 1,
-            "data": "first",
-            "recorded_at": "2026-01-01T00:00:00+00:00",
-        },
-        {
-            "type": "output",
-            "sequence": 2,
-            "data": "second",
-            "recorded_at": "2026-01-01T00:00:01+00:00",
-        },
-    ]
-
-    batches = _coalesce_terminal_output(items)
-
-    assert len(batches) == 1
-    assert batches[0]["sequence"] == 2
-    assert batches[0]["data"] == "firstsecond"
 
 
 def test_frozen_console_reuses_trusted_desktop_entrypoint_for_diagnostics(
@@ -569,6 +435,76 @@ def test_console_supports_session_first_interactive_run() -> None:
     )
     assert created.status_code == 202
     assert service.created_payloads[-1]["interactive"] is True
+
+
+def test_many_finished_runs_api_responses_match_with_cached_parsing(tmp_path, monkeypatch) -> None:
+    run_count = 8
+    control_root = tmp_path / "control"
+    sessions_root = control_root / "sessions"
+    sessions_root.mkdir(parents=True)
+    for index in range(run_count):
+        fixture_root = tmp_path / "fixtures" / str(index)
+        session, store, _action = _session(fixture_root)
+        SessionFinalizer(evidence_store=store).finalize(
+            session,
+            process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+        )
+        source = fixture_root / "control" / "sessions" / session.session_id
+        shutil.move(str(source), str(sessions_root / session.session_id))
+
+    codex_executable = tmp_path / "codex.exe"
+    codex_executable.write_bytes(b"codex fixture")
+    monkeypatch.setattr(
+        CodexAdapter,
+        "_path_candidates",
+        lambda _self: (codex_executable,),
+    )
+    monkeypatch.setattr(CodexAdapter, "_windows_install_candidates", lambda _self: ())
+    version_probes = 0
+
+    def fake_version_probe(*_args, **_kwargs):
+        nonlocal version_probes
+        version_probes += 1
+        return subprocess.CompletedProcess([], 0, b"Codex 1.2.3", b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_version_probe)
+    monkeypatch.setattr(CodexHookInstaller, "is_installed", lambda _self: False)
+    monkeypatch.setattr(CodexHookInstaller, "is_posttool_installed", lambda _self: False)
+    monkeypatch.setattr(CodexHookInstaller, "has_aia_runtime", lambda *_args: False)
+    service = RunApplicationService(control_root)
+    client = TestClient(create_app(service))
+    try:
+        started = time.perf_counter()
+        cold_runs = client.get("/api/runs")
+        cold_runs_ms = (time.perf_counter() - started) * 1000
+        service._completed_runs_cache = None
+        started = time.perf_counter()
+        warm_runs = client.get("/api/runs")
+        warm_runs_ms = (time.perf_counter() - started) * 1000
+
+        service._completed_runs_cache = None
+        service.reader._result_cache.clear()
+        service.reader._metadata_cache.clear()
+        started = time.perf_counter()
+        cold_preflight = client.get("/api/preflight")
+        cold_preflight_ms = (time.perf_counter() - started) * 1000
+        service._completed_runs_cache = None
+        started = time.perf_counter()
+        warm_preflight = client.get("/api/preflight")
+        warm_preflight_ms = (time.perf_counter() - started) * 1000
+        assert cold_runs.status_code == warm_runs.status_code == 200
+        assert cold_preflight.status_code == warm_preflight.status_code == 200
+        assert len(cold_runs.json()["runs"]) == run_count
+        assert cold_runs.json() == warm_runs.json()
+        assert cold_preflight.json() == warm_preflight.json()
+        assert version_probes == 1
+        print(
+            f"{run_count}-run API timings ms: "
+            f"/api/runs {cold_runs_ms:.2f} -> {warm_runs_ms:.2f}; "
+            f"/api/preflight {cold_preflight_ms:.2f} -> {warm_preflight_ms:.2f}"
+        )
+    finally:
+        service.shutdown()
 
 
 def test_console_policy_editor_api_validates_and_saves_strict_document(tmp_path) -> None:

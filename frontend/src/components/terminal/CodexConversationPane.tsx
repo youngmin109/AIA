@@ -193,7 +193,6 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
   // The deferred submit after an IME composition runs from an older render;
   // read the latest draft through a ref so the final syllable is included.
   const draftRef = useRef(draft)
-  draftRef.current = draft
   const composingRef = useRef(false)
   const submitAfterCompositionRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -201,13 +200,17 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
   const [workingSince, setWorkingSince] = useState(0)
   const [now, setNow] = useState(() => Date.now())
 
+  const { onRestoreDraft } = session
   useEffect(() => {
-    session.onRestoreDraft((text) => setDraft((current) => (current ? current : text)))
-  }, [session.onRestoreDraft])
+    onRestoreDraft((text) => setDraft((current) => (current ? current : text)))
+  }, [onRestoreDraft])
 
   useEffect(() => {
-    if (session.working) setWorkingSince((since) => since || Date.now())
-    else setWorkingSince(0)
+    const timer = window.setTimeout(() => {
+      if (session.working) setWorkingSince((since) => since || Date.now())
+      else setWorkingSince(0)
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [session.working])
 
   useEffect(() => {
@@ -223,18 +226,21 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
 
   // GuardianHero (dashboard) reflects live Codex activity through the shell
   // store; map the structured state onto the same signal it already reads.
-  const { reportTerminalActivity, clearTerminalActivity } = useShellStore()
+  const { reportCodexActivity, clearCodexActivity } = useShellStore()
   const approvalWaiting = session.pendingApprovals.length > 0
   useEffect(() => {
     const mode = session.ended ? 'STOPPED' : approvalWaiting ? 'ACTION' : session.working ? 'WORKING' : session.statusName === 'READY' ? 'WAITING' : 'STARTING'
-    reportTerminalActivity({ runId, mode, terminalAction: approvalWaiting ? 'COMMAND_APPROVAL' : null })
-  }, [runId, session.ended, session.working, session.statusName, approvalWaiting, reportTerminalActivity])
-  useEffect(() => () => clearTerminalActivity(runId), [runId, clearTerminalActivity])
+    reportCodexActivity({ runId, mode, terminalAction: approvalWaiting ? 'COMMAND_APPROVAL' : null })
+  }, [runId, session.ended, session.working, session.statusName, approvalWaiting, reportCodexActivity])
+  useEffect(() => () => clearCodexActivity(runId), [runId, clearCodexActivity])
 
   function submit() {
     const value = draftRef.current
     if (!session.canSend || !value.trim()) return
-    if (session.sendMessage(value)) setDraft('')
+    if (session.sendMessage(value)) {
+      draftRef.current = ''
+      setDraft('')
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -343,7 +349,10 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
                 ? '진행 중인 작업에 추가 지시를 보낼 수 있습니다 · Enter로 전송'
                 : '여기에 입력하세요 · 한글 입력 지원 · Enter로 전송 · Shift+Enter 줄바꿈'
           }
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            draftRef.current = event.target.value
+            setDraft(event.target.value)
+          }}
           onKeyDown={handleKeyDown}
           onCompositionStart={() => {
             composingRef.current = true

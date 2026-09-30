@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from threading import RLock
 from typing import Any
 
 from ..codex_installation import AIA_CODEX_HOOK_MATCHER
@@ -20,6 +21,10 @@ from ..launcher import (
     AgentRuntimeMetadata,
     ProtectedLaunchRequest,
 )
+
+
+_VERSION_CACHE_LOCK = RLock()
+_VERSION_CACHE: dict[tuple[str, int], tuple[int, int, int] | None] = {}
 
 
 def _hidden_process_kwargs() -> dict[str, int]:
@@ -75,7 +80,6 @@ class CodexAdapter:
             "profile",
             "sandbox",
             "skip_git_repo_check",
-            "workbench_terminal",
         }
     )
     _FORBIDDEN_OPTIONS = frozenset(
@@ -180,21 +184,42 @@ class CodexAdapter:
         """Read a bounded semantic version without retaining command output."""
 
         try:
-            completed = subprocess.run(
-                [str(path), "--version"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                timeout=5.0,
-                check=False,
-                **_hidden_process_kwargs(),
-            )
-        except (OSError, subprocess.TimeoutExpired):
+            resolved = path.resolve(strict=False)
+            mtime_ns = path.stat().st_mtime_ns
+        except OSError:
             return None
-        output = completed.stdout.decode("utf-8", errors="replace")
-        match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", output)
-        if match is None:
-            return None
-        return tuple(int(group) for group in match.groups())  # type: ignore[return-value]
+        cache_key = (str(resolved), mtime_ns)
+        with _VERSION_CACHE_LOCK:
+            if cache_key in _VERSION_CACHE:
+                return _VERSION_CACHE[cache_key]
+            try:
+                completed = subprocess.run(
+                    [str(path), "--version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5.0,
+                    check=False,
+                    **_hidden_process_kwargs(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                # A failed launch or a timeout under load is transient; caching
+                # it would report Codex as unavailable until the binary changes.
+                return None
+            else:
+                output = completed.stdout.decode("utf-8", errors="replace")
+                match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", output)
+                version = (
+                    tuple(int(group) for group in match.groups())
+                    if match is not None
+                    else None
+                )
+            stale_keys = [
+                key for key in _VERSION_CACHE if key[0] == cache_key[0] and key != cache_key
+            ]
+            for key in stale_keys:
+                del _VERSION_CACHE[key]
+            _VERSION_CACHE[cache_key] = version  # type: ignore[assignment]
+            return version  # type: ignore[return-value]
 
     @classmethod
     def executable_version(cls, path: Path | str) -> str:
@@ -263,17 +288,12 @@ class CodexAdapter:
         interactive = options.pop("interactive", False)
         if not isinstance(interactive, bool):
             raise AdapterError("interactive must be a boolean")
-        workbench_terminal = options.pop("workbench_terminal", False)
-        if not isinstance(workbench_terminal, bool):
-            raise AdapterError("workbench_terminal must be a boolean")
-        if workbench_terminal and not interactive:
-            raise AdapterError("workbench_terminal requires interactive mode")
         app_server = options.pop("app_server", False)
         if not isinstance(app_server, bool):
             raise AdapterError("app_server must be a boolean")
         if app_server:
-            if not interactive or workbench_terminal:
-                raise AdapterError("app_server requires interactive mode without workbench_terminal")
+            if not interactive:
+                raise AdapterError("app_server requires interactive mode")
             return self._build_app_server_launch(request, executable, options)
         if interactive and any(
             key in options for key in ("ignore_rules", "json", "skip_git_repo_check")
@@ -304,18 +324,6 @@ class CodexAdapter:
         if request.model is not None:
             argv.extend(("--model", request.model))
         self._append_options(argv, options)
-        if interactive and workbench_terminal:
-            # The browser PTY delivers text as a paste-like stream.  Codex's
-            # default Enter binding is not reliably recognized for that input
-            # path, so the protected Workbench uses a dedicated, inline-only
-            # submit binding.  This does not modify the user's Codex config.
-            argv.extend(
-                (
-                    "--no-alt-screen",
-                    "-c",
-                    'tui.keymap.composer.submit="ctrl-x"',
-                )
-            )
         if self.enable_hooks and self.hook_command is None:
             # Product launches use the installed user-level Hook definition.
             # Enable the Codex Hook feature explicitly without changing the

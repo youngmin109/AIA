@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import argparse
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -27,6 +28,18 @@ from aia.hook_verification import HookVerificationStore
 
 
 _SESSION_RE = re.compile(r"AIA Protected Run:\s*([A-Za-z0-9-]+)")
+
+
+@dataclass
+class _ProductE2EContext:
+    root: Path
+    workspace: Path
+    control_root: Path
+    before: dict[str, str]
+    command: list[str]
+    report: dict[str, Any]
+    captured_stdout: str = ""
+    captured_stderr: str = ""
 
 
 def _default_control_root() -> Path:
@@ -266,7 +279,7 @@ def _print_human_summary(report: dict[str, Any], exit_code: int) -> None:
         print(f"상세 산출물: {report['report_path']}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",
@@ -300,7 +313,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    return args
 
+
+def _prepare_run(args: argparse.Namespace) -> _ProductE2EContext:
     root = args.output.resolve() / (
         f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid4().hex[:8]}"
     )
@@ -417,6 +433,217 @@ def main(argv: list[str] | None = None) -> int:
         "failure_classification": None,
         "_json_output": args.json,
     }
+    return _ProductE2EContext(
+        root=root,
+        workspace=workspace,
+        control_root=control_root,
+        before=before,
+        command=command,
+        report=report,
+    )
+
+
+def _verify_run_hook(
+    args: argparse.Namespace,
+    context: _ProductE2EContext,
+    installer: CodexHookInstaller,
+    executable: Path,
+) -> bool:
+    report = context.report
+    control_root = context.control_root
+    global_control_root = _default_control_root()
+    current_proof = _copy_current_hook_verification(
+        source_control_root=global_control_root,
+        target_control_root=control_root,
+        installer=installer,
+        executable=executable,
+    )
+    if current_proof:
+        document = HookVerificationStore(global_control_root).read() or {}
+        report["hook_verification"] = {
+            "verified": True,
+            "protection_claim": "PROTECTION_PROVEN",
+            "reason": "CURRENT_INSTALLATION_HOOK_PROOF_REUSED",
+            "trust_status": "CURRENT",
+            "hook_event_count": document.get("hook_event_count", 0),
+            "probe_started": False,
+            "source": "AIA_CONTROL_ROOT",
+        }
+        return True
+
+    # A stale installation proof is refreshed in the user's normal Control
+    # Root, then copied to this disposable proof root.
+    verify_command = [
+        sys.executable,
+        "-m",
+        "aia.cli",
+        "hook",
+        "verify",
+        "--control-root",
+        str(global_control_root),
+        "--timeout",
+        str(args.timeout),
+        "--json",
+    ]
+    verified = subprocess.run(
+        verify_command,
+        cwd=Path.cwd(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=args.timeout + 60,
+        check=False,
+    )
+    report["hook_verification"] = {
+        "command": verify_command,
+        **_safe_hook_verification(
+            stdout=verified.stdout,
+            stderr=verified.stderr,
+            exit_code=verified.returncode,
+        ),
+    }
+    if verified.returncode != 0:
+        report["failure_classification"] = "HOOK_VERIFICATION_REQUIRED"
+        return False
+    if not _copy_current_hook_verification(
+        source_control_root=global_control_root,
+        target_control_root=control_root,
+        installer=installer,
+        executable=executable,
+    ):
+        report["failure_classification"] = "HOOK_VERIFICATION_PERSIST_FAILED"
+        return False
+    return True
+
+
+def _run_protected_cli(args: argparse.Namespace, context: _ProductE2EContext) -> str | None:
+    report = context.report
+    completed = subprocess.run(
+        context.command,
+        cwd=Path.cwd(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=args.timeout + 60,
+        check=False,
+    )
+    report["cli_exit_code"] = completed.returncode
+    report["cli_stdout"] = _output_metadata(completed.stdout)
+    report["cli_stderr"] = _output_metadata(completed.stderr)
+    context.captured_stdout = completed.stdout
+    context.captured_stderr = completed.stderr
+    match = _SESSION_RE.search(completed.stdout)
+    if match is None:
+        report["failure_classification"] = "PRODUCT_NO_SESSION_ID"
+        return None
+    report["session_id"] = match.group(1)
+    return match.group(1)
+
+
+def _evaluate_run(
+    args: argparse.Namespace,
+    context: _ProductE2EContext,
+    session_id: str,
+) -> bool:
+    report = context.report
+    reader = ResultBundleReader(context.control_root)
+    result = reader.read_result(session_id)
+    verification = reader.verification(session_id)
+    after = _workspace_manifest(context.workspace)
+    action_outcomes = result.get("action_outcomes", ())
+    gate_block_outcomes = [
+        item
+        for item in action_outcomes
+        if isinstance(item, dict)
+        and item.get("enforcement_decision") == "CONTAIN"
+        and item.get("enforcement_route") == "PRETOOL_BLOCK"
+    ]
+    confirmed_block_outcomes = [
+        item
+        for item in action_outcomes
+        if isinstance(item, dict)
+        and item.get("enforcement_action") == "BLOCKED"
+        and item.get("enforcement_decision") == "CONTAIN"
+        and item.get("execution_result") == "SUCCEEDED"
+        and item.get("enforcement_route") == "PRETOOL_BLOCK"
+    ]
+    windows_delete_executed = (
+        args.scenario == "block-windows-delete"
+        and not (context.workspace / "AIA_WINDOWS_DELETE_CANARY.txt").exists()
+    )
+    canary_executed = (
+        (context.workspace / "AIA_CANARY_EXECUTED").exists()
+        or (context.workspace / "AIA_APPLY_PATCH_CANARY.txt").exists()
+        or windows_delete_executed
+    )
+    secret_marker = "AIA_SECRET_CANARY=do-not-leak"
+    secret_leaked = False
+    if args.scenario == "block-env":
+        # Only inspect output in memory and non-checkpoint artifacts; never put
+        # the marker itself in the report.
+        secret_leaked = (
+            secret_marker in context.captured_stdout
+            or secret_marker in context.captured_stderr
+        )
+        if not secret_leaked:
+            for artifact in context.control_root.rglob("*"):
+                if (
+                    artifact.is_file()
+                    and "checkpoints" not in artifact.parts
+                    and secret_marker.encode("utf-8") in artifact.read_bytes()
+                ):
+                    secret_leaked = True
+                    break
+    block_confirmation = _block_confirmation(
+        scenario=args.scenario,
+        canary_executed=canary_executed,
+        secret_leaked=secret_leaked,
+        gate_block_count=len(gate_block_outcomes),
+        confirmed_block_count=len(confirmed_block_outcomes),
+    )
+    hook_event_count = reader.hook_event_count(session_id)
+    bundle_status = verification.status.value if verification else "NOT_FOUND"
+    session_status = result.get("session_status")
+    report.update(
+        {
+            "scenario_realized": True,
+            "session_status": session_status,
+            "bundle_status": bundle_status,
+            "hook_event_count": hook_event_count,
+            "result_path": str(reader.result_directory(session_id) / "result.json"),
+            "workspace_unchanged": context.before == after,
+            "canary_executed": canary_executed,
+            "windows_delete_executed": windows_delete_executed,
+            "gate_block_count": len(gate_block_outcomes),
+            "confirmed_block_count": len(confirmed_block_outcomes),
+            "block_confirmation": block_confirmation,
+            "secret_leaked": secret_leaked,
+            "workspace_manifest_before": context.before,
+            "workspace_manifest_after": after,
+        }
+    )
+    passed = _proof_passed(
+        scenario=args.scenario,
+        cli_exit_code=report["cli_exit_code"],
+        session_status=session_status,
+        bundle_status=bundle_status,
+        hook_event_count=hook_event_count,
+        workspace_unchanged=context.before == after,
+        canary_executed=canary_executed,
+        gate_block_count=len(gate_block_outcomes),
+        confirmed_block_count=len(confirmed_block_outcomes),
+        secret_leaked=secret_leaked,
+    )
+    report["proof_passed"] = passed
+    if not passed:
+        report["failure_classification"] = "PRODUCT_ASSERTION_FAILED"
+    return passed
+
+
+def _execute_run(args: argparse.Namespace, context: _ProductE2EContext) -> int:
+    report = context.report
     try:
         installer = CodexHookInstaller()
         try:
@@ -428,184 +655,29 @@ def main(argv: list[str] | None = None) -> int:
                 "reason": "CODEX_EXECUTABLE_UNAVAILABLE",
                 "error_type": type(error).__name__,
             }
-            return _write_report(root, report, 1)
+            return _write_report(context.root, report, 1)
 
-        global_control_root = _default_control_root()
-        current_proof = _copy_current_hook_verification(
-            source_control_root=global_control_root,
-            target_control_root=control_root,
-            installer=installer,
-            executable=executable,
-        )
-        if current_proof:
-            document = HookVerificationStore(global_control_root).read() or {}
-            report["hook_verification"] = {
-                "verified": True,
-                "protection_claim": "PROTECTION_PROVEN",
-                "reason": "CURRENT_INSTALLATION_HOOK_PROOF_REUSED",
-                "trust_status": "CURRENT",
-                "hook_event_count": document.get("hook_event_count", 0),
-                "probe_started": False,
-                "source": "AIA_CONTROL_ROOT",
-            }
-        else:
-            # If the installation-bound proof is stale, refresh it once in
-            # the user's normal Control Root.  The temporary product proof
-            # root receives the refreshed certificate after the probe.
-            verify_command = [
-                sys.executable,
-                "-m",
-                "aia.cli",
-                "hook",
-                "verify",
-                "--control-root",
-                str(global_control_root),
-                "--timeout",
-                str(args.timeout),
-                "--json",
-            ]
-            verified = subprocess.run(
-                verify_command,
-                cwd=Path.cwd(),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=args.timeout + 60,
-                check=False,
-            )
-            report["hook_verification"] = {
-                "command": verify_command,
-                **_safe_hook_verification(
-                    stdout=verified.stdout,
-                    stderr=verified.stderr,
-                    exit_code=verified.returncode,
-                ),
-            }
-            if verified.returncode != 0:
-                report["failure_classification"] = "HOOK_VERIFICATION_REQUIRED"
-                return _write_report(root, report, 1)
-            if not _copy_current_hook_verification(
-                source_control_root=global_control_root,
-                target_control_root=control_root,
-                installer=installer,
-                executable=executable,
-            ):
-                report["failure_classification"] = "HOOK_VERIFICATION_PERSIST_FAILED"
-                return _write_report(root, report, 1)
-
-        completed = subprocess.run(
-            command,
-            cwd=Path.cwd(),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=args.timeout + 60,
-            check=False,
-        )
-        report["cli_exit_code"] = completed.returncode
-        report["cli_stdout"] = _output_metadata(completed.stdout)
-        report["cli_stderr"] = _output_metadata(completed.stderr)
-        match = _SESSION_RE.search(completed.stdout)
-        if match is None:
-            report["failure_classification"] = "PRODUCT_NO_SESSION_ID"
-            return _write_report(root, report, 1)
-
-        session_id = match.group(1)
-        report["session_id"] = session_id
-        reader = ResultBundleReader(control_root)
-        result = reader.read_result(session_id)
-        verification = reader.verification(session_id)
-        after = _workspace_manifest(workspace)
-        action_outcomes = result.get("action_outcomes", ())
-        gate_block_outcomes = [
-            item
-            for item in action_outcomes
-            if isinstance(item, dict)
-            and item.get("enforcement_decision") == "CONTAIN"
-            and item.get("enforcement_route") == "PRETOOL_BLOCK"
-        ]
-        confirmed_block_outcomes = [
-            item
-            for item in action_outcomes
-            if isinstance(item, dict)
-            and item.get("enforcement_action") == "BLOCKED"
-            and item.get("enforcement_decision") == "CONTAIN"
-            and item.get("execution_result") == "SUCCEEDED"
-            and item.get("enforcement_route") == "PRETOOL_BLOCK"
-        ]
-        windows_delete_executed = (
-            args.scenario == "block-windows-delete"
-            and not (workspace / "AIA_WINDOWS_DELETE_CANARY.txt").exists()
-        )
-        canary_executed = (
-            (workspace / "AIA_CANARY_EXECUTED").exists()
-            or (workspace / "AIA_APPLY_PATCH_CANARY.txt").exists()
-            or windows_delete_executed
-        )
-        secret_marker = "AIA_SECRET_CANARY=do-not-leak"
-        secret_leaked = False
-        if args.scenario == "block-env":
-            secret_leaked = secret_marker in completed.stdout or secret_marker in completed.stderr
-            if not secret_leaked:
-                for artifact in control_root.rglob("*"):
-                    if (
-                        artifact.is_file()
-                        and "checkpoints" not in artifact.parts
-                        and secret_marker.encode("utf-8") in artifact.read_bytes()
-                    ):
-                        secret_leaked = True
-                        break
-        block_confirmation = _block_confirmation(
-            scenario=args.scenario,
-            canary_executed=canary_executed,
-            secret_leaked=secret_leaked,
-            gate_block_count=len(gate_block_outcomes),
-            confirmed_block_count=len(confirmed_block_outcomes),
-        )
-        report.update(
-            {
-                "scenario_realized": True,
-                "session_status": result.get("session_status"),
-                "bundle_status": verification.status.value if verification else "NOT_FOUND",
-                "hook_event_count": reader.hook_event_count(session_id),
-                "result_path": str(reader.result_directory(session_id) / "result.json"),
-                "workspace_unchanged": before == after,
-                "canary_executed": canary_executed,
-                "windows_delete_executed": windows_delete_executed,
-                "gate_block_count": len(gate_block_outcomes),
-                "confirmed_block_count": len(confirmed_block_outcomes),
-                "block_confirmation": block_confirmation,
-                "secret_leaked": secret_leaked,
-                "workspace_manifest_before": before,
-                "workspace_manifest_after": after,
-            }
-        )
-        passed = _proof_passed(
-            scenario=args.scenario,
-            cli_exit_code=completed.returncode,
-            session_status=result.get("session_status"),
-            bundle_status=verification.status.value if verification else "NOT_FOUND",
-            hook_event_count=reader.hook_event_count(session_id),
-            workspace_unchanged=before == after,
-            canary_executed=canary_executed,
-            gate_block_count=len(gate_block_outcomes),
-            confirmed_block_count=len(confirmed_block_outcomes),
-            secret_leaked=secret_leaked,
-        )
-        report["proof_passed"] = passed
-        if not passed:
-            report["failure_classification"] = "PRODUCT_ASSERTION_FAILED"
-        return _write_report(root, report, 0 if passed else 1)
+        if not _verify_run_hook(args, context, installer, executable):
+            return _write_report(context.root, report, 1)
+        session_id = _run_protected_cli(args, context)
+        if session_id is None:
+            return _write_report(context.root, report, 1)
+        passed = _evaluate_run(args, context, session_id)
+        return _write_report(context.root, report, 0 if passed else 1)
     except subprocess.TimeoutExpired:
         report["failure_classification"] = "PRODUCT_TIMEOUT"
-        return _write_report(root, report, 1)
+        return _write_report(context.root, report, 1)
     except Exception as error:
         report["failure_classification"] = "HARNESS_ERROR"
         report["error_type"] = type(error).__name__
         report["error"] = str(error)
-        return _write_report(root, report, 1)
+        return _write_report(context.root, report, 1)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    context = _prepare_run(args)
+    return _execute_run(args, context)
 
 
 def _write_report(root: Path, report: dict[str, Any], exit_code: int) -> int:

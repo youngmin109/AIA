@@ -18,6 +18,6 @@ uv run aia hook explain --json
 powershell -ExecutionPolicy Bypass -File .\scripts\package-release.ps1 -Force
 ```
 
-실제 Codex 보호 증거와 현재 제한사항은 [제품 상태](PRODUCT-STATUS.md),
-[현재 재검증 기록](validation/CURRENT-REVALIDATION.md),
-[제한사항](LIMITATIONS.md)을 함께 확인한다.
+실제 Codex 보호 증거와 현재 제한사항은 [제품 상태](../PRODUCT-STATUS.md),
+[현재 재검증 기록](../validation/CURRENT-REVALIDATION.md),
+[제한사항](../LIMITATIONS.md)을 함께 확인한다.
