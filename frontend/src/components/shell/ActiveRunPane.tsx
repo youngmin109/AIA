@@ -1,7 +1,6 @@
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { CodexConversationPane } from '../terminal/CodexConversationPane'
-import { StepsExplainer } from '../terminal/StepsExplainer'
 import { ResultView } from '../results/ResultView'
 import { useRunStatus } from '../../hooks/useRunStatus'
 
@@ -66,7 +65,6 @@ export function ActiveRunPane() {
                   </div>
                 )}
               </div>
-              <StepsExplainer />
             </div>
           )
         ) : (

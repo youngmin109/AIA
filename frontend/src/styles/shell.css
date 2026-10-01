@@ -1659,3 +1659,62 @@
   .guardian-hero-img { width: 64px; height: 64px; }
   .guardian-guide-popover { left: 14px; }
 }
+
+/* ---- Workspace sessions and Guardian help ---- */
+.sidebar-sessions { flex: 0 1 auto; max-height: 235px; overflow-y: auto; margin: 2px var(--space-2) var(--space-2); padding: var(--space-2); border: 1px solid var(--nav-border); border-radius: var(--radius-control); background: color-mix(in srgb, var(--nav-bg-active) 56%, transparent); }
+.sidebar-section-head { display: flex; align-items: center; justify-content: space-between; margin: 0 1px 6px; color: var(--nav-text-muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.sidebar-section-head button { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--nav-text); }
+.sidebar-section-head button:hover { background: var(--nav-bg-active); color: var(--nav-text-active); }
+.sidebar-session { display: flex; width: 100%; align-items: center; gap: 7px; padding: 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--nav-text); text-align: left; }
+.sidebar-session:hover, .sidebar-session.is-active { border-color: var(--nav-border); background: var(--nav-bg-active); color: var(--nav-text-active); }
+.sidebar-session > svg { flex: 0 0 auto; }
+.sidebar-session span { min-width: 0; }
+.sidebar-session b, .sidebar-session small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-session b { font-size: 11px; }
+.sidebar-session small { margin-top: 1px; color: var(--nav-text-muted); font-size: 9px; }
+.sidebar-session-empty { margin: 0; color: var(--nav-text-muted); font-size: 10px; line-height: 1.55; }
+.app-sidebar.is-collapsed .sidebar-sessions { display: none; }
+.guardian-guide-flow { display: grid; gap: 5px; margin: 12px 0 0; padding-left: 17px; color: var(--text-muted); font-size: 11px; line-height: 1.55; }
+
+/* ---- Agent CLI: full-width work surface, light in light mode ---- */
+.terminal-grid { grid-template-columns: minmax(0, 1fr); padding: var(--space-3); }
+.terminal-card { min-height: 520px; border-color: var(--border-strong); border-radius: var(--radius-control); background: var(--bg-panel); box-shadow: var(--shadow-card); }
+.terminal-toolbar { padding: 8px 12px; border-bottom-color: var(--border); background: var(--bg-panel-alt); color: var(--text-muted); }
+.terminal-activity-label, .terminal-pid { color: var(--text-muted); }
+.terminal-card .icon-button-text { border-color: var(--border-strong); color: var(--text-muted); }
+.terminal-card .icon-button-text:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
+.codex-transcript { padding: 18px 20px; background: var(--bg-panel); color: var(--text); }
+.codex-user { color: var(--text); }
+.codex-prompt, .codex-agent .md-link { color: var(--accent-strong); }
+.codex-agent { color: var(--text); }
+.codex-agent .md-heading { color: var(--text); }
+.codex-agent .md code { background: var(--bg-inset); color: var(--success); }
+.codex-agent .md-code { border-color: var(--border); background: var(--bg-inset); color: var(--text); }
+.codex-agent .md blockquote { border-left-color: var(--border-strong); color: var(--text-muted); }
+.codex-agent .md hr { border-top-color: var(--border); }
+.codex-agent .md-link-url, .codex-reasoning, .codex-meta, .codex-notice.is-info { color: var(--text-faint); }
+.codex-caret { background: var(--accent); }
+.codex-hook, .codex-hook.is-warn, .codex-notice.is-warn { color: var(--warning); }
+.codex-hook.is-bad, .codex-notice.is-bad { color: var(--danger); }
+.codex-command { border-color: var(--border); border-radius: var(--radius-control); background: var(--bg-inset); }
+.codex-command-head { border-bottom-color: var(--border); }
+.codex-command-line { color: var(--success); }
+.codex-command-output { color: var(--text); }
+.terminal-input-row { padding: 10px 12px; border-top-color: var(--border); background: var(--bg-panel-alt); }
+.terminal-input-row textarea { border-color: var(--border-strong); border-radius: var(--radius-control); background: var(--bg-panel); color: var(--text); }
+.terminal-error, .terminal-action-banner, .terminal-heartbeat-banner { border-top-color: var(--border); }
+
+/* Dark mode keeps a higher contrast work surface without using it for light mode. */
+:root[data-theme='dark'] .terminal-card { background: #101827; border-color: #273756; }
+:root[data-theme='dark'] .terminal-toolbar { background: #172236; border-bottom-color: #293b5d; color: #bdcbe4; }
+:root[data-theme='dark'] .codex-transcript { background: #101827; color: #d8e2f4; }
+:root[data-theme='dark'] .terminal-input-row { background: #121d30; border-top-color: #2b3b59; }
+:root[data-theme='dark'] .terminal-input-row textarea { border-color: #2b3b59; background: #0c1526; color: #fff; }
+
+/* Four standard policy choices; direct JSON configuration stays a CLI-only advanced path. */
+.policy-control-list { display: grid; gap: 5px; margin: 14px 0 0; padding: 0; list-style: none; color: var(--text-muted); font-size: 11px; }
+.policy-control-list li::before { content: '✓'; margin-right: 6px; color: var(--success); font-weight: 800; }
+.policy-choice-standard { border-top: 3px solid var(--accent); }
+.policy-choice-collaboration { border-top: 3px solid var(--success); }
+.policy-choice-strict { border-top: 3px solid var(--danger); }
+.policy-choice-observe { border-top: 3px solid var(--warning); }

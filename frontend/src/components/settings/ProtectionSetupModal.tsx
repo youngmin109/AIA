@@ -44,10 +44,11 @@ export function ProtectionSetupModal() {
     listProfiles()
       .then((list) => {
         setProfiles(list)
-        if (!policyProfile && list.length > 0) {
+        const standardProfiles = list.filter((profile) => profile.value !== 'CUSTOM')
+        if (!policyProfile && standardProfiles.length > 0) {
           const defaultValue = readDefaultPolicyProfile()
-          const stillValid = defaultValue && list.some((profile) => profile.value === defaultValue)
-          setPolicyProfile(stillValid ? defaultValue : list[0].value)
+          const stillValid = defaultValue && standardProfiles.some((profile) => profile.value === defaultValue)
+          setPolicyProfile(stillValid ? defaultValue : standardProfiles[0].value)
         }
       })
       .catch(() => setProfiles([]))
@@ -197,7 +198,7 @@ export function ProtectionSetupModal() {
               onChange={(event) => setPolicyProfile(event.target.value)}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-inset)', color: 'var(--text)' }}
             >
-              {profiles.map((profile) => (
+              {profiles.filter((profile) => profile.value !== 'CUSTOM').map((profile) => (
                 <option key={profile.value} value={profile.value}>
                   {profile.label}
                 </option>
