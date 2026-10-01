@@ -3,6 +3,7 @@ import { useShellStore } from '../../state/shellStore'
 import { CodexConversationPane } from '../terminal/CodexConversationPane'
 import { ResultView } from '../results/ResultView'
 import { useRunStatus } from '../../hooks/useRunStatus'
+import { sessionDisplayName } from './sessionLabel'
 
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
 
@@ -20,7 +21,7 @@ export function ActiveRunPane() {
       <div className="tab-strip">
         {activeRunId && (
           <div className="tab-item is-active">
-            <span>#{activeRunId.slice(0, 8)}</span>
+            <span>{sessionDisplayName(status?.session?.workspace)}</span>
             <span
               role="button"
               tabIndex={-1}

@@ -2,12 +2,9 @@ import { useShellStore } from '../../state/shellStore'
 import { useRunList } from '../../hooks/useRunList'
 import { ResultView } from '../results/ResultView'
 import type { RunSummary } from '../../api/types'
+import { sessionDisplayName } from '../shell/sessionLabel'
 
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
-
-function shortId(sessionId: string): string {
-  return `#${sessionId.slice(0, 8)}`
-}
 
 function toneFor(status: string | undefined): 'ok' | 'warn' | 'bad' {
   const upper = String(status || '').toUpperCase()
@@ -43,7 +40,7 @@ export function AuditView() {
                   onClick={() => setActiveRun(run.session_id)}
                 >
                   <div className="run-row-top">
-                    <span>{shortId(run.session_id)}</span>
+                    <span>{sessionDisplayName(run.workspace)}</span>
                     <span className={`badge is-${toneFor(run.status)}`}>{run.status ?? '상태 미확인'}</span>
                     {Boolean(run.incident_count) && <span className="badge is-warn">사건 {run.incident_count}</span>}
                   </div>
