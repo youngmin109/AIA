@@ -1659,3 +1659,94 @@
   .guardian-hero-img { width: 64px; height: 64px; }
   .guardian-guide-popover { left: 14px; }
 }
+
+/* ---- Workspace sessions and Guardian help ---- */
+.sidebar-sessions { flex: 0 1 auto; max-height: 235px; overflow-y: auto; margin: 2px var(--space-2) var(--space-2); padding: var(--space-2); border: 1px solid var(--nav-border); border-radius: var(--radius-control); background: color-mix(in srgb, var(--nav-bg-active) 56%, transparent); }
+.sidebar-section-head { display: flex; align-items: center; justify-content: space-between; margin: 0 1px 6px; color: var(--nav-text-muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.sidebar-section-head button { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--nav-text); }
+.sidebar-section-head button:hover { background: var(--nav-bg-active); color: var(--nav-text-active); }
+.sidebar-session { display: flex; width: 100%; align-items: center; gap: 7px; padding: 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--nav-text); text-align: left; }
+.sidebar-session:hover, .sidebar-session.is-active { border-color: var(--nav-border); background: var(--nav-bg-active); color: var(--nav-text-active); }
+.sidebar-session > svg { flex: 0 0 auto; }
+.sidebar-session span { min-width: 0; }
+.sidebar-session b, .sidebar-session small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-session b { font-size: 11px; }
+.sidebar-session small { margin-top: 1px; color: var(--nav-text-muted); font-size: 9px; }
+.sidebar-session-empty { margin: 0; color: var(--nav-text-muted); font-size: 10px; line-height: 1.55; }
+.app-sidebar.is-collapsed .sidebar-sessions { display: none; }
+.guardian-guide-flow { display: grid; gap: 5px; margin: 12px 0 0; padding-left: 17px; color: var(--text-muted); font-size: 11px; line-height: 1.55; }
+
+/* ---- Agent CLI: full-width work surface, light in light mode ---- */
+.terminal-grid { grid-template-columns: minmax(0, 1fr); padding: var(--space-3); }
+.terminal-card { min-height: 520px; border-color: var(--border-strong); border-radius: var(--radius-control); background: var(--bg-panel); box-shadow: var(--shadow-card); }
+.terminal-toolbar { padding: 8px 12px; border-bottom-color: var(--border); background: var(--bg-panel-alt); color: var(--text-muted); }
+.terminal-activity-label, .terminal-pid { color: var(--text-muted); }
+.terminal-card .icon-button-text { border-color: var(--border-strong); color: var(--text-muted); }
+.terminal-card .icon-button-text:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
+.codex-transcript { padding: 18px 20px; background: var(--bg-panel); color: var(--text); }
+.codex-user { color: var(--text); }
+.codex-prompt, .codex-agent .md-link { color: var(--accent-strong); }
+.codex-agent { color: var(--text); }
+.codex-agent .md-heading { color: var(--text); }
+.codex-agent .md code { background: var(--bg-inset); color: var(--success); }
+.codex-agent .md-code { border-color: var(--border); background: var(--bg-inset); color: var(--text); }
+.codex-agent .md blockquote { border-left-color: var(--border-strong); color: var(--text-muted); }
+.codex-agent .md hr { border-top-color: var(--border); }
+.codex-agent .md-link-url, .codex-reasoning, .codex-meta, .codex-notice.is-info { color: var(--text-faint); }
+.codex-caret { background: var(--accent); }
+.codex-hook, .codex-hook.is-warn, .codex-notice.is-warn { color: var(--warning); }
+.codex-hook.is-bad, .codex-notice.is-bad { color: var(--danger); }
+.codex-command { border-color: var(--border); border-radius: var(--radius-control); background: var(--bg-inset); }
+.codex-command-head { border-bottom-color: var(--border); }
+.codex-command-line { color: var(--success); }
+.codex-command-output { color: var(--text); }
+.terminal-input-row { padding: 10px 12px; border-top-color: var(--border); background: var(--bg-panel-alt); }
+.terminal-input-row textarea { border-color: var(--border-strong); border-radius: var(--radius-control); background: var(--bg-panel); color: var(--text); }
+.terminal-error, .terminal-action-banner, .terminal-heartbeat-banner { border-top-color: var(--border); }
+
+/* Terminal colors follow theme tokens so a theme update does not leave a
+   separately hard-coded console palette behind. */
+:root[data-theme='dark'] .terminal-card { background: var(--terminal-bg); border-color: var(--terminal-border); }
+:root[data-theme='dark'] .terminal-toolbar { background: var(--terminal-toolbar-bg); border-bottom-color: var(--terminal-border); color: var(--terminal-muted); }
+:root[data-theme='dark'] .codex-transcript { background: var(--terminal-bg); color: var(--terminal-text); }
+:root[data-theme='dark'] .terminal-input-row { background: var(--terminal-input-bg); border-top-color: var(--terminal-border); }
+:root[data-theme='dark'] .terminal-input-row textarea { border-color: var(--terminal-border); background: var(--terminal-input-inset); color: var(--terminal-text); }
+
+/* ---- Guided Hook setup and Guardian assistant ---- */
+.hook-setup-intro {
+  margin-bottom: var(--space-3);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel-alt);
+}
+.hook-setup-intro > b { display: block; color: var(--text); font-size: 12px; }
+.hook-setup-intro > p { margin: 4px 0 10px; color: var(--text-muted); font-size: 11px; line-height: 1.55; }
+.hook-setup-intro strong { color: var(--text); }
+.hook-setup-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.hook-setup-steps li { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 6px; align-items: center; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); }
+.hook-setup-steps li span { display: grid; grid-row: span 2; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-inset); color: var(--text-muted); font-size: 10px; font-weight: 800; }
+.hook-setup-steps li b { overflow: hidden; color: var(--text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.hook-setup-steps li small { overflow: hidden; color: var(--text-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.hook-setup-steps li.is-done { border-color: color-mix(in srgb, var(--success) 55%, var(--border)); }
+.hook-setup-steps li.is-done span { background: var(--success-bg); color: var(--success); }
+
+.guardian-guide-popover { left: 232px; width: min(390px, calc(100vw - 248px)); padding: 16px; }
+.guardian-guide-hero { display: flex; align-items: center; gap: 10px; padding-right: 18px; }
+.guardian-guide-popover .guardian-guide-hero img { flex: 0 0 auto; width: 116px; height: 116px; margin: -8px 0 -10px -6px; }
+.guardian-guide-hero strong { color: var(--text); font-size: 13px; }
+.guardian-guide-hero p { margin-top: 4px; }
+.guardian-guide-topics { display: flex; flex-wrap: wrap; gap: 6px; margin: 13px 0 9px; }
+.guardian-guide-topics button { border: 1px solid var(--border); border-radius: 999px; padding: 5px 8px; background: var(--bg-panel-alt); color: var(--text-muted); font-size: 10px; font-weight: 700; }
+.guardian-guide-topics button:hover, .guardian-guide-topics button.is-active { border-color: var(--accent); background: var(--bg-active); color: var(--accent-strong); }
+.guardian-guide-answer { padding: 11px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--bg-panel-alt); }
+.guardian-guide-answer > b { color: var(--text); font-size: 12px; }
+.guardian-guide-answer > p { margin: 5px 0 0; }
+.guardian-guide-answer .guardian-guide-flow { margin: 9px 0 0; }
+.guardian-report-actions { display: flex; gap: 7px; margin-top: 10px; }
+.guardian-report-actions .secondary-button, .guardian-report-actions .cta-button { flex: 1; min-height: 30px; padding: 6px 8px; font-size: 10px; }
+.guardian-report-actions .cta-button { border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-contrast); font-weight: 800; }
+@media (max-width: 760px) {
+  .hook-setup-steps { grid-template-columns: 1fr; }
+  .guardian-guide-popover { left: 10px; width: calc(100vw - 20px); }
+}

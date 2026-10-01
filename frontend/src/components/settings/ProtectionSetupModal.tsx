@@ -14,6 +14,7 @@ import { readDefaultPolicyProfile } from '../policy/policyStorage'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
+const isStandardProfile = (profile: PolicyProfile) => profile.value !== 'CUSTOM'
 
 // service.py's reconcile_orphaned_run reason codes, mapped to copy that
 // explains *why* automatic cleanup was refused -- never a "force anyway"
@@ -43,11 +44,12 @@ export function ProtectionSetupModal() {
     if (!settingsModalOpen) return
     listProfiles()
       .then((list) => {
-        setProfiles(list)
-        if (!policyProfile && list.length > 0) {
+        const standardProfiles = list.filter(isStandardProfile)
+        setProfiles(standardProfiles)
+        if (!policyProfile && standardProfiles.length > 0) {
           const defaultValue = readDefaultPolicyProfile()
-          const stillValid = defaultValue && list.some((profile) => profile.value === defaultValue)
-          setPolicyProfile(stillValid ? defaultValue : list[0].value)
+          const stillValid = defaultValue && standardProfiles.some((profile) => profile.value === defaultValue)
+          setPolicyProfile(stillValid ? defaultValue : standardProfiles[0].value)
         }
       })
       .catch(() => setProfiles([]))
@@ -199,7 +201,7 @@ export function ProtectionSetupModal() {
             >
               {profiles.map((profile) => (
                 <option key={profile.value} value={profile.value}>
-                  {profile.label}
+                  {profile.display_name}
                 </option>
               ))}
             </select>

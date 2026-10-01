@@ -5,7 +5,7 @@ interface UsePollingOptions {
   enabled?: boolean
 }
 
-interface UsePollingResult<T> {
+export interface UsePollingResult<T> {
   data: T | null
   error: Error | null
   isLoading: boolean

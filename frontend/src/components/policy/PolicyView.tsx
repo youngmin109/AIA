@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { listProfiles, type PolicyProfile } from '../../api/endpoints'
 import { readDefaultPolicyProfile, writeDefaultPolicyProfile } from './policyStorage'
 
+const isStandardProfile = (profile: PolicyProfile) => profile.value !== 'CUSTOM'
+
 export function PolicyView() {
   const [profiles, setProfiles] = useState<PolicyProfile[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -9,8 +11,10 @@ export function PolicyView() {
   useEffect(() => {
     listProfiles()
       .then((list) => {
-        setProfiles(list)
-        setSelected(readDefaultPolicyProfile() ?? list[0]?.value ?? null)
+        const standard = list.filter(isStandardProfile)
+        setProfiles(standard)
+        const saved = readDefaultPolicyProfile()
+        setSelected(saved && standard.some((profile) => profile.value === saved) ? saved : standard[0]?.value ?? null)
       })
       .catch(() => setProfiles([]))
   }, [])
@@ -22,9 +26,9 @@ export function PolicyView() {
 
   return (
     <div className="dashboard-view">
-      <div className="policy-page-heading"><p>선택한 정책은 다음 보호 실행에 고정되며, 실행 중에는 변경되지 않습니다.</p></div>
+      <p className="policy-page-heading">다음 보호 실행에 적용할 기본 정책을 선택합니다.</p>
       <div className="policy-view-notice">
-        선택한 프로필은 <strong>다음에 시작하는 새 보호 실행</strong>의 기본값으로만 저장됩니다(이 브라우저에만 저장됨). 이미 실행 중인 세션의 정책은 바뀌지 않습니다.
+        선택은 <strong>이 브라우저의 다음 보호 실행 기본값</strong>으로 저장됩니다. 보호 세팅 창에서 실행마다 다시 선택할 수 있으며, 이미 실행 중인 세션의 정책은 바뀌지 않습니다. 직접 설정 정책은 실행 시 <code className="mono">--policy &lt;json&gt;</code>으로 지정합니다.
       </div>
       <div className="policy-grid">
         {profiles.map((profile) => {
@@ -32,7 +36,7 @@ export function PolicyView() {
           return (
             <article key={profile.value} className={`card policy-choice${isActive ? ' is-active' : ''}`}>
               <span className={`badge${isActive ? ' is-accent' : ''}`}>{isActive ? '다음 실행 기본값' : '선택 가능'}</span>
-              <h3>{profile.label}</h3>
+              <h3>{profile.display_name}</h3>
               <p>{profile.description ?? '설명이 제공되지 않았습니다.'}</p>
               <button type="button" className="icon-button-text" disabled={isActive} onClick={() => choose(profile.value)}>
                 {isActive ? '선택됨' : '기본값으로 선택'}

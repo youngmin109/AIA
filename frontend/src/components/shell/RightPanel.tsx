@@ -3,6 +3,7 @@ import { useShellStore } from '../../state/shellStore'
 import { EventFeed } from '../sensors/EventFeed'
 import { SensorHealthRow } from '../sensors/SensorHealthRow'
 import { useRunStatus } from '../../hooks/useRunStatus'
+import { sessionDisplayName } from './sessionLabel'
 
 export function RightPanel() {
   const { rightPanelCollapsed, toggleRightPanel, activeRunId } = useShellStore()
@@ -25,7 +26,7 @@ export function RightPanel() {
       <div className="right-panel-content">
         <p className="right-panel-subtitle">Hook · Process · File Evidence</p>
         <div className="activity-session-summary">
-          <span>{activeRunId ? `현재 세션 #${activeRunId.slice(0, 8)}` : '현재 세션 없음'}</span>
+          <span>{activeRunId ? sessionDisplayName(status?.session?.workspace) : '현재 세션 없음'}</span>
           <span>{activeRunId ? `${status?.evidence_summary?.filesystem_events ?? 0} 파일 변경` : '실행 대기'}</span>
         </div>
         {activeRunId && <SensorHealthRow sensorHealth={status?.sensor_health} evidenceSummary={status?.evidence_summary} />}
