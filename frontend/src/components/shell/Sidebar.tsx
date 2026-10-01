@@ -7,7 +7,7 @@ import guardianBlocked from '../../assets/mascot/guardian-blocked.png'
 import guardianRecovery from '../../assets/mascot/guardian-recovery.png'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { isRunActive, useRunList } from '../../hooks/useRunList'
-import { sessionDisplayName, workspaceShortName } from './sessionLabel'
+import { sessionCreatedLabel, sessionDisplayName, sessionShortId, workspaceShortName } from './sessionLabel'
 
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
   { view: 'dashboard', icon: 'dashboard', label: '대시보드' },
@@ -30,7 +30,7 @@ export function Sidebar() {
   const [guideTopic, setGuideTopic] = useState<'start' | 'hook' | 'safety' | 'recovery' | 'report'>('start')
   const [reportCopied, setReportCopied] = useState(false)
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
-  const { data: runs } = useRunList({ hasActiveRun: Boolean(activeRunId) })
+  const { data: runs } = useRunList()
   const openRuns = (runs ?? []).filter(isRunActive).slice(0, 4)
   const guide = {
     normal: { image: guardianNormal, title: '정상 관찰', text: '실제 실행 요청과 Workspace 변화를 관찰해요.' },
@@ -51,8 +51,8 @@ export function Sidebar() {
     },
     safety: {
       title: '위험 알림이 뜨면 이렇게 보세요',
-      text: '명령, 대상 경로, 위험 이유를 먼저 확인하세요. AIA가 알 수 없는 도구는 사용자 확인을 요청할 수 있고, 실제 차단 결과는 감사 기록으로 확정됩니다.',
-      steps: ['요청된 명령과 대상 파일 경로를 확인합니다.', '위험 이유와 적용된 정책을 읽습니다.', '이번만 허용하거나 거절한 뒤 결과를 감사 기록에서 확인합니다.'],
+      text: '명령, 대상 경로, 위험 이유를 먼저 확인하세요. AIA가 의미를 해석하지 못하는 지원 범위 밖 도구만 사용자 확인을 요청할 수 있고, 정책상 금지된 행위는 사용자가 허용할 수 없습니다.',
+      steps: ['요청된 명령과 대상 파일 경로를 확인합니다.', '위험 이유와 적용된 정책을 읽습니다.', '지원 범위 밖 도구라면 이번만 허용하거나 거절한 뒤, 결과를 감사 기록에서 확인합니다.'],
     },
     recovery: {
       title: '복구와 감사 기록은 어떻게 보나요?',
@@ -88,7 +88,8 @@ export function Sidebar() {
 
   async function copyErrorReport() {
     try {
-      await navigator.clipboard?.writeText(errorReportTemplate())
+      if (!navigator.clipboard) throw new Error('클립보드를 사용할 수 없습니다.')
+      await navigator.clipboard.writeText(errorReportTemplate())
       setReportCopied(true)
     } catch {
       setReportCopied(false)
@@ -152,7 +153,7 @@ export function Sidebar() {
             title={run.workspace ?? '작업공간 확인 중'}
           >
             <Icon name="terminal" size={14} />
-            <span><b>{sessionDisplayName(run.workspace)}</b><small>{run.workspace ?? 'Workspace 확인 중'}</small></span>
+            <span><b>{sessionDisplayName(run.workspace)}</b><small>{sessionCreatedLabel(run.created_at)} · {sessionShortId(run.session_id)}</small></span>
           </button>
         )) : <p className="sidebar-session-empty">실행을 시작하면 여기에서 세션을 다시 열 수 있어요.</p>}
       </section>

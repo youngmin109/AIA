@@ -2,7 +2,7 @@ import { useShellStore } from '../../state/shellStore'
 import { useRunList } from '../../hooks/useRunList'
 import { ResultView } from '../results/ResultView'
 import type { RunSummary } from '../../api/types'
-import { sessionDisplayName } from '../shell/sessionLabel'
+import { sessionCreatedLabel, sessionDisplayName, sessionShortId } from '../shell/sessionLabel'
 
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
 
@@ -18,7 +18,7 @@ function toneFor(status: string | undefined): 'ok' | 'warn' | 'bad' {
 // with the selected run's verdict/evidence shown alongside it.
 export function AuditView() {
   const { activeRunId, setActiveRun, setView } = useShellStore()
-  const { data: runs, isLoading, error } = useRunList({ hasActiveRun: true })
+  const { data: runs, isLoading, error } = useRunList()
   const selected = runs?.find((run) => run.session_id === activeRunId) ?? null
   const selectedEnded = Boolean(selected && ENDED_STATUSES.has(String(selected.status)))
 
@@ -45,8 +45,9 @@ export function AuditView() {
                     {Boolean(run.incident_count) && <span className="badge is-warn">사건 {run.incident_count}</span>}
                   </div>
                   <div className="run-row-path" title={run.workspace}>
-                    {run.workspace}
+                    {run.workspace ?? '작업공간 확인 중'}
                   </div>
+                  <div className="run-row-meta"><span>시작 {sessionCreatedLabel(run.created_at)}</span><code>{sessionShortId(run.session_id)}</code></div>
                 </button>
               ))}
             </div>

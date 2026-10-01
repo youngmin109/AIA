@@ -99,8 +99,9 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
   const trustDetail = preflight?.codex_hook_trust?.hooks?.find((hook) => hook.event === 'preToolUse')?.trust_status
   const lastVerifiedAt = preflight?.hook_activation?.status === 'OBSERVED_IN_PAST'
   const installed = !['checking', 'unavailable', 'not_installed'].includes(phase)
-  const trusted = ['verify_required', 'ready'].includes(phase)
-  const verified = phase === 'ready'
+  const trusted = ['verify_required', 'ready', 'not_writable'].includes(phase)
+  const verified = ['ready', 'not_writable'].includes(phase)
+  const firstStepLabel = phase === 'unavailable' ? 'Codex 설치 필요' : 'Hook 설치'
 
   return (
     <div className="panel-section">
@@ -109,7 +110,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
         <b>처음 한 번만, 아래 순서대로 연결하세요.</b>
         <p>Hook은 Codex가 도구를 실행하기 직전 AIA에 알려 주는 연결 지점입니다. <strong>Trust는 Codex 안에서 사용자가 직접 승인</strong>해야 해요.</p>
         <ol className="hook-setup-steps" aria-label="AIA Hook 연결 단계">
-          <li className={installed ? 'is-done' : ''}><span>1</span><b>Hook 설치</b><small>{installed ? '완료' : 'AIA에서 설치'}</small></li>
+          <li className={installed ? 'is-done' : ''}><span>1</span><b>{firstStepLabel}</b><small>{installed ? '완료' : phase === 'unavailable' ? 'Codex 경로 확인' : 'AIA에서 설치'}</small></li>
           <li className={trusted ? 'is-done' : ''}><span>2</span><b>Codex에서 신뢰</b><small>{trusted ? '완료' : '/hooks에서 Trust'}</small></li>
           <li className={verified ? 'is-done' : ''}><span>3</span><b>연결 검증</b><small>{verified ? '완료' : 'AIA에서 확인'}</small></li>
         </ol>
@@ -119,7 +120,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
 
       {phase === 'unavailable' && (
         <div className="stat-card">
-          <div className="stat-card-value is-warn">Codex 실행 파일을 찾을 수 없습니다</div>
+          <div className="stat-card-value is-warn">1. Codex 설치 또는 경로 확인이 필요합니다</div>
           <div className="stat-card-label">{preflight?.next_step}</div>
         </div>
       )}
@@ -189,7 +190,10 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
           <button
             type="button"
             className="icon-button-text"
-            onClick={() => navigator.clipboard?.writeText(`${cli.cli_prefix} hook verify`).catch(() => {})}
+            onClick={() => {
+              if (!navigator.clipboard) return
+              navigator.clipboard.writeText(`${cli.cli_prefix} hook verify`).catch(() => {})
+            }}
             title="명령 복사"
           >
             복사

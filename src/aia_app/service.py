@@ -191,28 +191,33 @@ class RunApplicationService(
 
     @staticmethod
     def policy_profiles() -> list[dict[str, str]]:
-        descriptions = {
+        display = {
             PolicyProfile.PROTECTED_DEVELOPMENT: (
-                "민감정보 읽기와 대표적인 파괴 명령을 기본 차단하고, 그 밖의 개발 행위는 기록합니다."
+                "표준 보호",
+                "모든 .env 계열 읽기와 대표적인 파괴 명령을 차단하고, 그 밖의 개발 행위는 기록합니다.",
             ),
             PolicyProfile.BASIC_DEVELOPMENT: (
-                "일반 개발 작업을 허용하면서 .env 삭제와 위험한 데이터베이스·Git 명령을 통제합니다."
+                "협업 개발",
+                "일반 개발 작업을 허용하면서 .env 삭제와 위험한 데이터베이스·Git 명령을 통제합니다.",
             ),
             PolicyProfile.CONSERVATIVE_SECURITY: (
-                "비밀정보와 핵심 변경을 더 엄격하게 기록·차단하는 보호 우선 프로필입니다."
+                "변경 통제 강화",
+                "루트 .env 읽기는 기록하고, 의존성·인프라 파일의 삭제와 위험한 데이터베이스·Git 명령을 차단합니다.",
             ),
             PolicyProfile.FREE_DEVELOPMENT: (
-                "개발 흐름을 가장 넓게 허용하고 위험 행위를 주로 기록하는 프로필입니다."
+                "관찰 전용",
+                "개발 흐름을 가장 넓게 허용하고 위험 행위를 주로 기록하는 프로필입니다.",
             ),
             PolicyProfile.CUSTOM: (
-                "사용자가 작성한 Strict Validation 통과 정책 JSON을 고정해 사용합니다."
+                "직접 설정",
+                "실행 시 지정한 Strict Validation 통과 정책 JSON을 사용합니다.",
             ),
         }
         return [
             {
                 "value": profile.value,
-                "label": profile.display_name,
-                "description": descriptions[profile],
+                "display_name": display[profile][0],
+                "description": display[profile][1],
             }
             for profile in (
                 PolicyProfile.PROTECTED_DEVELOPMENT,

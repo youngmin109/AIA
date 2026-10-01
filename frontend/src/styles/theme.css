@@ -40,6 +40,13 @@
   --shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28);
   --focus-ring: 0 0 0 2px var(--accent);
+  --terminal-bg: #101827;
+  --terminal-toolbar-bg: #172236;
+  --terminal-input-bg: #121d30;
+  --terminal-input-inset: #0c1526;
+  --terminal-border: #2b3b59;
+  --terminal-text: #d8e2f4;
+  --terminal-muted: #bdcbe4;
 
   /* Density: data-dense dashboard scale (8-12px gaps, 12px card padding).
      Cards use --shadow-card; modals and popovers keep --shadow-elevated. */
@@ -91,6 +98,13 @@
   --shadow-elevated: 0 14px 42px rgba(28, 43, 73, 0.1);
   --shadow-card: 0 1px 2px rgba(28, 43, 73, 0.06);
   --focus-ring: 0 0 0 2px var(--accent);
+  --terminal-bg: var(--bg-panel);
+  --terminal-toolbar-bg: var(--bg-panel-alt);
+  --terminal-input-bg: var(--bg-panel-alt);
+  --terminal-input-inset: var(--bg-panel);
+  --terminal-border: var(--border-strong);
+  --terminal-text: var(--text);
+  --terminal-muted: var(--text-muted);
 
   /* Guardian sidebar: fixed navy, same tone as the mockup */
   --nav-bg: #131d32;

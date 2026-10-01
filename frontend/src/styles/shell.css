@@ -1704,20 +1704,13 @@
 .terminal-input-row textarea { border-color: var(--border-strong); border-radius: var(--radius-control); background: var(--bg-panel); color: var(--text); }
 .terminal-error, .terminal-action-banner, .terminal-heartbeat-banner { border-top-color: var(--border); }
 
-/* Dark mode keeps a higher contrast work surface without using it for light mode. */
-:root[data-theme='dark'] .terminal-card { background: #101827; border-color: #273756; }
-:root[data-theme='dark'] .terminal-toolbar { background: #172236; border-bottom-color: #293b5d; color: #bdcbe4; }
-:root[data-theme='dark'] .codex-transcript { background: #101827; color: #d8e2f4; }
-:root[data-theme='dark'] .terminal-input-row { background: #121d30; border-top-color: #2b3b59; }
-:root[data-theme='dark'] .terminal-input-row textarea { border-color: #2b3b59; background: #0c1526; color: #fff; }
-
-/* Four standard policy choices; direct JSON configuration stays a CLI-only advanced path. */
-.policy-control-list { display: grid; gap: 5px; margin: 14px 0 0; padding: 0; list-style: none; color: var(--text-muted); font-size: 11px; }
-.policy-control-list li::before { content: '✓'; margin-right: 6px; color: var(--success); font-weight: 800; }
-.policy-choice-standard { border-top: 3px solid var(--accent); }
-.policy-choice-collaboration { border-top: 3px solid var(--success); }
-.policy-choice-strict { border-top: 3px solid var(--danger); }
-.policy-choice-observe { border-top: 3px solid var(--warning); }
+/* Terminal colors follow theme tokens so a theme update does not leave a
+   separately hard-coded console palette behind. */
+:root[data-theme='dark'] .terminal-card { background: var(--terminal-bg); border-color: var(--terminal-border); }
+:root[data-theme='dark'] .terminal-toolbar { background: var(--terminal-toolbar-bg); border-bottom-color: var(--terminal-border); color: var(--terminal-muted); }
+:root[data-theme='dark'] .codex-transcript { background: var(--terminal-bg); color: var(--terminal-text); }
+:root[data-theme='dark'] .terminal-input-row { background: var(--terminal-input-bg); border-top-color: var(--terminal-border); }
+:root[data-theme='dark'] .terminal-input-row textarea { border-color: var(--terminal-border); background: var(--terminal-input-inset); color: var(--terminal-text); }
 
 /* ---- Guided Hook setup and Guardian assistant ---- */
 .hook-setup-intro {
@@ -1738,12 +1731,6 @@
 .hook-setup-steps li.is-done { border-color: color-mix(in srgb, var(--success) 55%, var(--border)); }
 .hook-setup-steps li.is-done span { background: var(--success-bg); color: var(--success); }
 
-/* The Guardian stays legible in the compact desktop shell. */
-.sidebar-guardian { min-height: 68px; padding: 8px 9px; }
-.sidebar-guardian img { width: 46px; height: 46px; filter: drop-shadow(0 5px 7px rgba(0, 0, 0, .16)); }
-.sidebar-guardian b { font-size: 12px; }
-.sidebar-guardian small { font-size: 10px; line-height: 1.35; }
-.guardian-hero-img { width: 118px; height: 118px; }
 .guardian-guide-popover { left: 232px; width: min(390px, calc(100vw - 248px)); padding: 16px; }
 .guardian-guide-hero { display: flex; align-items: center; gap: 10px; padding-right: 18px; }
 .guardian-guide-popover .guardian-guide-hero img { flex: 0 0 auto; width: 116px; height: 116px; margin: -8px 0 -10px -6px; }
@@ -1762,5 +1749,4 @@
 @media (max-width: 760px) {
   .hook-setup-steps { grid-template-columns: 1fr; }
   .guardian-guide-popover { left: 10px; width: calc(100vw - 20px); }
-  .guardian-hero-img { width: 92px; height: 92px; }
 }
