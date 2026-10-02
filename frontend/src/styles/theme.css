@@ -57,6 +57,48 @@
   --radius-card: 10px;
   --radius-control: 8px;
 
+  /* Component colors with one value in both themes. A rule scoped to a
+     theme (for example :root[data-theme='light'] .x) uses them only there. */
+  --on-accent: #fff;
+  --code-block-bg: #17223a;
+  --code-block-text: #dce7ff;
+  --code-block-divider: rgba(255, 255, 255, 0.08);
+  --overlay-backdrop: rgba(4, 8, 14, 0.6);
+  --shadow-tint-sidebar: rgba(50, 65, 92, .035);
+  --brandmark-from: #edf3ff;
+  --brandmark-to: #dce8ff;
+  --brandmark-text: #466bd2;
+  --brandmark-ring: #d3def7;
+  --shadow-tint-nav-active: rgba(68, 97, 163, .07);
+  --page-glow-blue: #dce7ff;
+  --page-glow-mint: #e0f8f1;
+  --page-glow-dark: rgba(73, 99, 147, .13);
+  --shadow-tint-card: rgba(41, 57, 87, .055);
+  --shadow-tint-card-edge: rgba(41, 57, 87, .04);
+  --shadow-tint-card-dark: rgba(0, 0, 0, .13);
+  --primary-action-from: #6688fa;
+  --primary-action-to: #5573dd;
+  --shadow-tint-primary-action: rgba(75, 105, 210, .2);
+  --kpi-tint-mint: rgba(58, 185, 146, .09);
+  --kpi-tint-rose: rgba(219, 107, 128, .085);
+  --kpi-tint-lavender: rgba(136, 111, 218, .09);
+  --agent-orb-from: #d8f4ee;
+  --agent-orb-to: #dce8ff;
+  --agent-orb-text: #3974a4;
+  --legend-mint: #50c7a1;
+  --legend-blue: #6b89ef;
+  --legend-lavender: #9279df;
+  --shadow-tint-policy-workspace: rgba(42, 57, 88, .06);
+  --policy-hero-blue: #dfe9ff;
+  --policy-hero-mint: #e0f6ef;
+  --policy-hero-blue-dark: rgba(82, 108, 171, .17);
+  --policy-hero-mint-dark: rgba(57, 132, 115, .1);
+  --shadow-tint-template-selected: rgba(77, 103, 190, .11);
+  --template-icon-from: #e4ecff;
+  --template-icon-to: #e6f8f2;
+  --template-icon-text: #4b69c0;
+  --shadow-tint-card-hover: rgba(42, 58, 92, .09);
+
   /* Guardian sidebar: darkens further than --bg-app in dark mode */
   --nav-bg: #0a0f1c;
   --nav-bg-active: #18243a;
