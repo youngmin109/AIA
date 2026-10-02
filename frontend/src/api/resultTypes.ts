@@ -52,4 +52,10 @@ export interface RecoveryStatusView {
   recovery_status?: string
   integrity_status?: string
   mismatched_file_count?: number | null
+  /** Manual Workspace restore can run (run ended and a valid checkpoint exists). */
+  available?: boolean
+  reason?: string | null
+  /** The Workspace currently equals the run's pre-run checkpoint. */
+  workspace_matches?: boolean
+  manual_recovery?: boolean
 }

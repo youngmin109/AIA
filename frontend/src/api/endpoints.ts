@@ -52,6 +52,13 @@ export function reconcileRun(sessionId: string): Promise<ReconcileResult> {
   return apiPostTolerant<ReconcileResult>(`/api/runs/${encodeURIComponent(sessionId)}/reconcile`)
 }
 
+/** Restores the whole Workspace of an ended run to its pre-run checkpoint and
+ * re-verifies it with SHA-256 (service.py restore_run). The server refuses
+ * without `confirm: true`, so callers must ask the user first. */
+export function restoreWorkspace(sessionId: string): Promise<Record<string, unknown>> {
+  return apiPost<Record<string, unknown>>(`/api/runs/${encodeURIComponent(sessionId)}/recovery/restore`, { confirm: true })
+}
+
 export interface CreateRunPayload {
   workspace: string
   agent?: string
