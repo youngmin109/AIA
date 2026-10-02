@@ -43,6 +43,31 @@ def _ensure_gui_stdio() -> None:
             setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
 
 
+def _detach_desktop_console(kernel32: Any | None = None) -> bool:
+    """Leave the hidden bootloader console before the desktop shell starts.
+
+    The packaged build uses PyInstaller's console bootloader with its console
+    hidden, because the windowed bootloader fails before Python starts on some
+    Windows/Python 3.13 combinations.  The desktop window must still own no
+    console: the Workbench switches each Codex app-server console to UTF-8 by
+    attaching to it (codex_app_server), and Windows refuses that while this
+    process is attached to a console of its own, which brings back garbled
+    Korean output.  Source runs keep their console for logging.
+    """
+
+    if not (_is_windows() and getattr(sys, "frozen", False)):
+        return False
+    if kernel32 is None:
+        kernel32 = ctypes.WinDLL("kernel32")
+    if not kernel32.GetConsoleWindow():
+        return False
+    kernel32.FreeConsole()
+    # The console handles behind stdout/stderr are gone; give logging a sink.
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+    return True
+
+
 def _is_windows() -> bool:
     return os.name == "nt"
 
@@ -433,6 +458,7 @@ class DesktopBridge:
 def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT) -> int:
     """Start the loopback FastAPI app and display it in a WebView2 window."""
 
+    _detach_desktop_console()
     _ensure_gui_stdio()
     if host != DEFAULT_HOST:
         _show_message("AIA", "AIA Desktop은 외부 주소에 바인딩하지 않습니다.", error=True)

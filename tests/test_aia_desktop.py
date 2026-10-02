@@ -66,6 +66,49 @@ def test_gui_stdio_is_initialized_when_windowed_bootloader_removes_streams(monke
         sys.stderr = stderr
 
 
+class _FakeKernel32:
+    def __init__(self, console_window: int) -> None:
+        self.console_window = console_window
+        self.freed = False
+
+    def GetConsoleWindow(self) -> int:
+        return self.console_window
+
+    def FreeConsole(self) -> int:
+        self.freed = True
+        return 1
+
+
+def test_packaged_desktop_detaches_hidden_bootloader_console(monkeypatch) -> None:
+    kernel32 = _FakeKernel32(console_window=1234)
+    monkeypatch.setattr(launcher, "_is_windows", lambda: True)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    stdout = sys.stdout
+    stderr = sys.stderr
+    try:
+        assert launcher._detach_desktop_console(kernel32) is True
+        assert kernel32.freed is True
+        # Writing after the console is gone must not raise.
+        print("after detach")
+        sys.stderr.write("after detach\n")
+    finally:
+        sys.stdout = stdout
+        sys.stderr = stderr
+
+
+def test_desktop_keeps_console_for_source_runs_and_consoleless_builds(monkeypatch) -> None:
+    monkeypatch.setattr(launcher, "_is_windows", lambda: True)
+    source_kernel32 = _FakeKernel32(console_window=1234)
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    assert launcher._detach_desktop_console(source_kernel32) is False
+    assert source_kernel32.freed is False
+
+    consoleless_kernel32 = _FakeKernel32(console_window=0)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert launcher._detach_desktop_console(consoleless_kernel32) is False
+    assert consoleless_kernel32.freed is False
+
+
 def test_desktop_rejects_non_loopback_binding(monkeypatch) -> None:
     monkeypatch.setattr("aia_desktop.launcher._show_message", lambda *args, **kwargs: None)
 
