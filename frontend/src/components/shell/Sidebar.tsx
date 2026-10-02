@@ -10,7 +10,7 @@ import { isRunActive, useRunList } from '../../hooks/useRunList'
 import { sessionCreatedLabel, sessionDisplayName, sessionShortId, workspaceShortName } from './sessionLabel'
 
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
-  { view: 'dashboard', icon: 'dashboard', label: '개요' },
+  { view: 'dashboard', icon: 'dashboard', label: '보호 현황' },
   { view: 'agents', icon: 'agents', label: '에이전트' },
   { view: 'terminal', icon: 'terminal', label: '보호 실행' },
   { view: 'policy', icon: 'shield', label: '정책' },
@@ -20,7 +20,7 @@ const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
 ]
 
 const TITLES: Record<ShellView, string> = {
-  dashboard: 'AI 보안 관측',
+  dashboard: '보호 현황',
   agents: '에이전트',
   terminal: '보호 실행',
   policy: '정책 관리',

@@ -151,3 +151,61 @@
 @media (max-width: 620px) {
   .page-heading, .settings-group { align-items: flex-start; flex-direction: column; }.kpi-grid.four, .kpi-grid.three, .kpi-grid.five { grid-template-columns: 1fr; }.live-metric-row { grid-template-columns: repeat(2, 1fr); }.settings-block.two-columns { grid-template-columns: 1fr; }
 }
+
+/* Motion language: short transitions explain navigation and state changes.
+   Guardian movement is isolated from information text so the interface stays
+   readable, and all motion is disabled for reduced-motion preferences. */
+@keyframes page-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes card-arrive {
+  from { opacity: 0; transform: translateY(7px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes guardian-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+@keyframes guardian-state-pop {
+  0% { opacity: 0; transform: scale(.88) translateY(8px); }
+  65% { opacity: 1; transform: scale(1.035) translateY(-2px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+.main-column-view:not(.is-hidden) .product-page { animation: page-rise .34s cubic-bezier(.2, .75, .25, 1) both; }
+.product-page .soft-card { animation: card-arrive .38s cubic-bezier(.2, .75, .25, 1) both; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.product-page .soft-card:nth-of-type(2) { animation-delay: 35ms; }
+.product-page .soft-card:nth-of-type(3) { animation-delay: 70ms; }
+.product-page .soft-card:hover { border-color: color-mix(in srgb, var(--accent) 22%, var(--border)); box-shadow: 0 14px 34px rgba(42, 58, 92, .09); }
+.app-sidebar-nav-btn, .subtabs button, .observability-tabs button, .policy-nav > button, .compact-list-row, .primary-action, .secondary-action, .text-action { transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease, box-shadow .16s ease; }
+.app-sidebar-nav-btn:active, .subtabs button:active, .observability-tabs button:active, .policy-nav > button:active, .primary-action:active, .secondary-action:active { transform: scale(.975); }
+.app-sidebar-nav-btn.is-active .app-sidebar-nav-btn-icon { animation: card-arrive .25s ease both; }
+
+.dashboard-showcase { grid-template-columns: minmax(390px, 1fr) minmax(430px, 1.42fr); }
+.dashboard-showcase .guardian-hero { min-height: 280px; overflow: hidden; }
+.dashboard-showcase .guardian-hero-main { gap: 22px; }
+.dashboard-showcase .guardian-hero-img {
+  width: 154px !important;
+  height: 154px !important;
+  flex: 0 0 154px;
+  object-fit: contain;
+  animation: guardian-state-pop .42s cubic-bezier(.2, .8, .3, 1) both, guardian-float 4.2s ease-in-out .45s infinite;
+  filter: drop-shadow(0 15px 17px rgba(65, 103, 180, .2)) !important;
+}
+.dashboard-showcase .guardian-hero:hover .guardian-hero-img { animation-play-state: paused; transform: translateY(-5px) scale(1.025); }
+.guardian-start-button { transition: transform .16s ease, box-shadow .16s ease, filter .16s ease; }
+.guardian-start-button:hover { transform: translateY(-2px); box-shadow: 0 9px 20px color-mix(in srgb, var(--accent) 24%, transparent); filter: saturate(1.08); }
+
+@media (max-width: 1180px) {
+  .dashboard-showcase { grid-template-columns: 1fr; }
+  .dashboard-showcase .guardian-hero { min-height: 250px; }
+}
+@media (max-width: 620px) {
+  .dashboard-showcase .guardian-hero-main { align-items: center; flex-direction: column; text-align: center; }
+  .dashboard-showcase .guardian-hero-img { width: 132px !important; height: 132px !important; flex-basis: 132px; }
+  .guardian-hero-chips { justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

@@ -9,10 +9,10 @@ import { EventFeed } from '../sensors/EventFeed'
 import { Icon } from '../common/Icon'
 import { sessionDisplayName } from '../shell/sessionLabel'
 
-const TABS = ['개요', '보호 목표', 'AI 관측', '활동 탐색', '보고서'] as const
+const TABS = ['보호 현황', '보호 목표', 'AI 관측', '활동 탐색', '보고서'] as const
 
 export function DashboardView() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>('AI 관측')
+  const [tab, setTab] = useState<(typeof TABS)[number]>('보호 현황')
   const { activeRunId, setView, openSettingsModal, setActiveRun } = useShellStore()
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
   const { data: preflight } = usePreflight()
@@ -39,7 +39,7 @@ export function DashboardView() {
   return (
     <div className="product-page observability-page">
       <nav className="observability-tabs" aria-label="대시보드 탭">{TABS.map((item) => <button key={item} type="button" className={tab === item ? 'is-active' : ''} onClick={() => { setTab(item); if (item === '보고서') setView('reports') }}>{item}</button>)}</nav>
-      {tab === 'AI 관측' || tab === '개요' ? <>
+      {tab === 'AI 관측' || tab === '보호 현황' ? <>
         <header className="page-heading dashboard-heading"><div><span className="page-eyebrow">RUNTIME ASSURANCE</span><h2>AI 작업을 투명하게 관찰합니다</h2><p>Agent 요청, 실제 프로세스, Workspace 변화를 하나의 보호 흐름으로 확인하세요.</p></div><button type="button" className="primary-action" onClick={isActive ? () => setView('terminal') : openSettingsModal}>{isActive ? '실행 열기' : '새 보호 실행'}</button></header>
         <div className="kpi-grid four">{metrics.map((metric) => <article key={metric.label} className={`soft-card kpi-card accent-${metric.tone}`}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.hint}</small></article>)}</div>
         <div className="dashboard-showcase">

@@ -27,7 +27,7 @@ export function GuardianHero({ readiness, ready }: { readiness: string; ready: b
   return (
     <article className={`card guardian-hero is-${guardian.state}`}>
       <div className="guardian-hero-main">
-        <img className="guardian-hero-img" src={MASCOT[guardian.state]} alt={ALT[guardian.state]} />
+        <img key={guardian.state} className="guardian-hero-img" src={MASCOT[guardian.state]} alt={ALT[guardian.state]} />
         <div className="guardian-hero-copy">
           <div className="guardian-hero-chips">
             <span className={`guardian-hero-status is-${guardian.state}`}>{guardian.label}</span>

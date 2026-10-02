@@ -3,7 +3,7 @@ import { usePreflight } from '../../hooks/usePreflight'
 import { isRunActive, useRunList } from '../../hooks/useRunList'
 import { useShellStore } from '../../state/shellStore'
 
-const TABS = ['등록 현황', '수명주기', '접근 권한', '승인 요청', '태그'] as const
+const TABS = ['등록 현황', '연결 상태', '권한 범위', '승인 요청'] as const
 
 export function AgentsView() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('등록 현황')
