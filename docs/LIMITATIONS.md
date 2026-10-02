@@ -15,6 +15,10 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - MCP 도구는 현재 MVP 지원 범위가 아니다. Hook으로 도착한 MCP 요청은
   `UNSUPPORTED_TOOL_PATH`로 거부하며, MCP 서버 등록·호출이나 구조화된 MCP READ
   보호를 제품 기능으로 주장하지 않는다.
+- Codex 설정에서 켠 MCP 서버의 도구 호출은 보호 범위 밖이다. Codex 앱이 추가하는
+  `node_repl` 같은 일부 MCP 도구는 PreToolUse Hook을 거치지 않아 AIA가 차단하거나
+  기록하지 못한다. 사전 점검은 `config.toml`의 `[mcp_servers]`를 읽기만 해서 켜진
+  서버를 경고하며, Codex 설정을 바꾸지 않는다.
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.
 - OS 수준의 파일 Writer 귀속은 제공하지 않는다.

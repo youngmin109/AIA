@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 from typing import Any
 
 from aia import CodexAdapter, CodexHookInstaller
@@ -57,6 +58,32 @@ def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
 
 
 
+def _enabled_codex_mcp_servers() -> list[str] | None:
+    """Return the MCP servers the Codex config turns on, or None if unreadable.
+
+    Read-only: AIA never edits the Codex config.  MCP tools are outside AIA's
+    supported scope, and some of them (for example the Codex app's node_repl)
+    run without a PreToolUse Hook, so a protected run can neither block nor
+    record what they do.
+    """
+
+    path = HookVerificationStore._codex_config_path()
+    try:
+        document = tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return None
+    servers = document.get("mcp_servers")
+    if not isinstance(servers, dict):
+        return []
+    return sorted(
+        str(name)
+        for name, settings in servers.items()
+        if isinstance(settings, dict) and settings.get("enabled", True) is not False
+    )
+
+
 class PreflightMixin:
     def preflight(
         self,
@@ -68,6 +95,7 @@ class PreflightMixin:
         checks: list[dict[str, Any]] = []
         hook_state = self._preflight_hook_state(checks)
         self._append_control_root_check(checks)
+        self._append_mcp_tools_check(checks)
         activation = self._preflight_hook_activation(
             runs,
             hook_state["hook_verified"],
@@ -211,6 +239,32 @@ class PreflightMixin:
             "codex_hook_trust": codex_hook_trust,
             "hook_verified": hook_verified,
         }
+
+    def _append_mcp_tools_check(self, checks: list[dict[str, Any]]) -> None:
+        """Warn about MCP tools outside the Hook path; never blocks readiness."""
+
+        servers = _enabled_codex_mcp_servers()
+        if servers is None:
+            detail = "Codex 설정을 읽지 못해 MCP 도구를 확인하지 못함"
+        elif not servers:
+            detail = "켜진 MCP 서버 없음"
+        else:
+            shown = ", ".join(servers[:3]) + (f" 외 {len(servers) - 3}개" if len(servers) > 3 else "")
+            detail = (
+                f"켜짐: {shown} · MCP 도구는 AIA 보호 범위 밖이며 일부는 Hook을 거치지 않아 "
+                "차단·기록되지 않을 수 있음. Codex 설정에서 끄면 보호 범위가 명확해짐"
+            )
+        checks.append(
+            {
+                "name": "mcp_tools",
+                "label": "Hook 밖 MCP 도구",
+                "ok": servers == [],
+                "optional": True,
+                "status": "UNKNOWN" if servers is None else ("CLEAR" if not servers else "ENABLED"),
+                "servers": servers or [],
+                "detail": detail,
+            }
+        )
 
     def _append_control_root_check(self, checks: list[dict[str, Any]]) -> None:
         try:
