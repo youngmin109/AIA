@@ -70,7 +70,7 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
     <div className="event-row">
       <button
         type="button"
-        style={{ all: 'unset', cursor: expandable ? 'pointer' : 'default', display: 'block', width: '100%' }}
+        className={`row-toggle${expandable ? '' : ' is-static'}`}
         onClick={() => expandable && setExpanded((value) => !value)}
       >
         <div className="event-row-top">
@@ -91,8 +91,8 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
         )}
       </button>
       {expanded && chain && (
-        <div style={{ marginTop: 8, display: 'grid', gap: 6, fontSize: 11 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        <div className="chain-details">
+          <div className="chain-badges">
             {(chain.sensor_links ?? []).map((link, index) => (
               <span key={index} className={`badge is-${linkTone(link.status)}`}>
                 {link.sensor}: {link.status}
@@ -100,7 +100,7 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
               </span>
             ))}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, color: 'var(--text-muted)' }}>
+          <div className="chain-badges is-muted">
             {(chain.stages ?? []).map((stage, index) => (
               <span key={index} className={`badge is-${toneFor(stage.status)}`} title={stage.label}>
                 {stage.label ?? stage.stage}

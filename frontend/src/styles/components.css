@@ -1,0 +1,53 @@
+/* Component styles that used to be inline style={{...}} objects.
+   Loaded last so each rule keeps the precedence the inline style had over
+   the shared rules for the same element. */
+
+/* Result and evidence rows */
+div.result-view { height: 100%; padding: 16px; overflow-y: auto; }
+.badge-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge-row.is-spaced { margin-bottom: 10px; }
+.run-row-path.is-wrapping { white-space: normal; }
+.chain-stages { display: grid; gap: 5px; margin-top: 6px; }
+.chain-stage { display: flex; justify-content: space-between; gap: 8px; }
+.evidence-log-wrap { margin-top: 8px; }
+button.row-toggle { all: unset; display: block; width: 100%; cursor: pointer; }
+.row-toggle.is-static { cursor: default; }
+.incident-details { display: grid; gap: 4px; margin-top: 8px; color: var(--text-muted); font-size: 11px; }
+.chain-details { display: grid; gap: 6px; margin-top: 8px; font-size: 11px; }
+.chain-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.chain-badges.is-muted { color: var(--text-muted); }
+
+/* Buttons sized for inline placement */
+.cta-button.is-compact { width: auto; padding: 8px 16px; }
+.cta-button.is-small { width: auto; padding: 6px 14px; }
+.cta-button.is-stacked { margin-top: 10px; }
+
+/* Dialogs */
+.modal-panel.review-dialog { max-width: 480px; }
+.modal-panel.approval-dialog { max-width: 520px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.dialog-actions.wraps { flex-wrap: wrap; }
+.review-summary { margin-top: 10px; color: var(--text); font-weight: 600; }
+.review-meta { margin-top: 4px; font-size: 12px; }
+.approval-detail { font-size: 12px; }
+.policy-view-notice.review-notice { margin-top: 14px; margin-bottom: 0; }
+.policy-view-notice.approval-notice { margin-top: 12px; margin-bottom: 0; }
+
+/* Protection setup */
+.setup-message { margin-top: 4px; font-size: 11px; }
+.setup-message.is-bad { color: var(--danger); }
+.setup-message.is-warn { color: var(--warning); }
+.setup-note { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
+.setup-hint { margin-top: 8px; color: var(--text-faint); font-size: 11px; }
+.badge.hook-trust-badge { margin-top: 4px; }
+.setup-steps { display: grid; gap: 4px; margin: 10px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 12px; }
+.setup-command-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; }
+code.setup-command { flex: 1; min-width: 0; overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+.field-hint { margin-top: 6px; font-size: 11px; }
+.field-hint.is-bad { color: var(--danger); }
+.field-error { color: var(--danger); }
+.success-text { color: var(--success); }
+.terminal-action-banner.reconcile-banner { flex-wrap: wrap; border-top: none; border-radius: 8px; }
+.terminal-error.submit-error { margin-top: 8px; border-radius: 8px; }
+.setup-footnote { margin-top: 10px; color: var(--text-muted); font-size: 11px; }
+.policy-select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-inset); color: var(--text); }

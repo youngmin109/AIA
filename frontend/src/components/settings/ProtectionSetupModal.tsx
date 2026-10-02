@@ -172,27 +172,27 @@ export function ProtectionSetupModal() {
               />
               <button type="button" className="secondary-button" onClick={handleChooseWorkspace}>폴더 선택</button>
             </div>
-            <p style={{ marginTop: 6, fontSize: 11 }}>
+            <p className="field-hint">
               {workspaceState.status === 'checking' && '폴더를 확인하는 중입니다…'}
-              {workspaceState.status === 'valid' && <span className="success-text" style={{ color: 'var(--success)' }}>폴더를 확인했습니다.</span>}
-              {workspaceState.status === 'invalid' && <span style={{ color: 'var(--danger)' }}>{workspaceState.message}</span>}
+              {workspaceState.status === 'valid' && <span className="success-text">폴더를 확인했습니다.</span>}
+              {workspaceState.status === 'invalid' && <span className="field-error">{workspaceState.message}</span>}
               {workspaceState.status === 'idle' && '이미 만들어 둔 프로젝트 폴더의 전체 경로를 입력하세요.'}
             </p>
             {pickerMessage && <p className="inline-notice">{pickerMessage}</p>}
           </div>
           {recovery?.required && (
             <div className="panel-section">
-              <div className="terminal-action-banner" style={{ borderTop: 'none', borderRadius: 8, flexWrap: 'wrap' }}>
+              <div className="terminal-action-banner reconcile-banner">
                 <span>
                   이 작업공간에는 정리되지 않은 이전 보호 실행이 있습니다 (#{recovery.session_id?.slice(0, 8)}
                   {recovery.status ? ` · ${recovery.status}` : ''}). 이전 AIA·Codex가 완전히 종료됐는지 확인한 뒤 정리하세요.
                 </span>
-                <button type="button" className="cta-button" style={{ width: 'auto', padding: '6px 14px' }} disabled={reconciling} onClick={handleReconcile}>
+                <button type="button" className="cta-button is-small" disabled={reconciling} onClick={handleReconcile}>
                   {reconciling ? '정리하는 중…' : '정리하고 계속'}
                 </button>
               </div>
               {reconcileError && (
-                <p style={{ marginTop: 6, fontSize: 11, color: 'var(--danger)' }}>{reconcileError}</p>
+                <p className="field-hint is-bad">{reconcileError}</p>
               )}
             </div>
           )}
@@ -201,7 +201,7 @@ export function ProtectionSetupModal() {
             <select
               value={policyProfile}
               onChange={(event) => setPolicyProfile(event.target.value)}
-              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-inset)', color: 'var(--text)' }}
+              className="policy-select"
             >
               {profiles.map((profile) => (
                 <option key={profile.value} value={profile.value}>
@@ -211,16 +211,16 @@ export function ProtectionSetupModal() {
             </select>
           </div>
           {submitError && (
-            <div className="terminal-error" style={{ borderRadius: 8, marginTop: 8 }}>
+            <div className="terminal-error submit-error">
               <span>{submitError}</span>
             </div>
           )}
           {!hookReady && workspaceState.status === 'valid' && (
-            <p style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+            <p className="setup-footnote">
               위 AIA Hook 연결이 준비되어야 보호 작업을 시작할 수 있습니다.
             </p>
           )}
-          <button type="button" className="cta-button" style={{ marginTop: 10 }} disabled={!canSubmit} onClick={handleSubmit}>
+          <button type="button" className="cta-button is-stacked" disabled={!canSubmit} onClick={handleSubmit}>
             {submitting ? '시작하는 중…' : '보호 작업 시작'}
           </button>
         </div>

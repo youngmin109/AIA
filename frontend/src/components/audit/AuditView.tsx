@@ -64,7 +64,7 @@ export function AuditView() {
             <div className="center-empty-state">
               <strong>이 실행은 아직 진행 중입니다</strong>
               <p>실시간 상태와 명령 입력은 에이전트 작업에서 확인할 수 있습니다.</p>
-              <button type="button" className="cta-button" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => setView('terminal')}>
+              <button type="button" className="cta-button is-compact" onClick={() => setView('terminal')}>
                 에이전트 작업 열기 →
               </button>
             </div>

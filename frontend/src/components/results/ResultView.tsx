@@ -39,7 +39,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   const verdict = deriveVerdict(data)
 
   return (
-    <div style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
+    <div className="result-view">
       <div className={`result-verdict is-${verdict.tone}`}>
         <span className="result-verdict-mark" aria-hidden="true">
           {verdict.tone === 'ok' ? '✓' : verdict.tone === 'bad' ? '!' : '·'}
@@ -71,19 +71,19 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
       <div className="panel-section">
         <p className="panel-section-title">보호 실행 결과</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <div className="badge-row is-spaced">
           <span className={`badge is-${toneFor(data.bundle_status)}`}>감사 묶음: {displayStatus(data.bundle_status)}</span>
           <span className={`badge is-${toneFor(data.session_status)}`}>{displayStatus(data.session_status)}</span>
           {incidents.length > 0 && <span className="badge is-warn">정책 사건 {incidents.length}건</span>}
         </div>
-        <div className="run-row-path" style={{ whiteSpace: 'normal' }}>
+        <div className="run-row-path is-wrapping">
           {data.workspace} {data.policy_id ? `· 정책 ${data.policy_id}${data.policy_version ? ` · ${data.policy_version}` : ''}` : ''}
         </div>
       </div>
 
       <div className="panel-section">
         <p className="panel-section-title">복구 · 무결성</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="badge-row">
           <span className={`badge is-${toneFor(recovery?.recovery_status ?? data.recovery_status)}`}>복구: {displayStatus(recovery?.recovery_status ?? data.recovery_status ?? 'NOT_ATTEMPTED')}</span>
           <span className={`badge is-${toneFor(recovery?.integrity_status ?? data.integrity_status)}`}>무결성: {displayStatus(recovery?.integrity_status ?? data.integrity_status ?? 'NOT_CHECKED')}</span>
         </div>
@@ -110,7 +110,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
       <div className="panel-section">
         <p className="panel-section-title">행위 귀속 요약</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="badge-row">
           {(['EXACT', 'PROCESS', 'TEMPORAL', 'UNKNOWN'] as const).map((grade) => (
             <span className="badge is-warn" key={grade}>
               {displayStatus(grade)} {data.attribution_summary?.counts?.[grade] ?? 0}건
@@ -134,9 +134,9 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
                 <div className="event-row-top">
                   <span className="event-row-sensor">행위 {chain.action_id ?? index + 1}</span>
                 </div>
-                <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+                <div className="chain-stages">
                   {(chain.stages ?? []).map((stage, stageIndex) => (
-                    <div key={stage.stage ?? stageIndex} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <div key={stage.stage ?? stageIndex} className="chain-stage">
                       <span>{stage.label}</span>
                       <span className={`badge is-${stage.status === 'NOT_OBSERVED' ? 'warn' : toneFor(stage.status)}`}>
                         {displayStatus(stage.value)}
@@ -182,7 +182,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         <div className="panel-section">
           <details className="result-reading-guide">
             <summary>원시 증거 메타데이터</summary>
-            <div style={{ marginTop: 8 }}>
+            <div className="evidence-log-wrap">
               <EvidenceLogView incidents={incidents} />
             </div>
           </details>
@@ -211,7 +211,7 @@ function IncidentRow({ incident }: { incident: IncidentView }) {
     <div className="event-row">
       <button
         type="button"
-        style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}
+        className="row-toggle"
         onClick={() => setExpanded((value) => !value)}
       >
         <div className="event-row-top">
@@ -221,7 +221,7 @@ function IncidentRow({ incident }: { incident: IncidentView }) {
         <span>{incident.summary}</span>
       </button>
       {expanded && (
-        <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+        <div className="incident-details">
           <span>대상: {incident.target?.display ?? '—'}</span>
           <span>귀속: {displayStatus(incident.attribution_class)}</span>
           <span>AIA 조치: {displayStatus(incident.enforcement_action)}</span>

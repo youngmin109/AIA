@@ -19,3 +19,17 @@ test('every CSS custom property that is used is defined', () => {
   const used = new Set([...css.matchAll(/var\(\s*(--[\w-]+)/g)].map(match => match[1]))
   assert.deepEqual([...used].filter(name => !defined.has(name)), [])
 })
+
+test('components use classes instead of inline style objects', () => {
+  const components = new URL('../src/components/', import.meta.url)
+  const offenders = []
+  const visit = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const url = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dir)
+      if (entry.isDirectory()) visit(url)
+      else if (entry.name.endsWith('.tsx') && readFileSync(url, 'utf8').includes('style={{')) offenders.push(entry.name)
+    }
+  }
+  visit(components)
+  assert.deepEqual(offenders, [], 'move the style into a class in styles/components.css')
+})
