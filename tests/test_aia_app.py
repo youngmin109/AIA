@@ -2266,7 +2266,9 @@ def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
             "관찰 전용",
             "직접 설정",
         }
+        assert all(item["english_name"] for item in profiles)
         conservative = next(item for item in profiles if item["value"] == "CONSERVATIVE_SECURITY")
+        assert conservative["english_name"] == "Change Control"
         assert "루트 .env 읽기는 기록" in conservative["description"]
     finally:
         service.shutdown()

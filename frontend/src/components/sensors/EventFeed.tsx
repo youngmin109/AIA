@@ -37,11 +37,11 @@ export function EventFeed({
   limit?: number
 }) {
   if (!runId) {
-    return <p className="empty-hint">열린 실행을 선택하면 Hook·File·Process 센서 기록이 여기에 표시됩니다.</p>
+    return <p className="empty-hint">실행을 선택하면 요청·파일·프로세스의 정규화된 활동을 확인할 수 있습니다.</p>
   }
   const list = events ?? []
   if (list.length === 0) {
-    return <p className="empty-hint">아직 관찰된 센서 이벤트가 없습니다.</p>
+    return <p className="empty-hint">표시할 정규화된 활동이 없습니다. 파일·프로세스 관찰은 보호 현황에서 확인하세요.</p>
   }
   const reversed = list.slice().reverse()
   const visible = limit ? reversed.slice(0, limit) : reversed

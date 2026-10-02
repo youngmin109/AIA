@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from datetime import datetime, timezone, timedelta
 import os
 import time
 from threading import Event
@@ -198,6 +199,7 @@ class CodexWorkbench:
                         "reason": "AIA가 의미를 해석하지 못하는 도구라서 정책으로 판정할 수 없습니다.",
                         "paths": [],
                         "timeout_seconds": timeout_seconds,
+                        "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)).isoformat(),
                     },
                 }
                 record.runtime.setdefault("unsupported_tool_reviews", {})[approval_id] = pending

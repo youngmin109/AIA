@@ -1,3 +1,4 @@
+import { displayStatus, statusTone } from '../../api/display'
 import { useShellStore } from '../../state/shellStore'
 import { useRunList } from '../../hooks/useRunList'
 import { ResultView } from '../results/ResultView'
@@ -6,12 +7,6 @@ import { sessionCreatedLabel, sessionDisplayName, sessionShortId } from '../shel
 
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
 
-function toneFor(status: string | undefined): 'ok' | 'warn' | 'bad' {
-  const upper = String(status || '').toUpperCase()
-  if (['COMPLETED', 'RUNNING'].includes(upper)) return 'ok'
-  if (['FAILED', 'ABORTED'].includes(upper)) return 'bad'
-  return 'warn'
-}
 
 // Absorbs the old RunListPanel/ResultsListPanel's list+select behavior into
 // one view: every run (running included) browsable from a single list,
@@ -21,6 +16,7 @@ export function AuditView() {
   const { data: runs, isLoading, error } = useRunList()
   const selected = runs?.find((run) => run.session_id === activeRunId) ?? null
   const selectedEnded = Boolean(selected && ENDED_STATUSES.has(String(selected.status)))
+  const selectedOrphaned = Boolean((selected?.runtime_reconciliation as { orphaned?: boolean } | undefined)?.orphaned)
 
   return (
     <div className="dashboard-view">
@@ -41,7 +37,7 @@ export function AuditView() {
                 >
                   <div className="run-row-top">
                     <span>{sessionDisplayName(run.workspace)}</span>
-                    <span className={`badge is-${toneFor(run.status)}`}>{run.status ?? '상태 미확인'}</span>
+                    <span className={`badge is-${statusTone(run.status)}`}>{displayStatus(run.status)}</span>
                     {Boolean(run.incident_count) && <span className="badge is-warn">사건 {run.incident_count}</span>}
                   </div>
                   <div className="run-row-path" title={run.workspace}>
@@ -61,12 +57,15 @@ export function AuditView() {
               <p>실행 기록을 선택하면 판정과 증거 요약을 확인할 수 있습니다.</p>
             </div>
           )}
-          {selected && !selectedEnded && (
+          {selected && !selectedEnded && selectedOrphaned && (
+            <div className="center-empty-state"><strong>이전 실행의 연결이 끊겼습니다</strong><p>저장된 상태는 실행 중으로 남아 있지만, 현재 AIA가 대화를 다시 연결할 수 없습니다. 새 보호 실행 설정에서 작업공간을 선택해 안전한 정리 가능 여부를 확인하세요. 살아 있는 프로세스는 자동으로 강제 종료하지 않습니다.</p></div>
+          )}
+          {selected && !selectedEnded && !selectedOrphaned && (
             <div className="center-empty-state">
               <strong>이 실행은 아직 진행 중입니다</strong>
-              <p>실시간 상태와 명령 입력은 Agent CLI에서 확인할 수 있습니다.</p>
+              <p>실시간 상태와 명령 입력은 에이전트 작업에서 확인할 수 있습니다.</p>
               <button type="button" className="cta-button" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => setView('terminal')}>
-                Agent CLI 열기 →
+                에이전트 작업 열기 →
               </button>
             </div>
           )}

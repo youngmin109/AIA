@@ -1,11 +1,12 @@
 import { useShellStore } from '../../state/shellStore'
 import { ThemeToggle } from '../common/ThemeToggle'
 import { SIDEBAR_VIEW_TITLES } from './Sidebar'
+import { displayStatus } from '../../api/display'
 import { Icon } from '../common/Icon'
 import { usePreflight } from '../../hooks/usePreflight'
 
 export function Topbar() {
-  const { activeView, rightPanelCollapsed, toggleRightPanel, activeRunId } = useShellStore()
+  const { activeView, rightPanelCollapsed, toggleRightPanel, activeRunId, toggleSidebar, sidebarCollapsed } = useShellStore()
   const { data: preflight } = usePreflight()
   const ready = preflight?.readiness_code === 'READY'
   // The activity panel only has content for a selected run (see RightPanel).
@@ -13,7 +14,7 @@ export function Topbar() {
 
   return (
     <header className="topbar">
-      <div className="topbar-titles">
+      <div className="topbar-titles"><button type="button" className="icon-button" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-label={sidebarCollapsed ? '메뉴 열기' : '메뉴 접기'}><Icon name="collapseLeft" /></button>
         <h1 className="topbar-title">{SIDEBAR_VIEW_TITLES[activeView]}</h1>
       </div>
       <div className="topbar-actions">
@@ -28,7 +29,7 @@ export function Topbar() {
           <Icon name="results" size={14} />
           {panelShown ? '활동 숨기기' : '활동 보기'}
         </button>
-        <span className={`readiness-badge${ready ? ' is-ready' : ''}`}>{preflight?.readiness_code ?? 'CHECKING'}</span>
+        <span className={`readiness-badge${ready ? ' is-ready' : ''}`}>{displayStatus(preflight?.readiness_code ?? 'CHECKING')}</span>
       </div>
     </header>
   )

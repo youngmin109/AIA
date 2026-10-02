@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPostTolerant } from './client'
 export interface PolicyProfile {
   value: string
   display_name: string
+  english_name?: string
   description?: string
 }
 
@@ -55,8 +56,8 @@ export function reconcileRun(sessionId: string): Promise<ReconcileResult> {
 /** Restores the whole Workspace of an ended run to its pre-run checkpoint and
  * re-verifies it with SHA-256 (service.py restore_run). The server refuses
  * without `confirm: true`, so callers must ask the user first. */
-export function restoreWorkspace(sessionId: string): Promise<Record<string, unknown>> {
-  return apiPost<Record<string, unknown>>(`/api/runs/${encodeURIComponent(sessionId)}/recovery/restore`, { confirm: true })
+export function restoreWorkspace(sessionId: string, fingerprint: string): Promise<Record<string, unknown>> {
+  return apiPost<Record<string, unknown>>(`/api/runs/${encodeURIComponent(sessionId)}/recovery/restore`, { confirm: true, expected_fingerprint: fingerprint })
 }
 
 export interface CreateRunPayload {
@@ -75,8 +76,10 @@ export interface CreateRunResult {
   status?: string
 }
 
-export function createProtectedRun(payload: CreateRunPayload): Promise<CreateRunResult> {
-  return apiPost<CreateRunResult>('/api/runs', payload)
+export async function createProtectedRun(payload: CreateRunPayload): Promise<CreateRunResult> {
+  const result = await apiPost<CreateRunResult>('/api/runs', payload)
+  window.dispatchEvent(new Event('aia:runs-updated'))
+  return result
 }
 
 export interface HookSetupResult {
@@ -110,6 +113,8 @@ export function verifyHook(): Promise<HookVerifyResult> {
 }
 
 export interface ConsoleInfo {
+  product_version?: string
+  supported_environment?: string
   cli_prefix: string
   module_cli_prefix: string
   cli_project_root: string | null

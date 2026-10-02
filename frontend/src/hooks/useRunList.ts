@@ -1,8 +1,9 @@
-import { createContext, createElement, useCallback, useContext, type ReactNode } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, type ReactNode } from 'react'
 import { apiGet } from '../api/client'
 import type { RunSummary } from '../api/types'
 import { usePolling, type UsePollingResult } from './usePolling'
 import { useShellStore } from '../state/shellStore'
+export { isRunActive } from '../api/sessionNavigation'
 
 const RunListContext = createContext<UsePollingResult<RunSummary[]> | null>(null)
 
@@ -24,6 +25,12 @@ function usePolledRunList({ hasActiveRun = false }: { hasActiveRun?: boolean } =
 export function RunListProvider({ children }: { children: ReactNode }) {
   const { activeRunId } = useShellStore()
   const value = usePolledRunList({ hasActiveRun: Boolean(activeRunId) })
+  const { refetch } = value
+  useEffect(() => { if (activeRunId) refetch() }, [activeRunId, refetch])
+  useEffect(() => {
+    window.addEventListener('aia:runs-updated', refetch)
+    return () => window.removeEventListener('aia:runs-updated', refetch)
+  }, [refetch])
   return createElement(RunListContext.Provider, { value }, children)
 }
 
@@ -31,15 +38,4 @@ export function useRunList(): UsePollingResult<RunSummary[]> {
   const value = useContext(RunListContext)
   if (!value) throw new Error('useRunList must be used within RunListProvider')
   return value
-}
-
-const RUNNING_STATUSES = new Set(['RUNNING', 'CREATED', 'PROTECTING', 'STARTING'])
-
-export function isRunActive(run: RunSummary): boolean {
-  // A run whose AIA coordinator is gone keeps its last RUNNING snapshot on
-  // purpose (evidence is preserved), but nothing is running any more: it
-  // must not count as active or be auto-opened as the current run.
-  const reconciliation = run.runtime_reconciliation as { orphaned?: boolean } | undefined
-  if (reconciliation?.orphaned) return false
-  return RUNNING_STATUSES.has(String(run.status))
 }

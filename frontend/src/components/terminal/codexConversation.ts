@@ -28,6 +28,7 @@ export interface CodexEvent {
   kind?: ApprovalKind
   reason?: string
   timeout_seconds?: number
+  expires_at?: string
   decision?: string
   model?: string | null
   sandbox?: string | null
@@ -49,6 +50,7 @@ export interface ApprovalRequest {
   paths: string[]
   tool?: string
   timeout_seconds?: number
+  expires_at?: string
 }
 
 export type TranscriptItem =
@@ -228,6 +230,7 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
         paths: event.paths ?? [],
         tool: event.tool,
         timeout_seconds: event.timeout_seconds,
+        expires_at: event.expires_at,
       }
       const key = `approval:${request.approval_id}`
       upsert(state, key, () => ({ kind: 'approval', key, request, decision: null }), (item) => item)

@@ -1,3 +1,4 @@
+import { useDialog } from '../common/useDialog'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useShellStore } from '../../state/shellStore'
 import type { ApprovalRequest, TranscriptItem } from './codexConversation'
@@ -66,7 +67,7 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
       )
     case 'reasoning':
       return item.done && !item.text ? null : (
-        <div className="codex-row codex-reasoning">{item.done ? item.text : `생각 중… ${item.text}`}</div>
+        <div className="codex-row codex-reasoning">{item.done ? item.text : `Codex 진행 요약… ${item.text}`}</div>
       )
     case 'command': {
       const state = commandStatus(item)
@@ -107,15 +108,28 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
 function ApprovalDialog({
   request,
   onDecide,
+  failure,
+  connected,
 }: {
   request: ApprovalRequest
-  onDecide: (decision: 'accept' | 'acceptForSession' | 'decline') => void
+  failure: string | null
+  connected: boolean
+  onDecide: (decision: 'accept' | 'acceptForSession' | 'decline') => boolean
 }) {
   const isFileChange = request.kind === 'file_change'
   const isAiaTool = request.kind === 'aia_tool'
   // AIA reviews auto-refuse when the window closes (kept inside Codex's Hook
-  // timeout); count down from when this dialog first appeared.
+  // timeout); use the server deadline so reconnects never extend it.
+  // Escape keeps the request open: only the explicit buttons answer Codex.
+  const ref = useDialog(true, () => {})
+  const [pending, setPending] = useState(false)
+  useEffect(() => {
+    if (!failure && connected) return
+    const timer = window.setTimeout(() => setPending(false), 0)
+    return () => window.clearTimeout(timer)
+  }, [failure, connected])
   const [openedAt] = useState(() => Date.now())
+  function decide(value: 'accept' | 'acceptForSession' | 'decline') { setPending(onDecide(value)) }
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!request.timeout_seconds) return
@@ -123,7 +137,7 @@ function ApprovalDialog({
     return () => clearInterval(timer)
   }, [request.timeout_seconds])
   const remaining = request.timeout_seconds
-    ? Math.max(0, Math.ceil(request.timeout_seconds - (now - openedAt) / 1000))
+    ? Math.max(0, Math.ceil(((request.expires_at ? Date.parse(request.expires_at) : openedAt + request.timeout_seconds * 1000) - now) / 1000))
     : null
   const title = isAiaTool
     ? `Codex가 AIA 보호 범위 밖 도구(${request.tool ?? '알 수 없음'})를 쓰려고 합니다`
@@ -132,7 +146,7 @@ function ApprovalDialog({
       : 'Codex가 명령 실행 승인을 요청합니다'
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Codex 승인 요청">
-      <div className="modal-panel" style={{ maxWidth: 520 }}>
+      <div ref={ref} className="modal-panel" style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <h2>{title}</h2>
           {remaining !== null && <span className="badge is-warn">{remaining}초 후 자동 거절</span>}
@@ -151,13 +165,13 @@ function ApprovalDialog({
               : '이 승인은 Codex 샌드박스의 권한 요청에 대한 답입니다. 승인해도 AIA Hook 정책 검사와 센서 기록은 그대로 적용됩니다.'}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button type="button" className="icon-button-text" onClick={() => onDecide('decline')}>
+            <button type="button" className="icon-button-text" disabled={pending || remaining === 0} onClick={() => decide('decline')}>
               거절
             </button>
-            <button type="button" className="icon-button-text" onClick={() => onDecide('acceptForSession')}>
+            <button type="button" className="icon-button-text" disabled={pending || remaining === 0} onClick={() => decide('acceptForSession')}>
               이 세션 동안 허용
             </button>
-            <button type="button" className="cta-button" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => onDecide('accept')}>
+            <button type="button" className="cta-button" style={{ width: 'auto', padding: '8px 16px' }} disabled={pending || remaining === 0} onClick={() => decide('accept')}>
               이번만 허용
             </button>
           </div>
@@ -374,6 +388,8 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
         <ApprovalDialog
           key={firstApproval.approval_id}
           request={firstApproval}
+          failure={session.errorMessage}
+          connected={session.connected}
           onDecide={(decision) => session.decideApproval(firstApproval.approval_id, decision)}
         />
       )}

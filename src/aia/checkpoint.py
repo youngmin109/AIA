@@ -156,6 +156,9 @@ class WorkspaceBaselineComparison:
     checkpoint_content_sha256: str
     current_workspace_content_sha256: str
     reason: str | None = None
+    created_paths: tuple[str, ...] = ()
+    changed_paths: tuple[str, ...] = ()
+    deleted_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -679,11 +682,17 @@ def compare_workspace_to_checkpoint(
         current_entries == checkpoint.manifest
         and current_fingerprint == checkpoint.checkpoint_content_sha256
     )
+    current_by_path = {item.relative_path: item for item in current_entries}
+    baseline_by_path = {item.relative_path: item for item in checkpoint.manifest}
     return WorkspaceBaselineComparison(
         matches=matches,
         checkpoint_content_sha256=checkpoint.checkpoint_content_sha256,
         current_workspace_content_sha256=current_fingerprint,
         reason=None if matches else "WORKSPACE_DRIFTED_AFTER_CHECKPOINT",
+        created_paths=tuple(sorted(current_by_path.keys() - baseline_by_path.keys())),
+        deleted_paths=tuple(sorted(baseline_by_path.keys() - current_by_path.keys())),
+        changed_paths=tuple(sorted(path for path in current_by_path.keys() & baseline_by_path.keys()
+                                  if current_by_path[path] != baseline_by_path[path])),
     )
 
 

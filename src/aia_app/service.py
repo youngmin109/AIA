@@ -118,6 +118,14 @@ _APP_SERVER_SANDBOX_NAMES = {
 }
 
 
+def _manual_recovery_digest(body: Mapping[str, Any]) -> str:
+    """SHA-256 of a manual-recovery record without its own seal field."""
+
+    content = {key: value for key, value in body.items() if key != "record_sha256"}
+    canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _product_sensor_set_present(sensors: Any) -> bool:
     names: set[str] = set()
     for sensor in tuple(item for item in (sensors or ()) if item is not None):
@@ -160,6 +168,7 @@ class RunApplicationService(
         ] = {}
         self._completed_runs_cache_lock = RLock()
         self._tool_review_lock = RLock()
+        self._manual_restore_lock = RLock()
         self._codex_workbench = CodexWorkbench(self, _runtime_coordinator_reconciliation)
         self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
@@ -194,22 +203,27 @@ class RunApplicationService(
         display = {
             PolicyProfile.PROTECTED_DEVELOPMENT: (
                 "표준 보호",
+                "Standard Protection",
                 "모든 .env 계열 읽기와 대표적인 파괴 명령을 차단하고, 그 밖의 개발 행위는 기록합니다.",
             ),
             PolicyProfile.BASIC_DEVELOPMENT: (
                 "협업 개발",
+                "Development Collaboration",
                 "일반 개발 작업을 허용하면서 .env 삭제와 위험한 데이터베이스·Git 명령을 통제합니다.",
             ),
             PolicyProfile.CONSERVATIVE_SECURITY: (
                 "변경 통제 강화",
+                "Change Control",
                 "루트 .env 읽기는 기록하고, 의존성·인프라 파일의 삭제와 위험한 데이터베이스·Git 명령을 차단합니다.",
             ),
             PolicyProfile.FREE_DEVELOPMENT: (
                 "관찰 전용",
+                "Observation Only",
                 "개발 흐름을 가장 넓게 허용하고 위험 행위를 주로 기록하는 프로필입니다.",
             ),
             PolicyProfile.CUSTOM: (
                 "직접 설정",
+                "Custom Policy",
                 "실행 시 지정한 Strict Validation 통과 정책 JSON을 사용합니다.",
             ),
         }
@@ -217,7 +231,8 @@ class RunApplicationService(
             {
                 "value": profile.value,
                 "display_name": display[profile][0],
-                "description": display[profile][1],
+                "english_name": display[profile][1],
+                "description": display[profile][2],
             }
             for profile in (
                 PolicyProfile.PROTECTED_DEVELOPMENT,
@@ -513,6 +528,10 @@ class RunApplicationService(
         manual = self._read_manual_recovery(session_id)
         if not manual:
             return view
+        view['manual_recovery'] = manual
+        if manual.get('record_verification') != 'VALID':
+            # Do not overlay unaudited recovery onto the original verified run.
+            return view
         recovery = manual.get("recovery_result") or {}
         integrity = manual.get("integrity_result") or {}
         view["recovery"] = recovery
@@ -627,7 +646,35 @@ class RunApplicationService(
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError, json.JSONDecodeError):
             return None
-        return payload if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            return None
+        verification = 'UNVERIFIED'
+        try:
+            recorded = payload.get('record_sha256')
+            if isinstance(recorded, str):
+                body = {key: value for key, value in payload.items() if key != 'record_sha256'}
+                sealed = recorded == _manual_recovery_digest(body)
+            else:
+                # Records sealed by a sidecar file (earlier format of this change).
+                seal = path.with_suffix('.sha256').read_text(encoding='ascii').strip()
+                sealed = seal == hashlib.sha256(path.read_bytes()).hexdigest()
+            if sealed:
+                current_result_hash = hashlib.sha256(self.reader.read_result_json(session_id)).hexdigest()
+                verification = 'VALID' if payload.get('original_result_sha256') == current_result_hash else 'INVALID'
+            else:
+                verification = 'INVALID'
+        except (OSError, ValueError, KeyError):
+            pass
+        return {**payload, 'record_verification': verification}
+
+    def _archive_unverified_manual_recovery(self, session_id: str) -> None:
+        """Keep an unverifiable record for audit, but stop it blocking a new restore."""
+
+        path = self._manual_recovery_artifact_path(session_id)
+        stamp = _now().strftime('%Y%m%dT%H%M%S%fZ')
+        for current in (path, path.with_suffix('.sha256')):
+            if current.exists():
+                os.replace(current, current.with_name(f'{current.stem}.superseded-{stamp}{current.suffix}'))
 
     @staticmethod
     def _recovery_mapping(value: Any) -> dict[str, Any]:
@@ -722,6 +769,9 @@ class RunApplicationService(
                     metadata,
                     manifest,
                 )
+                if checkpoint.session_id != session_id or checkpoint.workspace != workspace:
+                    checkpoint = None
+                    continue
                 break
             except Exception:
                 continue
@@ -738,12 +788,19 @@ class RunApplicationService(
             "checkpoint": checkpoint,
             "workspace_matches": comparison.matches,
             "checkpoint_validity": checkpoint.validity.value,
+            "checkpoint_created_at": checkpoint.created_at.isoformat(),
+            "preview_fingerprint": comparison.current_workspace_content_sha256,
+            "change_count": len(comparison.created_paths) + len(comparison.changed_paths) + len(comparison.deleted_paths),
+            "change_preview": ([{'path': path, 'operation': 'REMOVE_CURRENT'} for path in comparison.created_paths]
+                               + [{'path': path, 'operation': 'RESTORE_CONTENT'} for path in comparison.changed_paths]
+                               + [{'path': path, 'operation': 'RESTORE_MISSING'} for path in comparison.deleted_paths])[:200],
+            "preview_truncated": len(comparison.created_paths) + len(comparison.changed_paths) + len(comparison.deleted_paths) > 200,
         }
 
     def get_recovery_status(self, session_id: str) -> dict[str, Any]:
         context = self._manual_recovery_context(session_id)
         manual = self._read_manual_recovery(session_id)
-        if manual is not None:
+        if manual is not None and manual.get('record_verification') == 'VALID':
             context = {
                 **context,
                 "available": False,
@@ -752,6 +809,7 @@ class RunApplicationService(
                 "recovery_result": manual.get("recovery_result"),
                 "integrity_result": manual.get("integrity_result"),
                 "manual_recovery": True,
+                "record_verification": manual.get('record_verification'),
             }
         else:
             raw_result = context.get("raw_result") or {}
@@ -772,6 +830,7 @@ class RunApplicationService(
                 "recovery_result": recovery_result,
                 "integrity_result": integrity_result,
                 "manual_recovery": False,
+                "record_verification": manual.get('record_verification') if manual else None,
             }
         return {
             key: value
@@ -779,15 +838,25 @@ class RunApplicationService(
             if key not in {"workspace", "raw_result", "checkpoint"}
         }
 
-    def restore_run(self, session_id: str, *, confirm: bool) -> dict[str, Any]:
+    def restore_run(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None) -> dict[str, Any]:
+        with self._manual_restore_lock:
+            return self._restore_run_locked(session_id, confirm=confirm, expected_fingerprint=expected_fingerprint)
+
+    def _restore_run_locked(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None) -> dict[str, Any]:
         if confirm is not True:
             raise ApplicationValidationError("전체 Workspace 복구 확인이 필요합니다.")
         existing = self._read_manual_recovery(session_id)
-        if existing is not None:
+        if existing is not None and existing.get('record_verification') == 'VALID':
             return existing
         context = self._manual_recovery_context(session_id)
         if not context.get("available"):
             raise ApplicationValidationError(str(context.get("reason") or "RECOVERY_UNAVAILABLE"))
+        if expected_fingerprint is not None and expected_fingerprint != context.get('preview_fingerprint'):
+            raise ApplicationValidationError('미리보기 이후 작업공간이 변경됐습니다. 복구 목록을 다시 확인해주세요.')
+        if existing is not None:
+            # An older unsealed (or damaged) record is never overwritten: it is
+            # kept beside the new one so the restore is not blocked forever.
+            self._archive_unverified_manual_recovery(session_id)
         workspace: Path = context["workspace"]
         raw_result = context["raw_result"]
         checkpoint = context["checkpoint"]
@@ -812,6 +881,11 @@ class RunApplicationService(
             owner_process_create_time=process_create_time(os.getpid()),
         )
         try:
+            # Recheck under Lease. External writers remain a documented limit.
+            if expected_fingerprint is not None:
+                from aia.checkpoint import compare_workspace_to_checkpoint
+                if compare_workspace_to_checkpoint(checkpoint, workspace).current_workspace_content_sha256 != expected_fingerprint:
+                    raise ApplicationValidationError('미리보기 이후 작업공간이 변경됐습니다. 다시 확인해주세요.')
             verification = RecoveryCoordinator(manager).restore_manual(
                 session=session,
                 checkpoint=checkpoint,
@@ -825,12 +899,17 @@ class RunApplicationService(
                 pass
         payload = {
             "schema_version": "aia-manual-recovery-1",
+            "original_result_sha256": hashlib.sha256(self.reader.read_result_json(session_id)).hexdigest(),
+            "checkpoint_manifest_sha256": checkpoint.manifest_sha256,
             "session_id": session_id,
             "workspace": str(workspace),
             "recovery_result": self._recovery_mapping(verification.recovery),
             "integrity_result": self._integrity_mapping(verification.integrity),
             "saved_at": _now().isoformat(),
         }
+        # The checksum lives in the same file, so one atomic replace commits
+        # the record and its seal together.
+        payload["record_sha256"] = _manual_recovery_digest(payload)
         path = self._manual_recovery_artifact_path(session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
@@ -878,6 +957,15 @@ class RunApplicationService(
             )
         except (OSError, ValueError, KeyError):
             return []
+
+    def get_run_activity(self, session_id: str, status: dict[str, Any]) -> dict[str, Any]:
+        session = status.get('session') or {}
+        live = session.get('status') in {'RUNNING', 'STARTING', 'PROTECTING', 'CREATED', 'PREPARING', 'READY'}
+        live = live and not (status.get('runtime_reconciliation') or {}).get('orphaned')
+        try:
+            return self.reader.read_activity(session_id, Path(session['workspace']), live=live)
+        except (KeyError, OSError, ValueError, TypeError):
+            return {'available': False, 'reason': 'EVIDENCE_NOT_VERIFIED'}
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)

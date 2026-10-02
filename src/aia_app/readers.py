@@ -12,10 +12,12 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 from threading import RLock
+import time
 from typing import Any, Callable
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
 from aia.evidence import RawEvidenceRecord
+from .activity import ActivityIndex
 
 
 _SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9-]+$")
@@ -34,6 +36,7 @@ class _LiveEvidenceCache:
     observed_evidence_ids: set[str] = field(default_factory=set)
     captured_at: dict[str, str] = field(default_factory=dict)
     observations_valid: bool = True
+    activity: ActivityIndex = field(default_factory=ActivityIndex)
 
 
 class ResultBundleReader:
@@ -45,6 +48,8 @@ class ResultBundleReader:
         self._result_cache: dict[Path, tuple[int, int, bytes, dict[str, Any]]] = {}
         self._metadata_cache: dict[Path, tuple[int, int, bytes, list[dict[str, Any]]]] = {}
         self._live_evidence_cache: dict[Path, _LiveEvidenceCache] = {}
+        self._activity_cache: dict[str, tuple[bytes, ActivityIndex]] = {}
+        self._activity_views: dict[str, tuple[Any, dict[str, Any]]] = {}
 
     def session_directory(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not _SAFE_SESSION_ID.fullmatch(session_id):
@@ -360,6 +365,8 @@ class ResultBundleReader:
             return
 
         cached.captured_at[record.evidence_id] = record.captured_at.isoformat()
+        cached.activity.observe(record.source.value, record.record_type.value, record.payload,
+                                record.captured_at.isoformat(), record.evidence_id)
         tool_use_id = record.payload.get("tool_use_id")
         if record.record_type.value == "POSTTOOL_OBSERVED":
             if isinstance(tool_use_id, str) and tool_use_id:
@@ -376,6 +383,74 @@ class ResultBundleReader:
                     cached.pretool_evidence_ids.setdefault(tool_use_id, []).append(
                         record.evidence_id
                     )
+
+    def read_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
+        """Use the same evidence stream as Audit; no screen-only logs.
+
+        The console asks for this with every status poll (every second while a
+        run is live), so the projection is cached: a live view is rebuilt at
+        most every ACTIVITY_LIVE_REFRESH_SECONDS, and a completed run's view is
+        rebuilt only when its Result Bundle files change instead of verifying
+        the whole bundle on every poll.  Display data only; the result and
+        audit views still verify the bundle themselves.
+        """
+        key = self._activity_view_key(session_id, live=live)
+        with self._parsed_cache_lock:
+            cached = self._activity_views.get(session_id)
+            if key is not None and cached is not None and cached[0] == key:
+                return cached[1]
+        view = self._build_activity(session_id, workspace, live=live)
+        if key is not None and view.get('available'):
+            with self._parsed_cache_lock:
+                self._activity_views[session_id] = (key, view)
+                if len(self._activity_views) > 32:
+                    self._activity_views.pop(next(iter(self._activity_views)))
+        return view
+
+    ACTIVITY_LIVE_REFRESH_SECONDS = 2.0
+
+    def _activity_view_key(self, session_id: str, *, live: bool) -> Any:
+        if live:
+            return ('live', int(time.monotonic() // self.ACTIVITY_LIVE_REFRESH_SECONDS))
+        result_directory = self.result_directory(session_id)
+        try:
+            files = sorted(path for path in result_directory.iterdir() if path.is_file())
+            return ('completed', tuple((path.name, path.stat().st_mtime_ns, path.stat().st_size) for path in files))
+        except OSError:
+            return None
+
+    def _build_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
+        if live:
+            self.read_live_evidence_snapshot(session_id)
+            path = self.session_directory(session_id) / 'evidence' / 'raw-evidence.jsonl'
+            with self._parsed_cache_lock:
+                cached = self._live_evidence_cache.get(path)
+                if cached is None or not cached.observations_valid:
+                    return {'available': False, 'reason': 'EVIDENCE_NOT_AVAILABLE'}
+                index = deepcopy(cached.activity)
+        else:
+            _, _, contents = self._read_verified_result(session_id)
+            if contents is None:
+                return {'available': False, 'reason': 'VERIFIED_EVIDENCE_NOT_AVAILABLE'}
+            digest = hashlib.blake2b(contents, digest_size=16).digest()
+            with self._parsed_cache_lock:
+                cached = self._activity_cache.get(session_id)
+                if cached is not None and cached[0] == digest:
+                    index = deepcopy(cached[1])
+                else:
+                    index = ActivityIndex()
+                    for line in contents.decode('utf-8').splitlines():
+                        value = json.loads(line)
+                        if not isinstance(value, dict) or value.get('session_id') != session_id:
+                            raise ValueError('Evidence Session mismatch')
+                        payload = value.get('payload')
+                        if isinstance(payload, dict):
+                            index.observe(value.get('source'), value.get('record_type'), payload,
+                                          value.get('captured_at', ''), value.get('evidence_id', ''))
+                    self._activity_cache[session_id] = (digest, deepcopy(index))
+                    if len(self._activity_cache) > 32:
+                        self._activity_cache.pop(next(iter(self._activity_cache)))
+        return index.view(workspace, live=live)
 
     def list_completed(self) -> list[dict[str, Any]]:
         """List only committed, valid Result Bundles under this Control Root."""

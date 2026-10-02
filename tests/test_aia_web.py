@@ -236,7 +236,7 @@ class UnreadableRunService(FakeService):
 
 
 def test_unreadable_run_record_returns_safe_integrity_reason_not_raw_exception() -> None:
-    client = TestClient(create_app(UnreadableRunService()))
+    client = TestClient(create_app(UnreadableRunService()), base_url="http://127.0.0.1")
 
     for path in ("/api/runs/run-1/result", "/api/runs/run-1/actions"):
         response = client.get(path)
@@ -247,7 +247,7 @@ def test_unreadable_run_record_returns_safe_integrity_reason_not_raw_exception()
 
 def test_result_api_returns_the_expected_shape() -> None:
     service = FakeService()
-    client = TestClient(create_app(service))
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
 
     response = client.get("/api/runs/run-1/result")
 
@@ -265,7 +265,7 @@ def test_retired_workbench_terminal_routes_are_not_registered() -> None:
 
 
 def test_result_api_returns_safe_reason_on_integrity_failure() -> None:
-    client = TestClient(create_app(UnreadableRunService()))
+    client = TestClient(create_app(UnreadableRunService()), base_url="http://127.0.0.1")
 
     response = client.get("/api/runs/run-1/result")
 
@@ -275,7 +275,7 @@ def test_result_api_returns_safe_reason_on_integrity_failure() -> None:
 
 def test_incident_api_returns_the_expected_shape() -> None:
     service = FakeService()
-    client = TestClient(create_app(service))
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
 
     response = client.get("/api/runs/run-1/incidents/a1")
 
@@ -288,7 +288,7 @@ def test_incident_api_returns_not_found_for_unknown_incident() -> None:
         def get_incident(self, session_id, action_id):
             raise KeyError(action_id)
 
-    client = TestClient(create_app(NoIncidentService()))
+    client = TestClient(create_app(NoIncidentService()), base_url="http://127.0.0.1")
 
     response = client.get("/api/runs/run-1/incidents/missing")
 
@@ -297,7 +297,7 @@ def test_incident_api_returns_not_found_for_unknown_incident() -> None:
 
 
 def test_console_info_api_returns_cli_prefix_and_hook_path() -> None:
-    client = TestClient(create_app(FakeService()))
+    client = TestClient(create_app(FakeService()), base_url="http://127.0.0.1")
 
     api_response = client.get("/api/console-info")
 
@@ -308,7 +308,7 @@ def test_console_info_api_returns_cli_prefix_and_hook_path() -> None:
 
 
 def test_spa_route_serves_built_index_or_a_clear_placeholder() -> None:
-    client = TestClient(create_app(FakeService()))
+    client = TestClient(create_app(FakeService()), base_url="http://127.0.0.1")
 
     for path in ("/", "/runs/run-1", "/some/deep/link"):
         response = client.get(path)
@@ -335,7 +335,7 @@ def test_hook_setup_endpoint_installs_hook_without_terminal_command(tmp_path, mo
             return True
 
     monkeypatch.setattr(web_app, "CodexHookInstaller", FakeInstaller)
-    response = TestClient(create_app(FakeService())).post("/api/hook/setup")
+    response = TestClient(create_app(FakeService()), base_url="http://127.0.0.1").post("/api/hook/setup")
 
     assert response.status_code == 200
     assert response.json()["installed"] is True
@@ -390,7 +390,7 @@ def test_console_can_request_hook_verification_without_changing_trust(monkeypatc
 
     web_module = importlib.import_module("aia_web.app")
     monkeypatch.setattr(web_module, "_run_hook_verification", fake_verify)
-    client = TestClient(create_app(FakeService()))
+    client = TestClient(create_app(FakeService()), base_url="http://127.0.0.1")
 
     response = client.post("/api/hook/verify")
 
@@ -399,14 +399,14 @@ def test_console_can_request_hook_verification_without_changing_trust(monkeypatc
 
 
 def test_console_maps_validation_errors_to_bad_request() -> None:
-    client = TestClient(create_app(FakeService()))
+    client = TestClient(create_app(FakeService()), base_url="http://127.0.0.1")
     response = client.post("/api/runs", json={"workspace": "invalid", "task": "inspect"})
     assert response.status_code == 400
     assert "workspace validation failed" in response.json()["error"]
 
 
 def test_console_policy_preview_is_non_executing_and_returns_decision() -> None:
-    client = TestClient(create_app(FakeService()))
+    client = TestClient(create_app(FakeService()), base_url="http://127.0.0.1")
 
     response = client.post(
         "/api/policy/preview",
@@ -427,7 +427,7 @@ def test_console_policy_preview_is_non_executing_and_returns_decision() -> None:
 
 def test_console_supports_session_first_interactive_run() -> None:
     service = FakeService()
-    client = TestClient(create_app(service))
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
 
     created = client.post(
         "/api/runs",
@@ -472,7 +472,7 @@ def test_many_finished_runs_api_responses_match_with_cached_parsing(tmp_path, mo
     monkeypatch.setattr(CodexHookInstaller, "is_posttool_installed", lambda _self: False)
     monkeypatch.setattr(CodexHookInstaller, "has_aia_runtime", lambda *_args: False)
     service = RunApplicationService(control_root)
-    client = TestClient(create_app(service))
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
     try:
         started = time.perf_counter()
         cold_runs = client.get("/api/runs")
@@ -509,7 +509,7 @@ def test_many_finished_runs_api_responses_match_with_cached_parsing(tmp_path, mo
 
 def test_console_policy_editor_api_validates_and_saves_strict_document(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
-    client = TestClient(create_app(service))
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
     document = {
         "정책명": "웹 사용자 정책",
         "정책ID": "web-policy",

@@ -22,15 +22,15 @@ export function ActiveRunPane() {
         {activeRunId && (
           <div className="tab-item is-active">
             <span>{sessionDisplayName(status?.session?.workspace)}</span>
-            <span
-              role="button"
-              tabIndex={-1}
+            <button
+              type="button"
               className="tab-item-close"
               onClick={clearActiveRun}
-              title="닫기"
+              title="화면 닫기 (실행은 유지됩니다)"
+              aria-label="실행 화면 닫기 · 실행은 유지"
             >
               <Icon name="close" size={12} />
-            </span>
+            </button>
           </div>
         )}
         <button type="button" className="tab-strip-action" title="새 보호 실행" onClick={openSettingsModal}>
