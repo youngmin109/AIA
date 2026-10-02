@@ -434,6 +434,19 @@ class Normalizer:
                 ),
                 tuple(issues),
             )
+        if event_type == "modified" and payload.get("content_unchanged") is True:
+            # The File Sensor compared the bytes with the last known content
+            # and found them identical: a permission or metadata change.
+            return (
+                None,
+                (
+                    NormalizationIssue(
+                        code="CONTENT_UNCHANGED",
+                        message="Modified event with unchanged content is kept as Raw Evidence, not a MODIFY action",
+                        evidence_ids=(record.evidence_id,),
+                    ),
+                ),
+            )
         operation = operation_by_event.get(event_type)
         if operation is None:
             return (
