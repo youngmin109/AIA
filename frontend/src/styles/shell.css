@@ -1762,3 +1762,43 @@
 .workspace-restore-actions .secondary-button { min-height: 32px; }
 .workspace-restore-note { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: 12px; }
 .workspace-restore-error { margin: 0; color: var(--danger); font-size: 12px; }
+
+/* Lost local-server connection and render-error recovery */
+.connection-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--warning-bg);
+  color: var(--text);
+  border-bottom: 1px solid var(--warning);
+  font-size: 12px;
+}
+
+.error-boundary {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--bg-app);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.error-boundary-card {
+  max-width: 560px;
+  display: grid;
+  gap: var(--space-3);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-elevated);
+}
+
+.error-boundary-card h1 { margin: 0; font-size: 18px; }
+.error-boundary-card p { margin: 0; color: var(--text-muted); }
+.error-boundary-card code { overflow-wrap: anywhere; padding: var(--space-2); border-radius: var(--radius-control); background: var(--bg-inset); color: var(--danger); }
+.error-boundary-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.error-boundary-actions .cta-button { width: auto; padding: 8px 16px; }

@@ -3,6 +3,7 @@ import { Topbar } from './Topbar'
 import { ActiveRunPane } from './ActiveRunPane'
 import { RightPanel } from './RightPanel'
 import { StatusBar } from './StatusBar'
+import { ConnectionBanner } from './ConnectionBanner'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
 import { DashboardView } from '../dashboard/DashboardView'
 import { PolicyView } from '../policy/PolicyView'
@@ -24,6 +25,7 @@ export function Shell() {
 
   return (
     <div className="shell-root">
+      <ConnectionBanner />
       <div className="shell-body">
         <Sidebar />
         <div className="main-column">
