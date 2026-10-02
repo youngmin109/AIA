@@ -1,3 +1,4 @@
+import { Button } from '../common/Button'
 import { useEffect, useState } from 'react'
 import { useDialog } from '../common/useDialog'
 import { Icon } from '../common/Icon'
@@ -156,9 +157,9 @@ export function ProtectionSetupModal() {
       <div ref={dialogRef} className="modal-panel" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h2>보호 세팅</h2>
-          <button type="button" className="icon-button" onClick={closeSettingsModal} title="닫기">
+          <Button variant="icon" onClick={closeSettingsModal} title="닫기">
             <Icon name="close" />
-          </button>
+          </Button>
         </div>
         <div className="modal-body">
           <HookStatusControl onReadyChange={setHookReady} />
@@ -170,7 +171,7 @@ export function ProtectionSetupModal() {
                 onChange={(event) => setWorkspace(event.target.value)}
                 placeholder="폴더 선택 또는 전체 경로 입력"
               />
-              <button type="button" className="secondary-button" onClick={handleChooseWorkspace}>폴더 선택</button>
+              <Button variant="outline" onClick={handleChooseWorkspace}>폴더 선택</Button>
             </div>
             <p className="field-hint">
               {workspaceState.status === 'checking' && '폴더를 확인하는 중입니다…'}
@@ -187,9 +188,9 @@ export function ProtectionSetupModal() {
                   이 작업공간에는 정리되지 않은 이전 보호 실행이 있습니다 (#{recovery.session_id?.slice(0, 8)}
                   {recovery.status ? ` · ${recovery.status}` : ''}). 이전 AIA·Codex가 완전히 종료됐는지 확인한 뒤 정리하세요.
                 </span>
-                <button type="button" className="cta-button is-small" disabled={reconciling} onClick={handleReconcile}>
+                <Button variant="cta" className="is-small" disabled={reconciling} onClick={handleReconcile}>
                   {reconciling ? '정리하는 중…' : '정리하고 계속'}
-                </button>
+                </Button>
               </div>
               {reconcileError && (
                 <p className="field-hint is-bad">{reconcileError}</p>
@@ -220,9 +221,9 @@ export function ProtectionSetupModal() {
               위 AIA Hook 연결이 준비되어야 보호 작업을 시작할 수 있습니다.
             </p>
           )}
-          <button type="button" className="cta-button is-stacked" disabled={!canSubmit} onClick={handleSubmit}>
+          <Button variant="cta" className="is-stacked" disabled={!canSubmit} onClick={handleSubmit}>
             {submitting ? '시작하는 중…' : '보호 작업 시작'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

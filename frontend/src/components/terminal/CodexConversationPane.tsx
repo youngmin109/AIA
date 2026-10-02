@@ -1,3 +1,5 @@
+import { Button } from '../common/Button'
+import { Badge, type BadgeTone } from '../common/Badge'
 import { useDialog } from '../common/useDialog'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useShellStore } from '../../state/shellStore'
@@ -27,7 +29,7 @@ function hookLine(item: Extract<TranscriptItem, { kind: 'hook' }>): { text: stri
   return { text: `AIA Hook · ${item.eventName || 'event'}`, tone: 'hook' }
 }
 
-function commandStatus(item: Extract<TranscriptItem, { kind: 'command' }>): { label: string; tone: string } {
+function commandStatus(item: Extract<TranscriptItem, { kind: 'command' }>): { label: string; tone: BadgeTone } {
   if (item.status === 'inProgress') return { label: '실행 중', tone: 'warn' }
   if (item.status === 'declined') return { label: '거절됨', tone: 'warn' }
   if (item.status === 'failed') return { label: '실패', tone: 'bad' }
@@ -75,7 +77,7 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
         <div className="codex-command">
           <div className="codex-command-head">
             <span className="codex-command-line">$ {item.command}</span>
-            <span className={`badge is-${state.tone}`}>{state.label}</span>
+            <Badge tone={state.tone}>{state.label}</Badge>
           </div>
           {item.output && <pre className="codex-command-output">{item.output}</pre>}
         </div>
@@ -149,7 +151,7 @@ function ApprovalDialog({
       <div ref={ref} className="modal-panel approval-dialog">
         <div className="modal-header">
           <h2>{title}</h2>
-          {remaining !== null && <span className="badge is-warn">{remaining}초 후 자동 거절</span>}
+          {remaining !== null && <Badge tone="warn">{remaining}초 후 자동 거절</Badge>}
         </div>
         <div className="modal-body">
           {isFileChange ? (
@@ -165,15 +167,15 @@ function ApprovalDialog({
               : '이 승인은 Codex 샌드박스의 권한 요청에 대한 답입니다. 승인해도 AIA Hook 정책 검사와 센서 기록은 그대로 적용됩니다.'}
           </div>
           <div className="dialog-actions wraps">
-            <button type="button" className="icon-button-text" disabled={pending || remaining === 0} onClick={() => decide('decline')}>
+            <Button variant="iconText" disabled={pending || remaining === 0} onClick={() => decide('decline')}>
               거절
-            </button>
-            <button type="button" className="icon-button-text" disabled={pending || remaining === 0} onClick={() => decide('acceptForSession')}>
+            </Button>
+            <Button variant="iconText" disabled={pending || remaining === 0} onClick={() => decide('acceptForSession')}>
               이 세션 동안 허용
-            </button>
-            <button type="button" className="cta-button is-compact" disabled={pending || remaining === 0} onClick={() => decide('accept')}>
+            </Button>
+            <Button variant="cta" className="is-compact" disabled={pending || remaining === 0} onClick={() => decide('accept')}>
               이번만 허용
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -278,21 +280,19 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
   return (
     <div className="terminal-pane">
       <div className="terminal-toolbar">
-        <span className={`badge is-${session.connection.tone}`}>{session.connection.label}</span>
+        <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
         <span className="terminal-activity-label">
           {activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid)}
         </span>
         <div className="tab-strip-spacer" />
         {session.status?.pid ? <span className="terminal-pid">PID {session.status.pid}</span> : null}
         {session.working && (
-          <button type="button" className="icon-button-text" disabled={session.interruptPending} onClick={session.interrupt}>
+          <Button variant="iconText" disabled={session.interruptPending} onClick={session.interrupt}>
             {session.interruptPending ? '중지 요청 전송됨' : '현재 요청 중지'}
-          </button>
+          </Button>
         )}
         {!session.ended && (
-          <button
-            type="button"
-            className="icon-button-text"
+          <Button variant="iconText"
             disabled={session.endPending || session.endRequested || !session.connected}
             onClick={() => {
               const question = session.external
@@ -302,7 +302,7 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
             }}
           >
             {session.endRequested ? '종료 요청됨' : session.endPending ? '종료하는 중…' : '세션 종료'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -339,9 +339,9 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
         <div className="terminal-error" role="alert">
           <span>{session.errorMessage ?? `Codex 연결 오류 · ${error}`}</span>
           {session.errorMessage && (
-            <button type="button" className="icon-button" onClick={session.dismissError} title="닫기">
+            <Button variant="icon" onClick={session.dismissError} title="닫기">
               ×
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -379,9 +379,9 @@ export function CodexConversationPane({ runId, runEnded }: { runId: string; runE
             }
           }}
         />
-        <button type="submit" className="cta-button" disabled={!session.canSend || !draft.trim()}>
+        <Button variant="cta" type="submit" disabled={!session.canSend || !draft.trim()}>
           {session.working ? '추가 지시' : '전송'}
-        </button>
+        </Button>
       </form>
 
       {firstApproval && !session.ended && (

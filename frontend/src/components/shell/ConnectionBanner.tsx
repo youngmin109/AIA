@@ -1,3 +1,4 @@
+import { Button } from '../common/Button'
 import { isConnectionLost } from '../../api/connectionState'
 import { useRunList } from '../../hooks/useRunList'
 
@@ -8,7 +9,7 @@ export function ConnectionBanner() {
   return (
     <div className="connection-banner" role="alert">
       <span>AIA 로컬 서버와 연결이 끊겼습니다. 자동으로 다시 연결을 시도합니다. 앱 창을 닫았다 다시 열어야 할 수도 있습니다.</span>
-      <button type="button" className="text-action" onClick={refetch}>지금 다시 확인</button>
+      <Button variant="text" onClick={refetch}>지금 다시 확인</Button>
     </div>
   )
 }

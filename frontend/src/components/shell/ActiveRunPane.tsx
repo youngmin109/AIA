@@ -1,3 +1,4 @@
+import { EmptyState } from '../common/EmptyState'
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import { CodexConversationPane } from '../terminal/CodexConversationPane'
@@ -69,10 +70,9 @@ export function ActiveRunPane() {
             </div>
           )
         ) : (
-          <div className="center-empty-state">
-            <strong>열린 실행이 없습니다</strong>
+          <EmptyState title="열린 실행이 없습니다">
             <p>좌측 지난 실행 목록에서 항목을 선택하거나, + 버튼으로 새 보호 실행을 시작하세요.</p>
-          </div>
+          </EmptyState>
         )}
       </div>
     </div>

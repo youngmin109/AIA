@@ -1,3 +1,4 @@
+import { Button } from '../common/Button'
 import { useState } from 'react'
 import type { RecoveryStatusView } from '../../api/resultTypes'
 import { restoreWorkspace } from '../../api/endpoints'
@@ -40,14 +41,14 @@ export function WorkspaceRestoreControl({ runId, recovery, onRestored }: { runId
     {recovery.workspace_matches && !recovery.manual_recovery && <p className="workspace-restore-note">작업공간이 기준점과 같습니다. 복구할 변경이 없습니다.</p>}
     {recovery.available && !recovery.workspace_matches && !success && <>
       <p>현재 작업공간 전체를 실행 전 기준점으로 복원합니다. 이 실행 이후 사용자나 다른 프로그램이 만든 변경도 영향을 받습니다.</p>
-      {!confirming ? <button type="button" className="cta-button" onClick={() => { setAcknowledged(false); setConfirming(true) }}>복구 항목 확인</button> : <div ref={ref} className="workspace-restore-confirm" role="alertdialog" aria-modal="true" aria-label="전체 작업공간 복구 확인">
+      {!confirming ? <Button variant="cta" onClick={() => { setAcknowledged(false); setConfirming(true) }}>복구 항목 확인</Button> : <div ref={ref} className="workspace-restore-confirm" role="alertdialog" aria-modal="true" aria-label="전체 작업공간 복구 확인">
         <strong>전체 작업공간 복구 · 이후 변경도 되돌아갑니다</strong>
         <p>기준 시각: {recovery.checkpoint_created_at ? new Date(recovery.checkpoint_created_at).toLocaleString('ko-KR') : '확인 전'} · 영향 항목 {recovery.change_count ?? '확인 전'}개</p>
         <div className="restore-preview-list">{(recovery.change_preview ?? []).map(item => <div key={`${item.path}:${item.operation}`}><span>{item.path}</span><b>{OPERATIONS[item.operation] ?? '확인 필요'}</b></div>)}</div>
         {recovery.preview_truncated && <p>목록은 200개까지만 표시됩니다. 나머지 항목도 복구 대상입니다.</p>}
         <p className="validation-note">필요한 현재 변경은 먼저 별도로 보관하세요. 자동 백업은 제공하지 않습니다. 다른 편집기·프로그램의 쓰기 작업을 멈춰주세요.</p>
         <label className="restore-acknowledgement"><input type="checkbox" checked={acknowledged} disabled={restoring} onChange={event => setAcknowledged(event.target.checked)} />복구 범위와 이후 변경에 미치는 영향을 이해했습니다.</label>
-        <div className="workspace-restore-actions"><button type="button" className="cta-button" disabled={!acknowledged || restoring || !recovery.preview_fingerprint} onClick={restore}>{restoring ? '복구·검증 처리 중…' : '전체 작업공간 복구'}</button><button type="button" className="secondary-button" disabled={restoring} onClick={() => setConfirming(false)}>취소</button></div>
+        <div className="workspace-restore-actions"><Button variant="cta" disabled={!acknowledged || restoring || !recovery.preview_fingerprint} onClick={restore}>{restoring ? '복구·검증 처리 중…' : '전체 작업공간 복구'}</Button><Button variant="outline" disabled={restoring} onClick={() => setConfirming(false)}>취소</Button></div>
       </div>}
     </>}
     {!recovery.available && !recovery.manual_recovery && !recovery.workspace_matches && <p className="validation-note">현재 복구할 수 없습니다. <span title={recovery.reason ?? undefined}>{recovery.reason === 'RUN_IS_ACTIVE' ? '먼저 실행을 종료해주세요.' : '유효한 복구 기준점과 실행 결과를 확인해주세요.'}</span></p>}

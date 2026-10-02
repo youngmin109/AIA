@@ -1,3 +1,4 @@
+import { Button } from '../common/Button'
 import { useEffect, useState } from 'react'
 import { usePreflight } from '../../hooks/usePreflight'
 import { installHook, verifyHook, consoleInfo, type ConsoleInfo } from '../../api/endpoints'
@@ -132,9 +133,9 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
           <div className="stat-card-value is-warn">1. AIA Hook을 설치하세요</div>
           <div className="stat-card-label">설치 후에는 Codex에서 이 Hook을 직접 검토하고 신뢰하게 됩니다.</div>
           {installError && <div className="setup-message is-bad">{installError}</div>}
-          <button type="button" className="cta-button is-stacked" disabled={installing} onClick={handleInstall}>
+          <Button variant="cta" className="is-stacked" disabled={installing} onClick={handleInstall}>
             {installing ? '설치하는 중…' : '1. Hook 설치'}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -164,9 +165,9 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
               {verifyMessage}
             </div>
           )}
-          <button type="button" className="cta-button is-stacked" disabled={verifying} onClick={handleVerify}>
+          <Button variant="cta" className="is-stacked" disabled={verifying} onClick={handleVerify}>
             {verifying ? '검증하는 중… (최대 4분)' : '3. 연결 검증'}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -189,9 +190,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
           <code className="mono setup-command">
             {cli.cli_prefix} hook verify
           </code>
-          <button
-            type="button"
-            className="icon-button-text"
+          <Button variant="iconText"
             onClick={() => {
               if (!navigator.clipboard) return
               navigator.clipboard.writeText(`${cli.cli_prefix} hook verify`).catch(() => {})
@@ -199,7 +198,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
             title="명령 복사"
           >
             복사
-          </button>
+          </Button>
         </div></details>
       )}
     </div>

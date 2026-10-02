@@ -1,3 +1,4 @@
+import { Button } from '../common/Button'
 import { isSessionRunning } from '../../api/display'
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
@@ -21,9 +22,9 @@ export function RightPanel() {
     <aside className={`right-panel${collapsed ? ' is-collapsed' : ''}`} aria-hidden={collapsed}>
       <div className="right-panel-header">
         <span>{live ? '실시간 활동' : '세션 활동 기록'}</span>
-        <button type="button" className="icon-button" title="패널 접기" onClick={toggleRightPanel}>
+        <Button variant="icon" title="패널 접기" onClick={toggleRightPanel}>
           <Icon name="close" size={14} />
-        </button>
+        </Button>
       </div>
       <div className="right-panel-content">
         <p className="right-panel-subtitle">실행 요청 · 프로세스 · 파일 관찰</p>

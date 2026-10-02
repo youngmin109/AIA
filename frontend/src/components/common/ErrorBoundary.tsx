@@ -1,3 +1,4 @@
+import { Button } from './Button'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { errorReportTemplate } from '../../api/errorReport'
 
@@ -35,9 +36,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           <p>실행 중인 보호 세션은 로컬 서버에서 계속 유지됩니다. 화면만 다시 그리면 이어서 사용할 수 있습니다.</p>
           <code className="mono">{error.name}: {error.message}</code>
           <div className="error-boundary-actions">
-            <button type="button" className="cta-button" onClick={() => this.setState({ error: null, copied: null })}>다시 시도</button>
-            <button type="button" className="secondary-action" onClick={() => window.location.reload()}>새로 고침</button>
-            <button type="button" className="text-action" onClick={this.copyReport}>진단 정보 복사</button>
+            <Button variant="cta" onClick={() => this.setState({ error: null, copied: null })}>다시 시도</Button>
+            <Button variant="secondary" onClick={() => window.location.reload()}>새로 고침</Button>
+            <Button variant="text" onClick={this.copyReport}>진단 정보 복사</Button>
           </div>
           {copied !== null && <p role="status">{copied ? '오류 신고 양식을 복사했습니다. 민감한 정보는 지운 뒤 공유하세요.' : '클립보드를 쓸 수 없습니다. 화면의 오류 내용을 직접 적어 주세요.'}</p>}
         </div>
