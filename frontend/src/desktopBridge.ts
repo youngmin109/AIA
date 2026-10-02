@@ -6,6 +6,7 @@
  */
 type WorkspacePicker = {
   choose_workspace?: () => Promise<{ path?: string | null }>
+  heartbeat?: () => Promise<boolean>
 }
 
 declare global {
@@ -23,4 +24,24 @@ export async function chooseNativeWorkspace(): Promise<string | null> {
   if (!pick) return null
   const result = await pick()
   return typeof result?.path === 'string' && result.path.trim() ? result.path : null
+}
+
+/**
+ * Tell the desktop shell the page is alive while it is visible. When the
+ * window is in front but these stop, the shell repaints and then reloads
+ * the WebView (see aia_desktop/webview_recovery.py). No-op in a browser.
+ */
+export function startDesktopHeartbeat(intervalMs = 10_000): () => void {
+  const beat = () => {
+    if (document.hidden) return
+    window.pywebview?.api?.heartbeat?.().catch(() => {})
+  }
+  const timer = window.setInterval(beat, intervalMs)
+  document.addEventListener('visibilitychange', beat)
+  window.addEventListener('pywebviewready', beat)
+  return () => {
+    window.clearInterval(timer)
+    document.removeEventListener('visibilitychange', beat)
+    window.removeEventListener('pywebviewready', beat)
+  }
 }

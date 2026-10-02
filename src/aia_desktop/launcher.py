@@ -17,8 +17,17 @@ import socket
 import sys
 import time
 from threading import Thread
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
+
+from aia_desktop.webview_recovery import WebViewRecovery, desktop_log
+from aia_desktop.window_state import (
+    MIN_SIZE,
+    capture_window_state,
+    load_window_geometry,
+    save_window_state,
+    window_state_path,
+)
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
@@ -427,9 +436,18 @@ class DesktopBridge:
         # ``window.pywebview.api`` and can freeze the desktop window.  Private
         # attributes are intentionally skipped by pywebview's API scanner.
         self._window: Any | None = None
+        self._on_heartbeat: Callable[[], None] | None = None
 
-    def attach(self, window: Any) -> None:
+    def attach(self, window: Any, on_heartbeat: Callable[[], None] | None = None) -> None:
         self._window = window
+        self._on_heartbeat = on_heartbeat
+
+    def heartbeat(self) -> bool:
+        """Called by the console page while it is visible (see webview_recovery)."""
+
+        if self._on_heartbeat is not None:
+            self._on_heartbeat()
+        return True
 
     def choose_workspace(self) -> dict[str, str | None]:
         return self.choose_directory()
@@ -489,23 +507,35 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
 
     port = choose_loopback_port(preferred_port)
     server: _EmbeddedLocalServer | None = None
+    recovery: WebViewRecovery | None = None
     webview_storage_path = _webview_storage_path()
     bridge = DesktopBridge()
+    state_path = window_state_path()
     try:
         server = _start_local_server(host, port)
-        _wait_for_server(f"http://{host}:{port}/", server)
+        url = f"http://{host}:{port}/"
+        _wait_for_server(url, server)
+        geometry = load_window_geometry(state_path)
         window = webview.create_window(
             WINDOW_TITLE,
-            f"http://{host}:{port}/",
-            width=1440,
-            height=900,
-            min_size=(1024, 680),
+            url,
+            width=geometry["width"],
+            height=geometry["height"],
+            x=geometry.get("x"),
+            y=geometry.get("y"),
+            maximized=geometry.get("maximized", False),
+            min_size=MIN_SIZE,
             resizable=True,
             js_api=bridge,
         )
-        bridge.attach(window)
+        recovery = WebViewRecovery(window, url)
+        bridge.attach(window, on_heartbeat=recovery.heartbeat)
+        # The closing handler runs on the UI thread, so the form can be read here.
+        window.events.closing += lambda: save_window_state(state_path, capture_window_state(window.native))
         # Returning False from a closing handler keeps the window open.
         window.events.closing += _confirm_close_with_live_runs
+        recovery.start()
+        desktop_log("desktop-started", port=port)
         webview.start(
             gui="edgechromium",
             debug=False,
@@ -520,6 +550,9 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         )
         return 1
     finally:
+        if recovery is not None:
+            recovery.stop()
+        desktop_log("desktop-stopped")
         _stop_live_runs()
         if server is not None:
             server.stop()
