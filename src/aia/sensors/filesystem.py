@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
+import os
 from pathlib import Path
+import stat
 from threading import RLock
 from typing import Any
 
@@ -14,6 +17,7 @@ from watchdog.observers import Observer
 
 from ..checkpoint import (
     CheckpointValidity,
+    ManifestEntryType,
     SafeCheckpoint,
     validate_checkpoint,
 )
@@ -30,6 +34,7 @@ from ..protection import (
     ProtectionPreparationContext,
     WorkspaceLeaseManager,
 )
+from ..normalizer import canonicalize_workspace_path
 from ..session import ProtectedRunSession, SessionStatus
 from .base import (
     SensorAlreadyRunningError,
@@ -123,6 +128,9 @@ class FilesystemSensor:
     """Observe Workspace file events and append only Raw Evidence."""
 
     _SUPPORTED_EVENT_TYPES = frozenset({"created", "modified", "deleted", "moved"})
+    # Files larger than this are never content-compared; their modified
+    # events always stay modifications.
+    _CONTENT_CHECK_MAX_BYTES = 32 * 1024 * 1024
 
     def __init__(
         self,
@@ -167,6 +175,9 @@ class FilesystemSensor:
         self._status = SensorStatus.STOPPED
         self._observation_sequence = 0
         self._started_at: datetime | None = None
+        # Last known content per Workspace file (case-folded relative path),
+        # seeded from the Safe Checkpoint; None once the content has changed.
+        self._known_content: dict[str, tuple[int, str] | None] = {}
         self._health = SensorHealth(
             EvidenceSource.FILESYSTEM_WATCHER,
             SensorStatus.STOPPED,
@@ -218,6 +229,11 @@ class FilesystemSensor:
                         "Filesystem Sensor starting health could not be persisted"
                     )
                 _validate_context(self.session, self.preparation_context, self.checkpoint)
+                self._known_content = {
+                    entry.relative_path.casefold(): (entry.size, entry.sha256)
+                    for entry in self.checkpoint.manifest
+                    if entry.entry_type is ManifestEntryType.FILE
+                }
                 self._control_root = _control_root_for_context(
                     self.session,
                     self.preparation_context,
@@ -323,6 +339,12 @@ class FilesystemSensor:
             if not isinstance(payload["src_path"], str):
                 self._set_failed("INVALID_EVENT_PATH", append=True)
                 return
+            if event_type == "modified" and not payload["is_directory"]:
+                if self._content_unchanged(payload["src_path"]):
+                    # Permission or metadata change only (for example the
+                    # Codex sandbox adding an ACL to the Workspace): the
+                    # event stays in Raw Evidence, but it is not a MODIFY.
+                    payload["content_unchanged"] = True
             record = RawEvidenceRecord(
                 session_id=self.session.session_id,
                 source=EvidenceSource.FILESYSTEM_WATCHER,
@@ -335,6 +357,37 @@ class FilesystemSensor:
                 self.evidence_store.append(record)
             except EvidenceStoreError:
                 self._set_failed("EVIDENCE_STORE_FAILURE", append=True)
+
+    def _content_unchanged(self, src_path: str) -> bool:
+        """True only when the file's bytes match its last known content.
+
+        Any doubt (unknown file, link, unreadable or large file, different
+        size or hash) keeps the event a modification.  Once a file's content
+        differs it is never compared again in this run.
+        """
+
+        relative = canonicalize_workspace_path(src_path, self.session.workspace).canonical_path
+        known = self._known_content.get(relative) if relative else None
+        if known is None:
+            return False
+        size, digest = known
+        try:
+            status = os.lstat(src_path)
+            if not stat.S_ISREG(status.st_mode) or status.st_size > self._CONTENT_CHECK_MAX_BYTES:
+                return False
+            if status.st_size != size:
+                self._known_content[relative] = None
+                return False
+            sha256 = hashlib.sha256()
+            with open(src_path, "rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    sha256.update(chunk)
+        except OSError:
+            return False
+        if sha256.hexdigest() == digest:
+            return True
+        self._known_content[relative] = None
+        return False
 
     def _set_failed(self, reason: str, *, append: bool) -> None:
         self._set_health(SensorStatus.FAILED, reason, append=append)
