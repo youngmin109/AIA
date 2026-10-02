@@ -1,14 +1,20 @@
 /* Motion explains real state changes; it never invents processing progress. */
-.main-column { container-type: inline-size; container-name: aia-content; }
+
 .topbar-titles { display: flex; align-items: center; gap: 12px; }
 .snapshot-time { margin: 4px 0 14px; font-size: 12px; color: var(--text-muted); }
-.template-icon { width: auto; min-width: 110px; max-width: 100%; height: auto; min-height: 34px; padding: 8px 12px; font-size: 12px; white-space: normal; text-align: center; }
-.template-card-top { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.template-icon {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.template-card-top {
+  align-items: flex-start;
+  gap: 12px;
+}
 .product-page .policy-template-card p, .product-page .policy-setting-row p, .product-page .validation-note,
 .product-page .kpi-card small, .product-page .compact-list-row small { font-size: 12px; line-height: 1.65; }
-.dashboard-showcase .guardian-hero-img { width: 210px !important; height: 210px !important; flex-basis: 210px; }
+
 .guardian-introduction { display: block; color: var(--text-muted); font-size: 12px; margin-bottom: 12px; }
-.sidebar-guardian img { width: 74px !important; height: 74px !important; object-fit: contain; }
+
 .sidebar-guardian { min-height: 100px; }
 .guardian-guide-hero img { width: 130px !important; height: 130px !important; object-fit: contain; }
 .workspace-activity { margin: 18px 0; }
@@ -41,7 +47,7 @@
 .recovery-signal { display: flex; flex-wrap: wrap; gap: 8px; }.recovery-signal span { padding: 6px 10px; border-radius: 20px; background: var(--bg-panel); border: 1px solid var(--border); font-size: 11px; }
 .recovery-journey.is-working::before { content: ''; position: absolute; inset: -100%; z-index: -1; background: conic-gradient(transparent 70%, color-mix(in srgb, var(--accent) 12%, transparent), transparent); animation: orbit-turn 5s linear infinite; }
 .recovery-journey.is-verified { border-color: color-mix(in srgb, var(--success) 50%, var(--border)); animation: recovery-confirm 1s ease both; }
-.recovery-journey.is-verified .recovery-orbit img { animation: guardian-state-pop .65s ease both; }
+
 .recovery-journey.is-verified .recovery-signal span { color: var(--success); border-color: var(--success); }
 .recovery-journey.is-attention { border-color: var(--warning); }
 .guardian-guide-popover, .modal-panel { animation: dialog-arrive .25s cubic-bezier(.2,.8,.3,1) both; }
@@ -68,7 +74,12 @@ html[data-motion='reduced'] *, html[data-motion='reduced'] *::before, html[data-
 .policy-comparison > div { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; font-size: 13px; }
 .policy-comparison p { font-size: 12px; color: var(--text-muted); }
 .sensor-explainer.refined > span { color: var(--text-muted); }
-.guardian-guide-popover { position: fixed; z-index: 350; left: 24px; right: auto; bottom: 42px; width: min(440px, calc(100vw - 48px)); max-height: calc(100vh - 90px); overflow-y: auto; }
+.guardian-guide-popover {
+  position: fixed;
+  right: auto;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+}
 .guardian-guide-popover .guardian-guide-hero { gap: 16px; }
 .guardian-guide-popover p, .guardian-guide-topics button { font-size: 12px; }
 .guardian-guide-popover .guardian-guide-hero img { animation: guardian-state-pop .55s ease both; }
@@ -114,7 +125,6 @@ html[data-motion='reduced'] *, html[data-motion='reduced'] *::before, html[data-
 .app-sidebar.is-collapsed .sidebar-guardian .guardian-avatar { display: inline-block; }
 .app-sidebar.is-collapsed .guardian-avatar-sidebar { width: 46px; height: 58px; flex-basis: 46px; }
 .app-sidebar.is-collapsed .guardian-avatar-sidebar img { width: 46px !important; height: 58px !important; }
-.app-sidebar.is-collapsed .sidebar-guardian { padding: 0; }
 
 /* Give each actual Guardian state a distinct motion signature. No state
    picker or simulated approval: imagery follows the selected session only. */
@@ -146,7 +156,7 @@ html[data-motion='reduced'] *, html[data-motion='reduced'] *::before, html[data-
 .guardian-authority-note { margin: 12px 0 0; color: var(--text-muted); line-height: 1.65; }
 .guardian-guide-popover { width: min(470px, calc(100vw - 48px)); }
 .main-column-view:not(.is-hidden) > .center-pane, .main-column-view:not(.is-hidden) > .dashboard-view { animation: page-rise .4s cubic-bezier(.2,.8,.3,1) both; }
-.product-page .soft-card:hover { transform: translateY(-3px); }
+
 .primary-action, .cta-button, .guardian-start-button { transition: transform .2s ease, box-shadow .2s ease; }
 .cta-button:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 7px 20px color-mix(in srgb, var(--accent) 22%, transparent); }
 .recovery-journey.is-verified .recovery-orbit i { animation: orbit-turn 10s linear infinite; }
