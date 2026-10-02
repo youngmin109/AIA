@@ -6,9 +6,14 @@ export function isRunActive(run: RunSummary): boolean {
   return isSessionRunning(run.status, Boolean(reconciliation?.orphaned))
 }
 
+/** Hook connection checks are real protected runs: audit and reports keep them, the sidebar does not. */
+export function isHookVerificationRun(run: RunSummary): boolean {
+  return /[\\/]aia-hook-verify-[^\\/]*$/i.test(String(run.workspace ?? ''))
+}
+
 /** Keep completed sessions discoverable, without pretending they are live. */
 export function sidebarSessions(runs: RunSummary[], selectedId: string | null, limit = 10): RunSummary[] {
-  const unique = [...new Map(runs.map(run => [run.session_id, run])).values()]
+  const unique = [...new Map(runs.filter(run => !isHookVerificationRun(run)).map(run => [run.session_id, run])).values()]
   const sorted = unique.sort((a, b) => {
     const activeOrder = Number(isRunActive(b)) - Number(isRunActive(a))
     const time = (run: RunSummary) => Date.parse(run.created_at ?? '') || 0

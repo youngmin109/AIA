@@ -34,6 +34,7 @@ from aia.codex_installation import CodexHookInstaller
 _ROOT = Path(__file__).resolve().parent
 _CODEX_EVENT_WAIT_SECONDS = 5.0
 _CODEX_EVENT_BATCH_MAX_CHARS = 64 * 1024
+_CLIENT_MESSAGE_MAX_CHARS = 64 * 1024
 _CODEX_SEND_TIMEOUT_SECONDS = 5.0
 _CODEX_STREAM_TYPES = frozenset({"message.delta", "command.output", "reasoning.delta"})
 _CODEX_TERMINAL_STATUSES = frozenset({"EXITED", "FAILED"})
@@ -527,10 +528,12 @@ def _register_codex_routes(app: FastAPI) -> None:
                 "end_session": lambda message: service.end_codex_session(session_id),
             }
             while True:
-                message = await websocket.receive_json()
-                if len(json.dumps(message, ensure_ascii=False)) > 64 * 1024:
+                raw_message = await websocket.receive_text()
+                # Check the size before decoding so an oversized message is never parsed.
+                if len(raw_message) > _CLIENT_MESSAGE_MAX_CHARS:
                     await websocket.close(code=1009)
                     return
+                message = json.loads(raw_message)
                 client_id = message.get("client_id") if isinstance(message, dict) else None
                 handler = handlers.get(message.get("type")) if isinstance(message, dict) else None
                 if handler is None:

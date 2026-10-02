@@ -1,6 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { sidebarSessions, isRunActive, sessionDestination, sessionStateLabel } from '../src/api/sessionNavigation.ts'
+import { sidebarSessions, isHookVerificationRun, isRunActive, sessionDestination, sessionStateLabel } from '../src/api/sessionNavigation.ts'
+
+test('hook verification runs stay out of the sidebar only', () => {
+  const check = { session_id: 'check', status: 'COMPLETED', workspace: 'C:\\Users\\me\\AppData\\Local\\Temp\\aia-hook-verify-abc123' }
+  const work = { session_id: 'work', status: 'COMPLETED', workspace: 'C:\\work\\aia-hook-verify-notes\\app' }
+  assert.equal(isHookVerificationRun(check), true)
+  assert.equal(isHookVerificationRun(work), false)
+  assert.deepEqual(sidebarSessions([check, work], null).map(run => run.session_id), ['work'])
+})
 
 test('READY and PREPARING sessions remain visible and open the workbench', () => {
   for (const status of ['READY', 'PREPARING', 'RUNNING', 'STARTING']) {

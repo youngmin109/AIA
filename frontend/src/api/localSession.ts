@@ -9,3 +9,7 @@ export function localSessionToken(): Promise<string> {
   }).catch(error => { pending = null; throw error })
   return pending
 }
+/** Forget the cached capability; the local server issues a new one each time it starts. */
+export function resetLocalSessionToken(): void {
+  pending = null
+}

@@ -21,3 +21,33 @@ test('normal and tolerant writes both carry local browser capability', async () 
     }
   } finally { globalThis.fetch = original }
 })
+
+test('a rejected write fetches a new local capability once and retries', async () => {
+  const original = globalThis.fetch
+  let issued = 0
+  let accepted = null
+  const sent = []
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/local-session') {
+      issued += 1
+      return new Response(JSON.stringify({ token: `capability-${issued}` }), { status: 200 })
+    }
+    sent.push(options.headers['X-AIA-Local-Token'])
+    const ok = options.headers['X-AIA-Local-Token'] === accepted
+    return new Response(JSON.stringify(ok ? { ok: true } : { error: 'rejected' }), { status: ok ? 200 : 403 })
+  }
+  try {
+    const { resetLocalSessionToken } = await import('../src/api/localSession.ts')
+    resetLocalSessionToken()
+    accepted = 'capability-2'  // the server restarted after the page cached capability-1
+    await apiPost('/warm-up', {}).catch(() => {})
+    sent.length = 0
+    accepted = 'capability-3'
+    assert.deepEqual(await apiPost('/after-restart', {}), { ok: true })
+    assert.deepEqual(sent, ['capability-2', 'capability-3'])
+    sent.length = 0
+    accepted = null  // a request that stays rejected is retried only once
+    await assert.rejects(apiPost('/foreign', {}), /rejected/)
+    assert.equal(sent.length, 2)
+  } finally { globalThis.fetch = original }
+})

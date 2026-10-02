@@ -11,7 +11,7 @@ const RunListContext = createContext<UsePollingResult<RunSummary[]> | null>(null
  * (it may be transitioning), slower otherwise. */
 function usePolledRunList({ hasActiveRun = false }: { hasActiveRun?: boolean } = {}) {
   const fetchFn = useCallback(
-    (signal: AbortSignal) => apiGet<{ runs: RunSummary[] }>('/api/runs', signal).then((body) => (body.runs ?? []).filter(run => !/[\\/]aia-hook-verify-[^\\/]*$/i.test(String(run.workspace ?? '')))),
+    (signal: AbortSignal) => apiGet<{ runs: RunSummary[] }>('/api/runs', signal).then((body) => body.runs ?? []),
     [],
   )
   return usePolling<RunSummary[]>(fetchFn, { intervalMs: hasActiveRun ? 5_000 : 15_000 })

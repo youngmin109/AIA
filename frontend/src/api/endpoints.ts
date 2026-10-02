@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPostTolerant } from './client'
 export interface PolicyProfile {
   value: string
   display_name: string
+  english_name?: string
   description?: string
 }
 

@@ -1,4 +1,3 @@
-import { TEMPLATE_NAMES } from '../../api/display'
 import { PolicyPreview } from './PolicyPreview'
 import { useEffect, useState } from 'react'
 import { listProfiles, type PolicyProfile } from '../../api/endpoints'
@@ -82,7 +81,7 @@ export function PolicyView() {
           {tab === '정책 현황' && <PolicyOverview activeProfile={activeProfile} profiles={profiles} onOpenTemplates={() => setTab('템플릿')} />}
           {tab === '템플릿' && <PolicyTemplates profiles={profiles} selected={selected} choose={choose} />}
           {content && <PolicyCategory title={tab} summary={content.summary} items={content.items} />}
-          {(tab === '템플릿' || tab === '정책 현황') && <PolicyPreview key={selected} profile={selected} />}
+          {(tab === '템플릿' || tab === '정책 현황') && <PolicyPreview key={selected} profile={selected} profiles={profiles} />}
         </main>
       </div>
     </div>
@@ -94,7 +93,7 @@ function PolicyOverview({ activeProfile, profiles, onOpenTemplates }: { activePr
 }
 
 function PolicyTemplates({ profiles, selected, choose }: { profiles: PolicyProfile[]; selected: string | null; choose: (profile: PolicyProfile) => void }) {
-  return <section><div className="policy-section-heading"><div><h3>정책 템플릿</h3><p>아래 카드는 AIA 엔진이 제공하는 실제 프로필이며, 설명도 서버의 정책 정의를 사용합니다. 선택은 이 브라우저의 다음 보호 실행 기본값으로 저장되고, 보호 세팅 창에서 실행마다 다시 고를 수 있습니다.</p></div></div><div className="policy-template-grid">{profiles.map((profile) => <article key={profile.value} className={`soft-card policy-template-card${selected === profile.value ? ' is-selected' : ''}`}><div className="template-card-top"><span className="template-icon">{TEMPLATE_NAMES[profile.value] ?? 'Custom Policy'}</span><span className={`status-pill ${selected === profile.value ? 'good' : 'neutral'}`}>{selected === profile.value ? '현재 기본값' : '사용 가능'}</span></div><h4>{profile.display_name}</h4><p>{profile.description ?? '설명이 제공되지 않았습니다.'}</p><dl><div><dt>적용 범위</dt><dd>다음 보호 실행</dd></div><div><dt>정책 고정</dt><dd>실행 중 변경 불가</dd></div></dl><button type="button" className="secondary-action" disabled={selected === profile.value} onClick={() => choose(profile)}>{selected === profile.value ? '선택됨' : '기본값으로 선택'}</button></article>)}{profiles.length === 0 && <p className="empty-copy">정책 프로필을 불러오지 못했습니다.</p>}</div></section>
+  return <section><div className="policy-section-heading"><div><h3>정책 템플릿</h3><p>아래 카드는 AIA 엔진이 제공하는 실제 프로필이며, 설명도 서버의 정책 정의를 사용합니다. 선택은 이 브라우저의 다음 보호 실행 기본값으로 저장되고, 보호 세팅 창에서 실행마다 다시 고를 수 있습니다.</p></div></div><div className="policy-template-grid">{profiles.map((profile) => <article key={profile.value} className={`soft-card policy-template-card${selected === profile.value ? ' is-selected' : ''}`}><div className="template-card-top"><span className="template-icon">{profile.english_name ?? profile.value}</span><span className={`status-pill ${selected === profile.value ? 'good' : 'neutral'}`}>{selected === profile.value ? '현재 기본값' : '사용 가능'}</span></div><h4>{profile.display_name}</h4><p>{profile.description ?? '설명이 제공되지 않았습니다.'}</p><dl><div><dt>적용 범위</dt><dd>다음 보호 실행</dd></div><div><dt>정책 고정</dt><dd>실행 중 변경 불가</dd></div></dl><button type="button" className="secondary-action" disabled={selected === profile.value} onClick={() => choose(profile)}>{selected === profile.value ? '선택됨' : '기본값으로 선택'}</button></article>)}{profiles.length === 0 && <p className="empty-copy">정책 프로필을 불러오지 못했습니다.</p>}</div></section>
 }
 
 function PolicyCategory({ title, summary, items }: { title: string; summary: string; items: Array<{ title: string; description: string; status: SupportStatus }> }) {

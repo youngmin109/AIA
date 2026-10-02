@@ -44,7 +44,7 @@ def conversation(tmp_path: Path):
     session.open()
     record.runtime["codex_session"] = session
     service.registry.add(record)
-    client = TestClient(create_app(service))
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
     yield client, session
     session.close(force=True)
     service.shutdown()
@@ -118,7 +118,7 @@ def test_coalesce_splits_large_replays_into_bounded_batches() -> None:
 
 def test_socket_streams_a_turn_pushed_by_codex(conversation) -> None:
     client, _ = conversation
-    with client.websocket_connect("/api/runs/run-1/codex") as websocket:
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
         first = _receive_until(websocket, lambda m: m["type"] == "status")
         assert first[-1]["status"] == "READY"
         websocket.send_json({"type": "user_message", "text": "hello codex", "client_id": "c1"})
@@ -133,7 +133,7 @@ def test_socket_streams_a_turn_pushed_by_codex(conversation) -> None:
 
 def test_socket_relays_an_approval_decision_to_codex(conversation) -> None:
     client, _ = conversation
-    with client.websocket_connect("/api/runs/run-1/codex") as websocket:
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
         websocket.send_json({"type": "user_message", "text": "run it"})
         messages = _receive_until(
             websocket,
@@ -148,7 +148,7 @@ def test_socket_relays_an_approval_decision_to_codex(conversation) -> None:
 
 def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
     client, _ = conversation
-    with client.websocket_connect("/api/runs/run-1/codex") as websocket:
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
         websocket.send_json({"type": "user_message", "text": "   ", "client_id": "bad"})
         error = _receive_until(websocket, lambda m: m["type"] == "error")[-1]
         assert error["client_id"] == "bad"
@@ -163,27 +163,39 @@ def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
 
 def test_reconnect_resumes_after_the_last_rendered_event(conversation) -> None:
     client, session = conversation
-    with client.websocket_connect("/api/runs/run-1/codex") as websocket:
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
         websocket.send_json({"type": "user_message", "text": "hello codex"})
         _receive_until_all(websocket, _turn_completed, _accepted("user_message"))
     last = session.snapshot()["last_sequence"]
-    with client.websocket_connect(f"/api/runs/run-1/codex?after={last}") as websocket:
+    with client.websocket_connect(f"ws://127.0.0.1/api/runs/run-1/codex?after={last}") as websocket:
         status = _receive_until(websocket, lambda m: m["type"] == "status")
         assert _events(status) == []
-    with client.websocket_connect("/api/runs/run-1/codex?after=0") as websocket:
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex?after=0") as websocket:
         replay = _receive_until(websocket, lambda m: m["type"] == "status")
         assert any(e["type"] == "turn.completed" for e in _events(replay))
 
 
 def test_end_session_lets_codex_exit_and_closes_the_socket(conversation) -> None:
     client, session = conversation
-    with client.websocket_connect("/api/runs/run-1/codex") as websocket:
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
         _receive_until(websocket, lambda m: m["type"] == "status")
         websocket.send_json({"type": "end_session"})
         messages = _receive_until(websocket, lambda m: m["type"] == "closed")
         assert messages[-1]["status"] == "EXITED"
         assert any(e["type"] == "session.exited" and e["unexpected"] is False for e in _events(messages))
     assert session.snapshot()["status"] == "EXITED"
+
+
+def test_socket_closes_on_an_oversized_client_message_without_parsing_it(conversation) -> None:
+    from starlette.websockets import WebSocketDisconnect
+
+    client, _ = conversation
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
+        _receive_until(websocket, lambda m: m["type"] == "status")
+        websocket.send_text("{" + " " * (64 * 1024))
+        with pytest.raises(WebSocketDisconnect) as closed:
+            _receive_until(websocket, lambda m: False)
+    assert closed.value.code == 1009
 
 
 def test_codex_status_endpoint_and_unknown_run(conversation) -> None:
@@ -212,8 +224,8 @@ def test_socket_for_a_run_owned_by_another_aia_window(tmp_path: Path) -> None:
             "launch_mode": "codex_app_server",
             "phase": "RUNNING",
         }), encoding="utf-8")
-        client = TestClient(create_app(service))
-        with client.websocket_connect(f"/api/runs/{session_id}/codex") as websocket:
+        client = TestClient(create_app(service), base_url="http://127.0.0.1")
+        with client.websocket_connect(f"ws://127.0.0.1/api/runs/{session_id}/codex") as websocket:
             status = _receive_until(websocket, lambda m: m["type"] == "status")[-1]
             assert status["status"] == "EXTERNAL"
             assert status["owner_pid"] == owner.pid

@@ -24,8 +24,6 @@ class LocalBrowserBoundary:
         try:
             parsed_host = urlsplit('http://' + host)
             local = parsed_host.hostname in {'127.0.0.1', 'localhost', '::1'}
-            # Synthetic ASGI TestClient is not reachable over a socket.
-            local = local or (parsed_host.hostname == 'testserver' and scope.get('client', ('',))[0] == 'testclient')
             allowed_origin = not origin or urlsplit(origin.decode('latin1')).netloc == host and urlsplit(origin.decode('latin1')).scheme in {'http', 'https'}
         except (ValueError, UnicodeDecodeError):
             local = allowed_origin = False

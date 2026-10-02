@@ -120,7 +120,8 @@ function ApprovalDialog({
   const isAiaTool = request.kind === 'aia_tool'
   // AIA reviews auto-refuse when the window closes (kept inside Codex's Hook
   // timeout); use the server deadline so reconnects never extend it.
-  const ref = useDialog(true, () => { if (!pending) decide('decline') })
+  // Escape keeps the request open: only the explicit buttons answer Codex.
+  const ref = useDialog(true, () => {})
   const [pending, setPending] = useState(false)
   useEffect(() => {
     if (!failure && connected) return

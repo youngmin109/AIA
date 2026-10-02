@@ -12,6 +12,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 from threading import RLock
+import time
 from typing import Any, Callable
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
@@ -48,6 +49,7 @@ class ResultBundleReader:
         self._metadata_cache: dict[Path, tuple[int, int, bytes, list[dict[str, Any]]]] = {}
         self._live_evidence_cache: dict[Path, _LiveEvidenceCache] = {}
         self._activity_cache: dict[str, tuple[bytes, ActivityIndex]] = {}
+        self._activity_views: dict[str, tuple[Any, dict[str, Any]]] = {}
 
     def session_directory(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not _SAFE_SESSION_ID.fullmatch(session_id):
@@ -383,7 +385,41 @@ class ResultBundleReader:
                     )
 
     def read_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
-        """Use the same evidence stream as Audit; no screen-only logs."""
+        """Use the same evidence stream as Audit; no screen-only logs.
+
+        The console asks for this with every status poll (every second while a
+        run is live), so the projection is cached: a live view is rebuilt at
+        most every ACTIVITY_LIVE_REFRESH_SECONDS, and a completed run's view is
+        rebuilt only when its Result Bundle files change instead of verifying
+        the whole bundle on every poll.  Display data only; the result and
+        audit views still verify the bundle themselves.
+        """
+        key = self._activity_view_key(session_id, live=live)
+        with self._parsed_cache_lock:
+            cached = self._activity_views.get(session_id)
+            if key is not None and cached is not None and cached[0] == key:
+                return cached[1]
+        view = self._build_activity(session_id, workspace, live=live)
+        if key is not None and view.get('available'):
+            with self._parsed_cache_lock:
+                self._activity_views[session_id] = (key, view)
+                if len(self._activity_views) > 32:
+                    self._activity_views.pop(next(iter(self._activity_views)))
+        return view
+
+    ACTIVITY_LIVE_REFRESH_SECONDS = 2.0
+
+    def _activity_view_key(self, session_id: str, *, live: bool) -> Any:
+        if live:
+            return ('live', int(time.monotonic() // self.ACTIVITY_LIVE_REFRESH_SECONDS))
+        result_directory = self.result_directory(session_id)
+        try:
+            files = sorted(path for path in result_directory.iterdir() if path.is_file())
+            return ('completed', tuple((path.name, path.stat().st_mtime_ns, path.stat().st_size) for path in files))
+        except OSError:
+            return None
+
+    def _build_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
         if live:
             self.read_live_evidence_snapshot(session_id)
             path = self.session_directory(session_id) / 'evidence' / 'raw-evidence.jsonl'

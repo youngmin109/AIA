@@ -29,10 +29,6 @@ export const ACTIVE_STATUSES = new Set(['RUNNING', 'CREATED', 'PROTECTING', 'STA
 export function isSessionRunning(status?: string, orphaned = false): boolean {
   return !orphaned && ACTIVE_STATUSES.has(status ?? '')
 }
-export const TEMPLATE_NAMES: Record<string, string> = {
-  PROTECTED_DEVELOPMENT: 'Standard Protection', BASIC_DEVELOPMENT: 'Development Collaboration',
-  CONSERVATIVE_SECURITY: 'Change Control', FREE_DEVELOPMENT: 'Observation Only',
-}
 
 export function readinessNextStep(code?: string): string {
   const steps: Record<string, string> = {

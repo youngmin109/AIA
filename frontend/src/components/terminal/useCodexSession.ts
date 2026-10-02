@@ -1,4 +1,4 @@
-import { localSessionToken } from '../../api/localSession'
+import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState } from './codexConversation'
 
@@ -135,6 +135,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
       pendingDraftsRef.current.clear()
       if (closedRef.current || runEndedRef.current || generation !== generationRef.current) return
       if (event.code === 1008) {
+        resetLocalSessionToken()
         setConnection({ label: '연결 재확인 필요', tone: 'bad' })
         setErrorMessage('로컬 연결 정보가 바뀌었습니다. 화면을 새로 고치거나 앱을 다시 열어주세요.'); return
       }

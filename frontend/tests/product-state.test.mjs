@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { guardianStatus } from '../src/api/guardianStatus.ts'
 import { deriveVerdict } from '../src/api/resultVerdict.ts'
-import { displayStatus, isSessionRunning, TEMPLATE_NAMES } from '../src/api/display.ts'
+import { displayStatus, isSessionRunning } from '../src/api/display.ts'
 import { normalizeMotionPreference } from '../src/api/motionPreference.ts'
 
 test('unverified user stop is not a policy violation', () => {
@@ -32,9 +32,8 @@ test('recovery success requires both recovery and integrity', () => {
   assert.notEqual(guardianStatus(base).state, 'recovery')
   assert.equal(guardianStatus({ ...base, result: { ...base.result, integrity_status: 'VERIFIED' } }).state, 'recovery')
 })
-test('labels are friendly and template names are not initials', () => {
+test('labels are friendly', () => {
   assert.equal(displayStatus('HOOK_VERIFICATION_REQUIRED'), '보호 연결 재확인 필요')
-  assert.equal(TEMPLATE_NAMES.CONSERVATIVE_SECURITY, 'Change Control')
 })
 test('motion follows accessibility preferences by default, with explicit full and reduced modes', () => {
   assert.equal(normalizeMotionPreference(null), 'auto')

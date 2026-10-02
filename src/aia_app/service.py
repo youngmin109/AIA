@@ -118,6 +118,14 @@ _APP_SERVER_SANDBOX_NAMES = {
 }
 
 
+def _manual_recovery_digest(body: Mapping[str, Any]) -> str:
+    """SHA-256 of a manual-recovery record without its own seal field."""
+
+    content = {key: value for key, value in body.items() if key != "record_sha256"}
+    canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _product_sensor_set_present(sensors: Any) -> bool:
     names: set[str] = set()
     for sensor in tuple(item for item in (sensors or ()) if item is not None):
@@ -195,22 +203,27 @@ class RunApplicationService(
         display = {
             PolicyProfile.PROTECTED_DEVELOPMENT: (
                 "표준 보호",
+                "Standard Protection",
                 "모든 .env 계열 읽기와 대표적인 파괴 명령을 차단하고, 그 밖의 개발 행위는 기록합니다.",
             ),
             PolicyProfile.BASIC_DEVELOPMENT: (
                 "협업 개발",
+                "Development Collaboration",
                 "일반 개발 작업을 허용하면서 .env 삭제와 위험한 데이터베이스·Git 명령을 통제합니다.",
             ),
             PolicyProfile.CONSERVATIVE_SECURITY: (
                 "변경 통제 강화",
+                "Change Control",
                 "루트 .env 읽기는 기록하고, 의존성·인프라 파일의 삭제와 위험한 데이터베이스·Git 명령을 차단합니다.",
             ),
             PolicyProfile.FREE_DEVELOPMENT: (
                 "관찰 전용",
+                "Observation Only",
                 "개발 흐름을 가장 넓게 허용하고 위험 행위를 주로 기록하는 프로필입니다.",
             ),
             PolicyProfile.CUSTOM: (
                 "직접 설정",
+                "Custom Policy",
                 "실행 시 지정한 Strict Validation 통과 정책 JSON을 사용합니다.",
             ),
         }
@@ -218,7 +231,8 @@ class RunApplicationService(
             {
                 "value": profile.value,
                 "display_name": display[profile][0],
-                "description": display[profile][1],
+                "english_name": display[profile][1],
+                "description": display[profile][2],
             }
             for profile in (
                 PolicyProfile.PROTECTED_DEVELOPMENT,
@@ -636,18 +650,31 @@ class RunApplicationService(
             return None
         verification = 'UNVERIFIED'
         try:
-            seal = path.with_suffix('.sha256').read_text(encoding='ascii').strip()
-            if seal == hashlib.sha256(path.read_bytes()).hexdigest():
+            recorded = payload.get('record_sha256')
+            if isinstance(recorded, str):
+                body = {key: value for key, value in payload.items() if key != 'record_sha256'}
+                sealed = recorded == _manual_recovery_digest(body)
+            else:
+                # Records sealed by a sidecar file (earlier format of this change).
+                seal = path.with_suffix('.sha256').read_text(encoding='ascii').strip()
+                sealed = seal == hashlib.sha256(path.read_bytes()).hexdigest()
+            if sealed:
                 current_result_hash = hashlib.sha256(self.reader.read_result_json(session_id)).hexdigest()
-                if payload.get('original_result_sha256') == current_result_hash:
-                    verification = 'VALID'
-                else:
-                    verification = 'INVALID'
+                verification = 'VALID' if payload.get('original_result_sha256') == current_result_hash else 'INVALID'
             else:
                 verification = 'INVALID'
         except (OSError, ValueError, KeyError):
             pass
         return {**payload, 'record_verification': verification}
+
+    def _archive_unverified_manual_recovery(self, session_id: str) -> None:
+        """Keep an unverifiable record for audit, but stop it blocking a new restore."""
+
+        path = self._manual_recovery_artifact_path(session_id)
+        stamp = _now().strftime('%Y%m%dT%H%M%S%fZ')
+        for current in (path, path.with_suffix('.sha256')):
+            if current.exists():
+                os.replace(current, current.with_name(f'{current.stem}.superseded-{stamp}{current.suffix}'))
 
     @staticmethod
     def _recovery_mapping(value: Any) -> dict[str, Any]:
@@ -819,15 +846,17 @@ class RunApplicationService(
         if confirm is not True:
             raise ApplicationValidationError("전체 Workspace 복구 확인이 필요합니다.")
         existing = self._read_manual_recovery(session_id)
-        if existing is not None:
-            if existing.get('record_verification') == 'VALID':
-                return existing
-            raise ApplicationValidationError('이전 복구 기록을 검증할 수 없습니다. 자동으로 덮어쓰지 않습니다.')
+        if existing is not None and existing.get('record_verification') == 'VALID':
+            return existing
         context = self._manual_recovery_context(session_id)
         if not context.get("available"):
             raise ApplicationValidationError(str(context.get("reason") or "RECOVERY_UNAVAILABLE"))
         if expected_fingerprint is not None and expected_fingerprint != context.get('preview_fingerprint'):
             raise ApplicationValidationError('미리보기 이후 작업공간이 변경됐습니다. 복구 목록을 다시 확인해주세요.')
+        if existing is not None:
+            # An older unsealed (or damaged) record is never overwritten: it is
+            # kept beside the new one so the restore is not blocked forever.
+            self._archive_unverified_manual_recovery(session_id)
         workspace: Path = context["workspace"]
         raw_result = context["raw_result"]
         checkpoint = context["checkpoint"]
@@ -878,15 +907,14 @@ class RunApplicationService(
             "integrity_result": self._integrity_mapping(verification.integrity),
             "saved_at": _now().isoformat(),
         }
+        # The checksum lives in the same file, so one atomic replace commits
+        # the record and its seal together.
+        payload["record_sha256"] = _manual_recovery_digest(payload)
         path = self._manual_recovery_artifact_path(session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         os.replace(temporary, path)
-        seal_path = path.with_suffix('.sha256')
-        seal_temp = seal_path.with_suffix('.tmp')
-        seal_temp.write_text(hashlib.sha256(path.read_bytes()).hexdigest() + '\n', encoding='ascii')
-        os.replace(seal_temp, seal_path)
         return payload
 
     def _evidence_summary(
