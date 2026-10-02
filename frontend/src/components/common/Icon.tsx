@@ -12,6 +12,10 @@ const PATHS = {
   plus: 'M12 5v14M5 12h14',
   brand: 'M12 2 3 7v10l9 5 9-5V7l-9-5z',
   terminal: 'M5 6l5 6-5 6M12 18h7',
+  agents: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zm-3-10 2 2 4-5',
+  report: 'M4 20V10m6 10V4m6 16v-7m5 7H2',
+  search: 'M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm6-2 4 4',
 } as const
 
 export type IconName = keyof typeof PATHS
