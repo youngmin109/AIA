@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useShellStore } from '../../state/shellStore'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { usePreflight } from '../../hooks/usePreflight'
@@ -9,10 +9,8 @@ import { EventFeed } from '../sensors/EventFeed'
 import { Icon } from '../common/Icon'
 import { sessionDisplayName } from '../shell/sessionLabel'
 
-const TABS = ['보호 현황', '보호 목표', 'AI 관측', '활동 탐색', '보고서'] as const
 
 export function DashboardView() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>('보호 현황')
   const { activeRunId, setView, openSettingsModal, setActiveRun } = useShellStore()
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
   const { data: preflight } = usePreflight()
@@ -38,9 +36,7 @@ export function DashboardView() {
 
   return (
     <div className="product-page observability-page">
-      <nav className="observability-tabs" aria-label="대시보드 탭">{TABS.map((item) => <button key={item} type="button" className={tab === item ? 'is-active' : ''} onClick={() => { setTab(item); if (item === '보고서') setView('reports') }}>{item}</button>)}</nav>
-      {tab === 'AI 관측' || tab === '보호 현황' ? <>
-        <header className="page-heading dashboard-heading"><div><span className="page-eyebrow">RUNTIME ASSURANCE</span><h2>AI 작업을 투명하게 관찰합니다</h2><p>Agent 요청, 실제 프로세스, Workspace 변화를 하나의 보호 흐름으로 확인하세요.</p></div><button type="button" className="primary-action" onClick={isActive ? () => setView('terminal') : openSettingsModal}>{isActive ? '실행 열기' : '새 보호 실행'}</button></header>
+        <header className="page-heading dashboard-heading"><div><p>Agent 요청, 실제 프로세스, Workspace 변화를 하나의 보호 흐름으로 확인하세요.</p></div><button type="button" className="primary-action" onClick={isActive ? () => setView('terminal') : openSettingsModal}>{isActive ? '실행 열기' : '새 보호 실행'}</button></header>
         <div className="kpi-grid four">{metrics.map((metric) => <article key={metric.label} className={`soft-card kpi-card accent-${metric.tone}`}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.hint}</small></article>)}</div>
         <div className="dashboard-showcase">
           <GuardianHero readiness={preflight ? `보호 조건 ${healthyChecks}개 정상` : '보호 조건 확인 중'} ready={preflight?.readiness_code === 'READY'} />
@@ -51,7 +47,6 @@ export function DashboardView() {
           <section className="soft-card data-section"><div className="section-title-row"><div><h3>최근 감사 이벤트</h3><p>현재 선택한 세션의 정규화된 활동입니다.</p></div>{isActive && <button type="button" className="text-action" onClick={() => setView('audit')}>증거 열기</button>}</div><EventFeed runId={activeRunId} events={status?.events} evidenceChains={status?.evidence_chains} limit={5} /></section>
         </div>
         <section className="soft-card readiness-strip"><div><Icon name="shield" size={20} /><div><b>{preflight?.readiness_code === 'READY' ? '보호 실행 준비 완료' : '보호 연결 확인 필요'}</b><span>{preflight?.next_step ?? 'Hook과 로컬 실행 환경을 확인하고 있습니다.'}</span></div></div><div className="check-chip-row">{(preflight?.checks ?? []).map((check) => <span key={check.name} className={`check-chip ${check.ok ? 'ok' : 'warn'}`}>{check.ok ? '✓' : '!'} {check.label}</span>)}</div></section>
-      </> : tab === '보호 목표' ? <section className="soft-card planned-panel"><span className="status-pill planned">제품 로드맵</span><h3>보호 목표</h3><p>실행 전 차단, 실행 중 프로세스 가시화, 작업 후 복구·무결성 검증을 핵심 목표로 추적합니다.</p></section> : <section className="soft-card planned-panel"><span className="status-pill planned">연결 예정</span><h3>{tab}</h3><p>현재 엔진에서 검증 가능한 데이터부터 연결합니다. 수집되지 않은 지표를 임의 값으로 표시하지 않습니다.</p></section>}
     </div>
   )
 }

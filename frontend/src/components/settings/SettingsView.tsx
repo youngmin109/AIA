@@ -3,11 +3,11 @@ import { usePreflight } from '../../hooks/usePreflight'
 import { useShellStore } from '../../state/shellStore'
 
 export function SettingsView() {
-  const { data: preflight } = usePreflight()
-  const { openSettingsModal } = useShellStore()
+  const { activeView, openSettingsModal } = useShellStore()
+  const { data: preflight } = usePreflight(30_000, activeView === 'settings')
   return (
     <div className="product-page narrow-page">
-      <header className="page-heading"><div><span className="page-eyebrow">PRODUCT SETTINGS</span><h2>제품 설정</h2><p>화면 환경과 로컬 보호 연결을 관리합니다.</p></div></header>
+      <header className="page-heading"><div><p>화면 환경과 로컬 보호 연결을 관리합니다.</p></div></header>
       <section className="soft-card settings-group">
         <div><h3>화면 테마</h3><p>라이트 모드는 밝은 운영 콘솔, 다크 모드는 차분한 슬레이트 계열로 전환됩니다.</p></div><ThemeToggle />
       </section>

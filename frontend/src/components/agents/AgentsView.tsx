@@ -1,15 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { usePreflight } from '../../hooks/usePreflight'
 import { isRunActive, useRunList } from '../../hooks/useRunList'
 import { useShellStore } from '../../state/shellStore'
 
-const TABS = ['등록 현황', '연결 상태', '권한 범위', '승인 요청'] as const
 
 export function AgentsView() {
-  const [tab, setTab] = useState<(typeof TABS)[number]>('등록 현황')
-  const { data: preflight } = usePreflight()
+  const { activeView, setView, openSettingsModal } = useShellStore()
+  const { data: preflight } = usePreflight(30_000, activeView === 'agents')
   const { data: runs } = useRunList()
-  const { setView, openSettingsModal } = useShellStore()
   const codexAvailable = (preflight?.checks ?? []).some((check) => check.name.toLowerCase().includes('codex') && check.ok)
   const activeRuns = (runs ?? []).filter(isRunActive).length
   const lastRun = useMemo(() => (runs ?? [])[0], [runs])
@@ -17,14 +15,9 @@ export function AgentsView() {
   return (
     <div className="product-page">
       <header className="page-heading">
-        <div><span className="page-eyebrow">AGENT GOVERNANCE</span><h2>보호 대상 에이전트</h2><p>등록된 런타임과 보호 연결 상태를 한곳에서 확인합니다.</p></div>
+        <div><p>등록된 런타임과 보호 연결 상태를 한곳에서 확인합니다.</p></div>
         <button type="button" className="primary-action" onClick={openSettingsModal}>새 보호 실행</button>
       </header>
-      <nav className="subtabs" aria-label="에이전트 세부 메뉴">
-        {TABS.map((item) => <button key={item} type="button" className={tab === item ? 'is-active' : ''} onClick={() => setTab(item)}>{item}</button>)}
-      </nav>
-      {tab === '등록 현황' ? (
-        <>
           <div className="kpi-grid three">
             <article className="soft-card kpi-card"><span>지원 런타임</span><strong>1</strong><small>현재 Codex CLI 지원</small></article>
             <article className="soft-card kpi-card"><span>활성 보호 실행</span><strong>{activeRuns}</strong><small>실제 세션 기준</small></article>
@@ -39,10 +32,6 @@ export function AgentsView() {
               </table>
             </div>
           </section>
-        </>
-      ) : (
-        <section className="soft-card planned-panel"><span className="status-pill planned">연결 예정</span><h3>{tab}</h3><p>이 영역은 제품 정보 구조에 포함했지만 현재 Alpha 엔진에는 대응 API가 없습니다. 지원되지 않는 데이터를 임의로 표시하지 않습니다.</p></section>
-      )}
     </div>
   )
 }
