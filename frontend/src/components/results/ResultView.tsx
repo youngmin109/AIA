@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useResult } from '../../hooks/useResult'
-import type { IncidentView } from '../../api/resultTypes'
+import type { IncidentView, RecoveryStatusView } from '../../api/resultTypes'
 import { deriveVerdict } from '../../api/resultVerdict'
+import { restoreWorkspace } from '../../api/endpoints'
 import { EvidenceLogView } from './EvidenceLogView'
 import { useRecoveryStatus } from '../../hooks/useRecoveryStatus'
 
@@ -12,9 +13,66 @@ function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   return 'warn'
 }
 
+// Manual restore of an ended run. The server restores the whole Workspace to
+// the run's pre-run checkpoint and re-checks it with SHA-256; it refuses while
+// the run is active or without an explicit confirmation.
+function WorkspaceRestoreControl({ runId, recovery, onRestored }: { runId: string; recovery: RecoveryStatusView | null; onRestored: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+
+  if (!recovery) return null
+  if (recovery.manual_recovery) {
+    return <p className="workspace-restore-note">사용자 요청으로 실행 전 Checkpoint 기준 복구를 수행했습니다.</p>
+  }
+  if (!recovery.available) return null
+  if (recovery.workspace_matches) {
+    return <p className="workspace-restore-note">Workspace가 실행 전 Checkpoint와 같습니다. 복구할 변경이 없습니다.</p>
+  }
+
+  async function restore() {
+    setRestoring(true)
+    setRestoreError(null)
+    try {
+      await restoreWorkspace(runId)
+      setConfirming(false)
+      onRestored()
+    } catch (err) {
+      setRestoreError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  return (
+    <div className="workspace-restore">
+      <p>Workspace가 실행 전 Checkpoint와 다릅니다. 이 실행에서 바뀐 파일을 실행 전 상태로 되돌릴 수 있습니다.</p>
+      {confirming ? (
+        <div className="workspace-restore-confirm" role="alertdialog" aria-label="Workspace 복구 확인">
+          <strong>이 실행의 모든 변경이 실행 전 Checkpoint로 되돌아갑니다.</strong>
+          <span>복구 후 SHA-256으로 파일을 다시 검증합니다.</span>
+          <div className="workspace-restore-actions">
+            <button type="button" className="cta-button" disabled={restoring} onClick={restore}>
+              {restoring ? '복구하는 중…' : '복구 실행'}
+            </button>
+            <button type="button" className="secondary-button" disabled={restoring} onClick={() => setConfirming(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="cta-button" onClick={() => setConfirming(true)}>
+          Workspace 복구
+        </button>
+      )}
+      {restoreError && <p className="workspace-restore-error">복구하지 못했습니다: {restoreError}</p>}
+    </div>
+  )
+}
+
 export function ResultView({ runId, showEvidenceLog = false }: { runId: string; showEvidenceLog?: boolean }) {
   const { data, error, isLoading } = useResult(runId)
-  const recovery = useRecoveryStatus(runId)
+  const { data: recovery, reload: reloadRecovery } = useRecoveryStatus(runId)
 
   if (isLoading) {
     return (
@@ -85,6 +143,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
           <span className={`badge is-${toneFor(recovery?.integrity_status ?? data.integrity_status)}`}>Integrity: {recovery?.integrity_status ?? data.integrity_status ?? 'NOT_CHECKED'}</span>
         </div>
         <p>무결성 불일치 파일: {recovery?.mismatched_file_count ?? '확인 불가'}</p>
+        <WorkspaceRestoreControl runId={runId} recovery={recovery} onRestored={reloadRecovery} />
       </div>
 
       {data.unsupported_tool_review_decisions && data.unsupported_tool_review_decisions.length > 0 && (
