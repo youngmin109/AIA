@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useDialog } from '../common/useDialog'
 import { displayStatus } from '../../api/display'
+import { errorReportTemplate } from '../../api/errorReport'
 import { useState } from 'react'
 import { Icon, type IconName } from '../common/Icon'
 import { useShellStore, type ShellView } from '../../state/shellStore'
@@ -80,10 +81,6 @@ export function Sidebar() {
   function guideAction(view: ShellView) {
     setGuideOpen(false)
     setView(view)
-  }
-
-  function errorReportTemplate() {
-    return `[AIA Guardian 오류 신고]\n\n- 발생 시각:\n- 어떤 작업을 하려 했나요?:\n- 실제로 보인 현상:\n- 기대한 결과:\n- 선택한 정책 / 보호 상태:\n- 화면 캡처 또는 감사 기록 참고:\n\n※ API 키, 토큰, 비밀번호, 개인 경로 등 민감한 정보는 삭제해 주세요.`
   }
 
   async function copyErrorReport() {
