@@ -1,3 +1,5 @@
+import { localSessionToken } from './localSession.ts'
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -13,10 +15,10 @@ export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   return fetch(path, { signal }).then((response) => parseJson<T>(response))
 }
 
-export function apiPost<T>(path: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
+export async function apiPost<T>(path: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
   return fetch(path, {
     method: 'POST',
-    headers: JSON_HEADERS,
+    headers: { ...JSON_HEADERS, 'X-AIA-Local-Token': await localSessionToken() },
     body: payload === undefined ? undefined : JSON.stringify(payload),
     signal,
   }).then((response) => parseJson<T>(response))
@@ -31,7 +33,7 @@ export function apiPost<T>(path: string, payload?: unknown, signal?: AbortSignal
 export async function apiPostTolerant<T>(path: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
-    headers: JSON_HEADERS,
+    headers: { ...JSON_HEADERS, 'X-AIA-Local-Token': await localSessionToken() },
     body: payload === undefined ? undefined : JSON.stringify(payload),
     signal,
   })

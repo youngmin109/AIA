@@ -1,3 +1,4 @@
+import { localSessionToken } from '../../api/localSession'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState } from './codexConversation'
 
@@ -43,6 +44,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const [interruptPending, setInterruptPending] = useState(false)
   const [endPending, setEndPending] = useState(false)
 
+  const generationRef = useRef(0)
   const socketRef = useRef<WebSocket | null>(null)
   const lastSequenceRef = useRef(0)
   const closedRef = useRef(false)
@@ -60,11 +62,19 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     lastSequenceRef.current = conversation.lastSequence
   }, [conversation.lastSequence])
 
-  const connect = useCallback(function connectToCodex() {
+  const connect = useCallback(async function connectToCodex() {
     if (closedRef.current) return
+    const generation = generationRef.current
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
     const url = `${scheme}://${location.host}/api/runs/${encodeURIComponent(sessionId)}/codex?after=${lastSequenceRef.current}`
-    const socket = new WebSocket(url)
+    let token: string
+    try { token = await localSessionToken() } catch (failure) {
+      if (generation !== generationRef.current || closedRef.current) return
+      setConnection({ label: '로컬 연결 확인 필요', tone: 'bad' })
+      setErrorMessage(failure instanceof Error ? failure.message : String(failure)); return
+    }
+    if (closedRef.current || generation !== generationRef.current) return
+    const socket = new WebSocket(url, ['aia-local.' + token])
     socketRef.current = socket
 
     socket.onopen = () => {
@@ -80,6 +90,9 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
         return
       }
       switch (message.type) {
+        case 'history_gap':
+          setErrorMessage(typeof message.message === 'string' ? message.message : '이전 대화 일부를 가져올 수 없습니다.')
+          break;
         case 'events': {
           const events = (message.events as CodexEvent[]) ?? []
           setConversation((previous) => applyEvents(previous, events))
@@ -115,12 +128,16 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
           break
       }
     }
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (socketRef.current === socket) socketRef.current = null
       // Messages whose acceptance never arrived may not have reached Codex.
       for (const draft of pendingDraftsRef.current.values()) restoreDraftRef.current?.(draft)
       pendingDraftsRef.current.clear()
-      if (closedRef.current || runEndedRef.current) return
+      if (closedRef.current || runEndedRef.current || generation !== generationRef.current) return
+      if (event.code === 1008) {
+        setConnection({ label: '연결 재확인 필요', tone: 'bad' })
+        setErrorMessage('로컬 연결 정보가 바뀌었습니다. 화면을 새로 고치거나 앱을 다시 열어주세요.'); return
+      }
       const delay = RECONNECT_DELAYS_MS[Math.min(attemptRef.current, RECONNECT_DELAYS_MS.length - 1)]
       attemptRef.current += 1
       setConnection({ label: '다시 연결하는 중', tone: 'warn' })
@@ -139,6 +156,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     }, 0)
     return () => {
       closedRef.current = true
+      generationRef.current += 1
       window.clearTimeout(resetTimer)
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
       socketRef.current?.close()
@@ -175,7 +193,8 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
 
   const decideApproval = useCallback(
     (approvalId: string, decision: 'accept' | 'acceptForSession' | 'decline') => {
-      send({ type: 'approval_decision', approval_id: approvalId, decision, client_id: nextClientId() })
+      setErrorMessage(null)
+      return send({ type: 'approval_decision', approval_id: approvalId, decision, client_id: nextClientId() })
     },
     [send],
   )

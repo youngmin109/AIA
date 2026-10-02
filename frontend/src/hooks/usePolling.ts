@@ -3,12 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 interface UsePollingOptions {
   intervalMs: number
   enabled?: boolean
+  resetKey?: string | null
 }
 
 export interface UsePollingResult<T> {
   data: T | null
   error: Error | null
   isLoading: boolean
+  updatedAt?: number | null
   refetch: () => void
 }
 
@@ -19,9 +21,10 @@ export interface UsePollingResult<T> {
  * proved out (dashboard.html: 30s preflight / 5-15s run list, workbench.html:
  * 1s run status) rather than reaching for a caching library.
  */
-export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { intervalMs, enabled = true }: UsePollingOptions): UsePollingResult<T> {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<Error | null>(null)
+export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { intervalMs, enabled = true, resetKey = 'default' }: UsePollingOptions): UsePollingResult<T> {
+  const [snapshot, setSnapshot] = useState<{ key: string | null; data: T; updatedAt: number } | null>(null)
+  const [failure, setFailure] = useState<{ key: string | null; error: Error } | null>(null)
+  const error = failure?.key === resetKey ? failure.error : null
   const [isLoading, setIsLoading] = useState(true)
   const fetchRef = useRef(fetchFn)
   fetchRef.current = fetchFn
@@ -30,17 +33,17 @@ export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { in
     try {
       const next = await fetchRef.current(signal)
       if (!signal.aborted) {
-        setData(next)
-        setError(null)
+        setSnapshot({ key: resetKey, data: next, updatedAt: Date.now() })
+        setFailure(null)
         setIsLoading(false)
       }
     } catch (err) {
       if (!signal.aborted) {
-        setError(err instanceof Error ? err : new Error(String(err)))
+        setFailure({ key: resetKey, error: err instanceof Error ? err : new Error(String(err)) })
         setIsLoading(false)
       }
     }
-  }, [])
+  }, [resetKey])
 
   const [refetchToken, setRefetchToken] = useState(0)
   const refetch = useCallback(() => setRefetchToken((value) => value + 1), [])
@@ -53,14 +56,19 @@ export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { in
     let timer: ReturnType<typeof setTimeout> | null = null
     let controller: AbortController | null = null
     let stopped = false
+    let inFlight = false
 
     const runTick = () => {
-      if (stopped || document.hidden) {
+      if (stopped) return
+      if (inFlight) return
+      if (document.hidden) {
         timer = setTimeout(runTick, intervalMs)
         return
       }
+      inFlight = true
       controller = new AbortController()
       tick(controller.signal).finally(() => {
+        inFlight = false
         if (!stopped) timer = setTimeout(runTick, intervalMs)
       })
     }
@@ -84,5 +92,6 @@ export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, intervalMs, tick, refetchToken])
 
-  return { data, error, isLoading, refetch }
+  const current = snapshot?.key === resetKey ? snapshot : null
+  return { data: current?.data ?? null, error, isLoading: enabled && !current ? !error : isLoading, updatedAt: current?.updatedAt ?? null, refetch }
 }

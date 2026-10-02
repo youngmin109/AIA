@@ -160,6 +160,7 @@ class RunApplicationService(
         ] = {}
         self._completed_runs_cache_lock = RLock()
         self._tool_review_lock = RLock()
+        self._manual_restore_lock = RLock()
         self._codex_workbench = CodexWorkbench(self, _runtime_coordinator_reconciliation)
         self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
@@ -513,6 +514,10 @@ class RunApplicationService(
         manual = self._read_manual_recovery(session_id)
         if not manual:
             return view
+        view['manual_recovery'] = manual
+        if manual.get('record_verification') != 'VALID':
+            # Do not overlay unaudited recovery onto the original verified run.
+            return view
         recovery = manual.get("recovery_result") or {}
         integrity = manual.get("integrity_result") or {}
         view["recovery"] = recovery
@@ -627,7 +632,22 @@ class RunApplicationService(
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError, json.JSONDecodeError):
             return None
-        return payload if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            return None
+        verification = 'UNVERIFIED'
+        try:
+            seal = path.with_suffix('.sha256').read_text(encoding='ascii').strip()
+            if seal == hashlib.sha256(path.read_bytes()).hexdigest():
+                current_result_hash = hashlib.sha256(self.reader.read_result_json(session_id)).hexdigest()
+                if payload.get('original_result_sha256') == current_result_hash:
+                    verification = 'VALID'
+                else:
+                    verification = 'INVALID'
+            else:
+                verification = 'INVALID'
+        except (OSError, ValueError, KeyError):
+            pass
+        return {**payload, 'record_verification': verification}
 
     @staticmethod
     def _recovery_mapping(value: Any) -> dict[str, Any]:
@@ -722,6 +742,9 @@ class RunApplicationService(
                     metadata,
                     manifest,
                 )
+                if checkpoint.session_id != session_id or checkpoint.workspace != workspace:
+                    checkpoint = None
+                    continue
                 break
             except Exception:
                 continue
@@ -738,12 +761,19 @@ class RunApplicationService(
             "checkpoint": checkpoint,
             "workspace_matches": comparison.matches,
             "checkpoint_validity": checkpoint.validity.value,
+            "checkpoint_created_at": checkpoint.created_at.isoformat(),
+            "preview_fingerprint": comparison.current_workspace_content_sha256,
+            "change_count": len(comparison.created_paths) + len(comparison.changed_paths) + len(comparison.deleted_paths),
+            "change_preview": ([{'path': path, 'operation': 'REMOVE_CURRENT'} for path in comparison.created_paths]
+                               + [{'path': path, 'operation': 'RESTORE_CONTENT'} for path in comparison.changed_paths]
+                               + [{'path': path, 'operation': 'RESTORE_MISSING'} for path in comparison.deleted_paths])[:200],
+            "preview_truncated": len(comparison.created_paths) + len(comparison.changed_paths) + len(comparison.deleted_paths) > 200,
         }
 
     def get_recovery_status(self, session_id: str) -> dict[str, Any]:
         context = self._manual_recovery_context(session_id)
         manual = self._read_manual_recovery(session_id)
-        if manual is not None:
+        if manual is not None and manual.get('record_verification') == 'VALID':
             context = {
                 **context,
                 "available": False,
@@ -752,6 +782,7 @@ class RunApplicationService(
                 "recovery_result": manual.get("recovery_result"),
                 "integrity_result": manual.get("integrity_result"),
                 "manual_recovery": True,
+                "record_verification": manual.get('record_verification'),
             }
         else:
             raw_result = context.get("raw_result") or {}
@@ -772,6 +803,7 @@ class RunApplicationService(
                 "recovery_result": recovery_result,
                 "integrity_result": integrity_result,
                 "manual_recovery": False,
+                "record_verification": manual.get('record_verification') if manual else None,
             }
         return {
             key: value
@@ -779,15 +811,23 @@ class RunApplicationService(
             if key not in {"workspace", "raw_result", "checkpoint"}
         }
 
-    def restore_run(self, session_id: str, *, confirm: bool) -> dict[str, Any]:
+    def restore_run(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None) -> dict[str, Any]:
+        with self._manual_restore_lock:
+            return self._restore_run_locked(session_id, confirm=confirm, expected_fingerprint=expected_fingerprint)
+
+    def _restore_run_locked(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None) -> dict[str, Any]:
         if confirm is not True:
             raise ApplicationValidationError("전체 Workspace 복구 확인이 필요합니다.")
         existing = self._read_manual_recovery(session_id)
         if existing is not None:
-            return existing
+            if existing.get('record_verification') == 'VALID':
+                return existing
+            raise ApplicationValidationError('이전 복구 기록을 검증할 수 없습니다. 자동으로 덮어쓰지 않습니다.')
         context = self._manual_recovery_context(session_id)
         if not context.get("available"):
             raise ApplicationValidationError(str(context.get("reason") or "RECOVERY_UNAVAILABLE"))
+        if expected_fingerprint is not None and expected_fingerprint != context.get('preview_fingerprint'):
+            raise ApplicationValidationError('미리보기 이후 작업공간이 변경됐습니다. 복구 목록을 다시 확인해주세요.')
         workspace: Path = context["workspace"]
         raw_result = context["raw_result"]
         checkpoint = context["checkpoint"]
@@ -812,6 +852,11 @@ class RunApplicationService(
             owner_process_create_time=process_create_time(os.getpid()),
         )
         try:
+            # Recheck under Lease. External writers remain a documented limit.
+            if expected_fingerprint is not None:
+                from aia.checkpoint import compare_workspace_to_checkpoint
+                if compare_workspace_to_checkpoint(checkpoint, workspace).current_workspace_content_sha256 != expected_fingerprint:
+                    raise ApplicationValidationError('미리보기 이후 작업공간이 변경됐습니다. 다시 확인해주세요.')
             verification = RecoveryCoordinator(manager).restore_manual(
                 session=session,
                 checkpoint=checkpoint,
@@ -825,6 +870,8 @@ class RunApplicationService(
                 pass
         payload = {
             "schema_version": "aia-manual-recovery-1",
+            "original_result_sha256": hashlib.sha256(self.reader.read_result_json(session_id)).hexdigest(),
+            "checkpoint_manifest_sha256": checkpoint.manifest_sha256,
             "session_id": session_id,
             "workspace": str(workspace),
             "recovery_result": self._recovery_mapping(verification.recovery),
@@ -836,6 +883,10 @@ class RunApplicationService(
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         os.replace(temporary, path)
+        seal_path = path.with_suffix('.sha256')
+        seal_temp = seal_path.with_suffix('.tmp')
+        seal_temp.write_text(hashlib.sha256(path.read_bytes()).hexdigest() + '\n', encoding='ascii')
+        os.replace(seal_temp, seal_path)
         return payload
 
     def _evidence_summary(
@@ -878,6 +929,15 @@ class RunApplicationService(
             )
         except (OSError, ValueError, KeyError):
             return []
+
+    def get_run_activity(self, session_id: str, status: dict[str, Any]) -> dict[str, Any]:
+        session = status.get('session') or {}
+        live = session.get('status') in {'RUNNING', 'STARTING', 'PROTECTING', 'CREATED', 'PREPARING', 'READY'}
+        live = live and not (status.get('runtime_reconciliation') or {}).get('orphaned')
+        try:
+            return self.reader.read_activity(session_id, Path(session['workspace']), live=live)
+        except (KeyError, OSError, ValueError, TypeError):
+            return {'available': False, 'reason': 'EVIDENCE_NOT_VERIFIED'}
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)

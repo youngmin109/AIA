@@ -1,16 +1,8 @@
-import guardianNormal from '../../assets/mascot/guardian-normal.png'
-import guardianReview from '../../assets/mascot/guardian-review.png'
-import guardianBlocked from '../../assets/mascot/guardian-blocked.png'
-import guardianRecovery from '../../assets/mascot/guardian-recovery.png'
+import { GuardianAvatar } from '../common/GuardianAvatar'
+import { useRunStatus } from '../../hooks/useRunStatus'
+import { isSessionRunning } from '../../api/display'
 import { useGuardianState, type GuardianState } from '../../hooks/useGuardianState'
 import { useShellStore } from '../../state/shellStore'
-
-const MASCOT: Record<GuardianState, string> = {
-  normal: guardianNormal,
-  review: guardianReview,
-  blocked: guardianBlocked,
-  recovery: guardianRecovery,
-}
 
 const ALT: Record<GuardianState, string> = {
   normal: '정상 상태의 AIA 가디언',
@@ -23,12 +15,14 @@ const ALT: Record<GuardianState, string> = {
 export function GuardianHero({ readiness, ready }: { readiness: string; ready: boolean }) {
   const guardian = useGuardianState()
   const { activeRunId, openSettingsModal, setView } = useShellStore()
+  const { data: status } = useRunStatus(activeRunId)
+  const isLive = isSessionRunning(status?.session?.status, Boolean(status?.runtime_reconciliation?.orphaned))
 
   return (
     <article className={`card guardian-hero is-${guardian.state}`}>
       <div className="guardian-hero-main">
-        <img key={guardian.state} className="guardian-hero-img" src={MASCOT[guardian.state]} alt={ALT[guardian.state]} />
-        <div className="guardian-hero-copy">
+        <GuardianAvatar state={guardian.state} alt={ALT[guardian.state]} />
+        <div className="guardian-hero-copy"><small className="guardian-introduction">아이아 가디언 · 작업을 지켜보는 보호 안내자</small>
           <div className="guardian-hero-chips">
             <span className={`guardian-hero-status is-${guardian.state}`}>{guardian.label}</span>
             <span className={`guardian-hero-readiness${ready ? ' is-ready' : ''}`}>{readiness}</span>
@@ -38,7 +32,7 @@ export function GuardianHero({ readiness, ready }: { readiness: string; ready: b
           {!activeRunId ? (
             <button type="button" className="guardian-start-button" onClick={openSettingsModal}>보호 실행 시작</button>
           ) : (
-            <button type="button" className="guardian-start-button" onClick={() => setView('terminal')}>Agent CLI 열기</button>
+            <button type="button" className="guardian-start-button" onClick={() => setView(isLive ? 'terminal' : 'audit')}>{isLive ? guardian.label === '사용자 확인' ? '확인 요청 열기' : '에이전트 작업 열기' : '결과·복구 확인'}</button>
           )}
         </div>
       </div>

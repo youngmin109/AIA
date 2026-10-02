@@ -16,6 +16,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 
 import contextlib
+import secrets
+from .local_security import LocalBrowserBoundary
 
 import anyio
 from anyio import to_thread
@@ -24,6 +26,8 @@ from aia_app.codex_app_server import CodexAppServerError
 from aia_app.presenters import recovery_status_view
 from aia_app.service import RunApplicationService
 from aia.capabilities import product_capabilities
+from aia import __version__
+from aia.diagnostics import build_support_bundle
 from aia.codex_installation import CodexHookInstaller
 
 
@@ -342,7 +346,10 @@ def _register_runs_routes(app: FastAPI) -> None:
     @app.get("/api/runs/{session_id}")
     def run_status(session_id: str) -> JSONResponse:
         try:
-            return JSONResponse(app.state.service.get_run_status(session_id))
+            status = app.state.service.get_run_status(session_id)
+            if hasattr(app.state.service, 'get_run_activity'):
+                status['activity'] = app.state.service.get_run_activity(session_id, status)
+            return JSONResponse(status)
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
 
@@ -378,8 +385,15 @@ def _register_run_details_routes(app: FastAPI) -> None:
                 "module_cli_prefix": _console_module_cli_prefix(),
                 "cli_project_root": str(project_root) if project_root else None,
                 "hook_path": str(CodexHookInstaller().path),
+                "product_version": __version__,
+                "supported_environment": 'Windows 11 · Codex CLI · 로컬 보호 실행',
             }
         )
+
+    @app.post('/api/support-bundle')
+    async def support_bundle():
+        bundle = await to_thread.run_sync(lambda: build_support_bundle(control_root=app.state.service.control_root))
+        return JSONResponse(bundle, headers={'Cache-Control': 'no-store'})
 
     @app.get("/api/runs/{session_id}/recovery")
     def recovery_status(session_id: str) -> JSONResponse:
@@ -403,10 +417,12 @@ def _register_run_details_routes(app: FastAPI) -> None:
         except ValueError:
             payload = {}
         try:
-            result = app.state.service.restore_run(
-                session_id,
-                confirm=isinstance(payload, dict) and payload.get("confirm") is True,
-            )
+            kwargs = {'confirm': isinstance(payload, dict) and payload.get('confirm') is True}
+            if isinstance(payload, dict) and 'expected_fingerprint' in payload:
+                if not isinstance(payload['expected_fingerprint'], str) or len(payload['expected_fingerprint']) != 64:
+                    raise ValueError('복구 미리보기 확인값이 올바르지 않습니다.')
+                kwargs['expected_fingerprint'] = payload['expected_fingerprint']
+            result = await to_thread.run_sync(lambda: app.state.service.restore_run(session_id, **kwargs))
         except KeyError:
             return JSONResponse({"error": "Run not found"}, status_code=404)
         except (OSError, ValueError) as error:
@@ -448,7 +464,7 @@ def _register_codex_routes(app: FastAPI) -> None:
         """
 
         service = app.state.service
-        await websocket.accept()
+        await websocket.accept(subprotocol=websocket.scope.get('aia_local_protocol'))
         try:
             cursor = max(0, int(websocket.query_params.get("after", "0")))
         except ValueError:
@@ -485,6 +501,9 @@ def _register_codex_routes(app: FastAPI) -> None:
                         ),
                         abandon_on_cancel=True,
                     )
+                if events and events[0]['sequence'] > cursor + 1:
+                    await send({'type': 'history_gap', 'message': '재연결 전 대화 일부가 메모리 보관 한도를 넘었습니다. 감사 증거와 대화 기록은 별도입니다.',
+                                'first_available_sequence': events[0]['sequence']})
                 for batch in _coalesce_codex_events(events):
                     await send({"type": "events", "events": batch})
                     cursor = batch[-1]["sequence"]
@@ -509,6 +528,9 @@ def _register_codex_routes(app: FastAPI) -> None:
             }
             while True:
                 message = await websocket.receive_json()
+                if len(json.dumps(message, ensure_ascii=False)) > 64 * 1024:
+                    await websocket.close(code=1009)
+                    return
                 client_id = message.get("client_id") if isinstance(message, dict) else None
                 handler = handlers.get(message.get("type")) if isinstance(message, dict) else None
                 if handler is None:
@@ -612,6 +634,12 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.service = active_service
+    local_token = secrets.token_hex(32)
+    app.add_middleware(LocalBrowserBoundary, token=local_token)
+
+    @app.get('/api/local-session')
+    def local_session():
+        return JSONResponse({'token': local_token}, headers={'Cache-Control': 'no-store'})
     app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
     _register_spa_index_routes(app)

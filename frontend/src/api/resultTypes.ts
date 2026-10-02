@@ -49,6 +49,12 @@ export interface ResultView {
 }
 
 export interface RecoveryStatusView {
+  checkpoint_created_at?: string;
+  preview_fingerprint?: string;
+  change_count?: number;
+  change_preview?: Array<{ path: string; operation: string }>;
+  preview_truncated?: boolean;
+  record_verification?: string;
   recovery_status?: string
   integrity_status?: string
   mismatched_file_count?: number | null

@@ -29,7 +29,7 @@ function phaseFor(readinessCode: string | undefined, hasData: boolean): Phase {
 
 export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: boolean) => void }) {
   const [pollIntervalMs, setPollIntervalMs] = useState(SLOW_POLL_MS)
-  const { data: preflight, refetch } = usePreflight(pollIntervalMs)
+  const { data: preflight, error, refetch } = usePreflight(pollIntervalMs)
   const phase = phaseFor(preflight?.readiness_code, Boolean(preflight))
 
   // Fast-poll only while waiting on the one step AIA can't do for the user
@@ -107,7 +107,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
     <div className="panel-section">
       <p className="panel-section-title">AIA Hook 연결</p>
       <div className="hook-setup-intro">
-        <b>처음 한 번만, 아래 순서대로 연결하세요.</b>
+        <b>아래 세 단계로 보호 연결을 준비하세요.</b>
         <p>Hook은 Codex가 도구를 실행하기 직전 AIA에 알려 주는 연결 지점입니다. <strong>Trust는 Codex 안에서 사용자가 직접 승인</strong>해야 해요.</p>
         <ol className="hook-setup-steps" aria-label="AIA Hook 연결 단계">
           <li className={installed ? 'is-done' : ''}><span>1</span><b>{firstStepLabel}</b><small>{installed ? '완료' : phase === 'unavailable' ? 'Codex 경로 확인' : 'AIA에서 설치'}</small></li>
@@ -116,7 +116,9 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
         </ol>
       </div>
 
-      {phase === 'checking' && <div className="stat-card"><div className="stat-card-value">확인하는 중…</div></div>}
+      {error && <div role="alert" className="validation-note">연결 상태를 가져오지 못했습니다. <button type="button" onClick={refetch}>다시 확인</button></div>}
+      <p className="muted-copy">Codex나 Hook을 업데이트하면 다시 신뢰하거나 연결 검증이 필요할 수 있습니다.</p>
+      {phase === 'checking' && !error && <div className="stat-card"><div className="stat-card-value">확인하는 중…</div></div>}
 
       {phase === 'unavailable' && (
         <div className="stat-card">
@@ -139,7 +141,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
       {phase === 'trust_required' && (
         <div className="stat-card">
           <div className="stat-card-value is-warn">2. Codex에서 AIA Hook을 신뢰하세요</div>
-          {trustDetail && <div className="badge is-warn" style={{ marginTop: 4 }}>preToolUse: {trustDetail}</div>}
+          {trustDetail && <div className="badge is-warn" style={{ marginTop: 4 }}>실행 전 연결: 신뢰 확인 필요</div>}
           <ol style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--text-muted)', display: 'grid', gap: 4 }}>
             <li>새 터미널에서 <code className="mono">codex</code>를 실행합니다.</li>
             <li><code className="mono">/hooks</code>를 입력하고 AIA Hook을 검토한 뒤 <b>Trust</b>를 선택합니다.</li>
@@ -170,7 +172,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
 
       {phase === 'not_writable' && (
         <div className="stat-card">
-          <div className="stat-card-value is-warn">AIA Control Root 권한 문제</div>
+          <div className="stat-card-value is-warn">로컬 기록 폴더 권한 확인 필요</div>
           <div className="stat-card-label">{preflight?.next_step}</div>
         </div>
       )}
@@ -178,11 +180,11 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
       {phase === 'ready' && (
         <div className="stat-card">
           <div className="stat-card-value is-ok">보호 실행 준비 완료</div>
-          <div className="stat-card-label">이제 Workspace와 정책을 고르고 보호 실행을 시작할 수 있습니다.</div>
+          <div className="stat-card-label">이제 작업공간과 정책을 고르고 보호 실행을 시작할 수 있습니다.</div>
         </div>
       )}
 
-      {cli && (
+      {cli && (<details className="hook-advanced"><summary>터미널에서 직접 검증하기</summary>
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
           <code className="mono" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
             {cli.cli_prefix} hook verify
@@ -198,7 +200,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
           >
             복사
           </button>
-        </div>
+        </div></details>
       )}
     </div>
   )

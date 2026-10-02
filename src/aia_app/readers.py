@@ -16,6 +16,7 @@ from typing import Any, Callable
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
 from aia.evidence import RawEvidenceRecord
+from .activity import ActivityIndex
 
 
 _SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9-]+$")
@@ -34,6 +35,7 @@ class _LiveEvidenceCache:
     observed_evidence_ids: set[str] = field(default_factory=set)
     captured_at: dict[str, str] = field(default_factory=dict)
     observations_valid: bool = True
+    activity: ActivityIndex = field(default_factory=ActivityIndex)
 
 
 class ResultBundleReader:
@@ -45,6 +47,7 @@ class ResultBundleReader:
         self._result_cache: dict[Path, tuple[int, int, bytes, dict[str, Any]]] = {}
         self._metadata_cache: dict[Path, tuple[int, int, bytes, list[dict[str, Any]]]] = {}
         self._live_evidence_cache: dict[Path, _LiveEvidenceCache] = {}
+        self._activity_cache: dict[str, tuple[bytes, ActivityIndex]] = {}
 
     def session_directory(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not _SAFE_SESSION_ID.fullmatch(session_id):
@@ -360,6 +363,8 @@ class ResultBundleReader:
             return
 
         cached.captured_at[record.evidence_id] = record.captured_at.isoformat()
+        cached.activity.observe(record.source.value, record.record_type.value, record.payload,
+                                record.captured_at.isoformat(), record.evidence_id)
         tool_use_id = record.payload.get("tool_use_id")
         if record.record_type.value == "POSTTOOL_OBSERVED":
             if isinstance(tool_use_id, str) and tool_use_id:
@@ -376,6 +381,40 @@ class ResultBundleReader:
                     cached.pretool_evidence_ids.setdefault(tool_use_id, []).append(
                         record.evidence_id
                     )
+
+    def read_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
+        """Use the same evidence stream as Audit; no screen-only logs."""
+        if live:
+            self.read_live_evidence_snapshot(session_id)
+            path = self.session_directory(session_id) / 'evidence' / 'raw-evidence.jsonl'
+            with self._parsed_cache_lock:
+                cached = self._live_evidence_cache.get(path)
+                if cached is None or not cached.observations_valid:
+                    return {'available': False, 'reason': 'EVIDENCE_NOT_AVAILABLE'}
+                index = deepcopy(cached.activity)
+        else:
+            _, _, contents = self._read_verified_result(session_id)
+            if contents is None:
+                return {'available': False, 'reason': 'VERIFIED_EVIDENCE_NOT_AVAILABLE'}
+            digest = hashlib.blake2b(contents, digest_size=16).digest()
+            with self._parsed_cache_lock:
+                cached = self._activity_cache.get(session_id)
+                if cached is not None and cached[0] == digest:
+                    index = deepcopy(cached[1])
+                else:
+                    index = ActivityIndex()
+                    for line in contents.decode('utf-8').splitlines():
+                        value = json.loads(line)
+                        if not isinstance(value, dict) or value.get('session_id') != session_id:
+                            raise ValueError('Evidence Session mismatch')
+                        payload = value.get('payload')
+                        if isinstance(payload, dict):
+                            index.observe(value.get('source'), value.get('record_type'), payload,
+                                          value.get('captured_at', ''), value.get('evidence_id', ''))
+                    self._activity_cache[session_id] = (digest, deepcopy(index))
+                    if len(self._activity_cache) > 32:
+                        self._activity_cache.pop(next(iter(self._activity_cache)))
+        return index.view(workspace, live=live)
 
     def list_completed(self) -> list[dict[str, Any]]:
         """List only committed, valid Result Bundles under this Control Root."""

@@ -6,8 +6,14 @@ import type { ResultView } from '../api/resultTypes'
  * Pass `enabled: false` to skip fetching, e.g. while a run is still active
  * and /result would just report it unavailable. */
 export function useResult(sessionId: string, { enabled = true }: { enabled?: boolean } = {}) {
-  const [data, setData] = useState<ResultView | null>(null)
+  const [snapshot, setSnapshot] = useState<{ id: string; value: ResultView } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  useEffect(() => {
+    const updated = (event: Event) => { if ((event as CustomEvent).detail === sessionId) setReloadToken(value => value + 1) }
+    window.addEventListener('aia:result-updated', updated)
+    return () => window.removeEventListener('aia:result-updated', updated)
+  }, [sessionId])
   const [isLoading, setIsLoading] = useState(enabled)
 
   useEffect(() => {
@@ -20,7 +26,8 @@ export function useResult(sessionId: string, { enabled = true }: { enabled?: boo
     })
     apiGet<ResultView>(`/api/runs/${encodeURIComponent(sessionId)}/result`, controller.signal)
       .then((result) => {
-        setData(result)
+        if (controller.signal.aborted) return
+        setSnapshot({ id: sessionId, value: result })
         setIsLoading(false)
       })
       .catch((err) => {
@@ -29,7 +36,8 @@ export function useResult(sessionId: string, { enabled = true }: { enabled?: boo
         setIsLoading(false)
       })
     return () => controller.abort()
-  }, [sessionId, enabled])
+  }, [sessionId, enabled, reloadToken])
 
-  return { data, error, isLoading: enabled && isLoading }
+  const data = enabled && snapshot?.id === sessionId ? snapshot.value : null
+  return { data, error, isLoading: enabled && (isLoading || !data && !error) }
 }

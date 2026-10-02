@@ -764,6 +764,11 @@ def test_process_exit_store_failure_marks_sensor_failed(
     sensor.evidence_store = store
     sensor.start()
     try:
+        # This test drives _poll_once itself. Do not let the background poller
+        # consume the failing exit first and make the assertion timing-dependent.
+        sensor._stop_event.set()
+        sensor._thread.join(timeout=5)
+        assert not sensor._thread.is_alive()
         root.children_list = []
         del table.processes[child.pid]
         with pytest.raises(ProcessEvidenceStoreError):

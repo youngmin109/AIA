@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useDialog } from '../common/useDialog'
 import { Icon } from '../common/Icon'
 import { useShellStore } from '../../state/shellStore'
 import {
@@ -40,13 +41,14 @@ export function ProtectionSetupModal() {
   const [reconcileError, setReconcileError] = useState<string | null>(null)
   const [pickerMessage, setPickerMessage] = useState<string | null>(null)
 
+  const dialogRef = useDialog(settingsModalOpen, () => { if (!submitting) closeSettingsModal() })
   useEffect(() => {
     if (!settingsModalOpen) return
     listProfiles()
       .then((list) => {
         const standardProfiles = list.filter(isStandardProfile)
         setProfiles(standardProfiles)
-        if (!policyProfile && standardProfiles.length > 0) {
+        if (standardProfiles.length > 0) {
           const defaultValue = readDefaultPolicyProfile()
           const stillValid = defaultValue && standardProfiles.some((profile) => profile.value === defaultValue)
           setPolicyProfile(stillValid ? defaultValue : standardProfiles[0].value)
@@ -64,9 +66,11 @@ export function ProtectionSetupModal() {
       return
     }
     setWorkspaceState({ status: 'checking' })
+    let cancelled = false
     const timer = setTimeout(() => {
       validateWorkspace(workspace.trim())
         .then((result) => {
+          if (cancelled) return
           if (result.valid) {
             setWorkspaceState({ status: 'valid' })
             setRecovery(result.recovery?.required ? result.recovery : null)
@@ -74,16 +78,16 @@ export function ProtectionSetupModal() {
             setWorkspaceState({ status: 'invalid', message: result.error ?? '폴더를 확인할 수 없습니다.' })
           }
         })
-        .catch((err) => setWorkspaceState({ status: 'invalid', message: err instanceof Error ? err.message : String(err) }))
+        .catch((err) => { if (!cancelled) setWorkspaceState({ status: 'invalid', message: err instanceof Error ? err.message : String(err) }) })
     }, 400)
-    return () => clearTimeout(timer)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [workspace])
 
   if (!settingsModalOpen) {
     return null
   }
 
-  const canSubmit = workspaceState.status === 'valid' && !recovery?.required && hookReady && !submitting
+  const canSubmit = workspaceState.status === 'valid' && !recovery?.required && hookReady && !submitting && profiles.some(profile => profile.value === policyProfile)
 
   async function handleReconcile() {
     if (!recovery?.session_id || reconciling) return
@@ -149,7 +153,7 @@ export function ProtectionSetupModal() {
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="보호 세팅" onClick={closeSettingsModal}>
-      <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className="modal-panel" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h2>보호 세팅</h2>
           <button type="button" className="icon-button" onClick={closeSettingsModal} title="닫기">
@@ -159,7 +163,7 @@ export function ProtectionSetupModal() {
         <div className="modal-body">
           <HookStatusControl onReadyChange={setHookReady} />
           <div className="panel-section">
-            <p className="panel-section-title">Workspace 경로</p>
+            <p className="panel-section-title">작업공간 경로</p>
             <div className="workspace-picker-row">
               <input
                 value={workspace}
@@ -180,7 +184,7 @@ export function ProtectionSetupModal() {
             <div className="panel-section">
               <div className="terminal-action-banner" style={{ borderTop: 'none', borderRadius: 8, flexWrap: 'wrap' }}>
                 <span>
-                  이 Workspace에는 정리되지 않은 이전 보호 실행이 있습니다 (#{recovery.session_id?.slice(0, 8)}
+                  이 작업공간에는 정리되지 않은 이전 보호 실행이 있습니다 (#{recovery.session_id?.slice(0, 8)}
                   {recovery.status ? ` · ${recovery.status}` : ''}). 이전 AIA·Codex가 완전히 종료됐는지 확인한 뒤 정리하세요.
                 </span>
                 <button type="button" className="cta-button" style={{ width: 'auto', padding: '6px 14px' }} disabled={reconciling} onClick={handleReconcile}>
