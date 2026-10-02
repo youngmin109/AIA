@@ -10,17 +10,23 @@ import { isRunActive, useRunList } from '../../hooks/useRunList'
 import { sessionCreatedLabel, sessionDisplayName, sessionShortId, workspaceShortName } from './sessionLabel'
 
 const NAV_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
-  { view: 'dashboard', icon: 'dashboard', label: '대시보드' },
-  { view: 'terminal', icon: 'terminal', label: 'Agent CLI' },
-  { view: 'policy', icon: 'settings', label: '정책 설정' },
-  { view: 'audit', icon: 'history', label: '감사 기록' },
+  { view: 'dashboard', icon: 'dashboard', label: '보호 현황' },
+  { view: 'agents', icon: 'agents', label: '에이전트' },
+  { view: 'terminal', icon: 'terminal', label: '보호 실행' },
+  { view: 'policy', icon: 'shield', label: '정책' },
+  { view: 'audit', icon: 'history', label: '증거' },
+  { view: 'reports', icon: 'report', label: '보고서' },
+  { view: 'settings', icon: 'settings', label: '설정' },
 ]
 
 const TITLES: Record<ShellView, string> = {
-  dashboard: '안전한 작업 현황',
-  terminal: 'Agent CLI',
-  policy: '정책 설정',
-  audit: '감사 기록',
+  dashboard: '보호 현황',
+  agents: '에이전트',
+  terminal: '보호 실행',
+  policy: '정책 관리',
+  audit: '증거 탐색',
+  reports: '보안 보고서',
+  settings: '제품 설정',
 }
 
 export function Sidebar() {

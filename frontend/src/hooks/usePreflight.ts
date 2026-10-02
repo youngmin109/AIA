@@ -43,9 +43,9 @@ async function loadPreflight(): Promise<Preflight> {
  * changes, so this can be computed dynamically from the previous poll's
  * own result.
  */
-export function usePreflight(intervalMs = 30_000) {
+export function usePreflight(intervalMs = 30_000, enabled = true) {
   // Multiple panels need the same readiness state. Share the request so the
   // local server does not queue identical preflight work at startup.
   const fetchFn = useCallback((_signal: AbortSignal) => loadPreflight(), [])
-  return usePolling<Preflight>(fetchFn, { intervalMs })
+  return usePolling<Preflight>(fetchFn, { intervalMs, enabled })
 }

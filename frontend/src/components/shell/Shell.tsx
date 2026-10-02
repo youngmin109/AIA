@@ -7,6 +7,9 @@ import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
 import { DashboardView } from '../dashboard/DashboardView'
 import { PolicyView } from '../policy/PolicyView'
 import { AuditView } from '../audit/AuditView'
+import { AgentsView } from '../agents/AgentsView'
+import { ReportsView } from '../reports/ReportsView'
+import { SettingsView } from '../settings/SettingsView'
 import { EvidenceReviewModal } from '../audit/EvidenceReviewModal'
 import { useActiveRunReconciliation } from '../../hooks/useActiveRunReconciliation'
 import { useShellStore, type ShellView } from '../../state/shellStore'
@@ -31,6 +34,9 @@ export function Shell() {
           <div className={viewClass('dashboard')}>
             <DashboardView />
           </div>
+          <div className={viewClass('agents')}>
+            <AgentsView />
+          </div>
           <div className={viewClass('policy')}>
             <PolicyView />
           </div>
@@ -39,6 +45,12 @@ export function Shell() {
           </div>
           <div className={viewClass('terminal')}>
             <ActiveRunPane />
+          </div>
+          <div className={viewClass('reports')}>
+            <ReportsView />
+          </div>
+          <div className={viewClass('settings')}>
+            <SettingsView />
           </div>
         </div>
         <RightPanel />

@@ -106,14 +106,15 @@
   --terminal-text: var(--text);
   --terminal-muted: var(--text-muted);
 
-  /* Guardian sidebar: fixed navy, same tone as the mockup */
-  --nav-bg: #131d32;
-  --nav-bg-active: #263756;
-  --nav-text: #aebdd7;
-  --nav-text-active: #ffffff;
-  --nav-text-muted: #7f94bd;
-  --nav-border: #304264;
-  --nav-accent: #69d7fd;
+  /* Light mode keeps navigation light; dark navigation is reserved for the
+     explicit dark theme. */
+  --nav-bg: #fbfcff;
+  --nav-bg-active: #edf3ff;
+  --nav-text: #5f6f89;
+  --nav-text-active: #274eaa;
+  --nav-text-muted: #8d99ad;
+  --nav-border: #e4e9f2;
+  --nav-accent: #5b7cfa;
 }
 
 * {

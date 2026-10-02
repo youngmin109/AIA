@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-export type ShellView = 'dashboard' | 'terminal' | 'policy' | 'audit'
+export type ShellView = 'dashboard' | 'agents' | 'terminal' | 'policy' | 'audit' | 'reports' | 'settings'
 
 /** Live Codex status shared with GuardianHero in the dashboard view. */
 export interface CodexActivitySignal {
