@@ -48,11 +48,15 @@ try {
     }
 
     Write-Host "[AIA] Building AIA.exe desktop shell..."
+    # Keep the console-capable bootloader, while hiding its console before
+    # the desktop shell begins.  PyInstaller's windowed bootloader can fail
+    # before Python starts on some Windows/Python 3.13 combinations.
     & uv run --group build pyinstaller `
         --noconfirm `
         --clean `
         --onedir `
-        --windowed `
+        --console `
+        --hide-console hide-early `
         --name AIA `
         --distpath $outputPath `
         --workpath (Join-Path $buildPath "AIA") `
