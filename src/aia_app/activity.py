@@ -25,6 +25,8 @@ class ActivityIndex:
             event = payload.get('event_type')
             if event not in {'created', 'modified', 'deleted', 'moved'}:
                 return
+            if event == 'modified' and payload.get('content_unchanged') is True:
+                return  # permission or metadata change; not a file change
             for key in ('src_path', 'dest_path'):
                 path = payload.get(key)
                 if not isinstance(path, str) or not path:

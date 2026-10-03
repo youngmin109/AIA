@@ -1,3 +1,4 @@
+import { Button } from '../common/Button'
 import { useShellStore } from '../../state/shellStore'
 import { ThemeToggle } from '../common/ThemeToggle'
 import { SIDEBAR_VIEW_TITLES } from './Sidebar'
@@ -14,7 +15,7 @@ export function Topbar() {
 
   return (
     <header className="topbar">
-      <div className="topbar-titles"><button type="button" className="icon-button" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-label={sidebarCollapsed ? '메뉴 열기' : '메뉴 접기'}><Icon name="collapseLeft" /></button>
+      <div className="topbar-titles"><Button variant="icon" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-label={sidebarCollapsed ? '메뉴 열기' : '메뉴 접기'}><Icon name="collapseLeft" /></Button>
         <h1 className="topbar-title">{SIDEBAR_VIEW_TITLES[activeView]}</h1>
       </div>
       <div className="topbar-actions">

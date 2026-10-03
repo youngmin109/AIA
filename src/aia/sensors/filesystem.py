@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
+import os
 from pathlib import Path
+import stat
 from threading import RLock
 from typing import Any
 
@@ -14,6 +17,7 @@ from watchdog.observers import Observer
 
 from ..checkpoint import (
     CheckpointValidity,
+    ManifestEntryType,
     SafeCheckpoint,
     validate_checkpoint,
 )
@@ -30,6 +34,7 @@ from ..protection import (
     ProtectionPreparationContext,
     WorkspaceLeaseManager,
 )
+from ..normalizer import canonicalize_workspace_path
 from ..session import ProtectedRunSession, SessionStatus
 from .base import (
     SensorAlreadyRunningError,
@@ -123,6 +128,9 @@ class FilesystemSensor:
     """Observe Workspace file events and append only Raw Evidence."""
 
     _SUPPORTED_EVENT_TYPES = frozenset({"created", "modified", "deleted", "moved"})
+    # Files larger than this are never content-compared; their modified
+    # events always stay modifications.
+    _CONTENT_CHECK_MAX_BYTES = 32 * 1024 * 1024
 
     def __init__(
         self,
@@ -167,6 +175,9 @@ class FilesystemSensor:
         self._status = SensorStatus.STOPPED
         self._observation_sequence = 0
         self._started_at: datetime | None = None
+        # Last known content per Workspace file (case-folded relative path),
+        # seeded from the Safe Checkpoint; None once the content has changed.
+        self._known_content: dict[str, tuple[int, str] | None] = {}
         self._health = SensorHealth(
             EvidenceSource.FILESYSTEM_WATCHER,
             SensorStatus.STOPPED,
@@ -218,6 +229,11 @@ class FilesystemSensor:
                         "Filesystem Sensor starting health could not be persisted"
                     )
                 _validate_context(self.session, self.preparation_context, self.checkpoint)
+                self._known_content = {
+                    entry.relative_path.casefold(): (entry.size, entry.sha256)
+                    for entry in self.checkpoint.manifest
+                    if entry.entry_type is ManifestEntryType.FILE
+                }
                 self._control_root = _control_root_for_context(
                     self.session,
                     self.preparation_context,
@@ -323,6 +339,12 @@ class FilesystemSensor:
             if not isinstance(payload["src_path"], str):
                 self._set_failed("INVALID_EVENT_PATH", append=True)
                 return
+            if event_type == "modified" and not payload["is_directory"]:
+                if self._content_unchanged(payload["src_path"]):
+                    # Permission or metadata change only (for example the
+                    # Codex sandbox adding an ACL to the Workspace): the
+                    # event stays in Raw Evidence, but it is not a MODIFY.
+                    payload["content_unchanged"] = True
             record = RawEvidenceRecord(
                 session_id=self.session.session_id,
                 source=EvidenceSource.FILESYSTEM_WATCHER,
@@ -335,6 +357,80 @@ class FilesystemSensor:
                 self.evidence_store.append(record)
             except EvidenceStoreError:
                 self._set_failed("EVIDENCE_STORE_FAILURE", append=True)
+
+    def _content_unchanged(self, src_path: str) -> bool:
+        """True only when the file's bytes match its last known content.
+
+        Any doubt (unknown file, link, unreadable or large file, different
+        size or hash) keeps the event a modification.  Once a file's content
+        differs it is never compared again in this run.
+        """
+
+        relative = canonicalize_workspace_path(src_path, self.session.workspace).canonical_path
+        known = self._known_content.get(relative) if relative else None
+        if known is None:
+            return False
+        size, digest = known
+        try:
+            # Check every component without resolving it through a junction.
+            # lstat() on the leaf alone follows reparse points in its parents.
+            target = Path(os.path.abspath(self.session.workspace / src_path))
+            target.relative_to(self.session.workspace)
+            components = []
+            current = target
+            while True:
+                components.append(current)
+                if current == self.session.workspace:
+                    break
+                current = current.parent
+            for component in reversed(components):
+                info = os.lstat(component)
+                if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                    return False
+            status = info  # last component is the file
+            if not stat.S_ISREG(status.st_mode) or status.st_size > self._CONTENT_CHECK_MAX_BYTES:
+                return False
+            if status.st_size != size:
+                self._known_content[relative] = None
+                return False
+            sha256 = hashlib.sha256()
+            # Windows lstat/fstat expose different ctime semantics on Python
+            # 3.13. Compare ctime only between calls to the same API.
+            before = (status.st_dev, status.st_ino, status.st_size, status.st_mtime_ns)
+            with open(target, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                if before != (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns):
+                    self._known_content[relative] = None
+                    return False
+                # A file growing after lstat must not monopolize the sensor's
+                # event lock. Read at most the expected bytes plus one sentinel.
+                remaining = size + 1
+                while remaining and (chunk := stream.read(min(1024 * 1024, remaining))):
+                    sha256.update(chunk)
+                    remaining -= len(chunk)
+                after = os.fstat(stream.fileno())
+                if (
+                    remaining != 1
+                    or before != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                    or opened.st_ctime_ns != after.st_ctime_ns
+                ):
+                    self._known_content[relative] = None
+                    return False
+            # Detect replacement of the path (including parent links) while
+            # hashing. This is conservative, not an atomic filesystem snapshot.
+            for component in reversed(components):
+                info = os.lstat(component)
+                if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                    return False
+            if before != (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns) or status.st_ctime_ns != info.st_ctime_ns:
+                self._known_content[relative] = None
+                return False
+        except (OSError, ValueError):
+            return False
+        if sha256.hexdigest() == digest:
+            return True
+        self._known_content[relative] = None
+        return False
 
     def _set_failed(self, reason: str, *, append: bool) -> None:
         self._set_health(SensorStatus.FAILED, reason, append=append)

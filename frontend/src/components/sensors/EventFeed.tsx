@@ -1,3 +1,4 @@
+import { Badge } from '../common/Badge'
 import { useState } from 'react'
 import type { EvidenceChain, SecurityEvent } from '../../api/types'
 
@@ -70,16 +71,16 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
     <div className="event-row">
       <button
         type="button"
-        style={{ all: 'unset', cursor: expandable ? 'pointer' : 'default', display: 'block', width: '100%' }}
+        className={`row-toggle${expandable ? '' : ' is-static'}`}
         onClick={() => expandable && setExpanded((value) => !value)}
       >
         <div className="event-row-top">
           <span className="event-row-sensor">{event.sensor ?? event.origin_label ?? '센서'}</span>
           <span className="event-row-badges">
-            <span className={`badge is-${toneFor(event.display_decision ?? event.decision)}`}>
+            <Badge tone={toneFor(event.display_decision ?? event.decision)}>
               {event.display_decision ?? event.decision ?? '확인 필요'}
-            </span>
-            {showExecutionResult && <span className="badge is-warn">{event.execution_result}</span>}
+            </Badge>
+            {showExecutionResult && <Badge tone="warn">{event.execution_result}</Badge>}
           </span>
         </div>
         <span>{event.display_summary ?? event.summary}</span>
@@ -91,20 +92,20 @@ function EventRow({ event, chain }: { event: SecurityEvent; chain?: EvidenceChai
         )}
       </button>
       {expanded && chain && (
-        <div style={{ marginTop: 8, display: 'grid', gap: 6, fontSize: 11 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        <div className="chain-details">
+          <div className="chain-badges">
             {(chain.sensor_links ?? []).map((link, index) => (
-              <span key={index} className={`badge is-${linkTone(link.status)}`}>
+              <Badge tone={linkTone(link.status)} key={index}>
                 {link.sensor}: {link.status}
                 {typeof link.evidence_count === 'number' ? ` (${link.evidence_count})` : ''}
-              </span>
+              </Badge>
             ))}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, color: 'var(--text-muted)' }}>
+          <div className="chain-badges is-muted">
             {(chain.stages ?? []).map((stage, index) => (
-              <span key={index} className={`badge is-${toneFor(stage.status)}`} title={stage.label}>
+              <Badge tone={toneFor(stage.status)} key={index} title={stage.label}>
                 {stage.label ?? stage.stage}
-              </span>
+              </Badge>
             ))}
           </div>
         </div>

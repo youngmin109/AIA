@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { nextConnectionFailures, pollOutcomeOf } from '../api/connectionState'
 
 interface UsePollingOptions {
   intervalMs: number
@@ -11,6 +12,8 @@ export interface UsePollingResult<T> {
   error: Error | null
   isLoading: boolean
   updatedAt?: number | null
+  /** Consecutive polls that got no response from the local server. */
+  connectionFailures?: number
   refetch: () => void
 }
 
@@ -26,6 +29,7 @@ export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { in
   const [failure, setFailure] = useState<{ key: string | null; error: Error } | null>(null)
   const error = failure?.key === resetKey ? failure.error : null
   const [isLoading, setIsLoading] = useState(true)
+  const [connectionFailures, setConnectionFailures] = useState(0)
   const fetchRef = useRef(fetchFn)
   fetchRef.current = fetchFn
 
@@ -35,11 +39,13 @@ export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { in
       if (!signal.aborted) {
         setSnapshot({ key: resetKey, data: next, updatedAt: Date.now() })
         setFailure(null)
+        setConnectionFailures(0)
         setIsLoading(false)
       }
     } catch (err) {
       if (!signal.aborted) {
         setFailure({ key: resetKey, error: err instanceof Error ? err : new Error(String(err)) })
+        setConnectionFailures(previous => nextConnectionFailures(previous, pollOutcomeOf(err)))
         setIsLoading(false)
       }
     }
@@ -93,5 +99,5 @@ export function usePolling<T>(fetchFn: (signal: AbortSignal) => Promise<T>, { in
   }, [enabled, intervalMs, tick, refetchToken])
 
   const current = snapshot?.key === resetKey ? snapshot : null
-  return { data: current?.data ?? null, error, isLoading: enabled && !current ? !error : isLoading, updatedAt: current?.updatedAt ?? null, refetch }
+  return { data: current?.data ?? null, error, isLoading: enabled && !current ? !error : isLoading, updatedAt: current?.updatedAt ?? null, connectionFailures, refetch }
 }

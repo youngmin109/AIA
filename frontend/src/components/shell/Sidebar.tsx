@@ -1,6 +1,8 @@
+import { Button } from '../common/Button'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../common/useDialog'
 import { displayStatus } from '../../api/display'
+import { errorReportTemplate } from '../../api/errorReport'
 import { useState } from 'react'
 import { Icon, type IconName } from '../common/Icon'
 import { useShellStore, type ShellView } from '../../state/shellStore'
@@ -82,10 +84,6 @@ export function Sidebar() {
     setView(view)
   }
 
-  function errorReportTemplate() {
-    return `[AIA Guardian 오류 신고]\n\n- 발생 시각:\n- 어떤 작업을 하려 했나요?:\n- 실제로 보인 현상:\n- 기대한 결과:\n- 선택한 정책 / 보호 상태:\n- 화면 캡처 또는 감사 기록 참고:\n\n※ API 키, 토큰, 비밀번호, 개인 경로 등 민감한 정보는 삭제해 주세요.`
-  }
-
   async function copyErrorReport() {
     try {
       if (!navigator.clipboard) throw new Error('클립보드를 사용할 수 없습니다.')
@@ -165,7 +163,7 @@ export function Sidebar() {
       </section>
       {guideOpen && createPortal(
         <div ref={guideRef} tabIndex={-1} className="guardian-guide-popover" role="dialog" aria-modal="true" aria-label="아이아 가디언 도움말">
-          <button type="button" className="icon-button guardian-guide-close" onClick={() => setGuideOpen(false)} aria-label="도움말 닫기"><Icon name="close" size={14} /></button>
+          <Button variant="icon" className="guardian-guide-close" onClick={() => setGuideOpen(false)} aria-label="도움말 닫기"><Icon name="close" size={14} /></Button>
           <div className="guardian-guide-hero">
             <GuardianAvatar state={guardian.state} alt={`아이아 가디언 · ${guardian.label}`} size="guide" />
             <div><strong>안녕하세요, 아이아 가디언이에요.</strong><p>준비된 안내를 골라보세요. 저는 에이전트가 아니라 Codex의 실제 실행과 AIA의 보호 상태를 설명하는 안내자예요.</p></div>
@@ -181,13 +179,13 @@ export function Sidebar() {
             <p>{guideContent.text}</p>
             <ol className="guardian-guide-flow">{guideContent.steps.map((step) => <li key={step}>{step}</li>)}</ol>
             {guideTopic === 'report' && <div className="guardian-report-actions">
-              <button type="button" className="secondary-button" onClick={copyErrorReport}>{reportCopied ? '신고 초안을 복사했어요' : '신고 초안 복사'}</button>
-              <button type="button" className="cta-button" onClick={openIssueDraft}>GitHub 이슈 작성</button>
+              <Button variant="outline" onClick={copyErrorReport}>{reportCopied ? '신고 초안을 복사했어요' : '신고 초안 복사'}</Button>
+              <Button variant="cta" onClick={openIssueDraft}>GitHub 이슈 작성</Button>
             </div>}
-            {guideTopic === 'start' && <button type="button" className="cta-button" onClick={() => { setGuideOpen(false); openSettingsModal() }}>새 보호 실행 설정</button>}
-            {guideTopic === 'hook' && <button type="button" className="cta-button" onClick={() => { setGuideOpen(false); openSettingsModal() }}>Hook 설치·연결 검증 열기</button>}
-            {guideTopic === 'safety' && <button type="button" className="cta-button" onClick={() => guideAction(guardian.label === '사용자 확인' ? 'terminal' : 'audit')}>{guardian.label === '사용자 확인' ? '실제 확인 요청 열기' : '정책 사건·증거 확인'}</button>}
-            {guideTopic === 'recovery' && <button type="button" className="cta-button" onClick={() => guideAction('audit')}>{activeRunId ? '선택한 실행 결과·복구 열기' : '복구할 실행 기록 선택'}</button>}
+            {guideTopic === 'start' && <Button variant="cta" onClick={() => { setGuideOpen(false); openSettingsModal() }}>새 보호 실행 설정</Button>}
+            {guideTopic === 'hook' && <Button variant="cta" onClick={() => { setGuideOpen(false); openSettingsModal() }}>Hook 설치·연결 검증 열기</Button>}
+            {guideTopic === 'safety' && <Button variant="cta" onClick={() => guideAction(guardian.label === '사용자 확인' ? 'terminal' : 'audit')}>{guardian.label === '사용자 확인' ? '실제 확인 요청 열기' : '정책 사건·증거 확인'}</Button>}
+            {guideTopic === 'recovery' && <Button variant="cta" onClick={() => guideAction('audit')}>{activeRunId ? '선택한 실행 결과·복구 열기' : '복구할 실행 기록 선택'}</Button>}
           </section>
           <p className="guardian-authority-note">가디언은 안내자예요. 여기서 실행을 허용·차단하거나 자동 복구하지 않습니다.</p>
         </div>, document.body

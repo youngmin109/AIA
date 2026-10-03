@@ -1,3 +1,6 @@
+import { EmptyState } from '../common/EmptyState'
+import { Button } from '../common/Button'
+import { Badge } from '../common/Badge'
 import { useState } from 'react'
 import { useResult } from '../../hooks/useResult'
 import { displayStatus, statusTone } from '../../api/display'
@@ -21,17 +24,14 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
   if (isLoading) {
     return (
-      <div className="center-empty-state">
-        <strong>결과를 불러오는 중입니다…</strong>
-      </div>
+      <EmptyState title="결과를 불러오는 중입니다…" />
     )
   }
   if (error || !data) {
     return (
-      <div className="center-empty-state">
-        <strong>결과를 표시할 수 없습니다</strong>
+      <EmptyState title="결과를 표시할 수 없습니다">
         <p>{error || '실행 기록을 확인할 수 없습니다.'}</p>
-      </div>
+      </EmptyState>
     )
   }
 
@@ -39,7 +39,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   const verdict = deriveVerdict(data)
 
   return (
-    <div style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
+    <div className="result-view">
       <div className={`result-verdict is-${verdict.tone}`}>
         <span className="result-verdict-mark" aria-hidden="true">
           {verdict.tone === 'ok' ? '✓' : verdict.tone === 'bad' ? '!' : '·'}
@@ -71,24 +71,24 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
       <div className="panel-section">
         <p className="panel-section-title">보호 실행 결과</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <span className={`badge is-${toneFor(data.bundle_status)}`}>감사 묶음: {displayStatus(data.bundle_status)}</span>
-          <span className={`badge is-${toneFor(data.session_status)}`}>{displayStatus(data.session_status)}</span>
-          {incidents.length > 0 && <span className="badge is-warn">정책 사건 {incidents.length}건</span>}
+        <div className="badge-row is-spaced">
+          <Badge tone={toneFor(data.bundle_status)}>감사 묶음: {displayStatus(data.bundle_status)}</Badge>
+          <Badge tone={toneFor(data.session_status)}>{displayStatus(data.session_status)}</Badge>
+          {incidents.length > 0 && <Badge tone="warn">정책 사건 {incidents.length}건</Badge>}
         </div>
-        <div className="run-row-path" style={{ whiteSpace: 'normal' }}>
+        <div className="run-row-path is-wrapping">
           {data.workspace} {data.policy_id ? `· 정책 ${data.policy_id}${data.policy_version ? ` · ${data.policy_version}` : ''}` : ''}
         </div>
       </div>
 
       <div className="panel-section">
         <p className="panel-section-title">복구 · 무결성</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className={`badge is-${toneFor(recovery?.recovery_status ?? data.recovery_status)}`}>복구: {displayStatus(recovery?.recovery_status ?? data.recovery_status ?? 'NOT_ATTEMPTED')}</span>
-          <span className={`badge is-${toneFor(recovery?.integrity_status ?? data.integrity_status)}`}>무결성: {displayStatus(recovery?.integrity_status ?? data.integrity_status ?? 'NOT_CHECKED')}</span>
+        <div className="badge-row">
+          <Badge tone={toneFor(recovery?.recovery_status ?? data.recovery_status)}>복구: {displayStatus(recovery?.recovery_status ?? data.recovery_status ?? 'NOT_ATTEMPTED')}</Badge>
+          <Badge tone={toneFor(recovery?.integrity_status ?? data.integrity_status)}>무결성: {displayStatus(recovery?.integrity_status ?? data.integrity_status ?? 'NOT_CHECKED')}</Badge>
         </div>
         <p>무결성 불일치 파일: {recovery?.mismatched_file_count ?? '확인 불가'}</p>
-        {recoveryError && <p role="alert" className="workspace-restore-error">복구 상태를 확인하지 못했습니다: {recoveryError} <button type="button" className="text-action" onClick={reloadRecovery}>다시 확인</button></p>}
+        {recoveryError && <p role="alert" className="workspace-restore-error">복구 상태를 확인하지 못했습니다: {recoveryError} <Button variant="text" onClick={reloadRecovery}>다시 확인</Button></p>}
         <WorkspaceRestoreControl runId={runId} recovery={recovery} onRestored={reloadRecovery} />
       </div>
 
@@ -110,11 +110,11 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
       <div className="panel-section">
         <p className="panel-section-title">행위 귀속 요약</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="badge-row">
           {(['EXACT', 'PROCESS', 'TEMPORAL', 'UNKNOWN'] as const).map((grade) => (
-            <span className="badge is-warn" key={grade}>
+            <Badge tone="warn" key={grade}>
               {displayStatus(grade)} {data.attribution_summary?.counts?.[grade] ?? 0}건
-            </span>
+            </Badge>
           ))}
         </div>
         <p>
@@ -134,13 +134,13 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
                 <div className="event-row-top">
                   <span className="event-row-sensor">행위 {chain.action_id ?? index + 1}</span>
                 </div>
-                <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+                <div className="chain-stages">
                   {(chain.stages ?? []).map((stage, stageIndex) => (
-                    <div key={stage.stage ?? stageIndex} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <div key={stage.stage ?? stageIndex} className="chain-stage">
                       <span>{stage.label}</span>
-                      <span className={`badge is-${stage.status === 'NOT_OBSERVED' ? 'warn' : toneFor(stage.status)}`}>
+                      <Badge tone={stage.status === 'NOT_OBSERVED' ? 'warn' : toneFor(stage.status)}>
                         {displayStatus(stage.value)}
-                      </span>
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -158,7 +158,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
               <div key={index} className="event-row">
                 <div className="event-row-top">
                   <span className="event-row-sensor">{sensor.sensor}</span>
-                  <span className={`badge is-${statusTone(sensor.final_sensor_state)}`}>{displayStatus(sensor.final_sensor_state)}</span>
+                  <Badge tone={statusTone(sensor.final_sensor_state)}>{displayStatus(sensor.final_sensor_state)}</Badge>
                 </div>
                 <span>관찰 전 상태: {displayStatus(sensor.runtime_health_before_stop)}</span>
               </div>
@@ -182,7 +182,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         <div className="panel-section">
           <details className="result-reading-guide">
             <summary>원시 증거 메타데이터</summary>
-            <div style={{ marginTop: 8 }}>
+            <div className="evidence-log-wrap">
               <EvidenceLogView incidents={incidents} />
             </div>
           </details>
@@ -211,17 +211,17 @@ function IncidentRow({ incident }: { incident: IncidentView }) {
     <div className="event-row">
       <button
         type="button"
-        style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}
+        className="row-toggle"
         onClick={() => setExpanded((value) => !value)}
       >
         <div className="event-row-top">
           <span className="event-row-sensor">{displayStatus(incident.operation)}</span>
-          <span className={`badge is-${toneFor(incident.policy_effect)}`}>{displayStatus(incident.policy_effect)}</span>
+          <Badge tone={toneFor(incident.policy_effect)}>{displayStatus(incident.policy_effect)}</Badge>
         </div>
         <span>{incident.summary}</span>
       </button>
       {expanded && (
-        <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+        <div className="incident-details">
           <span>대상: {incident.target?.display ?? '—'}</span>
           <span>귀속: {displayStatus(incident.attribution_class)}</span>
           <span>AIA 조치: {displayStatus(incident.enforcement_action)}</span>

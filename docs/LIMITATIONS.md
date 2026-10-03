@@ -15,9 +15,22 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - MCP 도구는 현재 MVP 지원 범위가 아니다. Hook으로 도착한 MCP 요청은
   `UNSUPPORTED_TOOL_PATH`로 거부하며, MCP 서버 등록·호출이나 구조화된 MCP READ
   보호를 제품 기능으로 주장하지 않는다.
+- Codex 설정에서 켠 MCP 서버의 도구 호출은 보호 범위 밖이다. Codex 앱이 추가하는
+  `node_repl` 같은 일부 MCP 도구는 PreToolUse Hook을 거치지 않아 AIA가 차단하거나
+  기록하지 못한다. 사전 점검은 `config.toml`의 `[mcp_servers]`를 읽기만 해서 켜진
+  서버를 경고하며, Codex 설정을 바꾸지 않는다.
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.
 - OS 수준의 파일 Writer 귀속은 제공하지 않는다.
+- File Sensor는 `modified` 이벤트가 온 파일의 크기와 SHA-256이 마지막으로 알려진 내용
+  (실행 전 Checkpoint)과 같으면 권한·속성만 바뀐 것으로 보고, 원시 증거에
+  `content_unchanged`로 남기되 MODIFY 행위로 판정하지 않는다(Codex 샌드박스의 ACL 추가 등).
+  비교는 이벤트를 처리하는 시점의 내용 기준이므로, 그 전에 내용을 바꿨다 똑같이 되돌린 경우도
+  수정으로 보지 않는다. Checkpoint에 없거나 32MB를 넘거나 읽을 수 없는 파일, 한 번이라도
+  내용이 달라진 파일, 폴더 이벤트는 기존처럼 수정으로 판정한다.
+  파일 및 상위 경로의 링크·Reparse Point와 비교 중 관찰된 파일 교체·변경은
+  내용 동일로 처리하지 않는다. 읽기는 예상 크기 + 1바이트로 제한한다.
+  비교 전후 검사는 원자적 스냅샷이 아니므로 모든 외부 Writer race를 방지하지는 않는다.
 - 보호 경계 실패 시 AIA가 관리 Root 트리 중지를 시도하지만, 종료 성공 자체를 보장하지 않는다.
 - Network Security는 MVP 보호 범위가 아니다.
 - Database state protection은 제공하지 않는다.
