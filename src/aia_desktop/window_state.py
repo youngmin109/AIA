@@ -55,9 +55,13 @@ def load_window_geometry(
         x, y, width, height = (int(state[key]) for key in ("x", "y", "width", "height"))
         scale = float(state.get("scale", 1.0))
         maximized = state.get("maximized") is True
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
         return defaults
     if not 0.5 <= scale <= 5.0:
+        return defaults
+    # WinForms Point/Size take signed 32-bit integers. A damaged preference
+    # must not overflow either the monitor probe or create_window conversion.
+    if any(abs(value) > 2_147_483_647 or abs(value / scale) > 2_147_483_647 for value in (x, y, width, height)):
         return defaults
     # The title bar must stay reachable: its top centre has to be on a monitor.
     if not on_screen(x + width // 2, y + int(8 * scale)):

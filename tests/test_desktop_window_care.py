@@ -33,6 +33,12 @@ def _write(path, **state):
     return path
 
 
+@pytest.mark.parametrize("width, scale", [(float("inf"), 1.0), (10**100, 1.0), (2_147_483_647, 0.5)])
+def test_invalid_window_dimensions_fall_back_instead_of_crashing(tmp_path, width, scale) -> None:
+    path = _write(tmp_path / "w.json", x=0, y=0, width=width, height=900, scale=scale)
+    assert load_window_geometry(path, on_screen=ANYWHERE) == DEFAULTS
+
+
 def test_missing_or_damaged_window_state_gives_the_default_window(tmp_path) -> None:
     path = tmp_path / "desktop-window.json"
     assert load_window_geometry(path, on_screen=ANYWHERE) == DEFAULTS

@@ -372,17 +372,60 @@ class FilesystemSensor:
             return False
         size, digest = known
         try:
-            status = os.lstat(src_path)
+            # Check every component without resolving it through a junction.
+            # lstat() on the leaf alone follows reparse points in its parents.
+            target = Path(os.path.abspath(self.session.workspace / src_path))
+            target.relative_to(self.session.workspace)
+            components = []
+            current = target
+            while True:
+                components.append(current)
+                if current == self.session.workspace:
+                    break
+                current = current.parent
+            for component in reversed(components):
+                info = os.lstat(component)
+                if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                    return False
+            status = info  # last component is the file
             if not stat.S_ISREG(status.st_mode) or status.st_size > self._CONTENT_CHECK_MAX_BYTES:
                 return False
             if status.st_size != size:
                 self._known_content[relative] = None
                 return False
             sha256 = hashlib.sha256()
-            with open(src_path, "rb") as stream:
-                while chunk := stream.read(1024 * 1024):
+            # Windows lstat/fstat expose different ctime semantics on Python
+            # 3.13. Compare ctime only between calls to the same API.
+            before = (status.st_dev, status.st_ino, status.st_size, status.st_mtime_ns)
+            with open(target, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                if before != (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns):
+                    self._known_content[relative] = None
+                    return False
+                # A file growing after lstat must not monopolize the sensor's
+                # event lock. Read at most the expected bytes plus one sentinel.
+                remaining = size + 1
+                while remaining and (chunk := stream.read(min(1024 * 1024, remaining))):
                     sha256.update(chunk)
-        except OSError:
+                    remaining -= len(chunk)
+                after = os.fstat(stream.fileno())
+                if (
+                    remaining != 1
+                    or before != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                    or opened.st_ctime_ns != after.st_ctime_ns
+                ):
+                    self._known_content[relative] = None
+                    return False
+            # Detect replacement of the path (including parent links) while
+            # hashing. This is conservative, not an atomic filesystem snapshot.
+            for component in reversed(components):
+                info = os.lstat(component)
+                if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                    return False
+            if before != (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns) or status.st_ctime_ns != info.st_ctime_ns:
+                self._known_content[relative] = None
+                return False
+        except (OSError, ValueError):
             return False
         if sha256.hexdigest() == digest:
             return True

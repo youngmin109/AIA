@@ -8,11 +8,13 @@ content changes become MODIFY actions (and can raise policy violations).
 
 from datetime import datetime, timezone
 import os
+import io
 from pathlib import Path
 import stat
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 from watchdog.events import DirModifiedEvent, FileModifiedEvent
@@ -142,6 +144,108 @@ def test_activity_view_does_not_list_permission_only_changes(tmp_path) -> None:
     }, "t2", "e2")
     view = index.view(tmp_path, live=False)
     assert [item["path"] for item in view["files"]] == ["app.py"]
+
+
+@pytest.mark.parametrize("link_path", ["data", "data/config.txt"])
+def test_reparse_point_in_the_path_is_not_content_compared(tmp_path, monkeypatch, link_path) -> None:
+    sensor, workspace, session, context, lease_manager = _sensor(tmp_path, {"data/config.txt": b"same"})
+    target = workspace / "data/config.txt"
+    original_lstat = os.lstat
+
+    def reparse_lstat(path, *args, **kwargs):
+        info = original_lstat(path, *args, **kwargs)
+        if Path(path) == workspace / link_path:
+            # A Windows reparse point may retain the regular-file/directory mode.
+            fields = {name: getattr(info, name) for name in dir(info) if name.startswith("st_")}
+            fields["st_file_attributes"] = getattr(info, "st_file_attributes", 0) | 0x400
+            return SimpleNamespace(**fields)
+        return info
+
+    sensor.start()
+    try:
+        monkeypatch.setattr(os, "lstat", reparse_lstat)
+        sensor.handle_event(FileModifiedEvent(str(target)))
+        assert "content_unchanged" not in _file_events(sensor)[0].payload
+        assert _modify_targets(sensor, session) == ["data/config.txt"]
+    finally:
+        monkeypatch.undo()
+        sensor.stop()
+        release_lease(context, lease_manager)
+
+
+def test_content_read_is_bounded_if_the_file_grows_after_stat(tmp_path, monkeypatch) -> None:
+    sensor, workspace, session, context, lease_manager = _sensor(tmp_path, {"config.txt": b"same"})
+    target = workspace / "config.txt"
+    original_open = open
+    requests = []
+
+    class GrowingStream(io.BytesIO):
+        def fileno(self):
+            return descriptor.fileno()
+
+        def read(self, size=-1):
+            requests.append(size)
+            return super().read(size)
+
+    def growing_open(path, mode, *args, **kwargs):
+        if Path(path) == target and mode == "rb":
+            return GrowingStream(b"same" + b"x" * 100)
+        return original_open(path, mode, *args, **kwargs)
+
+    sensor.start()
+    try:
+        with original_open(target, "rb") as descriptor:
+            monkeypatch.setattr("aia.sensors.filesystem.open", growing_open, raising=False)
+            sensor.handle_event(FileModifiedEvent(str(target)))
+        assert requests and all(0 < size <= 5 for size in requests)
+        assert "content_unchanged" not in _file_events(sensor)[0].payload
+        assert _modify_targets(sensor, session) == ["config.txt"]
+    finally:
+        sensor.stop()
+        release_lease(context, lease_manager)
+
+
+def test_file_changed_during_hashing_is_not_marked_unchanged(tmp_path, monkeypatch) -> None:
+    sensor, workspace, session, context, lease_manager = _sensor(tmp_path, {"config.txt": b"same"})
+    target = workspace / "config.txt"
+    original_open = open
+    old = target.stat()
+
+    class ChangedStream:
+        def __init__(self):
+            self.stream = original_open(target, "rb")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.stream.close()
+
+        def fileno(self):
+            return self.stream.fileno()
+
+        def read(self, size=-1):
+            chunk = self.stream.read(size)
+            if not chunk:
+                target.write_bytes(b"diff")
+                target.write_bytes(b"same")
+                os.utime(target, ns=(old.st_atime_ns, old.st_mtime_ns + 1_000_000_000))
+            return chunk
+
+    def changed_open(path, mode, *args, **kwargs):
+        if Path(path) == target and mode == "rb":
+            return ChangedStream()
+        return original_open(path, mode, *args, **kwargs)
+
+    sensor.start()
+    try:
+        monkeypatch.setattr("aia.sensors.filesystem.open", changed_open, raising=False)
+        sensor.handle_event(FileModifiedEvent(str(target)))
+        assert "content_unchanged" not in _file_events(sensor)[0].payload
+        assert _modify_targets(sensor, session) == ["config.txt"]
+    finally:
+        sensor.stop()
+        release_lease(context, lease_manager)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows ACL propagation")
