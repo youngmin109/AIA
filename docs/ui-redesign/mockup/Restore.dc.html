@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AIA 복구 완료</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face { font-family: 'Pretendard'; src: url('/_blob/363a19a5d70bea2676c5dc69df393846') format('woff2'); font-weight: 45 920; font-display: swap; }
+body { margin: 0; background: #120a33; }
+a { color: #e5dcff; } a:hover { color: #ffffff; }
+@keyframes aia-glow { 0%, 100% { box-shadow: 0 0 40px rgba(69, 224, 168, 0.45), 0 24px 60px rgba(6, 2, 28, 0.55); } 50% { box-shadow: 0 0 70px rgba(69, 224, 168, 0.7), 0 24px 60px rgba(6, 2, 28, 0.55); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 100vh; display: flex; flex-wrap: wrap; background: {{bg}}; color: #ffffff; font-family: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
+  <div aria-hidden="true" style="position: absolute; left: 35%; top: 120px; width: 520px; height: 520px; border-radius: 50%; background: #2fd6a8; filter: blur(110px); opacity: 0.35;"></div>
+  <div aria-hidden="true" style="position: absolute; left: 10%; top: -140px; width: 480px; height: 480px; border-radius: 50%; background: {{blobA}}; filter: blur(80px); opacity: 0.4;"></div>
+
+  <nav aria-label="주 메뉴" style="position: relative; flex: 1 1 88px; display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center; gap: 8px; margin: 16px 0 16px 16px; padding: 16px 10px; border-radius: 26px; border: 1px solid transparent; background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03)) padding-box, linear-gradient(160deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 40%, rgba(255, 255, 255, 0.22)) border-box; backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 24px 60px rgba(6, 2, 28, 0.45);">
+    <div style="width: 52px; height: 52px; display: grid; place-items: center; border-radius: 18px; background: {{accent}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 24px rgba(10, 4, 40, 0.5); font-weight: 800; font-size: 15px; letter-spacing: 0.04em;">AIA</div>
+    <a href="Main.dc.html" aria-label="홈" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10v9.5h13V10"></path></svg>
+    </a>
+    <a href="Work.dc.html" aria-label="작업창" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+    </a>
+    <a href="Policy.dc.html" aria-label="정책" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5V6L12 3Z"></path></svg>
+    </a>
+    <a href="History.dc.html" aria-label="기록" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); color: #ffffff;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10l3 3v13H7z"></path><path d="M10 11h7M10 15h7"></path><path d="M4 8v12h3"></path></svg>
+    </a>
+    <a href="Settings.dc.html" aria-label="설정" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z"></path></svg>
+    </a>
+  </nav>
+
+  <main style="position: relative; flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 28px clamp(16px, 3vw, 40px);">
+    <div style="position: relative; display: grid; place-items: center;">
+      <div role="img" aria-label="복구 100% 완료" style="width: 230px; height: 230px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(#45e0a8 0% 100%); animation: aia-glow 2.6s ease-in-out infinite;">
+        <div style="width: 196px; height: 196px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.4); background: linear-gradient(150deg, rgba(40, 20, 90, 0.85), rgba(20, 10, 50, 0.92)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);">
+          <img src="/_blob/94a773cf5648c151636c87c369223010" alt="복구를 마친 가디언" style="width: 150px; height: 168px; object-fit: contain;">
+        </div>
+      </div>
+      <span aria-hidden="true" style="position: absolute; right: 6px; bottom: 14px; width: 58px; height: 58px; display: grid; place-items: center; border-radius: 50%; border: 3px solid #1b0f46; background: linear-gradient(145deg, #8affd8, #2fc8a0); box-shadow: 0 10px 24px rgba(6, 2, 28, 0.5);">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#06261d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+      </span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+      <h1 style="margin: 0; font-size: 38px; font-weight: 800; letter-spacing: -0.02em;">작업 폴더를 되돌렸어요</h1>
+      <span style="color: rgba(255, 255, 255, 0.78); font-size: 16px;">실행 전 기준점(14:20)과 같아요 · SHA-256 일치</span>
+    </div>
+
+    <section aria-label="복구 단계" style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 12px; padding: 22px 26px; border-radius: 28px; border: 1px solid transparent; background: linear-gradient(140deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05)) padding-box, linear-gradient(140deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.3)) border-box; backdrop-filter: blur({{blur}}px) saturate(180%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 24px 60px rgba(6, 2, 28, 0.45);">
+      <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: 15px;">
+        <svg aria-label="완료" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#45e0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+        <span style="font-weight: 600;">기준점 확인</span>
+        <span style="color: rgba(255, 255, 255, 0.7);">14:20 저장본</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: 15px;">
+        <svg aria-label="완료" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#45e0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+        <span style="font-weight: 600;">파일 되돌리기</span>
+        <span style="color: rgba(255, 255, 255, 0.7);">12개</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -12px; border-radius: 14px; background: rgba(69, 224, 168, 0.12); border: 1px solid rgba(69, 224, 168, 0.35); font-size: 15px;">
+        <svg aria-label="완료" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#45e0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+        <span style="font-weight: 700;">data/고객정보.db 복원</span>
+        <span style="color: #b6ffe2; font-weight: 700;">해시 일치</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: 15px;">
+        <svg aria-label="완료" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#45e0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"></path></svg>
+        <span style="font-weight: 600;">무결성 검증</span>
+        <span style="color: rgba(255, 255, 255, 0.7);">불일치 0개</span>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
+      <a href="Result.dc.html" style="min-height: 50px; display: flex; align-items: center; padding: 0 22px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.5); background: {{button}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 14px 30px rgba(8, 2, 30, 0.5); color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800;">결과로 돌아가기</a>
+      <a href="Main.dc.html" style="min-height: 50px; display: flex; align-items: center; padding: 0 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.1); color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">홈으로</a>
+    </div>
+    <span style="color: rgba(255, 255, 255, 0.62); font-size: 13px;">되돌린 기록은 감사 기록에 따로 남아요</span>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tint":{"editor":"enum","options":["보라","남색","청록"],"default":"보라"},"blur":{"editor":"range","min":8,"max":40,"step":2,"unit":"px","default":24},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const themes = {
+      '보라': { bg: 'radial-gradient(circle at 12% 8%, #5a23b8 0%, rgba(90,35,184,0) 42%), radial-gradient(circle at 88% 18%, #a42d8f 0%, rgba(164,45,143,0) 40%), radial-gradient(circle at 55% 100%, #2a3fb0 0%, rgba(42,63,176,0) 50%), linear-gradient(160deg, #1d0d4d, #0f0a2e)', blobA: '#7b4dff', accent: 'linear-gradient(145deg, #a98bff, #6a3cff)', button: 'linear-gradient(150deg, #ff7ad1 0%, #a35bff 45%, #5b7dff 100%)' },
+      '남색': { bg: 'radial-gradient(circle at 12% 8%, #2346b8 0%, rgba(35,70,184,0) 42%), radial-gradient(circle at 88% 18%, #5b2db0 0%, rgba(91,45,176,0) 40%), radial-gradient(circle at 55% 100%, #1d6fb0 0%, rgba(29,111,176,0) 50%), linear-gradient(160deg, #0f1a4d, #0a0f2e)', blobA: '#4d7bff', accent: 'linear-gradient(145deg, #8bb0ff, #3c62ff)', button: 'linear-gradient(150deg, #7ad0ff 0%, #5b7dff 50%, #7a4dff 100%)' },
+      '청록': { bg: 'radial-gradient(circle at 12% 8%, #13797a 0%, rgba(19,121,122,0) 42%), radial-gradient(circle at 88% 18%, #2357a8 0%, rgba(35,87,168,0) 40%), radial-gradient(circle at 55% 100%, #136f5a 0%, rgba(19,111,90,0) 50%), linear-gradient(160deg, #0b2a3a, #071a24)', blobA: '#2fd6c2', accent: 'linear-gradient(145deg, #8affe0, #1fb39a)', button: 'linear-gradient(150deg, #8affd8 0%, #2fc8a0 45%, #2f7dff 100%)' },
+    };
+    const t = themes[this.props.tint] ?? themes['보라'];
+    return { ...t, blur: this.props.blur ?? 24 };
+  }
+}
+</script>
+</body>
+</html>

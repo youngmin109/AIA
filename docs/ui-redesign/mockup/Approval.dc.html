@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AIA 승인 요청</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face { font-family: 'Pretendard'; src: url('/_blob/363a19a5d70bea2676c5dc69df393846') format('woff2'); font-weight: 45 920; font-display: swap; }
+body { margin: 0; background: #120a33; }
+a { color: #e5dcff; } a:hover { color: #ffffff; }
+@keyframes aia-arrive { from { transform: translateY(14px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 100vh; display: flex; flex-wrap: wrap; background: {{bg}}; color: #ffffff; font-family: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
+  <svg aria-hidden="true" width="0" height="0" style="position: absolute; width: 0; height: 0;">
+    <filter id="aia-lens-dialog" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">
+      <feImage href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27560%27%20height%3D%27440%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27x%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%270%27%3E%3Cstop%20offset%3D%270.0000%27%20stop-color%3D%27rgb%28255%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0152%27%20stop-color%3D%27rgb%28199%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0304%27%20stop-color%3D%27rgb%28160%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0455%27%20stop-color%3D%27rgb%28136%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0607%27%20stop-color%3D%27rgb%28128%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9393%27%20stop-color%3D%27rgb%28128%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9545%27%20stop-color%3D%27rgb%28120%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9696%27%20stop-color%3D%27rgb%2896%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9848%27%20stop-color%3D%27rgb%2856%2C0%2C0%29%27%2F%3E%3Cstop%20offset%3D%271.0000%27%20stop-color%3D%27rgb%280%2C0%2C0%29%27%2F%3E%3C%2FlinearGradient%3E%3ClinearGradient%20id%3D%27y%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%270%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270.0000%27%20stop-color%3D%27rgb%280%2C255%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0193%27%20stop-color%3D%27rgb%280%2C199%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0386%27%20stop-color%3D%27rgb%280%2C160%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0580%27%20stop-color%3D%27rgb%280%2C136%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.0773%27%20stop-color%3D%27rgb%280%2C128%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9227%27%20stop-color%3D%27rgb%280%2C128%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9420%27%20stop-color%3D%27rgb%280%2C120%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9614%27%20stop-color%3D%27rgb%280%2C96%2C0%29%27%2F%3E%3Cstop%20offset%3D%270.9807%27%20stop-color%3D%27rgb%280%2C56%2C0%29%27%2F%3E%3Cstop%20offset%3D%271.0000%27%20stop-color%3D%27rgb%280%2C0%2C0%29%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27560%27%20height%3D%27440%27%20fill%3D%27url%28%23x%29%27%2F%3E%3Crect%20width%3D%27560%27%20height%3D%27440%27%20fill%3D%27url%28%23y%29%27%20style%3D%27mix-blend-mode%3Ascreen%27%2F%3E%3C%2Fsvg%3E" preserveAspectRatio="none" result="map"></feImage>
+      <feImage href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27560%27%20height%3D%27440%27%3E%3Cdefs%3E%3Cfilter%20id%3D%27s%27%20x%3D%27-20%25%27%20y%3D%27-20%25%27%20width%3D%27140%25%27%20height%3D%27140%25%27%3E%3CfeGaussianBlur%20stdDeviation%3D%2711.9%27%2F%3E%3C%2Ffilter%3E%3C%2Fdefs%3E%3Crect%20width%3D%27560%27%20height%3D%27440%27%20rx%3D%2730%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%2761.2%27%20filter%3D%27url%28%23s%29%27%2F%3E%3C%2Fsvg%3E" preserveAspectRatio="none" result="rim"></feImage>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="{{blur}}" edgeMode="duplicate" result="frost"></feGaussianBlur>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="{{lensR}}" xChannelSelector="R" yChannelSelector="G" result="dr"></feDisplacementMap>
+      <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"></feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="{{lensG}}" xChannelSelector="R" yChannelSelector="G" result="dg"></feDisplacementMap>
+      <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"></feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="{{lensB}}" xChannelSelector="R" yChannelSelector="G" result="db"></feDisplacementMap>
+      <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"></feColorMatrix>
+      <feBlend in="r" in2="g" mode="screen" result="rg"></feBlend>
+      <feBlend in="rg" in2="b" mode="screen" result="lens"></feBlend>
+      <feGaussianBlur in="lens" stdDeviation="{{rimBlur}}" result="blurred"></feGaussianBlur>
+      <feColorMatrix in="blurred" type="matrix" values="1.12 0 0 0 0.02  0 1.12 0 0 0.02  0 0 1.12 0 0.02  0 0 0 1 0" result="soft"></feColorMatrix>
+      <feComposite in="soft" in2="rim" operator="in" result="edge"></feComposite>
+      <feMerge><feMergeNode in="frost"></feMergeNode><feMergeNode in="edge"></feMergeNode></feMerge>
+    </filter>
+  </svg>
+  <div aria-hidden="true" style="position: absolute; left: 30%; top: -160px; width: 560px; height: 560px; border-radius: 50%; background: {{blobA}}; filter: blur(80px); opacity: 0.45;"></div>
+
+  <div aria-hidden="true" style="position: relative; flex: 1 1 88px; margin: 16px 0 16px 16px; border-radius: 26px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14);"></div>
+  <div aria-hidden="true" style="position: relative; flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap; gap: 16px; padding: 16px clamp(16px, 2vw, 24px);">
+    <div style="flex: 999 1 520px; min-height: 860px; display: flex; flex-direction: column; gap: 14px; padding: 72px 22px 22px; border-radius: 28px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.14);">
+      <div style="align-self: flex-end; width: 52%; height: 46px; border-radius: 18px; background: rgba(255, 255, 255, 0.14);"></div>
+      <div style="width: 60%; height: 22px; border-radius: 8px; background: rgba(255, 255, 255, 0.1);"></div>
+      <div style="height: 70px; border-radius: 16px; background: rgba(255, 77, 106, 0.16);"></div>
+      <div style="height: 110px; border-radius: 16px; background: rgba(255, 255, 255, 0.08);"></div>
+    </div>
+    <div style="flex: 1 1 320px; min-height: 860px; border-radius: 28px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.14);"></div>
+  </div>
+
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(8, 3, 28, 0.55); backdrop-filter: blur(6px);"></div>
+  <div style="position: absolute; inset: 0; display: grid; place-items: center; padding: 24px;">
+    <section role="dialog" aria-modal="true" aria-label="Codex 승인 요청" style="width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 18px; padding: 28px; border-radius: 30px; border: 1px solid transparent; background: linear-gradient(140deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.07)) padding-box, linear-gradient(140deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.1) 35%, rgba(255, 255, 255, 0.05) 65%, rgba(255, 255, 255, 0.4)) border-box; backdrop-filter: {{glass_dialog}} saturate(190%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 40px 90px rgba(4, 1, 20, 0.65); animation: aia-arrive 0.35s cubic-bezier(.2,.8,.3,1) both;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div role="img" aria-label="남은 시간 18초" style="flex: 0 0 auto; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(#ffc860 0% 72%, rgba(255, 255, 255, 0.14) 72% 100%);">
+          <div style="width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: rgba(32, 16, 74, 0.9); font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums;">18</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800;">Codex가 실행 승인을 요청해요</h1>
+          <span style="color: rgba(255, 255, 255, 0.72); font-size: 14px;">18초 안에 답하지 않으면 거절돼요</span>
+        </div>
+      </div>
+
+      <code style="display: block; padding: 14px 16px; border-radius: 16px; background: rgba(8, 2, 30, 0.5); border: 1px solid rgba(255, 255, 255, 0.14); font-family: 'Cascadia Code', Consolas, monospace; font-size: 15px; overflow-wrap: anywhere;">$ npm install stripe-mock</code>
+
+      <dl style="margin: 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px 12px; font-size: 14px;">
+        <dt style="color: rgba(255, 255, 255, 0.65);">작업 위치</dt>
+        <dd style="margin: 0;">hanbit-commerce</dd>
+        <dt style="color: rgba(255, 255, 255, 0.65);">이유</dt>
+        <dd style="margin: 0;">결제 테스트용 패키지 설치 · 네트워크 필요</dd>
+      </dl>
+
+      <p style="margin: 0; display: flex; align-items: center; gap: 8px; color: rgba(255, 255, 255, 0.72); font-size: 13px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5V6L12 3Z"></path></svg>
+        허용해도 AIA 정책 검사와 기록은 그대로 적용돼요
+      </p>
+
+      <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px;">
+        <a href="Work.dc.html" style="min-height: 48px; display: flex; align-items: center; padding: 0 18px; border-radius: 16px; border: 1px solid rgba(255, 140, 155, 0.55); background: rgba(255, 77, 106, 0.14); color: #ffd2d8; text-decoration: none; font-size: 15px; font-weight: 700;">거절</a>
+        <a href="Work.dc.html" style="min-height: 48px; display: flex; align-items: center; padding: 0 18px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.1); color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">이 세션 동안 허용</a>
+        <a href="Work.dc.html" style="min-height: 48px; display: flex; align-items: center; padding: 0 22px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.5); background: {{button}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 14px 30px rgba(8, 2, 30, 0.5); color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800;">이번만 허용</a>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tint":{"editor":"enum","options":["보라","남색","청록"],"default":"보라"},"blur":{"editor":"range","min":8,"max":40,"step":2,"unit":"px","default":24},"refract":{"editor":"range","min":0,"max":120,"step":5,"unit":"px","default":70},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  lensVals() {
+    // 굴절은 이 화면의 강조 카드 하나에만 쓴다. 0이면 기존 유리(blur)와 같다. Chromium 계열(Chrome·Edge·WebView2)에서만 보인다.
+    const blur = this.props.blur ?? 24;
+    const refract = this.props.refract ?? 70;
+    const on = refract > 0;
+    const sphere = { '보라': ['#ff9ad6', '#e04bb0', '#5a1580'], '남색': ['#9fd0ff', '#3c7bff', '#142a80'], '청록': ['#a8ffe6', '#2fd6c2', '#0b4a48'] };
+    const [a, b, c] = sphere[this.props.tint] ?? sphere['보라'];
+    return {
+      lensR: refract,
+      lensG: refract * 0.94,
+      lensB: refract * 0.88,
+      rimBlur: Math.max(1.5, blur * 0.12),
+      orbShow: on ? 'block' : 'none',
+      orbA: `radial-gradient(circle at 30% 26%, #ffffff 0%, ${a} 20%, ${b} 58%, ${c} 100%)`,
+      glass_dialog: on ? 'url(#aia-lens-dialog)' : `blur(${blur}px)`,
+    };
+  }
+  renderVals() {
+    const themes = {
+      '보라': { bg: 'radial-gradient(circle at 12% 8%, #5a23b8 0%, rgba(90,35,184,0) 42%), radial-gradient(circle at 88% 18%, #a42d8f 0%, rgba(164,45,143,0) 40%), radial-gradient(circle at 55% 100%, #2a3fb0 0%, rgba(42,63,176,0) 50%), linear-gradient(160deg, #1d0d4d, #0f0a2e)', blobA: '#7b4dff', button: 'linear-gradient(150deg, #ff7ad1 0%, #a35bff 45%, #5b7dff 100%)' },
+      '남색': { bg: 'radial-gradient(circle at 12% 8%, #2346b8 0%, rgba(35,70,184,0) 42%), radial-gradient(circle at 88% 18%, #5b2db0 0%, rgba(91,45,176,0) 40%), radial-gradient(circle at 55% 100%, #1d6fb0 0%, rgba(29,111,176,0) 50%), linear-gradient(160deg, #0f1a4d, #0a0f2e)', blobA: '#4d7bff', button: 'linear-gradient(150deg, #7ad0ff 0%, #5b7dff 50%, #7a4dff 100%)' },
+      '청록': { bg: 'radial-gradient(circle at 12% 8%, #13797a 0%, rgba(19,121,122,0) 42%), radial-gradient(circle at 88% 18%, #2357a8 0%, rgba(35,87,168,0) 40%), radial-gradient(circle at 55% 100%, #136f5a 0%, rgba(19,111,90,0) 50%), linear-gradient(160deg, #0b2a3a, #071a24)', blobA: '#2fd6c2', button: 'linear-gradient(150deg, #8affd8 0%, #2fc8a0 45%, #2f7dff 100%)' },
+    };
+    const t = themes[this.props.tint] ?? themes['보라'];
+    return { ...t, ...this.lensVals(), blur: this.props.blur ?? 24 };
+  }
+}
+</script>
+</body>
+</html>

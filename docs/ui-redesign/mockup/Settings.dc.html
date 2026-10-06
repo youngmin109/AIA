@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AIA 설정</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face { font-family: 'Pretendard'; src: url('/_blob/363a19a5d70bea2676c5dc69df393846') format('woff2'); font-weight: 45 920; font-display: swap; }
+body { margin: 0; background: #120a33; }
+a { color: #e5dcff; } a:hover { color: #ffffff; }
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 100vh; display: flex; flex-wrap: wrap; background: {{bg}}; color: #ffffff; font-family: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
+  <div aria-hidden="true" style="position: absolute; left: 20%; top: -150px; width: 520px; height: 520px; border-radius: 50%; background: {{blobA}}; filter: blur(70px); opacity: 0.45;"></div>
+  <div aria-hidden="true" style="position: absolute; right: 2%; bottom: -150px; width: 460px; height: 460px; border-radius: 50%; background: {{blobB}}; filter: blur(70px); opacity: 0.35;"></div>
+
+  <nav aria-label="주 메뉴" style="position: relative; flex: 1 1 88px; display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center; gap: 8px; margin: 16px 0 16px 16px; padding: 16px 10px; border-radius: 26px; border: 1px solid transparent; background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03)) padding-box, linear-gradient(160deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 40%, rgba(255, 255, 255, 0.22)) border-box; backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 24px 60px rgba(6, 2, 28, 0.45);">
+    <div style="width: 52px; height: 52px; display: grid; place-items: center; border-radius: 18px; background: {{accent}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 24px rgba(10, 4, 40, 0.5); font-weight: 800; font-size: 15px; letter-spacing: 0.04em;">AIA</div>
+    <a href="Main.dc.html" aria-label="홈" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10v9.5h13V10"></path></svg>
+    </a>
+    <a href="Work.dc.html" aria-label="작업창" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+    </a>
+    <a href="Policy.dc.html" aria-label="정책" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5V6L12 3Z"></path></svg>
+    </a>
+    <a href="History.dc.html" aria-label="기록" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10l3 3v13H7z"></path><path d="M10 11h7M10 15h7"></path><path d="M4 8v12h3"></path></svg>
+    </a>
+    <a href="Settings.dc.html" aria-label="설정" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); color: #ffffff;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z"></path></svg>
+    </a>
+  </nav>
+
+  <main style="position: relative; flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px; padding: 26px clamp(16px, 3vw, 40px) 30px;">
+    <header style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em;">설정</h1>
+      <span style="color: rgba(255, 255, 255, 0.75); font-size: 15px;">보호를 시작하기 전에 연결 상태를 확인해요</span>
+    </header>
+
+    <section aria-label="연결 준비" style="display: flex; flex-direction: column; gap: 16px; padding: 24px 26px; border-radius: 28px; border: 1px solid transparent; background: linear-gradient(140deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.04)) padding-box, linear-gradient(140deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.32)) border-box; backdrop-filter: blur({{blur}}px) saturate(180%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 30px 70px rgba(6, 2, 28, 0.4);">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <strong style="font-size: 19px;">연결 준비</strong>
+          <span style="color: rgba(255, 255, 255, 0.7); font-size: 13px;">마지막 확인 14:18</span>
+        </div>
+        <button type="button" onClick="{{recheck}}" style="min-height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 20px; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 16px; background: {{button}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 12px 26px rgba(8, 2, 30, 0.45); color: #ffffff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>
+          {{recheckLabel}}
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px;">
+        <sc-for list="{{lights}}" as="l" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 20px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14);">
+            <span aria-hidden="true" style="flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; background: {{l.color}}; box-shadow: 0 0 16px {{l.color}}, inset 0 1px 0 rgba(255, 255, 255, 0.6);"></span>
+            <span style="display: flex; flex-direction: column; gap: 2px;">
+              <strong style="font-size: 15px;">{{l.name}}</strong>
+              <span style="color: rgba(255, 255, 255, 0.7); font-size: 13px;">{{l.state}}</span>
+            </span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div role="note" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 18px; background: rgba(255, 200, 96, 0.14); border: 1px solid rgba(255, 210, 120, 0.5);">
+        <span aria-hidden="true" style="flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: linear-gradient(145deg, #ffe08a, #ffb23d); color: #3a2400; font-weight: 900;">!</span>
+        <span style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 2px;">
+          <strong style="color: #ffe2a6; font-size: 15px;">Hook 밖 MCP 도구가 켜져 있어요</strong>
+          <span style="color: rgba(255, 255, 255, 0.75); font-size: 13px;">이 도구는 실행 전 검사를 거치지 않아요. 보호는 계속되지만 범위가 줄어요.</span>
+        </span>
+        <details style="flex: 0 0 auto;">
+          <summary style="min-height: 40px; display: flex; align-items: center; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255, 210, 120, 0.5); color: #ffe2a6; font-size: 14px; font-weight: 700; cursor: pointer;">자세히</summary>
+          <p style="margin: 8px 0 0; max-width: 300px; color: rgba(255, 255, 255, 0.78); font-size: 13px; line-height: 1.5;">켜진 MCP 서버 2개 · github, filesystem. Codex 설정에서 끄면 경고가 사라져요.</p>
+        </details>
+      </div>
+    </section>
+
+    <section aria-label="화면" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 26px; border: 1px solid rgba(255, 255, 255, 0.2); background: linear-gradient(160deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04)); backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);">
+        <strong style="font-size: 16px;">테마 색</strong>
+        <div role="group" aria-label="테마 색" style="display: flex; gap: 12px;">
+          <span aria-label="보라" role="img" style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(145deg, #a98bff, #6a3cff); border: 3px solid #ffffff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);"></span>
+          <span aria-label="남색" role="img" style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(145deg, #8bb0ff, #3c62ff); border: 3px solid rgba(255, 255, 255, 0.25);"></span>
+          <span aria-label="청록" role="img" style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(145deg, #8affe0, #1fb39a); border: 3px solid rgba(255, 255, 255, 0.25);"></span>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: 26px; border: 1px solid rgba(255, 255, 255, 0.2); background: linear-gradient(160deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04)); backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);">
+        <sc-for list="{{toggles}}" as="g" hint-placeholder-count="2">
+          <button type="button" role="switch" aria-checked="{{g.checked}}" onClick="{{g.flip}}" style="min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: transparent; color: #ffffff; font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer;">
+            <span style="display: flex; flex-direction: column; gap: 2px;">{{g.name}}<span style="color: rgba(255, 255, 255, 0.65); font-size: 12px; font-weight: 400;">{{g.hint}}</span></span>
+            <span aria-hidden="true" style="flex: 0 0 auto; width: 52px; height: 30px; display: flex; justify-content: {{g.align}}; padding: 3px; border-radius: 999px; background: {{g.track}}; box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);">
+              <span style="width: 24px; height: 24px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);"></span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 22px; border-radius: 26px; border: 1px solid rgba(255, 255, 255, 0.2); background: linear-gradient(160deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04)); backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);">
+        <strong style="font-size: 16px;">AIA 정보</strong>
+        <span style="color: rgba(255, 255, 255, 0.75); font-size: 14px;">버전 0.1.30 · Windows</span>
+        <span style="color: rgba(255, 255, 255, 0.75); font-size: 14px;">데이터 위치 · C:\Users\…\.aia</span>
+        <a href="History.dc.html" style="margin-top: auto; font-size: 14px; font-weight: 700;">감사 기록 보기 →</a>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tint":{"editor":"enum","options":["보라","남색","청록"],"default":"보라"},"blur":{"editor":"range","min":8,"max":40,"step":2,"unit":"px","default":24},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { glass: true, motion: true, checks: 1 };
+  }
+  renderVals() {
+    const themes = {
+      '보라': { bg: 'radial-gradient(circle at 12% 8%, #5a23b8 0%, rgba(90,35,184,0) 42%), radial-gradient(circle at 88% 18%, #a42d8f 0%, rgba(164,45,143,0) 40%), radial-gradient(circle at 55% 100%, #2a3fb0 0%, rgba(42,63,176,0) 50%), linear-gradient(160deg, #1d0d4d, #0f0a2e)', blobA: '#7b4dff', blobB: '#ff4fb0', accent: 'linear-gradient(145deg, #a98bff, #6a3cff)', button: 'linear-gradient(150deg, #ff7ad1 0%, #a35bff 45%, #5b7dff 100%)' },
+      '남색': { bg: 'radial-gradient(circle at 12% 8%, #2346b8 0%, rgba(35,70,184,0) 42%), radial-gradient(circle at 88% 18%, #5b2db0 0%, rgba(91,45,176,0) 40%), radial-gradient(circle at 55% 100%, #1d6fb0 0%, rgba(29,111,176,0) 50%), linear-gradient(160deg, #0f1a4d, #0a0f2e)', blobA: '#4d7bff', blobB: '#8b5bff', accent: 'linear-gradient(145deg, #8bb0ff, #3c62ff)', button: 'linear-gradient(150deg, #7ad0ff 0%, #5b7dff 50%, #7a4dff 100%)' },
+      '청록': { bg: 'radial-gradient(circle at 12% 8%, #13797a 0%, rgba(19,121,122,0) 42%), radial-gradient(circle at 88% 18%, #2357a8 0%, rgba(35,87,168,0) 40%), radial-gradient(circle at 55% 100%, #136f5a 0%, rgba(19,111,90,0) 50%), linear-gradient(160deg, #0b2a3a, #071a24)', blobA: '#2fd6c2', blobB: '#3c8bff', accent: 'linear-gradient(145deg, #8affe0, #1fb39a)', button: 'linear-gradient(150deg, #8affd8 0%, #2fc8a0 45%, #2f7dff 100%)' },
+    };
+    const t = themes[this.props.tint] ?? themes['보라'];
+    const green = '#45e0a8';
+    const amber = '#ffc860';
+    // 두 번째 확인부터 "실제 요청 전달"이 초록으로 바뀌어 다시 확인 흐름을 보여준다.
+    const verified = this.state.checks > 1;
+    const lights = [
+      { name: 'Hook 연결', state: '정상 · 실행 전 검사 켜짐', color: green },
+      { name: 'Codex 신뢰', state: '정상 · 작업 폴더 신뢰됨', color: green },
+      { name: '실제 요청 전달', state: verified ? '정상 · 방금 확인됨' : '확인 필요 · 테스트 요청 대기', color: verified ? green : amber },
+    ];
+    const toggle = (key, name, hint) => {
+      const on = this.state[key];
+      return {
+        name,
+        hint,
+        checked: on ? 'true' : 'false',
+        align: on ? 'flex-end' : 'flex-start',
+        track: on ? 'linear-gradient(145deg, #8affd8, #2fc8a0)' : 'rgba(255, 255, 255, 0.2)',
+        flip: () => this.setState({ [key]: !on }),
+      };
+    };
+    return {
+      ...t,
+      blur: this.props.blur ?? 24,
+      lights,
+      recheck: () => this.setState({ checks: this.state.checks + 1 }),
+      recheckLabel: verified ? '다시 확인' : '지금 확인',
+      toggles: [toggle('glass', '유리 효과', '느린 PC에서는 끄면 가벼워져요'), toggle('motion', '움직임', '가디언·숫자 애니메이션')],
+    };
+  }
+}
+</script>
+</body>
+</html>
