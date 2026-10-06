@@ -1308,9 +1308,10 @@ summary:focus-visible {
   pointer-events: none;
 }
 
-.lens-orb.at-home { top: -54px; left: 150px; }
+/* Sit over an empty stretch of each hero's top edge so no text lies on the sphere. */
+.lens-orb.at-home { top: -54px; left: 46%; }
 .lens-orb.at-live { top: -62px; left: 410px; }
-.lens-orb.at-result { top: -52px; left: 230px; }
+.lens-orb.at-result { top: -52px; left: 58%; }
 
 :root[data-glass='off'] .lens-orb {
   display: none;

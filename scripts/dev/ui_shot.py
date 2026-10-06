@@ -1,7 +1,8 @@
 """Screenshot the preview console at 1440x900 with headless Edge (EPIC-020).
 
 Steps run in order; each is ``click:<visible text>``, ``wait:<seconds>``,
-``eval:<javascript>`` or ``type:<css selector>=<text>``. A screenshot is saved
+``eval:<javascript>`` or ``type:<css selector>=<text>``. ``url:<address>`` and
+``size:<w>x<h>`` change the page and viewport (defaults: preview server, 1440x900). A screenshot is saved
 after the last step.
 
     .venv\\Scripts\\python.exe scripts\\dev\\ui_shot.py out.png click:기록 wait:1
@@ -55,7 +56,7 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
-async def run(out: Path, steps: list[str], width: int, height: int, port: int) -> None:
+async def run(out: Path, steps: list[str], width: int, height: int, port: int, url: str) -> None:
     targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json"))
     page = next(target for target in targets if target["type"] == "page")
     async with websockets.connect(page["webSocketDebuggerUrl"], max_size=50_000_000) as socket:
@@ -71,7 +72,7 @@ async def run(out: Path, steps: list[str], width: int, height: int, port: int) -
                     return message.get("result", {})
 
         await call("Emulation.setDeviceMetricsOverride", width=width, height=height, deviceScaleFactor=1, mobile=False)
-        await call("Page.navigate", url=URL)
+        await call("Page.navigate", url=url)
         await asyncio.sleep(3)
         for step in steps:
             kind, _, value = step.partition(":")
@@ -97,7 +98,11 @@ def main() -> None:
     out = Path(sys.argv[1])
     steps = sys.argv[2:]
     width, height = 1440, 900
+    url = URL
     for step in list(steps):
+        if step.startswith("url:"):
+            url = step[4:]
+            steps.remove(step)
         if step.startswith("size:"):
             width, height = (int(part) for part in step[5:].split("x"))
             steps.remove(step)
@@ -116,7 +121,7 @@ def main() -> None:
                 break
             except OSError:
                 asyncio.run(asyncio.sleep(0.2))
-        asyncio.run(run(out, steps, width, height, port))
+        asyncio.run(run(out, steps, width, height, port, url))
     finally:
         # Edge spawns child processes; end the whole tree so no browser keeps the profile or port.
         subprocess.run(["taskkill", "/PID", str(edge.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

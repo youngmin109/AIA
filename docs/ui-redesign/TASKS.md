@@ -70,5 +70,6 @@
 ### TASK-017 굴절 강조 4곳 + 유리 효과 스위치 · DONE
 - `common/LensFilters.tsx`(숨은 SVG 필터 3종), `api/lensMap.ts`(변위 맵·테두리 마스크, 테스트). ① 히어로·③ 히어로(`lens-hero`), ② 보호 중 카드(`lens-panel`), ⑥ 승인 대화상자(`lens-dialog`), ①②③에 구슬 하나(`lens-orb`). 설정 "유리 효과" 끄기(`data-glass=off`)면 흐림·굴절·구슬 모두 꺼짐. Chromium(WebView2) 전용.
 
-### TASK-018 데스크톱 빌드 + 시연 리허설 + PR · TODO
-- `scripts/build-windows.ps1`, 시연 대본 3장면, 전체 pytest, PR(머지 금지, YM 검토).
+### TASK-018 데스크톱 빌드 + 시연 리허설 + PR · DONE
+- 전체 pytest 통과, 공개 트리 검사 PASS. `scripts/build-windows.ps1 -OutputRoot dist\windows-glass`로 패키지 빌드(사용자 `dist\windows`와 실행 중인 AIA는 건드리지 않음). 패키지를 `--server` + 미리보기 기록 폴더로 띄워 화면 확인.
+- 실제 Codex·Hook으로 하는 시연 대본(hanbit-commerce 3장면)은 사람이 확인해야 함(Codex 계정·Hook 신뢰 필요). PR은 머지하지 않고 YM 검토.
