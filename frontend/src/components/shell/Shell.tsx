@@ -2,7 +2,7 @@ import { Rail } from './Rail'
 import { ActiveRunPane } from './ActiveRunPane'
 import { ConnectionBanner } from './ConnectionBanner'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
-import { DashboardView } from '../dashboard/DashboardView'
+import { HomeView } from '../home/HomeView'
 import { PolicyView } from '../policy/PolicyView'
 import { AuditView } from '../audit/AuditView'
 import { SettingsView } from '../settings/SettingsView'
@@ -28,7 +28,7 @@ export function Shell() {
               rendering, so switching views keeps the live Codex conversation
               connection and the guardian status. */}
           <section className={viewClass('home')} aria-label="홈">
-            <DashboardView />
+            <HomeView />
           </section>
           <section className={viewClass('work', true)} aria-label="작업창">
             <ActiveRunPane />

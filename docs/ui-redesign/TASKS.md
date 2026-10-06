@@ -35,11 +35,13 @@
 
 ## Phase 2 — 시연 흐름
 
-### TASK-006 ① 홈 · TODO
+### TASK-006 ① 홈 · DONE
+- `components/home/HomeView.tsx`: 실행 전(①)과 실행 중(②)을 한 뷰에서 나눈다. `api/homeStatus.ts`(기둥 상태·경과 시간), `hooks/useRunActions.ts`(CONTAIN 수), `hooks/useProfiles.ts`, `styles/home.css`.
 ### TASK-007 ④ 새 보호 실행 시트 · TODO
 ### TASK-008 ⑤ 작업창 (대화 카드 + 보호 패널) · TODO
 ### TASK-009 ⑥ 승인 대화상자 · TODO
-### TASK-010 ② 실행 중 (홈의 실행 중 상태, 종료 흐름) · TODO
+### TASK-010 ② 실행 중 (홈의 실행 중 상태, 종료 흐름) · DOING
+- 화면은 TASK-006에서 완료. 남은 것: 종료 버튼(`requestEnd`)을 받은 작업창이 세션 종료 확인을 여는 흐름(TASK-008과 함께).
 ### TASK-011 ③ 결과 · TODO
 ### TASK-012 ⑦ 복구 확인·완료 · TODO
 

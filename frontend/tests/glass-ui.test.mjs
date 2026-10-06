@@ -45,3 +45,15 @@ test('color theme falls back to violet', () => {
   assert.equal(normalizeTintPreference('teal'), 'teal')
   assert.equal(normalizeTintPreference('light'), 'violet')
 })
+
+test('home pillars only call pre-execution blocking ready when every Hook check passes', async () => {
+  const { blockingPillar, recoveryPillar, formatElapsed } = await import('../src/api/homeStatus.ts')
+  const ok = name => ({ name, label: name, ok: true })
+  assert.equal(blockingPillar(null), 'checking')
+  assert.equal(blockingPillar([ok('pretool_hook'), ok('codex_hook_trust'), ok('hook_verification')]), 'ready')
+  assert.equal(blockingPillar([ok('pretool_hook'), { ...ok('hook_verification'), ok: false }]), 'setup')
+  assert.equal(recoveryPillar([ok('control_root')]), 'ready')
+  assert.equal(recoveryPillar([]), 'checking')
+  assert.equal(formatElapsed(65_000), '1:05')
+  assert.equal(formatElapsed(3_725_000), '1:02:05')
+})
