@@ -45,15 +45,18 @@
 - 글래스 대화상자 + RingTimer. 카운트다운은 `timeout_seconds`가 있을 때(AIA 도구 검토)만, Codex 승인은 "답할 때까지 기다려요". Esc로 닫히지 않음 유지.
 ### TASK-010 ② 실행 중 (홈의 실행 중 상태, 종료 흐름) · DONE
 - 화면은 TASK-006. 홈 "종료" → `requestEnd` → 작업창이 글래스 종료 확인(window.confirm 대체)을 연다.
-### TASK-011 ③ 결과 · TODO
-### TASK-012 ⑦ 복구 확인·완료 · TODO
+### TASK-011 ③ 결과 · DONE
+- `results/ResultView.tsx`: 히어로(가디언·쉬운 문장·도넛), 숫자 타일 4개, 바뀐 파일 막대, 접은 상세(사건·귀속·센서·복구·증거 흐름·도구 검토·읽는 법/제한 사항). 문장은 `api/resultSummary.ts`(차단 판정/막음 확인/종료/복구 분리, 테스트). 파일 수는 `hooks/useRunSnapshot.ts`. `styles/result.css`.
+### TASK-012 ⑦ 복구 확인·완료 · DONE
+- `results/WorkspaceRestoreControl.tsx`: `RestoreDialog`(기준점·미리보기·동의) → `RestoreComplete`(초록 링·단계: 기준점/되돌리기/무결성, 실패 경로). RESTORED·VERIFIED 분리. 미리보기 데이터에는 기준점이 없어 완료 화면은 TASK-018 실제 실행으로 확인.
 
 각 TASK의 데이터·문구는 SCREEN-SPEC 해당 절을 따른다. 수용: 목업과 같은 구조, 기존 기능 유지, 테스트 통과.
 
 ## Phase 3 — 관리 화면
 
 ### TASK-013 ⑧ 정책 · TODO
-### TASK-014 ⑨ 기록 · TODO
+### TASK-014 ⑨ 기록 · DONE
+- `audit/AuditView.tsx`: 필터(전체/확인 필요/정상)·요약 타일·행 목록 → 상세(③)와 "기록 목록" 뒤로 가기. 분류는 `api/historyFilter.ts`(테스트). 증거 검토 모달도 글래스로(Esc는 표시하지 않음). `styles/manage.css`.
 ### TASK-015 ⑩ 설정 (색상 테마 선택 포함) · TODO
 
 ## Phase 4 — 마무리

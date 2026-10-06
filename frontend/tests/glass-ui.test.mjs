@@ -57,3 +57,31 @@ test('home pillars only call pre-execution blocking ready when every Hook check 
   assert.equal(formatElapsed(65_000), '1:05')
   assert.equal(formatElapsed(3_725_000), '1:02:05')
 })
+
+test('result headline keeps decision, confirmed block, and restore apart', async () => {
+  const { resultHeadline, restoreSteps, fileBreakdown } = await import('../src/api/resultSummary.ts')
+  assert.deepEqual(resultHeadline({ action_summary: { contain: 1, blocked: 1 }, codex_block_confirmation: 'BLOCK_CONFIRMED' }, 3), ['위험 요청 1건을 막았어요', '파일 3개가 바뀌었어요'])
+  assert.deepEqual(resultHeadline({ action_summary: { contain: 2, blocked: 0 }, codex_block_confirmation: 'NOT_CONFIRMED' }, null), ['위험 요청 2건을 차단 판정했어요'])
+  assert.equal(resultHeadline({ action_summary: { contain: 1, blocked: 1 }, codex_block_confirmation: 'NOT_CONFIRMED' }, null)[0], '위험 요청 1건을 차단 판정했어요')
+  assert.equal(resultHeadline({ action_summary: {}, recovery_status: 'RESTORED', integrity_status: 'VERIFIED' }, 4)[1], '작업 폴더를 되돌리고 검증했어요')
+  assert.equal(resultHeadline({ action_summary: {}, recovery_status: 'RESTORED', integrity_status: 'FAILED' }, 4)[1], '파일 4개가 바뀌었어요')
+  assert.deepEqual(fileBreakdown([{ event_type: 'created' }, { event_type: 'deleted' }, { event_type: 'created' }, { event_type: 'odd' }]), { created: 2, modified: 0, deleted: 1, moved: 0 })
+  const steps = restoreSteps({ recovery_status: 'RESTORED', planned_operation_count: 3, succeeded_operation_count: 3, failed_operation_count: 0 }, { integrity_status: 'FAILED', changed_paths: ['a'] }, '14:20')
+  assert.deepEqual(steps.map(step => step.state), ['done', 'done', 'fail'])
+  assert.ok(steps[2].detail.includes('불일치 1개'))
+})
+
+test('history groups runs without treating live or orphaned runs as healthy', async () => {
+  const { historyState, filterRuns } = await import('../src/api/historyFilter.ts')
+  const runs = [
+    { session_id: 'live', status: 'RUNNING' },
+    { session_id: 'ok', status: 'COMPLETED', bundle_status: 'VALID', incident_count: 0 },
+    { session_id: 'incident', status: 'COMPLETED', bundle_status: 'VALID', incident_count: 2 },
+    { session_id: 'unverified', status: 'COMPLETED', bundle_status: 'INVALID' },
+    { session_id: 'orphan', status: 'RUNNING', runtime_reconciliation: { orphaned: true } },
+  ]
+  assert.deepEqual(runs.map(historyState), ['live', 'ok', 'review', 'review', 'orphaned'])
+  assert.deepEqual(filterRuns(runs, 'ok').map(run => run.session_id), ['ok'])
+  assert.deepEqual(filterRuns(runs, 'review').map(run => run.session_id), ['incident', 'unverified', 'orphan'])
+  assert.equal(filterRuns(runs, 'all').length, 5)
+})
