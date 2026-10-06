@@ -216,6 +216,11 @@
   --link: #d6fff4;
 }
 
+/* Glass effect off (settings): no backdrop blur for slower PCs. */
+:root[data-glass='off'] {
+  --glass-blur: 0px;
+}
+
 * {
   box-sizing: border-box;
 }

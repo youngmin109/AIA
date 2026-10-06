@@ -9,7 +9,7 @@ const SLOW_POLL_MS = 30_000
 
 type Phase = 'checking' | 'not_installed' | 'trust_required' | 'verify_required' | 'not_writable' | 'unavailable' | 'ready'
 
-function phaseFor(readinessCode: string | undefined, hasData: boolean): Phase {
+function phaseFor(readinessCode: string | undefined, hasData: boolean, checks?: Array<{ name: string; ok: boolean }>): Phase {
   if (!hasData) return 'checking'
   switch (readinessCode) {
     case 'CODEX_EXECUTABLE_UNAVAILABLE':
@@ -24,8 +24,14 @@ function phaseFor(readinessCode: string | undefined, hasData: boolean): Phase {
       return 'not_writable'
     case 'READY':
       return 'ready'
-    default:
+    default: {
+      // Generic NOT_READY (servers that skip Hook verification): place the step from the checks.
+      const hook = checks?.find(check => check.name === 'pretool_hook')
+      if (hook && !hook.ok) return 'not_installed'
+      const trust = checks?.find(check => check.name === 'codex_hook_trust')
+      if (trust && !trust.ok) return 'trust_required'
       return 'verify_required'
+    }
   }
 }
 
@@ -33,7 +39,7 @@ function phaseFor(readinessCode: string | undefined, hasData: boolean): Phase {
 export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: boolean) => void }) {
   const [pollIntervalMs, setPollIntervalMs] = useState(SLOW_POLL_MS)
   const { data: preflight, error, refetch } = usePreflight(pollIntervalMs)
-  const phase = phaseFor(preflight?.readiness_code, Boolean(preflight))
+  const phase = phaseFor(preflight?.readiness_code, Boolean(preflight), preflight?.checks)
 
   // Fast-poll only while waiting on the one step AIA can't do for the user
   // (trusting the Hook inside Codex's own /hooks review) -- this is the

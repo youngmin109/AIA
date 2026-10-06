@@ -4,12 +4,14 @@ import './index.css'
 import App from './App.tsx'
 import { readMotionPreference } from './api/motionPreference'
 import { readTintPreference } from './api/tintPreference'
+import { readGlassPreference } from './api/glassPreference'
 import { startDesktopHeartbeat } from './desktopBridge'
 
 // One dark glass theme (EPIC-020). data-theme stays 'dark' so the remaining
 // pre-glass rules scoped to it keep applying until they are removed.
 document.documentElement.dataset.theme = 'dark'
 document.documentElement.dataset.tint = readTintPreference()
+document.documentElement.dataset.glass = readGlassPreference()
 document.documentElement.dataset.motion = readMotionPreference()
 startDesktopHeartbeat()
 

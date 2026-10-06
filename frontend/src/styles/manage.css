@@ -93,3 +93,354 @@
   display: inline-grid;
   transform: rotate(180deg);
 }
+
+/* ---- ⑧ Policy ---- */
+
+.policy-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 16px;
+}
+
+.policy-card {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 22px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.policy-card:hover {
+  border-color: var(--line-3);
+}
+
+.policy-card.is-selected {
+  border: 2px solid var(--line-4);
+  background: var(--glass-fill-selected);
+}
+
+.policy-card > .badge,
+.policy-card > strong,
+.policy-card > span:not(.tile-corner) {
+  position: relative;
+}
+
+.policy-card > strong {
+  margin-top: 16px;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.policy-card-text {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.policy-card-tag {
+  margin-top: auto;
+  padding: 4px 9px;
+  border-radius: 10px;
+  background: var(--fill-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.policy-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 26px;
+}
+
+.policy-preview h2,
+.policy-facts h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.policy-preview-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.policy-preview-input {
+  flex: 1 1 260px;
+}
+
+.policy-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+}
+
+.policy-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--fill-1);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.policy-result small {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.policy-result.is-danger { border-color: var(--danger-line); background: var(--danger-bg); }
+.policy-result.is-danger strong { color: var(--danger-text); }
+.policy-result.is-warning { border-color: var(--warning-line); background: var(--warning-bg); }
+.policy-result.is-warning strong { color: var(--warning-text); }
+.policy-result.is-success { border-color: var(--success-line); background: var(--success-bg); }
+.policy-result.is-success strong { color: var(--success-text); }
+.policy-result.is-current { box-shadow: 0 0 0 2px var(--line-4); }
+
+.policy-facts {
+  display: grid;
+  gap: 4px;
+  padding: 22px 24px;
+}
+
+.policy-facts details {
+  border-bottom: 1px solid var(--line-1);
+}
+
+.policy-facts summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.policy-facts ul {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.policy-facts li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--fill-1);
+}
+
+.policy-facts li strong {
+  font-size: 14px;
+}
+
+.policy-facts li p {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.policy-facts > .faint-note {
+  margin-top: 10px;
+}
+
+.policy-facts > .text-action {
+  justify-self: start;
+}
+
+/* ---- ⑩ Settings ---- */
+
+.settings-connection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 26px;
+}
+
+.settings-connection-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-connection-head h2 {
+  margin: 0 0 2px;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.settings-connection-head .muted {
+  font-size: 13px;
+}
+
+.settings-lights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+}
+
+.settings-light {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.settings-light .status-dot {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-light strong {
+  display: block;
+  font-size: 15px;
+}
+
+.settings-light small {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.settings-mcp {
+  flex: 1 1 260px;
+}
+
+.settings-mcp-more summary {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--warning-line);
+  color: var(--warning-text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-mcp-more p {
+  max-width: 340px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 16px;
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+}
+
+.settings-card h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.settings-card > p {
+  margin: -6px 0 0;
+  font-size: 13px;
+}
+
+.settings-motion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-motion small {
+  display: block;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.settings-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.settings-facts li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.settings-facts span {
+  color: var(--text-muted);
+}
+
+.settings-facts b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-weight: 600;
+}
+
+.settings-facts b.mono {
+  direction: rtl;
+  font-size: 12.5px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.settings-privacy {
+  padding: 4px 22px;
+}
+
+.settings-privacy summary {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-privacy p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}

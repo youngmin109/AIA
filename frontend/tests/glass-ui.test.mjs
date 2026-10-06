@@ -85,3 +85,17 @@ test('history groups runs without treating live or orphaned runs as healthy', as
   assert.deepEqual(filterRuns(runs, 'review').map(run => run.session_id), ['incident', 'unverified', 'orphan'])
   assert.equal(filterRuns(runs, 'all').length, 5)
 })
+
+test('settings lights never call an unverified connection healthy', async () => {
+  const { connectionLights } = await import('../src/api/settingsStatus.ts')
+  const { normalizeGlassPreference } = await import('../src/api/glassPreference.ts')
+  assert.deepEqual(connectionLights(null).map(light => light.state), ['checking', 'checking', 'checking'])
+  const ready = connectionLights({ checks: [{ name: 'pretool_hook', ok: true }, { name: 'codex_hook_trust', ok: true }, { name: 'hook_verification', ok: true }] })
+  assert.deepEqual(ready.map(light => light.state), ['ok', 'ok', 'ok'])
+  const stale = connectionLights({ checks: [{ name: 'pretool_hook', ok: true }], hook_trust: { status: 'TRUSTED' }, hook_activation: { status: 'OBSERVED_IN_PAST' } })
+  assert.deepEqual(stale.map(light => light.state), ['ok', 'ok', 'warn'])
+  const missing = connectionLights({ checks: [{ name: 'pretool_hook', ok: false }] })
+  assert.deepEqual(missing.map(light => light.state), ['warn', 'warn', 'warn'])
+  assert.equal(normalizeGlassPreference('off'), 'off')
+  assert.equal(normalizeGlassPreference(null), 'on')
+})

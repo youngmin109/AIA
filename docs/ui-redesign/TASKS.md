@@ -54,10 +54,12 @@
 
 ## Phase 3 — 관리 화면
 
-### TASK-013 ⑧ 정책 · TODO
+### TASK-013 ⑧ 정책 · DONE
+- `policy/PolicyView.tsx`: 템플릿 카드(기본값 저장), `PolicyPreview`(행동 종류 + 대상 → 모든 정책 판정 비교, 사용 중 정책 규칙), "AIA가 실제로 하는 일"(기존 분류 설명을 접어서 유지).
 ### TASK-014 ⑨ 기록 · DONE
 - `audit/AuditView.tsx`: 필터(전체/확인 필요/정상)·요약 타일·행 목록 → 상세(③)와 "기록 목록" 뒤로 가기. 분류는 `api/historyFilter.ts`(테스트). 증거 검토 모달도 글래스로(Esc는 표시하지 않음). `styles/manage.css`.
-### TASK-015 ⑩ 설정 (색상 테마 선택 포함) · TODO
+### TASK-015 ⑩ 설정 (색상 테마 선택 포함) · DONE
+- `settings/SettingsView.tsx`: 연결 신호등 3개(`api/settingsStatus.ts`, 테스트), 다시 확인, MCP 경고, Hook 3단계(미준비 시), 색상 테마·유리 효과(`api/glassPreference.ts`, `html[data-glass]`)·움직임, AIA 정보(버전·Codex·데이터 위치)·진단 정보·개인정보. HookStatusControl은 모르는 준비 코드일 때 점검 항목으로 단계를 정함.
 
 ## Phase 4 — 마무리
 
