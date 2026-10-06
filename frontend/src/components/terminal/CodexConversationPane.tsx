@@ -4,6 +4,7 @@ import { useDialog } from '../common/useDialog'
 import { Icon } from '../common/Icon'
 import { RingTimer } from '../common/Charts'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useShellStore } from '../../state/shellStore'
 import type { ApprovalRequest, TranscriptItem } from './codexConversation'
 import { Markdown } from './Markdown'
@@ -159,7 +160,8 @@ function ApprovalDialog({
     : isFileChange
       ? 'Codex가 파일 변경 승인을 요청해요'
       : 'Codex가 실행 승인을 요청해요'
-  return (
+  // Portaled to <body>: an animated ancestor would otherwise clip the fixed scrim.
+  return createPortal(
     <>
       <div className="glass-scrim" aria-hidden="true" />
       <div className="glass-dialog-layer">
@@ -191,13 +193,14 @@ function ApprovalDialog({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
 
 function EndSessionDialog({ external, onConfirm, onCancel }: { external: boolean; onConfirm: () => void; onCancel: () => void }) {
   const ref = useDialog(true, onCancel)
-  return (
+  return createPortal(
     <>
       <div className="glass-scrim" aria-hidden="true" onClick={onCancel} />
       <div className="glass-dialog-layer">
@@ -214,7 +217,8 @@ function EndSessionDialog({ external, onConfirm, onCancel }: { external: boolean
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
 

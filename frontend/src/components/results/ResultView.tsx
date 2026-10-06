@@ -37,7 +37,10 @@ function durationLabel(start?: unknown, end?: unknown): string | null {
   const ms = Date.parse(String(end ?? '')) - Date.parse(String(start ?? ''))
   if (!(ms >= 0)) return null
   const minutes = Math.round(ms / 60_000)
-  return minutes < 1 ? '1분 미만' : `${minutes}분`
+  if (minutes < 1) return '1분 미만'
+  if (minutes < 60) return `${minutes}분`
+  const hours = Math.floor(minutes / 60)
+  return hours < 24 ? `${hours}시간 ${minutes % 60}분` : `${Math.floor(hours / 24)}일 이상`
 }
 
 function restoreTile(recovery: RecoveryStatusView | null, data: ResultData): { value: string; note: string; tone?: 'success' | 'warning' } {
@@ -93,7 +96,6 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
   return (
     <div className="page-stack result-page view-enter">
-      <span className="lens-orb at-result" aria-hidden="true" />
       <header className="result-head">
         <span className="home-head-title">보호 실행 결과</span>
         <span className="muted">{[workspaceShortName(data.workspace), sessionCreatedLabel(data.started_at as string | undefined), duration].filter(Boolean).join(' · ')}</span>
@@ -105,6 +107,8 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         </div>
       )}
 
+      <div className="lens-anchor">
+      <span className="lens-orb at-result" aria-hidden="true" />
       <section className="glass is-hero lens-hero result-hero" aria-label="결과 요약">
         <GuardianFigure state={guardianFor(data, verdict.tone)} alt="결과를 알려주는 아이아 가디언" className="result-guardian" />
         <div className="result-hero-copy">
@@ -122,6 +126,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
           <ChartLegend slices={slices.filter(slice => slice.value > 0)} />
         </div>
       </section>
+      </div>
 
       <section className="stat-grid" aria-label="결과 숫자">
         <StatTile label="차단 판정" value={summary?.contain ?? 0} tone={(summary?.contain ?? 0) > 0 ? 'danger' : undefined} note={blockedConfirmed > 0 ? `막음 확인 ${blockedConfirmed}건` : '실행 전 정책 판정'} />

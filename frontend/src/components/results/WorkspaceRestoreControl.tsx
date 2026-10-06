@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '../common/Button'
 import { Icon } from '../common/Icon'
 import { RoundAction } from '../common/Glass'
@@ -52,7 +53,8 @@ export function RestoreDialog({ runId, recovery, onClose, onDone }: {
     }
   }
 
-  return (
+  // Portaled to <body>: an animated ancestor would otherwise clip the fixed scrim.
+  return createPortal(
     <>
       <div className="glass-scrim" aria-hidden="true" onClick={() => { if (!restoring) onClose() }} />
       <div className="glass-dialog-layer">
@@ -81,7 +83,8 @@ export function RestoreDialog({ runId, recovery, onClose, onDone }: {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
 

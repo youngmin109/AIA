@@ -48,7 +48,7 @@
 ### TASK-011 ③ 결과 · DONE
 - `results/ResultView.tsx`: 히어로(가디언·쉬운 문장·도넛), 숫자 타일 4개, 바뀐 파일 막대, 접은 상세(사건·귀속·센서·복구·증거 흐름·도구 검토·읽는 법/제한 사항). 문장은 `api/resultSummary.ts`(차단 판정/막음 확인/종료/복구 분리, 테스트). 파일 수는 `hooks/useRunSnapshot.ts`. `styles/result.css`.
 ### TASK-012 ⑦ 복구 확인·완료 · DONE
-- `results/WorkspaceRestoreControl.tsx`: `RestoreDialog`(기준점·미리보기·동의) → `RestoreComplete`(초록 링·단계: 기준점/되돌리기/무결성, 실패 경로). RESTORED·VERIFIED 분리. 미리보기 데이터에는 기준점이 없어 완료 화면은 TASK-018 실제 실행으로 확인.
+- `results/WorkspaceRestoreControl.tsx`: `RestoreDialog`(기준점·미리보기·동의) → `RestoreComplete`(초록 링·단계: 기준점/되돌리기/무결성, 실패 경로). RESTORED·VERIFIED 분리. 미리보기 서버의 복구 가능 실행(진짜 기준점)으로 확인→되돌리기→완료까지 실제로 돌려 확인함.
 
 각 TASK의 데이터·문구는 SCREEN-SPEC 해당 절을 따른다. 수용: 목업과 같은 구조, 기존 기능 유지, 테스트 통과.
 

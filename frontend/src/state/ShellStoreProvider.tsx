@@ -23,6 +23,8 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
   const reportCodexActivity = useCallback((signal: CodexActivitySignal) => dispatch({ type: 'SET_CODEX_ACTIVITY', signal }), [])
   const clearCodexActivity = useCallback((runId: string) => dispatch({ type: 'CLEAR_CODEX_ACTIVITY', runId }), [])
   const requestEnd = useCallback(() => dispatch({ type: 'REQUEST_END' }), [])
+  const openResult = useCallback((id: string) => dispatch({ type: 'OPEN_RESULT', id }), [])
+  const closeResult = useCallback(() => dispatch({ type: 'CLOSE_RESULT' }), [])
 
   const value = useMemo<ShellContextValue>(
     () => ({
@@ -35,8 +37,10 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
       reportCodexActivity,
       clearCodexActivity,
       requestEnd,
+      openResult,
+      closeResult,
     }),
-    [state, setView, openNewRun, closeNewRun, setActiveRun, clearActiveRun, reportCodexActivity, clearCodexActivity, requestEnd],
+    [state, setView, openNewRun, closeNewRun, setActiveRun, clearActiveRun, reportCodexActivity, clearCodexActivity, requestEnd, openResult, closeResult],
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

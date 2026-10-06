@@ -1281,7 +1281,7 @@ summary:focus-visible {
   overflow: hidden;
 }
 
-.page-stack {
+.lens-anchor {
   position: relative;
 }
 
@@ -1308,9 +1308,9 @@ summary:focus-visible {
   pointer-events: none;
 }
 
-.lens-orb.at-home { top: -8px; left: 150px; }
-.lens-orb.at-live { top: -14px; left: 410px; }
-.lens-orb.at-result { top: -4px; left: 150px; }
+.lens-orb.at-home { top: -54px; left: 150px; }
+.lens-orb.at-live { top: -62px; left: 410px; }
+.lens-orb.at-result { top: -52px; left: 230px; }
 
 :root[data-glass='off'] .lens-orb {
   display: none;

@@ -28,6 +28,8 @@ export interface ShellState {
    * a reload re-attaches to the same run instead of losing context. */
   activeRunId: string | null
   codexActivity: CodexActivitySignal | null
+  /** Run whose result the history view shows; null shows the list. */
+  historyRunId: string | null
   /** Bumped to ask the work view to open its end-session confirmation. */
   endRequest: number
 }
@@ -41,6 +43,8 @@ export type ShellAction =
   | { type: 'SET_CODEX_ACTIVITY'; signal: CodexActivitySignal }
   | { type: 'CLEAR_CODEX_ACTIVITY'; runId: string }
   | { type: 'REQUEST_END' }
+  | { type: 'OPEN_RESULT'; id: string }
+  | { type: 'CLOSE_RESULT' }
 
 export function initialState(): ShellState {
   return {
@@ -48,6 +52,7 @@ export function initialState(): ShellState {
     newRunOpen: false,
     activeRunId: readStoredActiveRunId(),
     codexActivity: null,
+    historyRunId: null,
     endRequest: 0,
   }
 }
@@ -55,7 +60,8 @@ export function initialState(): ShellState {
 export function reducer(state: ShellState, action: ShellAction): ShellState {
   switch (action.type) {
     case 'SET_VIEW':
-      return { ...state, activeView: action.view }
+      // Entering history from the rail always starts at the list.
+      return { ...state, activeView: action.view, historyRunId: action.view === 'history' ? null : state.historyRunId }
     case 'OPEN_NEW_RUN':
       return { ...state, newRunOpen: true }
     case 'CLOSE_NEW_RUN':
@@ -70,6 +76,10 @@ export function reducer(state: ShellState, action: ShellAction): ShellState {
       return state.codexActivity?.runId === action.runId ? { ...state, codexActivity: null } : state
     case 'REQUEST_END':
       return { ...state, activeView: 'work', endRequest: state.endRequest + 1 }
+    case 'OPEN_RESULT':
+      return { ...state, activeView: 'history', activeRunId: action.id, historyRunId: action.id }
+    case 'CLOSE_RESULT':
+      return { ...state, historyRunId: null }
     default:
       return state
   }
@@ -84,6 +94,9 @@ export interface ShellContextValue extends ShellState {
   reportCodexActivity: (signal: CodexActivitySignal) => void
   clearCodexActivity: (runId: string) => void
   requestEnd: () => void
+  /** Show one run's result (③) in the history view and select it. */
+  openResult: (id: string) => void
+  closeResult: () => void
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null)

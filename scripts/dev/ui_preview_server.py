@@ -4,7 +4,9 @@ Serves the built console against a throw-away Control Root that holds:
 - completed runs from the deterministic ``aia demo`` scenarios, and
 - one live run whose Codex conversation is the fake app-server used by tests
   (type ``run`` for a command approval, ``patch`` for a file approval,
-  ``hello`` for a plain reply).
+  ``hello`` for a plain reply), and
+- one finished run with a real Safe Checkpoint whose Workspace changed
+  afterwards, so the restore flow (⑦) can run end to end.
 
 Nothing here touches the user's real Control Root or Codex configuration.
 
@@ -29,6 +31,7 @@ from aia_app.service import RunApplicationService
 from aia_web.app import create_app
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))  # reuse the test fixtures below
 PREVIEW = ROOT / ".tmp-ui"
 CONTROL = PREVIEW / "control"
 FAKE_SERVER = ROOT / "tests" / "fake_codex_app_server.py"
@@ -48,6 +51,31 @@ def prepare_completed_runs() -> None:
         )
         for session in (demo_root / "sessions").iterdir():
             shutil.copytree(session, sessions / session.name, dirs_exist_ok=True)
+
+
+def add_restorable_run() -> None:
+    """Same steps as tests/test_product_update.py's manual restore test."""
+    from aia import ProcessIdentityStatus, RawEvidenceStore, SessionFinalizer, SessionStatus, create_safe_checkpoint
+    from aia_app.service import process_create_time
+    from tests.test_checkpoint import _prepared_workspace
+
+    workspace, session, context, manager = _prepared_workspace(
+        PREVIEW, owner_pid=os.getpid(), owner_create_time=process_create_time(os.getpid())
+    )
+    (workspace / 'orders.csv').write_text('id,total\n1,1200\n', encoding='utf-8')
+    (workspace / 'README.md').write_text('# shop\n', encoding='utf-8')
+    checkpoint = create_safe_checkpoint(session, context, lease_manager=manager)
+    store = RawEvidenceStore.for_session(CONTROL, session.session_id)
+    session.transition(SessionStatus.READY)
+    session.transition(SessionStatus.RUNNING)
+    SessionFinalizer(evidence_store=store).finalize(
+        session, process_end_status=ProcessIdentityStatus.PROCESS_GONE,
+        checkpoint=checkpoint, active_policy=context.active_policy,
+        workspace_lease=context.workspace_lease, lease_manager=manager,
+    )
+    (workspace / 'orders.csv').unlink()
+    (workspace / 'README.md').write_text('# shop (edited after the run)\n', encoding='utf-8')
+    (workspace / 'notes.txt').write_text('added later', encoding='utf-8')
 
 
 def add_live_run(service: RunApplicationService) -> CodexAppServerSession:
@@ -89,6 +117,7 @@ def main() -> None:
         shutil.rmtree(PREVIEW)
     if not (CONTROL / "sessions").exists():
         prepare_completed_runs()
+        add_restorable_run()
 
     service = RunApplicationService(CONTROL)
     session = None if args.no_live else add_live_run(service)

@@ -15,17 +15,14 @@ const PILL_TONE = { live: 'good', review: 'warning', ok: 'good', failed: 'bad', 
 
 /** ⑨ History: every protected run; a row opens its result (③). */
 export function AuditView() {
-  const { activeRunId, setActiveRun, setView } = useShellStore()
+  const { activeRunId, historyRunId, openResult, closeResult, setView } = useShellStore()
   const { data: runs, isLoading, error, refetch } = useRunList()
   const [filter, setFilter] = useState<HistoryFilter>('all')
-  // The list shows when nothing is selected or the user went back from this run's detail.
-  const [listFor, setListFor] = useState<string | null>(null)
   const all = runs ?? []
-  const selected = all.find(run => run.session_id === activeRunId) ?? null
-  const showList = !selected || listFor === activeRunId
+  const selected = all.find(run => run.session_id === historyRunId) ?? null
 
-  if (!showList && selected) {
-    return <HistoryDetail run={selected} onBack={() => setListFor(activeRunId)} onOpenWork={() => setView('work')} />
+  if (selected) {
+    return <HistoryDetail run={selected} onBack={closeResult} onOpenWork={() => setView('work')} />
   }
 
   const visible = filterRuns(all, filter)
@@ -33,8 +30,7 @@ export function AuditView() {
   const live = all.filter(run => historyState(run) === 'live').length
 
   function open(run: RunSummary) {
-    setActiveRun(run.session_id)
-    setListFor(null)
+    openResult(run.session_id)
   }
 
   return (
