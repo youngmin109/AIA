@@ -10,10 +10,10 @@
 - 목표: EPIC-020, SCREEN-SPEC, TASKS, PROGRESS, 목업 사본을 저장소에 둔다.
 - 수용: 문서 4개와 `docs/ui-redesign/mockup/*.dc.html` 10개가 있다.
 
-### TASK-002 미리보기 기준선 · TODO
-- 목표: 데모 결과로 화면을 캡처할 수 있게 한다.
-- 할 일: `aia demo` 3개 시나리오를 별도 Control Root(`.tmp-ui/control`)에 만들고, 빌드된 콘솔을 띄워 headless Edge로 캡처하는 로컬 스크립트(`scripts/dev/ui-preview.ps1`)를 둔다.
-- 수용: 스크립트 한 번으로 홈·기록·결과 캡처 PNG가 `.tmp-ui/shots/`에 생긴다. `.tmp-ui/`는 gitignore.
+### TASK-002 미리보기 기준선 · DONE
+- `scripts/dev/ui_preview_server.py`: `.tmp-ui/control`(gitignore)에 `aia demo` 3개 시나리오(hook-block, process-kill, file-rollback) 결과를 모으고, 가짜 Codex app-server로 실시간 실행 1개(`preview-live`)를 붙여 빌드된 콘솔을 띄운다.
+- 사용: `npm --prefix frontend run build` → `.venv\Scripts\python.exe scripts\dev\ui_preview_server.py --port 8899 [--reset]` → 브라우저로 `http://127.0.0.1:8899/`.
+- 실시간 실행 대화창에 `run`(명령 승인), `patch`(파일 승인), `hello`(답장)를 입력하면 해당 화면을 볼 수 있다.
 
 ## Phase 1 — 기반
 
