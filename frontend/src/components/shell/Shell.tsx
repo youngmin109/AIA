@@ -7,6 +7,7 @@ import { PolicyView } from '../policy/PolicyView'
 import { AuditView } from '../audit/AuditView'
 import { SettingsView } from '../settings/SettingsView'
 import { EvidenceReviewModal } from '../audit/EvidenceReviewModal'
+import { LensFilters } from '../common/LensFilters'
 import { useActiveRunReconciliation } from '../../hooks/useActiveRunReconciliation'
 import { useShellStore, type ShellView } from '../../state/shellStore'
 
@@ -20,6 +21,7 @@ export function Shell() {
 
   return (
     <div className="app-root">
+      <LensFilters />
       <ConnectionBanner />
       <div className="app-body">
         <Rail />

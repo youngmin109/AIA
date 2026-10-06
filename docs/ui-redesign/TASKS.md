@@ -67,8 +67,8 @@
 - 옛 CSS 4개(shell·redesign·product-update·components, 약 2,000줄) 삭제. 필요한 가디언 아바타·연결 배너·오류 화면·입력 커서만 `glass.css`로 옮김. 안 쓰는 토큰 74개와 `data-theme` 제거. EmptyState 삭제. `styles/README.md` 갱신.
 - 문구: "막았어요"는 BLOCK_CONFIRMED에만(테스트), 나머지 범위 표현은 부정형. SCREEN-SPEC 체크리스트 코드 확인.
 
-### TASK-017 굴절 강조 4곳 + 유리 효과 스위치 · TODO (시간 부족 시 제외)
-- ① 히어로, ② 차단 카드, ③ 히어로, ⑥ 대화상자. 설정의 유리 효과로 끈다.
+### TASK-017 굴절 강조 4곳 + 유리 효과 스위치 · DONE
+- `common/LensFilters.tsx`(숨은 SVG 필터 3종), `api/lensMap.ts`(변위 맵·테두리 마스크, 테스트). ① 히어로·③ 히어로(`lens-hero`), ② 보호 중 카드(`lens-panel`), ⑥ 승인 대화상자(`lens-dialog`), ①②③에 구슬 하나(`lens-orb`). 설정 "유리 효과" 끄기(`data-glass=off`)면 흐림·굴절·구슬 모두 꺼짐. Chromium(WebView2) 전용.
 
 ### TASK-018 데스크톱 빌드 + 시연 리허설 + PR · TODO
 - `scripts/build-windows.ps1`, 시연 대본 3장면, 전체 pytest, PR(머지 금지, YM 검토).

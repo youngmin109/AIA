@@ -99,3 +99,14 @@ test('settings lights never call an unverified connection healthy', async () => 
   assert.equal(normalizeGlassPreference('off'), 'off')
   assert.equal(normalizeGlassPreference(null), 'on')
 })
+
+test('refraction maps are neutral in the centre and only push inward at the rim', async () => {
+  const { displacementMap, rimMask, LENS_KINDS } = await import('../src/api/lensMap.ts')
+  const map = decodeURIComponent(displacementMap(400, 200, 40).replace('data:image/svg+xml,', ''))
+  assert.ok(map.startsWith('<svg'))
+  assert.ok(map.includes("offset='0.0000' stop-color='rgb(255,0,0)'"), 'left edge samples inward (+x)')
+  assert.ok(map.includes("offset='1.0000' stop-color='rgb(0,0,0)'"), 'right edge samples inward (-x)')
+  assert.ok(map.includes("offset='0.1000' stop-color='rgb(128,0,0)'"), 'neutral at the inner bezel')
+  assert.ok(decodeURIComponent(rimMask(400, 200, 30, 40)).includes("stroke-width='72.0'"))
+  assert.deepEqual(Object.keys(LENS_KINDS), ['hero', 'panel', 'dialog'])
+})

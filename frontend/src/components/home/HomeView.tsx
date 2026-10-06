@@ -52,6 +52,7 @@ function HomeIdle() {
 
   return (
     <div className="page-stack home-page view-enter">
+      <span className="lens-orb at-home" aria-hidden="true" />
       <header className="home-head">
         <span className="home-head-title">보호 현황</span>
         <StatusPill tone={preflightError ? 'bad' : ready ? 'good' : preflight ? 'warning' : 'neutral'}>
@@ -59,7 +60,7 @@ function HomeIdle() {
         </StatusPill>
       </header>
 
-      <section className="glass is-hero home-hero" aria-label="보호 준비">
+      <section className="glass is-hero lens-hero home-hero" aria-label="보호 준비">
         <div className="home-hero-copy">
           <span className="eyebrow">AI AGENT GUARD</span>
           <h1>{ready ? <>에이전트 작업을<br />지켜볼 준비가 됐어요</> : <>보호 연결을<br />먼저 확인해 주세요</>}</h1>
@@ -133,6 +134,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
 
   return (
     <div className="page-stack home-page view-enter">
+      <span className="lens-orb at-live" aria-hidden="true" />
       <header className="home-head">
         <span className="home-head-title"><span className="status-dot is-ok" />보호 실행 중 · {workspaceShortName(status.session?.workspace)}</span>
         {elapsed && <span className="chip home-elapsed" aria-label={`경과 시간 ${elapsed}`}>{elapsed}</span>}
@@ -140,7 +142,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
       {stale && <div className="glass-notice is-warning" role="alert"><strong>최신 상태를 가져오지 못했어요</strong><p>연결이 돌아오기 전까지 이 화면을 현재 상태로 보지 마세요.</p></div>}
 
       <div className="home-live-grid">
-        <section className="glass is-hero home-live-hero" aria-label="보호 진행">
+        <section className="glass is-hero lens-panel home-live-hero" aria-label="보호 진행">
           <div className="home-live-copy">
             <h1>보호 중…</h1>
             <ul className="home-live-list">

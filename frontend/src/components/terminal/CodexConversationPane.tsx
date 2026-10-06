@@ -163,7 +163,7 @@ function ApprovalDialog({
     <>
       <div className="glass-scrim" aria-hidden="true" />
       <div className="glass-dialog-layer">
-        <div ref={ref} tabIndex={-1} className="glass-dialog approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title">
+        <div ref={ref} tabIndex={-1} className="glass-dialog lens-dialog approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title">
           <div className="approval-head">
             <RingTimer remaining={remaining} total={request.timeout_seconds ?? 0} label={remaining === null ? '응답을 기다리는 중' : `남은 시간 ${remaining}초`} />
             <div>

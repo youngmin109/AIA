@@ -1271,3 +1271,47 @@ summary:focus-visible {
   box-shadow: var(--focus-ring);
   border-radius: 10px;
 }
+
+/* ---- Refraction accent (TASK-017): four focal panels only; off with the glass switch ---- */
+
+.lens-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.page-stack {
+  position: relative;
+}
+
+:root:not([data-glass='off']) .glass.lens-hero {
+  backdrop-filter: url(#aia-lens-hero) saturate(180%);
+}
+
+:root:not([data-glass='off']) .glass.lens-panel {
+  backdrop-filter: url(#aia-lens-panel) saturate(180%);
+}
+
+:root:not([data-glass='off']) .glass-dialog.lens-dialog {
+  backdrop-filter: url(#aia-lens-dialog) saturate(190%);
+}
+
+.lens-orb {
+  position: absolute;
+  z-index: -1;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: var(--orb);
+  box-shadow: var(--orb-shadow);
+  pointer-events: none;
+}
+
+.lens-orb.at-home { top: -8px; left: 150px; }
+.lens-orb.at-live { top: -14px; left: 410px; }
+.lens-orb.at-result { top: -4px; left: 150px; }
+
+:root[data-glass='off'] .lens-orb {
+  display: none;
+}

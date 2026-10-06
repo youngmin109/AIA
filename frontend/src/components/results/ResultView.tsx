@@ -93,6 +93,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
 
   return (
     <div className="page-stack result-page view-enter">
+      <span className="lens-orb at-result" aria-hidden="true" />
       <header className="result-head">
         <span className="home-head-title">보호 실행 결과</span>
         <span className="muted">{[workspaceShortName(data.workspace), sessionCreatedLabel(data.started_at as string | undefined), duration].filter(Boolean).join(' · ')}</span>
@@ -104,7 +105,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         </div>
       )}
 
-      <section className="glass is-hero result-hero" aria-label="결과 요약">
+      <section className="glass is-hero lens-hero result-hero" aria-label="결과 요약">
         <GuardianFigure state={guardianFor(data, verdict.tone)} alt="결과를 알려주는 아이아 가디언" className="result-guardian" />
         <div className="result-hero-copy">
           <span className={`status-pill ${attention > 0 ? 'warning' : 'good'}`}>{attention > 0 ? `확인할 것 ${attention}개` : '모두 확인됐어요'}</span>
