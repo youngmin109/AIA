@@ -63,8 +63,9 @@
 
 ## Phase 4 — 마무리
 
-### TASK-016 문구 점검 + 죽은 CSS 정리 · TODO
-- CLAIM-MATRIX 대조, 증거 검토 모달 새 스킨, 쓰지 않는 선택자 삭제(`shell.css`·`redesign.css`·`product-update.css`), SCREEN-SPEC 체크리스트 확인.
+### TASK-016 문구 점검 + 죽은 CSS 정리 · DONE
+- 옛 CSS 4개(shell·redesign·product-update·components, 약 2,000줄) 삭제. 필요한 가디언 아바타·연결 배너·오류 화면·입력 커서만 `glass.css`로 옮김. 안 쓰는 토큰 74개와 `data-theme` 제거. EmptyState 삭제. `styles/README.md` 갱신.
+- 문구: "막았어요"는 BLOCK_CONFIRMED에만(테스트), 나머지 범위 표현은 부정형. SCREEN-SPEC 체크리스트 코드 확인.
 
 ### TASK-017 굴절 강조 4곳 + 유리 효과 스위치 · TODO (시간 부족 시 제외)
 - ① 히어로, ② 차단 카드, ③ 히어로, ⑥ 대화상자. 설정의 유리 효과로 끈다.

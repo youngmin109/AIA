@@ -13,6 +13,8 @@ import asyncio
 import base64
 import json
 from pathlib import Path
+import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -22,7 +24,6 @@ import websockets
 
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 URL = "http://127.0.0.1:8899/"
-PORT = 9333
 
 CLICK_JS = """
 (() => {
@@ -48,8 +49,14 @@ TYPE_JS = """
 """
 
 
-async def run(out: Path, steps: list[str], width: int, height: int) -> None:
-    targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json"))
+def free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+async def run(out: Path, steps: list[str], width: int, height: int, port: int) -> None:
+    targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json"))
     page = next(target for target in targets if target["type"] == "page")
     async with websockets.connect(page["webSocketDebuggerUrl"], max_size=50_000_000) as socket:
         counter = 0
@@ -96,21 +103,33 @@ def main() -> None:
             steps.remove(step)
     out.parent.mkdir(parents=True, exist_ok=True)
     profile = tempfile.mkdtemp(prefix="aia-ui-shot-")
+    port = free_port()
     edge = subprocess.Popen(
-        [EDGE, "--headless=new", f"--remote-debugging-port={PORT}", f"--user-data-dir={profile}",
+        [EDGE, "--headless=new", f"--remote-debugging-port={port}", f"--user-data-dir={profile}",
          "--hide-scrollbars", f"--window-size={width},{height}", "about:blank"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     try:
         for _ in range(50):
             try:
-                urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json/version", timeout=1)
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1)
                 break
             except OSError:
                 asyncio.run(asyncio.sleep(0.2))
-        asyncio.run(run(out, steps, width, height))
+        asyncio.run(run(out, steps, width, height, port))
     finally:
-        edge.terminate()
+        # Edge spawns child processes; end the whole tree so no browser keeps the profile or port.
+        subprocess.run(["taskkill", "/PID", str(edge.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Headless Edge relaunches outside that tree; stop what still uses this run's own profile.
+        name = Path(profile).name
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
+             f"Where-Object {{ $_.CommandLine -like '*{name}*' }} | "
+             "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        shutil.rmtree(profile, ignore_errors=True)
 
 
 if __name__ == "__main__":

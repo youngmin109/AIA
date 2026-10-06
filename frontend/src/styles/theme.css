@@ -51,7 +51,6 @@
   --line-4: rgba(255, 255, 255, 0.55);
   --inset-bg: rgba(8, 2, 30, 0.45);
   --scrim: rgba(8, 3, 28, 0.6);
-  --depth-shadow: rgba(10, 4, 40, 0.5);
   --ring-track: rgba(255, 255, 255, 0.14);
   --ring-core: rgba(28, 14, 70, 0.82);
 
@@ -59,11 +58,9 @@
   --text: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.76);
   --text-faint: rgba(255, 255, 255, 0.6);
-  --text-on-light: #1d0d4d;
 
   /* Status */
   --danger: #ff6b7d;
-  --danger-strong: #ff4d6a;
   --danger-text: #ffd2d8;
   --danger-bg: rgba(255, 77, 106, 0.16);
   --danger-line: rgba(255, 140, 155, 0.5);
@@ -91,7 +88,6 @@
   --swatch-teal: linear-gradient(145deg, #8affe0, #1fb39a);
 
   /* Depth: highlights and shadows used by glass parts */
-  --gloss-top: inset 0 1px 0 rgba(255, 255, 255, 0.5);
   --tile-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 16px 28px rgba(10, 4, 40, 0.5);
   --icon-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 10px 22px rgba(10, 4, 40, 0.5);
   --button-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 14px 30px rgba(8, 2, 30, 0.5);
@@ -109,79 +105,7 @@
   --radius-card: 24px;
   --radius-control: 16px;
   --radius-chip: 999px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
 
-  /* Tokens of the pre-glass console CSS. Kept until TASK-016 removes the
-     old stylesheets; values follow the dark glass palette. */
-  --bg-app: #120a33;
-  --bg-panel: rgba(255, 255, 255, 0.08);
-  --bg-panel-alt: rgba(255, 255, 255, 0.12);
-  --bg-inset: rgba(8, 2, 30, 0.45);
-  --bg-hover: rgba(255, 255, 255, 0.08);
-  --bg-active: rgba(255, 255, 255, 0.16);
-  --border: rgba(255, 255, 255, 0.14);
-  --border-strong: rgba(255, 255, 255, 0.24);
-  --accent-strong: #c9b8ff;
-  --accent-contrast: #120a33;
-  --cyan: #7ad0ff;
-  --shadow-elevated: 0 30px 80px rgba(6, 2, 28, 0.55);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --terminal-bg: rgba(8, 2, 30, 0.45);
-  --terminal-toolbar-bg: rgba(255, 255, 255, 0.06);
-  --terminal-input-bg: rgba(8, 2, 30, 0.4);
-  --terminal-input-inset: rgba(8, 2, 30, 0.55);
-  --terminal-border: rgba(255, 255, 255, 0.18);
-  --terminal-text: #f1ecff;
-  --terminal-muted: rgba(255, 255, 255, 0.7);
-  --on-accent: #fff;
-  --code-block-bg: rgba(8, 2, 30, 0.5);
-  --code-block-text: #efe9ff;
-  --code-block-divider: rgba(255, 255, 255, 0.08);
-  --overlay-backdrop: rgba(8, 3, 28, 0.6);
-  --shadow-tint-sidebar: rgba(6, 2, 28, 0.2);
-  --brandmark-from: #a98bff;
-  --brandmark-to: #6a3cff;
-  --brandmark-text: #ffffff;
-  --brandmark-ring: rgba(255, 255, 255, 0.3);
-  --shadow-tint-nav-active: rgba(6, 2, 28, 0.2);
-  --page-glow-blue: rgba(91, 125, 255, 0.2);
-  --page-glow-mint: rgba(69, 224, 168, 0.12);
-  --page-glow-dark: rgba(73, 99, 147, 0.13);
-  --shadow-tint-card: rgba(6, 2, 28, 0.25);
-  --shadow-tint-card-edge: rgba(6, 2, 28, 0.2);
-  --shadow-tint-card-dark: rgba(0, 0, 0, 0.13);
-  --primary-action-from: #a35bff;
-  --primary-action-to: #5b7dff;
-  --shadow-tint-primary-action: rgba(163, 91, 255, 0.35);
-  --kpi-tint-mint: rgba(69, 224, 168, 0.12);
-  --kpi-tint-rose: rgba(255, 107, 125, 0.12);
-  --kpi-tint-lavender: rgba(169, 139, 255, 0.14);
-  --agent-orb-from: #8affd8;
-  --agent-orb-to: #8fb3ff;
-  --agent-orb-text: #1d0d4d;
-  --legend-mint: #45e0a8;
-  --legend-blue: #8fb3ff;
-  --legend-lavender: #a98bff;
-  --shadow-tint-policy-workspace: rgba(6, 2, 28, 0.2);
-  --policy-hero-blue: rgba(91, 125, 255, 0.2);
-  --policy-hero-mint: rgba(69, 224, 168, 0.12);
-  --policy-hero-blue-dark: rgba(82, 108, 171, 0.17);
-  --policy-hero-mint-dark: rgba(57, 132, 115, 0.1);
-  --shadow-tint-template-selected: rgba(6, 2, 28, 0.25);
-  --template-icon-from: #a98bff;
-  --template-icon-to: #45e0a8;
-  --template-icon-text: #ffffff;
-  --shadow-tint-card-hover: rgba(6, 2, 28, 0.3);
-  --nav-bg: rgba(255, 255, 255, 0.05);
-  --nav-bg-active: rgba(255, 255, 255, 0.16);
-  --nav-text: rgba(255, 255, 255, 0.72);
-  --nav-text-active: #ffffff;
-  --nav-text-muted: rgba(255, 255, 255, 0.55);
-  --nav-border: rgba(255, 255, 255, 0.12);
-  --nav-accent: #a98bff;
 }
 
 :root[data-tint='indigo'] {
