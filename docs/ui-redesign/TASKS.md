@@ -37,7 +37,8 @@
 
 ### TASK-006 ① 홈 · DONE
 - `components/home/HomeView.tsx`: 실행 전(①)과 실행 중(②)을 한 뷰에서 나눈다. `api/homeStatus.ts`(기둥 상태·경과 시간), `hooks/useRunActions.ts`(CONTAIN 수), `hooks/useProfiles.ts`, `styles/home.css`.
-### TASK-007 ④ 새 보호 실행 시트 · TODO
+### TASK-007 ④ 새 보호 실행 시트 · DONE
+- `settings/ProtectionSetupModal.tsx`(NewRunSheet): 폴더·정책 카드·연결 알약·시작. 준비 여부는 preflight `READY`에서 계산. `HookStatusControl`은 글래스 3단계로 다시 그림. `styles/sheet.css`.
 ### TASK-008 ⑤ 작업창 (대화 카드 + 보호 패널) · TODO
 ### TASK-009 ⑥ 승인 대화상자 · TODO
 ### TASK-010 ② 실행 중 (홈의 실행 중 상태, 종료 흐름) · DOING
