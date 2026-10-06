@@ -17,19 +17,21 @@
 
 ## Phase 1 — 기반
 
-### TASK-003 글래스 토큰 · TODO
+### TASK-003 글래스 토큰 · DONE
 - 파일: `frontend/src/styles/theme.css`, `frontend/src/hooks/useTheme.ts`(색상 테마로 교체), `main.tsx`.
 - 할 일: 라이트 토큰 제거. 배경 그라데이션·유리 채움/테두리/흐림·버튼/강조 그라데이션·센서 색·상태 색 토큰. `data-tint` 3종.
 - 수용: 기존 화면이 다크 글래스 배경으로 그려지고 테스트 통과.
 
-### TASK-004 공통 컴포넌트 · TODO
+### TASK-004 공통 컴포넌트 · DONE
 - 파일: `frontend/src/components/common/`(GlassPanel, GlossyIcon, RoundAction, Donut, BarList, RingTimer), `styles/glass.css`.
 - 수용: 새 컴포넌트가 빌드되고 디자인 규칙 테스트 통과. 순수 계산(도넛 비율 등)은 `api/` 아래 `.ts`로 두고 node 테스트 추가.
+- 결과: `common/Glass.tsx`(GlossyIcon, TileCorner, RoundAction, StatTile, StatusDot), `common/Charts.tsx`(DonutChart, ChartLegend, BarList, MiniBars, RingTimer — SVG 속성으로 그려 인라인 스타일 없음), `api/chartMath.ts` + `tests/glass-ui.test.mjs`, `styles/glass.css`.
 
-### TASK-005 앱 셸 · TODO
+### TASK-005 앱 셸 · DONE
 - 파일: `state/shellStore.tsx`, `components/shell/Shell.tsx`, `Sidebar.tsx`→`Rail.tsx`, `Topbar`/`RightPanel`/`StatusBar` 정리, 관련 테스트.
 - 할 일: 5아이콘 레일 + 가디언 도움말, 뷰 키 `home/work/policy/history/settings`, ThemeToggle 제거, agents/reports 메뉴 제거.
 - 수용: 레일로 모든 뷰 이동 가능, WebSocket 유지 구조 유지, 테스트 갱신·통과.
+- 결과: `shell/Rail.tsx`, `shell/GuardianGuide.tsx`(사이드바 도움말 이전), 셸 상태 `newRunOpen`·`endRequest`. Sidebar/Topbar/RightPanel/StatusBar/AgentsView/ReportsView 삭제. 화면 캡처는 `scripts/dev/ui_shot.py out.png click:기록 wait:1`.
 
 ## Phase 2 — 시연 흐름
 

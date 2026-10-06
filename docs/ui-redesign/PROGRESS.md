@@ -2,6 +2,12 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-06 · TASK-003~005
+- 다크 글래스 토큰(색상 테마 3종 `data-tint`), 라이트 테마·ThemeToggle 제거. 옛 토큰 이름은 TASK-016까지 유지.
+- 공통 컴포넌트(글로시 아이콘, 원형 버튼, 숫자 타일, SVG 차트)와 `glass.css`. 차트 계산 테스트 6개 추가(총 29개 통과).
+- 5아이콘 레일 + 가디언 도움말, 뷰 키 home/work/policy/history/settings. `scripts/dev/ui_shot.py`로 1440×900 캡처.
+- 다음: TASK-006 ① 홈.
+
 ## 2026-10-06 · TASK-002
 - 미리보기 서버 추가: 데모 결과 3개 + 가짜 Codex 실시간 실행 1개. 기존 UI가 그대로 뜨는 것을 확인.
 - `aia demo`는 Control Root의 sessions를 매번 지우므로 시나리오별로 만든 뒤 모은다.

@@ -9,7 +9,7 @@ import { sessionDisplayName } from './sessionLabel'
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
 
 export function ActiveRunPane() {
-  const { activeRunId, clearActiveRun, openSettingsModal, rightPanelCollapsed, toggleRightPanel } = useShellStore()
+  const { activeRunId, clearActiveRun, openNewRun } = useShellStore()
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
 
   const sessionStatus = status?.session?.status
@@ -34,18 +34,8 @@ export function ActiveRunPane() {
             </button>
           </div>
         )}
-        <button type="button" className="tab-strip-action" title="새 보호 실행" onClick={openSettingsModal}>
+        <button type="button" className="tab-strip-action" title="새 보호 실행" onClick={openNewRun}>
           <Icon name="plus" size={16} />
-        </button>
-        <div className="tab-strip-spacer" />
-        <button
-          type="button"
-          className={`tab-strip-action${rightPanelCollapsed ? '' : ' is-active'}`}
-          title={rightPanelCollapsed ? '실시간 기록 패널 펼치기' : '실시간 기록 패널 접기'}
-          aria-pressed={!rightPanelCollapsed}
-          onClick={toggleRightPanel}
-        >
-          <Icon name="results" size={16} />
         </button>
       </div>
       <div className="center-content">

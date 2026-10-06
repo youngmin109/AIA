@@ -65,7 +65,7 @@ export function AuditView() {
           {selected && !selectedEnded && !selectedOrphaned && (
             <EmptyState title="이 실행은 아직 진행 중입니다">
               <p>실시간 상태와 명령 입력은 에이전트 작업에서 확인할 수 있습니다.</p>
-              <Button variant="cta" className="is-compact" onClick={() => setView('terminal')}>
+              <Button variant="cta" className="is-compact" onClick={() => setView('work')}>
                 에이전트 작업 열기 →
               </Button>
             </EmptyState>

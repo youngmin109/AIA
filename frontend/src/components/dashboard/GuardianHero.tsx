@@ -14,7 +14,7 @@ const ALT: Record<GuardianState, string> = {
 /** Compact status card: the one place the Guardian mascot appears on the dashboard. */
 export function GuardianHero({ readiness, ready }: { readiness: string; ready: boolean }) {
   const guardian = useGuardianState()
-  const { activeRunId, openSettingsModal, setView } = useShellStore()
+  const { activeRunId, openNewRun, setView } = useShellStore()
   const { data: status } = useRunStatus(activeRunId)
   const isLive = isSessionRunning(status?.session?.status, Boolean(status?.runtime_reconciliation?.orphaned))
 
@@ -30,9 +30,9 @@ export function GuardianHero({ readiness, ready }: { readiness: string; ready: b
           <h2>{guardian.headline}</h2>
           <p>{guardian.detail}</p>
           {!activeRunId ? (
-            <button type="button" className="guardian-start-button" onClick={openSettingsModal}>보호 실행 시작</button>
+            <button type="button" className="guardian-start-button" onClick={openNewRun}>보호 실행 시작</button>
           ) : (
-            <button type="button" className="guardian-start-button" onClick={() => setView(isLive ? 'terminal' : 'audit')}>{isLive ? guardian.label === '사용자 확인' ? '확인 요청 열기' : '에이전트 작업 열기' : '결과·복구 확인'}</button>
+            <button type="button" className="guardian-start-button" onClick={() => setView(isLive ? 'work' : 'history')}>{isLive ? guardian.label === '사용자 확인' ? '확인 요청 열기' : '에이전트 작업 열기' : '결과·복구 확인'}</button>
           )}
         </div>
       </div>

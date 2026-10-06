@@ -16,40 +16,27 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
   }, [state.activeRunId])
 
   const setView = useCallback((view: ShellView) => dispatch({ type: 'SET_VIEW', view }), [])
-  const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), [])
-  const toggleRightPanel = useCallback(() => dispatch({ type: 'TOGGLE_RIGHT_PANEL' }), [])
-  const openSettingsModal = useCallback(() => dispatch({ type: 'OPEN_SETTINGS_MODAL' }), [])
-  const closeSettingsModal = useCallback(() => dispatch({ type: 'CLOSE_SETTINGS_MODAL' }), [])
+  const openNewRun = useCallback(() => dispatch({ type: 'OPEN_NEW_RUN' }), [])
+  const closeNewRun = useCallback(() => dispatch({ type: 'CLOSE_NEW_RUN' }), [])
   const setActiveRun = useCallback((id: string) => dispatch({ type: 'SET_ACTIVE_RUN', id }), [])
   const clearActiveRun = useCallback(() => dispatch({ type: 'CLEAR_ACTIVE_RUN' }), [])
   const reportCodexActivity = useCallback((signal: CodexActivitySignal) => dispatch({ type: 'SET_CODEX_ACTIVITY', signal }), [])
   const clearCodexActivity = useCallback((runId: string) => dispatch({ type: 'CLEAR_CODEX_ACTIVITY', runId }), [])
+  const requestEnd = useCallback(() => dispatch({ type: 'REQUEST_END' }), [])
 
   const value = useMemo<ShellContextValue>(
     () => ({
       ...state,
       setView,
-      toggleSidebar,
-      toggleRightPanel,
-      openSettingsModal,
-      closeSettingsModal,
+      openNewRun,
+      closeNewRun,
       setActiveRun,
       clearActiveRun,
       reportCodexActivity,
       clearCodexActivity,
+      requestEnd,
     }),
-    [
-      state,
-      setView,
-      toggleSidebar,
-      toggleRightPanel,
-      openSettingsModal,
-      closeSettingsModal,
-      setActiveRun,
-      clearActiveRun,
-      reportCodexActivity,
-      clearCodexActivity,
-    ],
+    [state, setView, openNewRun, closeNewRun, setActiveRun, clearActiveRun, reportCodexActivity, clearCodexActivity, requestEnd],
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

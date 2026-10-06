@@ -14,7 +14,7 @@ import { sessionDisplayName } from '../shell/sessionLabel'
 
 
 export function DashboardView() {
-  const { activeRunId, setView, openSettingsModal, setActiveRun } = useShellStore()
+  const { activeRunId, setView, openNewRun, setActiveRun } = useShellStore()
   const { data: status, error, updatedAt } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
   const { data: preflight } = usePreflight()
   const { data: runs } = useRunList()
@@ -32,7 +32,7 @@ export function DashboardView() {
 
   return (
     <div className="product-page observability-page">
-        <header className="page-heading dashboard-heading"><div><p>에이전트 요청, 실제 프로세스, 작업공간 변화를 하나의 보호 흐름으로 확인하세요.</p></div><Button variant="primary" onClick={isActive ? () => setView('terminal') : openSettingsModal}>{isActive ? '실행 열기' : '새 보호 실행'}</Button></header>
+        <header className="page-heading dashboard-heading"><div><p>에이전트 요청, 실제 프로세스, 작업공간 변화를 하나의 보호 흐름으로 확인하세요.</p></div><Button variant="primary" onClick={isActive ? () => setView('work') : openNewRun}>{isActive ? '실행 열기' : '새 보호 실행'}</Button></header>
         <div className="kpi-grid four">{metrics.map((metric) => <article key={metric.label} className={`soft-card kpi-card accent-${metric.tone}`}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.hint}</small></article>)}</div>
         {error && <div className="validation-banner warning" role="alert">최신 상태를 가져오지 못했습니다. 정상 보호 상태로 해석하지 마세요.</div>}
         {updatedAt && <p className="snapshot-time">마지막 확인 {new Date(updatedAt).toLocaleTimeString('ko-KR')}{!isActive && selected ? ' · 종료된 실행 기록' : ''}</p>}
@@ -42,8 +42,8 @@ export function DashboardView() {
         </div>
         <WorkspaceActivity status={status} />
         <div className="dashboard-lower-grid">
-          <section className="soft-card data-section"><div className="section-title-row"><div><h3>최근 보호 실행</h3><p>실제 세션 상태와 사건 수를 표시합니다.</p></div><Button variant="text" onClick={() => setView('audit')}>전체 보기</Button></div><div className="compact-list">{(runs ?? []).slice(0, 5).map((run) => <button type="button" className="compact-list-row is-button" key={run.session_id} onClick={() => { setActiveRun(run.session_id); setView(isRunActive(run) ? 'terminal' : 'audit') }}><div><strong>{sessionDisplayName(run.workspace)}</strong><small>{run.workspace ?? '작업공간 확인 중'}</small></div><StatusPill tone="neutral">{displayStatus(run.status)}</StatusPill><b>{run.incident_count ?? 0}건</b></button>)}{runs?.length === 0 && <p className="empty-copy">아직 보호 실행 기록이 없습니다.</p>}</div></section>
-          <section className="soft-card data-section"><div className="section-title-row"><div><h3>최근 감사 이벤트</h3><p>현재 선택한 세션의 정규화된 활동입니다.</p></div>{isActive && <Button variant="text" onClick={() => setView('audit')}>증거 열기</Button>}</div><EventFeed runId={activeRunId} events={status?.events} evidenceChains={status?.evidence_chains} limit={5} /></section>
+          <section className="soft-card data-section"><div className="section-title-row"><div><h3>최근 보호 실행</h3><p>실제 세션 상태와 사건 수를 표시합니다.</p></div><Button variant="text" onClick={() => setView('history')}>전체 보기</Button></div><div className="compact-list">{(runs ?? []).slice(0, 5).map((run) => <button type="button" className="compact-list-row is-button" key={run.session_id} onClick={() => { setActiveRun(run.session_id); setView(isRunActive(run) ? 'work' : 'history') }}><div><strong>{sessionDisplayName(run.workspace)}</strong><small>{run.workspace ?? '작업공간 확인 중'}</small></div><StatusPill tone="neutral">{displayStatus(run.status)}</StatusPill><b>{run.incident_count ?? 0}건</b></button>)}{runs?.length === 0 && <p className="empty-copy">아직 보호 실행 기록이 없습니다.</p>}</div></section>
+          <section className="soft-card data-section"><div className="section-title-row"><div><h3>최근 감사 이벤트</h3><p>현재 선택한 세션의 정규화된 활동입니다.</p></div>{isActive && <Button variant="text" onClick={() => setView('history')}>증거 열기</Button>}</div><EventFeed runId={activeRunId} events={status?.events} evidenceChains={status?.evidence_chains} limit={5} /></section>
         </div>
         <section className="soft-card readiness-strip"><div><Icon name="shield" size={20} /><div><b>{preflight?.readiness_code === 'READY' ? '보호 실행 준비 완료' : '보호 연결 확인 필요'}</b><span>{preflight ? readinessNextStep(preflight.readiness_code) : '실행 전 연결과 로컬 환경을 확인하고 있습니다.'}</span></div></div><div className="check-chip-row">{(preflight?.checks ?? []).map((check) => <span key={check.name} className={`check-chip ${check.ok ? 'ok' : 'warn'}`} title={check.detail}>{check.ok ? '✓' : '!'} {checkLabel(check.label)}</span>)}</div></section>
     </div>

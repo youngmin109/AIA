@@ -1,15 +1,10 @@
-import { Sidebar } from './Sidebar'
-import { Topbar } from './Topbar'
+import { Rail } from './Rail'
 import { ActiveRunPane } from './ActiveRunPane'
-import { RightPanel } from './RightPanel'
-import { StatusBar } from './StatusBar'
 import { ConnectionBanner } from './ConnectionBanner'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
 import { DashboardView } from '../dashboard/DashboardView'
 import { PolicyView } from '../policy/PolicyView'
 import { AuditView } from '../audit/AuditView'
-import { AgentsView } from '../agents/AgentsView'
-import { ReportsView } from '../reports/ReportsView'
 import { SettingsView } from '../settings/SettingsView'
 import { EvidenceReviewModal } from '../audit/EvidenceReviewModal'
 import { useActiveRunReconciliation } from '../../hooks/useActiveRunReconciliation'
@@ -19,45 +14,36 @@ export function Shell() {
   useActiveRunReconciliation()
   const { activeView } = useShellStore()
 
-  function viewClass(view: ShellView) {
-    return `main-column-view${activeView === view ? '' : ' is-hidden'}`
+  function viewClass(view: ShellView, flush = false) {
+    return `app-view${flush ? ' is-flush' : ''}${activeView === view ? '' : ' is-hidden'}`
   }
 
   return (
-    <div className="shell-root">
+    <div className="app-root">
       <ConnectionBanner />
-      <div className="shell-body">
-        <Sidebar />
-        <div className="main-column">
-          <Topbar />
-          {/* All views stay mounted and are toggled with CSS, not
-              conditional rendering, so switching views preserves the live
-              Codex conversation connection and Guardian status. */}
-          <div className={viewClass('dashboard')}>
+      <div className="app-body">
+        <Rail />
+        <main className="app-main">
+          {/* All views stay mounted and are toggled with CSS, not conditional
+              rendering, so switching views keeps the live Codex conversation
+              connection and the guardian status. */}
+          <section className={viewClass('home')} aria-label="홈">
             <DashboardView />
-          </div>
-          <div className={viewClass('agents')}>
-            <AgentsView />
-          </div>
-          <div className={viewClass('policy')}>
-            <PolicyView />
-          </div>
-          <div className={viewClass('audit')}>
-            <AuditView />
-          </div>
-          <div className={viewClass('terminal')}>
+          </section>
+          <section className={viewClass('work', true)} aria-label="작업창">
             <ActiveRunPane />
-          </div>
-          <div className={viewClass('reports')}>
-            <ReportsView />
-          </div>
-          <div className={viewClass('settings')}>
+          </section>
+          <section className={viewClass('policy')} aria-label="정책">
+            <PolicyView />
+          </section>
+          <section className={viewClass('history')} aria-label="기록">
+            <AuditView />
+          </section>
+          <section className={viewClass('settings')} aria-label="설정">
             <SettingsView />
-          </div>
-        </div>
-        <RightPanel />
+          </section>
+        </main>
       </div>
-      <StatusBar />
       <ProtectionSetupModal />
       <EvidenceReviewModal />
     </div>

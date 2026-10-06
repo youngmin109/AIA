@@ -29,7 +29,7 @@ const RECONCILE_REFUSAL_COPY: Record<string, string> = {
 }
 
 export function ProtectionSetupModal() {
-  const { settingsModalOpen, closeSettingsModal, setActiveRun, setView } = useShellStore()
+  const { newRunOpen, closeNewRun, setActiveRun, setView } = useShellStore()
   const [workspace, setWorkspace] = useState('')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({ status: 'idle' })
   const [profiles, setProfiles] = useState<PolicyProfile[]>([])
@@ -42,9 +42,9 @@ export function ProtectionSetupModal() {
   const [reconcileError, setReconcileError] = useState<string | null>(null)
   const [pickerMessage, setPickerMessage] = useState<string | null>(null)
 
-  const dialogRef = useDialog(settingsModalOpen, () => { if (!submitting) closeSettingsModal() })
+  const dialogRef = useDialog(newRunOpen, () => { if (!submitting) closeNewRun() })
   useEffect(() => {
-    if (!settingsModalOpen) return
+    if (!newRunOpen) return
     listProfiles()
       .then((list) => {
         const standardProfiles = list.filter(isStandardProfile)
@@ -57,7 +57,7 @@ export function ProtectionSetupModal() {
       })
       .catch(() => setProfiles([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsModalOpen])
+  }, [newRunOpen])
 
   useEffect(() => {
     setRecovery(null)
@@ -84,7 +84,7 @@ export function ProtectionSetupModal() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [workspace])
 
-  if (!settingsModalOpen) {
+  if (!newRunOpen) {
     return null
   }
 
@@ -127,8 +127,8 @@ export function ProtectionSetupModal() {
         launch_mode: 'codex_app_server',
       })
       setActiveRun(result.session_id)
-      setView('terminal')
-      closeSettingsModal()
+      setView('work')
+      closeNewRun()
       setWorkspace('')
       setWorkspaceState({ status: 'idle' })
     } catch (err) {
@@ -153,11 +153,11 @@ export function ProtectionSetupModal() {
   }
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="보호 세팅" onClick={closeSettingsModal}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="보호 세팅" onClick={closeNewRun}>
       <div ref={dialogRef} className="modal-panel" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h2>보호 세팅</h2>
-          <Button variant="icon" onClick={closeSettingsModal} title="닫기">
+          <Button variant="icon" onClick={closeNewRun} title="닫기">
             <Icon name="close" />
           </Button>
         </div>
