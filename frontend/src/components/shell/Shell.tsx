@@ -1,5 +1,5 @@
 import { Rail } from './Rail'
-import { ActiveRunPane } from './ActiveRunPane'
+import { WorkView } from '../work/WorkView'
 import { ConnectionBanner } from './ConnectionBanner'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
 import { HomeView } from '../home/HomeView'
@@ -31,7 +31,7 @@ export function Shell() {
             <HomeView />
           </section>
           <section className={viewClass('work', true)} aria-label="작업창">
-            <ActiveRunPane />
+            <WorkView />
           </section>
           <section className={viewClass('policy')} aria-label="정책">
             <PolicyView />

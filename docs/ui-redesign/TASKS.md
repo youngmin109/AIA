@@ -39,10 +39,12 @@
 - `components/home/HomeView.tsx`: 실행 전(①)과 실행 중(②)을 한 뷰에서 나눈다. `api/homeStatus.ts`(기둥 상태·경과 시간), `hooks/useRunActions.ts`(CONTAIN 수), `hooks/useProfiles.ts`, `styles/home.css`.
 ### TASK-007 ④ 새 보호 실행 시트 · DONE
 - `settings/ProtectionSetupModal.tsx`(NewRunSheet): 폴더·정책 카드·연결 알약·시작. 준비 여부는 preflight `READY`에서 계산. `HookStatusControl`은 글래스 3단계로 다시 그림. `styles/sheet.css`.
-### TASK-008 ⑤ 작업창 (대화 카드 + 보호 패널) · TODO
-### TASK-009 ⑥ 승인 대화상자 · TODO
-### TASK-010 ② 실행 중 (홈의 실행 중 상태, 종료 흐름) · DOING
-- 화면은 TASK-006에서 완료. 남은 것: 종료 버튼(`requestEnd`)을 받은 작업창이 세션 종료 확인을 여는 흐름(TASK-008과 함께).
+### TASK-008 ⑤ 작업창 (대화 카드 + 보호 패널) · DONE
+- `work/WorkView.tsx`(빈 상태·끝난 실행은 결과), `work/ProtectionPanel.tsx`(숫자·5분 막대·프로세스 트리·바뀐 파일·센서·기준점), `CodexConversationPane` 말풍선·명령/파일 카드·입력창. `styles/work.css`. ActiveRunPane·WorkspaceActivity·EventFeed·SensorHealthRow 삭제.
+### TASK-009 ⑥ 승인 대화상자 · DONE
+- 글래스 대화상자 + RingTimer. 카운트다운은 `timeout_seconds`가 있을 때(AIA 도구 검토)만, Codex 승인은 "답할 때까지 기다려요". Esc로 닫히지 않음 유지.
+### TASK-010 ② 실행 중 (홈의 실행 중 상태, 종료 흐름) · DONE
+- 화면은 TASK-006. 홈 "종료" → `requestEnd` → 작업창이 글래스 종료 확인(window.confirm 대체)을 연다.
 ### TASK-011 ③ 결과 · TODO
 ### TASK-012 ⑦ 복구 확인·완료 · TODO
 

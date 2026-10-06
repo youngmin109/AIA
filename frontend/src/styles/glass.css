@@ -517,6 +517,7 @@
 
 .cta-button,
 .primary-action {
+  width: auto;
   min-height: 48px;
   display: inline-flex;
   align-items: center;
@@ -606,9 +607,21 @@
 .cta-button.is-compact,
 .secondary-button.is-compact,
 .secondary-action.is-compact {
+  width: auto;
   min-height: 40px;
   padding: 0 16px;
   font-size: 14px;
+}
+
+.cta-button:hover,
+.primary-action:hover {
+  background: var(--action-gradient);
+  color: var(--text);
+}
+
+.cta-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--button-shadow);
 }
 
 .cta-button:disabled,
