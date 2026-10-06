@@ -5,6 +5,11 @@ import { usePreflight } from '../../hooks/usePreflight'
 import { installHook, verifyHook, consoleInfo, type ConsoleInfo } from '../../api/endpoints'
 
 const FAST_POLL_MS = 5_000
+const VERIFY_FAILURE_COPY: Record<string, string> = {
+  HOOK_VERIFICATION_START_FAILED: '검증 도구를 시작하지 못했어요. AIA를 다시 실행한 뒤 시도하세요.',
+  HOOK_VERIFICATION_OUTPUT_INVALID: '검증 결과를 읽지 못했어요. 잠시 뒤 다시 시도하세요.',
+  AIA_CLI_UNAVAILABLE: 'AIA 옆에 aia-cli.exe가 없어요. AIA를 다시 설치하세요.',
+}
 const SLOW_POLL_MS = 30_000
 
 type Phase = 'checking' | 'not_installed' | 'trust_required' | 'verify_required' | 'not_writable' | 'unavailable' | 'ready'
@@ -94,7 +99,7 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
         setVerifyMessage(null)
       } else {
         setVerifyMessageTone('danger')
-        setVerifyMessage(result.next_step || result.reason || '검증에 실패했습니다.')
+        setVerifyMessage(result.next_step || VERIFY_FAILURE_COPY[result.reason ?? ''] || result.reason || '검증에 실패했습니다.')
       }
       await refetch()
     } catch (err) {

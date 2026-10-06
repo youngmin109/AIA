@@ -4,6 +4,7 @@ import importlib
 import shutil
 import subprocess
 import time
+import types
 from fastapi.testclient import TestClient
 
 from aia_web.app import (
@@ -381,6 +382,51 @@ def test_source_console_uses_python_module_cli(monkeypatch) -> None:
     monkeypatch.setattr(web_module.sys, "executable", "python-test")
 
     assert _aia_cli_command("doctor") == ["python-test", "-m", "aia.cli", "doctor"]
+
+
+def test_frozen_console_shows_the_bundled_cli_even_inside_a_checkout(monkeypatch, tmp_path) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    desktop_path = tmp_path / "AIA" / "AIA.exe"
+    desktop_path.parent.mkdir(parents=True)
+    desktop_path.touch()
+    cli_path = tmp_path / "aia-cli" / "aia-cli.exe"
+    cli_path.parent.mkdir(parents=True)
+    cli_path.touch()
+
+    monkeypatch.setattr(web_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(web_module.sys, "executable", str(desktop_path))
+
+    assert web_module._console_module_cli_prefix() == web_module.subprocess.list2cmdline([str(cli_path)])
+
+
+def test_hook_verification_child_never_inherits_the_desktop_stdin(monkeypatch, tmp_path) -> None:
+    web_module = importlib.import_module("aia_web.app")
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen.update(kwargs)
+        return types.SimpleNamespace(stdout='{"verified": true}')
+
+    monkeypatch.setattr(web_module.subprocess, "run", fake_run)
+
+    payload, status = web_module._run_hook_verification(tmp_path)
+
+    assert status == 200 and payload["verified"] is True
+    assert seen["stdin"] is web_module.subprocess.DEVNULL
+
+
+def test_hook_verification_start_failure_is_reported_not_a_server_error(monkeypatch, tmp_path) -> None:
+    web_module = importlib.import_module("aia_web.app")
+
+    def failing_run(command, **kwargs):
+        raise OSError(6, "The handle is invalid")
+
+    monkeypatch.setattr(web_module.subprocess, "run", failing_run)
+
+    payload, status = web_module._run_hook_verification(tmp_path)
+
+    assert status == 503
+    assert payload == {"verified": False, "protection_claim": "PROTECTION_NOT_PROVEN", "reason": "HOOK_VERIFICATION_START_FAILED"}
 
 
 def test_console_can_request_hook_verification_without_changing_trust(monkeypatch) -> None:
