@@ -1,3 +1,5 @@
+import { useCodexModels } from '../../hooks/useCodexModels'
+import { effortLabel, effortsFor } from '../../api/modelView'
 import { largeFolderNotice } from '../../api/startupStatus'
 import { Button } from '../common/Button'
 import { useEffect, useState } from 'react'
@@ -61,6 +63,9 @@ function NewRunSheet() {
   const [reconcileError, setReconcileError] = useState<string | null>(null)
   const [pickerMessage, setPickerMessage] = useState<string | null>(null)
   const [sizeNotice, setSizeNotice] = useState<string | null>(null)
+  const models = useCodexModels()
+  const [model, setModel] = useState('')
+  const [effort, setEffort] = useState('')
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
   const storedDefault = readDefaultPolicyProfile()
@@ -132,6 +137,8 @@ function NewRunSheet() {
         // Structured Codex conversation (app-server) instead of the PTY/TUI
         // terminal; runs created earlier keep their original surface.
         launch_mode: 'codex_app_server',
+        model: model || undefined,
+        reasoning_effort: effort || undefined,
       })
       setActiveRun(result.session_id)
       setView('work')
@@ -217,8 +224,31 @@ function NewRunSheet() {
             {policyProfile === 'CUSTOM' && <p className="faint-note">{customPolicy ? '저장한 사용자 지정 규칙을 실행 시작 시 다시 검증해요.' : '정책 화면에서 사용자 지정 규칙을 먼저 검증하고 저장해 주세요.'}</p>}
           </section>
 
+          {models.length > 0 && (
+            <section className="newrun-section" aria-labelledby="newrun-model">
+              <h3 id="newrun-model"><span className="newrun-step">3</span>모델과 생각 깊이</h3>
+              <div className="newrun-model">
+                <label className="model-field">
+                  <span>모델</span>
+                  <select className="glass-input" value={model} onChange={(event) => { setModel(event.target.value); setEffort('') }}>
+                    <option value="">Codex 기본값</option>
+                    {models.map(item => <option key={item.model} value={item.model}>{item.display_name}</option>)}
+                  </select>
+                </label>
+                <label className="model-field">
+                  <span>생각 깊이</span>
+                  <select className="glass-input" value={effort} onChange={(event) => setEffort(event.target.value)}>
+                    <option value="">모델 기본값</option>
+                    {effortsFor(models, model || null).map(item => <option key={item.effort} value={item.effort}>{effortLabel(item.effort)}</option>)}
+                  </select>
+                </label>
+              </div>
+              <p className="faint-note">작업창에서도 바꿀 수 있어요. 보호 설정은 모델과 상관없이 같아요.</p>
+            </section>
+          )}
+
           <section className="newrun-section" aria-labelledby="newrun-connection">
-            <h3 id="newrun-connection"><span className="newrun-step">3</span>연결 상태</h3>
+            <h3 id="newrun-connection"><span className="newrun-step">{models.length > 0 ? 4 : 3}</span>연결 상태</h3>
             <div className="newrun-pills">
               {CONNECTION_CHECKS.map(([name, label]) => {
                 const check = preflight?.checks?.find(item => item.name === name)

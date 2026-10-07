@@ -714,3 +714,15 @@ details.chat-output pre {
   gap: 4px;
   font-size: 13px;
 }
+
+/* Model and reasoning effort (EPIC-021 TASK-109). */
+.model-field {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.model-field select {
+  min-height: 38px;
+}

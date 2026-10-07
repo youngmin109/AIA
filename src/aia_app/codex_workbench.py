@@ -162,6 +162,9 @@ class CodexWorkbench:
         codex_session = self._codex_session(session_id)
         return {**codex_session.respond_elicitation(elicitation_id, action, content), "session_id": session_id}
 
+    def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
+        return {**self._codex_session(session_id).set_turn_settings(model, effort), "session_id": session_id}
+
     def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
         """Answer a sandbox-widening request and record a grant on the run."""
 

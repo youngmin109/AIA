@@ -8,6 +8,8 @@ import { QuestionCard } from './QuestionCard'
 import { ElicitationCard } from './ElicitationCard'
 import { PermissionsCard } from './PermissionsCard'
 import { UsageChip } from './UsageChip'
+import { ModelChip } from './ModelChip'
+import { useCodexModels } from '../../hooks/useCodexModels'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -383,6 +385,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const firstQuestion = session.pendingQuestions[0]
   const firstElicitation = session.pendingElicitations[0]
   const firstPermissions = session.pendingPermissions[0]
+  const models = useCodexModels(!session.ended)
   const error = session.status?.error
   const dotTone = session.ended ? 'neutral' : approvalWaiting ? 'warn' : session.connection.tone === 'bad' ? 'bad' : 'ok'
 
@@ -393,6 +396,14 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid, startup?.label)}</span>
         <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
         {context}
+        <ModelChip
+          models={models}
+          model={session.turnSettings.model}
+          effort={session.turnSettings.effort}
+          applied={session.status?.effective?.model ?? null}
+          disabled={!session.connected || session.ended}
+          onApply={session.setTurnSettings}
+        />
         <UsageChip usage={session.usage} />
         <span className="chat-head-spacer" />
         {session.status?.pid ? <span className="chat-pid">PID {session.status.pid}</span> : null}

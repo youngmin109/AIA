@@ -502,6 +502,10 @@ def _register_run_details_routes(app: FastAPI) -> None:
 
 
 def _register_codex_routes(app: FastAPI) -> None:
+    @app.get("/api/codex/models")
+    async def codex_models() -> JSONResponse:
+        return JSONResponse(await to_thread.run_sync(app.state.service.list_codex_models))
+
     @app.get("/api/runs/{session_id}/codex/status")
     def codex_status(session_id: str) -> JSONResponse:
         try:
@@ -585,6 +589,11 @@ def _register_codex_routes(app: FastAPI) -> None:
                     session_id,
                     str(message.get("question_id", "")),
                     message.get("answers"),
+                ),
+                "turn_settings": lambda message: service.set_codex_turn_settings(
+                    session_id,
+                    message.get("model"),
+                    message.get("effort"),
                 ),
                 "permissions_decision": lambda message: service.respond_codex_permissions(
                     session_id,

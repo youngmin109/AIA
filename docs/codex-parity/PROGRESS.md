@@ -2,6 +2,12 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-07 · TASK-109
+- 모델 목록: `GET /api/codex/models`가 스레드를 열지 않는 임시 앱 서버로 `model/list`(숨김 제외)를 받아 10분 기억. 실패하면 빈 목록 → 고르는 칸을 숨기고 Codex 기본값.
+- 생각 깊이는 `thread/start`가 받지 않아 요청마다 `turn/start`의 `effort`로. 덮어쓰기는 `model`·`effort` 두 키로만 만들고 이름 형식을 검사(`settings.changed` 이벤트, 스냅샷 `turn_settings`).
+- 새 실행 요청에 `reasoning_effort`(소문자 단어) 추가, 대화가 열리면 적용. WebSocket `turn_settings`.
+- 화면: 새 실행 시트 "3 모델과 생각 깊이", 작업창 모델 칩(다음 요청부터 적용). 테스트: pytest 910, 프론트 47 통과.
+
 ## 2026-10-07 · TASK-108
 - 서버: 대화가 열리면 따로 `account/rateLimits/read`(실패하면 조용히 넘어감 = API 키 로그인). `account/rateLimits/updated`, `thread/tokenUsage/updated`를 `usage.limits`/`usage.tokens`로, 최신값은 스냅샷 `usage`에도.
 - 화면: 작업창 위 칩 "5시간 한도 n% 남음"(가장 많이 쓴 창 기준, 20% 이하면 경고색), 누르면 창별 남은 비율·초기화까지 남은 시간·이번 대화 토큰. 정보가 없으면 숨김.

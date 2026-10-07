@@ -244,3 +244,9 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+.newrun-model {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+}

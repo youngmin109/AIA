@@ -78,3 +78,19 @@ test('usage shows the tightest window and hides when Codex reports nothing', asy
   const state = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'usage.limits', limits: { windows: [] } }, { sequence: 2, type: 'usage.tokens', tokens: { total_tokens: 5, context_window: null } }])
   assert.deepEqual(state.usage, { limits: { windows: [] }, tokens: { total_tokens: 5, context_window: null } })
 })
+
+test('model chip names the chosen model and effort, and efforts follow the model', async () => {
+  const { effortLabel, effortsFor, modelChipText } = await import('../src/api/modelView.ts')
+  const models = [
+    { model: 'gpt-fast', display_name: 'GPT Fast', description: '', is_default: true, default_effort: 'medium', efforts: [{ effort: 'low', description: '' }, { effort: 'medium', description: '' }] },
+    { model: 'gpt-deep', display_name: 'GPT Deep', description: '', is_default: false, default_effort: 'high', efforts: [{ effort: 'xhigh', description: '' }] },
+  ]
+  assert.deepEqual(effortsFor(models, null).map(item => item.effort), ['low', 'medium'])
+  assert.deepEqual(effortsFor(models, 'gpt-deep').map(item => item.effort), ['xhigh'])
+  assert.equal(modelChipText(models, 'gpt-deep', 'xhigh'), 'GPT Deep · 아주 깊게')
+  assert.equal(modelChipText(models, null, null, 'gpt-fast'), 'GPT Fast · 기본값')
+  assert.equal(modelChipText([], null, null, null), 'Codex 기본 모델 · 기본값')
+  assert.equal(effortLabel('turbo'), 'turbo')
+  const state = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'settings.changed', model: 'gpt-deep', effort: 'xhigh' }])
+  assert.deepEqual(state.turnSettings, { model: 'gpt-deep', effort: 'xhigh' })
+})

@@ -20,6 +20,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 import json
+import re
 import os
 from pathlib import Path
 import subprocess
@@ -154,6 +155,40 @@ _MAX_ANSWER_CHARS = 4_000
 _ELICITATION_REQUEST = "mcpServer/elicitation/request"
 ELICITATION_ACTIONS = frozenset({"accept", "decline", "cancel"})
 _MAX_ELICITATION_FIELDS = 20
+# The only per-turn values the Workbench may override: everything else (sandbox,
+# approval policy, cwd, reviewer) stays fixed by the protected thread.
+_MODEL_PATTERN = re.compile(r"^[A-Za-z0-9._:/-]{1,100}$")
+_EFFORT_PATTERN = re.compile(r"^[a-z]{1,20}$")
+
+
+def validate_turn_settings(model: Any, effort: Any) -> tuple[str | None, str | None]:
+    """Model and reasoning effort for the next turns; ``None`` keeps Codex's default."""
+
+    if model is not None and (not isinstance(model, str) or not _MODEL_PATTERN.match(model)):
+        raise CodexAppServerError("model is not a valid Codex model name")
+    if effort is not None and (not isinstance(effort, str) or not _EFFORT_PATTERN.match(effort)):
+        raise CodexAppServerError("reasoning effort is not valid")
+    return model, effort
+
+
+def _model_view(model: Any) -> dict[str, Any] | None:
+    if not isinstance(model, Mapping) or model.get("hidden") or not isinstance(model.get("model"), str):
+        return None
+    efforts = [
+        {"effort": option["reasoningEffort"], "description": _text_of(option.get("description"))}
+        for option in model.get("supportedReasoningEfforts") or []
+        if isinstance(option, Mapping) and isinstance(option.get("reasoningEffort"), str)
+    ]
+    return {
+        "model": model["model"],
+        "display_name": _text_of(model.get("displayName")) or model["model"],
+        "description": _text_of(model.get("description")),
+        "is_default": bool(model.get("isDefault")),
+        "default_effort": _text_of(model.get("defaultReasoningEffort")) or None,
+        "efforts": efforts,
+    }
+
+
 # Codex asking to widen its sandbox (file system or network); the user decides.
 _PERMISSIONS_REQUEST = "item/permissions/requestApproval"
 PERMISSION_DECISIONS = frozenset({"turn", "session", "decline"})
@@ -591,6 +626,7 @@ class CodexAppServerSession:
         self._next_permissions = 1
         self._usage_limits: dict[str, Any] | None = None
         self._token_usage: dict[str, Any] | None = None
+        self._turn_settings: dict[str, str | None] = {"model": None, "effort": None}
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -794,7 +830,15 @@ class CodexAppServerSession:
                 {"threadId": thread_id, "expectedTurnId": turn_id, "input": user_input},
             )
             return {"accepted": True, "mode": "steer", "turn_id": turn_id}
-        result = self._request("turn/start", {"threadId": thread_id, "input": user_input})
+        params: dict[str, Any] = {"threadId": thread_id, "input": user_input}
+        with self._lock:
+            settings = dict(self._turn_settings)
+        # Built from the two allowed keys only; nothing else can reach turn/start.
+        if settings["model"]:
+            params["model"] = settings["model"]
+        if settings["effort"]:
+            params["effort"] = settings["effort"]
+        result = self._request("turn/start", params)
         new_turn_id = (result.get("turn") or {}).get("id")
         with self._lock:
             # turn/started and even turn/completed can arrive before this
@@ -889,6 +933,27 @@ class CodexAppServerSession:
         self._append_event({"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": action})
         return {"accepted": True, "elicitation_id": elicitation_id, "action": action}
 
+    def set_turn_settings(self, model: Any = None, effort: Any = None) -> dict[str, Any]:
+        """Choose the model and reasoning effort for the next turns."""
+
+        model, effort = validate_turn_settings(model, effort)
+        with self._lock:
+            self._turn_settings = {"model": model, "effort": effort}
+            self._append_event_locked({"type": "settings.changed", "model": model, "effort": effort})
+        return {"accepted": True, "model": model, "effort": effort}
+
+    def list_models(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
+        """Ask a not-yet-opened app-server for its visible models (no thread is started)."""
+
+        self._request(
+            "initialize",
+            {"clientInfo": {"name": "aia-workbench", "title": "AIA Workbench", "version": self.client_version}},
+            timeout=timeout,
+        )
+        self._notify("initialized")
+        result = self._request("model/list", {"includeHidden": False, "limit": 50}, timeout=timeout)
+        return [view for view in (_model_view(item) for item in result.get("data") or []) if view]
+
     def respond_permissions(self, permissions_id: str, decision: str) -> dict[str, Any]:
         """Grant what Codex asked for (this turn or the whole session) or decline.
 
@@ -980,6 +1045,7 @@ class CodexAppServerSession:
                 "pending_elicitations": elicitations,
                 "pending_permissions": permission_requests,
                 "usage": {"limits": self._usage_limits, "tokens": self._token_usage},
+                "turn_settings": dict(self._turn_settings),
                 "effective": dict(self._effective),
                 "started_at": self._started_at.isoformat() if self._started_at else None,
                 "ended_at": self._ended_at.isoformat() if self._ended_at else None,

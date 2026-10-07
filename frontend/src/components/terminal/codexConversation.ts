@@ -55,6 +55,7 @@ export interface CodexEvent {
   filesystem?: PermissionEntry[]
   limits?: UsageLimits | null
   tokens?: TokenUsage | null
+  effort?: string | null
 }
 
 // Codex asking to widen its sandbox (item/permissions/requestApproval).
@@ -133,6 +134,7 @@ export interface ConversationState {
   pendingElicitations: ElicitationRequest[]
   pendingPermissions: PermissionsRequest[]
   usage: Usage
+  turnSettings: { model: string | null; effort: string | null } | null
   lastEventAt: number
 }
 
@@ -146,6 +148,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   pendingElicitations: [],
   pendingPermissions: [],
   usage: { limits: null, tokens: null },
+  turnSettings: null,
   lastEventAt: 0,
 }
 
@@ -399,6 +402,9 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingPermissions = state.pendingPermissions.filter((item) => item.permissions_id !== event.permissions_id)
       break
     }
+    case 'settings.changed':
+      state.turnSettings = { model: event.model ?? null, effort: event.effort ?? null }
+      break
     case 'usage.limits':
       state.usage = { ...state.usage, limits: event.limits ?? null }
       break

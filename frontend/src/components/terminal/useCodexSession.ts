@@ -22,6 +22,7 @@ export interface CodexStatus {
   pending_elicitations?: ElicitationRequest[]
   pending_permissions?: PermissionsRequest[]
   usage?: Usage
+  turn_settings?: { model: string | null; effort: string | null }
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -230,6 +231,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  /** Model and effort for the next turns; the server forwards nothing else. */
+  const setTurnSettings = useCallback(
+    (model: string | null, effort: string | null) => {
+      setErrorMessage(null)
+      return send({ type: 'turn_settings', model, effort, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   const endSession = useCallback(() => {
     if (send({ type: 'end_session', client_id: nextClientId() })) setEndPending(true)
   }, [send])
@@ -280,6 +290,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   }
   const pendingPermissions = [...permissionsById.values()]
   // Events carry the newest values; the snapshot covers a viewer that joined late.
+  const turnSettings = conversation.turnSettings ?? status?.turn_settings ?? { model: null, effort: null }
   const usage: Usage = {
     limits: conversation.usage.limits ?? status?.usage?.limits ?? null,
     tokens: conversation.usage.tokens ?? status?.usage?.tokens ?? null,
@@ -302,6 +313,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     pendingElicitations,
     pendingPermissions,
     usage,
+    turnSettings,
     errorMessage,
     interruptPending,
     endPending,
@@ -311,6 +323,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     answerQuestion,
     respondElicitation,
     decidePermissions,
+    setTurnSettings,
     endSession,
     onRestoreDraft,
     dismissError: () => setErrorMessage(null),

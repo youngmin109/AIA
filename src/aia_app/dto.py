@@ -28,6 +28,7 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "interactive",
         "task",
         "launch_mode",
+        "reasoning_effort",
     }
 )
 
@@ -60,6 +61,7 @@ class CreateRunRequest:
     task: str = ""
     interactive: bool = False
     launch_mode: str = "inherit"
+    reasoning_effort: str | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "CreateRunRequest":
@@ -106,6 +108,15 @@ class CreateRunRequest:
             raise DTOValidationError(
                 f"{launch_mode} launch mode requires interactive mode"
             )
+        reasoning_effort = value.get("reasoning_effort")
+        if reasoning_effort is not None and (
+            not isinstance(reasoning_effort, str)
+            or not reasoning_effort.isascii()
+            or not reasoning_effort.isalpha()
+            or not reasoning_effort.islower()
+            or len(reasoning_effort) > 20
+        ):
+            raise DTOValidationError("reasoning_effort must be a lowercase word")
         return cls(
             workspace=workspace,
             agent=agent,
@@ -117,6 +128,7 @@ class CreateRunRequest:
             task=task,
             interactive=interactive,
             launch_mode=launch_mode,
+            reasoning_effort=reasoning_effort,
         )
 
     def to_mapping(self) -> dict[str, Any]:

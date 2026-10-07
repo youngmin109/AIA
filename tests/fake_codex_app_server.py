@@ -71,6 +71,9 @@ def handle_turn_start(request_id, text: str) -> None:
     if scenario == "hello":
         agent_reply(turn_id, "Hello there")
         complete_turn(turn_id)
+    elif scenario == "settings":
+        agent_reply(turn_id, text)
+        complete_turn(turn_id)
     elif scenario == "run":
         notify(
             "item/started",
@@ -228,7 +231,19 @@ def main() -> None:
             notify("thread/started", thread={"id": "thr-1"})
         elif method == "turn/start":
             text = "".join(part.get("text", "") for part in params.get("input", []))
+            if text.startswith("settings"):
+                extra = sorted(key for key in params if key not in {"threadId", "input"})
+                text = "settings " + json.dumps({key: params[key] for key in extra}, sort_keys=True)
             handle_turn_start(request_id, text)
+        elif method == "model/list":
+            send({"id": request_id, "result": {"data": [
+                {"id": "m1", "model": "gpt-fast", "displayName": "GPT Fast", "description": "quick", "hidden": False,
+                 "isDefault": True, "defaultReasoningEffort": "medium",
+                 "supportedReasoningEfforts": [{"reasoningEffort": "low", "description": "fast"},
+                                               {"reasoningEffort": "medium", "description": "balanced"}]},
+                {"id": "m2", "model": "gpt-secret", "displayName": "Hidden", "description": "", "hidden": True,
+                 "isDefault": False, "defaultReasoningEffort": "high", "supportedReasoningEfforts": []},
+            ], "nextCursor": None}})
         elif method == "account/rateLimits/read":
             if os.environ.get("FAKE_APP_SERVER_NO_USAGE"):
                 send({"id": request_id, "error": {"code": -32600, "message": "not available for API keys"}})

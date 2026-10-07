@@ -63,6 +63,10 @@ class FakeCodexSession:
         self.calls.append(("approval", approval_id, decision))
         return {"accepted": True, "approval_id": approval_id, "decision": decision}
 
+    def set_turn_settings(self, model=None, effort=None) -> dict:
+        self.calls.append(("settings", model, effort))
+        return {"accepted": True, "model": model, "effort": effort}
+
     def respond_permissions(self, permissions_id: str, decision: str) -> dict:
         self.calls.append(("permissions", permissions_id, decision))
         return {"accepted": True, "permissions_id": permissions_id, "decision": decision, "network": True,
@@ -202,6 +206,52 @@ def test_granted_permissions_are_recorded_on_the_run_and_declines_are_not(servic
     assert (grant["scope"], grant["network"], grant["reason"]) == ("session", True, "sync")
     assert grant["filesystem"][0]["scope"] == "outside"
     assert service.get_run_status(record.session_id)["permission_grants"] == [grant]
+
+
+def test_chosen_reasoning_effort_is_applied_once_the_conversation_opens(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.reasoning_effort = "high"
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service._open_codex_conversation(record)
+    assert ("settings", "gpt-test", "high") in session.calls
+
+
+def test_reasoning_effort_in_a_new_run_request_is_a_lowercase_word() -> None:
+    request = CreateRunRequest.from_mapping({"workspace": ".", "interactive": True, "launch_mode": "codex_app_server",
+                                             "reasoning_effort": "xhigh"})
+    assert request.reasoning_effort == "xhigh"
+    for bad in ("High", "very high", "x" * 21, 3):
+        with pytest.raises(DTOValidationError):
+            CreateRunRequest.from_mapping({"workspace": ".", "reasoning_effort": bad})
+
+
+def test_model_list_is_cached_and_a_failure_hides_the_picker(service, monkeypatch) -> None:
+    created = []
+
+    class FakeModelSession:
+        def __init__(self, argv, **kwargs):
+            created.append(argv)
+
+        def start(self):
+            pass
+
+        def list_models(self):
+            return [{"model": "gpt-fast", "display_name": "GPT Fast", "efforts": []}]
+
+        def close(self, force=False):
+            pass
+
+    monkeypatch.setattr(service_module.CodexAdapter, "discover", lambda self: "codex.exe")
+    monkeypatch.setattr(service_module, "CodexAppServerSession", FakeModelSession)
+    assert service.list_codex_models()["models"][0]["model"] == "gpt-fast"
+    assert service.list_codex_models()["models"][0]["model"] == "gpt-fast"
+    assert created == [["codex.exe", "app-server"]]
+
+    service._models_cache = None
+    monkeypatch.setattr(service_module.CodexAdapter, "discover", lambda self: (_ for _ in ()).throw(RuntimeError("no codex")))
+    failed = service.list_codex_models()
+    assert failed["models"] == [] and "no codex" in failed["error"]
 
 
 def test_codex_status_reports_detached_state_and_open_errors(service, tmp_path) -> None:

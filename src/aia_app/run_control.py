@@ -362,6 +362,7 @@ class RunControlMixin:
             task=request.task,
             interactive=request.interactive,
             launch_mode=request.launch_mode,
+            reasoning_effort=request.reasoning_effort,
             created_at=session.created_at,
             protection_state="STARTING",
             coordinator_pid=os.getpid(),

@@ -108,6 +108,7 @@ _RUNTIME_STATES_CACHE_LIMIT = 2_048
 
 # Human-in-the-loop review stays inside Codex's 30 s Hook timeout.
 _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
+_MODELS_CACHE_SECONDS = 600.0
 _WORKSPACE_SIZE_MAX_FILES = 5_000
 _WORKSPACE_SIZE_MAX_SECONDS = 1.5
 
@@ -211,6 +212,8 @@ class RunApplicationService(
         self._completed_runs_cache_lock = RLock()
         self._tool_review_lock = RLock()
         self._manual_restore_lock = RLock()
+        self._models_lock = RLock()
+        self._models_cache: tuple[float, dict[str, Any]] | None = None
         self._codex_workbench = CodexWorkbench(self, _runtime_coordinator_reconciliation)
         self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
@@ -470,6 +473,34 @@ class RunApplicationService(
     def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
         return self._codex_workbench.respond_codex_permissions(session_id, permissions_id, decision)
 
+    def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
+        return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
+
+    def list_codex_models(self) -> dict[str, Any]:
+        """Visible Codex models, from a short-lived app-server that starts no thread."""
+
+        with self._models_lock:
+            cached = self._models_cache
+            if cached is not None and time.monotonic() - cached[0] < _MODELS_CACHE_SECONDS:
+                return cached[1]
+            try:
+                executable = CodexAdapter().discover()
+                session = CodexAppServerSession(
+                    [str(executable), "app-server"],
+                    cwd=self.control_root,
+                    env=dict(os.environ),
+                    client_version=__version__,
+                )
+                session.start()
+                try:
+                    payload: dict[str, Any] = {"models": session.list_models()}
+                finally:
+                    session.close(force=True)
+            except Exception as error:  # noqa: BLE001 - the picker is optional
+                return {"models": [], "error": f"{type(error).__name__}: {error}"}
+            self._models_cache = (time.monotonic(), payload)
+            return payload
+
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         return self._codex_workbench._resolve_unsupported_tool_review(session_id, approval_id, decision)
 
@@ -510,6 +541,11 @@ class RunApplicationService(
             codex_session.close(force=True)
             return
         record.runtime["codex_effective_settings"] = effective
+        if record.reasoning_effort:
+            try:
+                codex_session.set_turn_settings(record.model, record.reasoning_effort)
+            except CodexAppServerError:
+                pass  # an unknown effort leaves Codex's default in place
         sandbox = str(effective.get("sandbox") or "")
         approval_policy = str(effective.get("approval_policy") or "")
         # Codex reports the applied settings itself in the thread/start

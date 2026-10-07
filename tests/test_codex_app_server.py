@@ -442,6 +442,36 @@ def test_usage_limits_accept_milliseconds_and_ignore_empty_snapshots() -> None:
     assert app_server.usage_limits(None) is None
 
 
+def test_model_list_comes_from_an_unopened_session_and_hides_hidden_models(tmp_path: Path) -> None:
+    session = CodexAppServerSession(
+        [sys.executable, "-u", str(FAKE_SERVER)], cwd=tmp_path, env=dict(os.environ), client_version="test"
+    )
+    session.start()
+    try:
+        models = session.list_models()
+    finally:
+        session.close(force=True)
+    assert [model["model"] for model in models] == ["gpt-fast"]
+    assert models[0]["is_default"] is True and models[0]["default_effort"] == "medium"
+    assert [option["effort"] for option in models[0]["efforts"]] == ["low", "medium"]
+
+
+def test_turn_settings_reach_turn_start_and_nothing_else_does(opened: CodexAppServerSession) -> None:
+    opened.send_message("settings default")
+    assert _final_reply(opened)[0] == "settings {}"
+    with pytest.raises(CodexAppServerError):
+        opened.set_turn_settings("gpt fast; rm -rf", None)
+    with pytest.raises(CodexAppServerError):
+        opened.set_turn_settings(None, "MAX")
+    opened.set_turn_settings("gpt-fast", "low")
+    assert opened.snapshot()["turn_settings"] == {"model": "gpt-fast", "effort": "low"}
+    assert any(e["type"] == "settings.changed" for e in opened.read_events())
+    opened.send_message("settings chosen")
+    events = _wait_for(opened, lambda items: [e["type"] for e in items].count("turn.completed") >= 2)
+    replies = [e["text"] for e in events if e["type"] == "message.completed"]
+    assert replies[-1] == 'settings {"effort": "low", "model": "gpt-fast"}'
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")
