@@ -1,4 +1,4 @@
-/** Slash commands of the Codex composer, in one place (EPIC-021 TASK-112). */
+/** Slash commands of the Codex composer, in one place (EPIC-022 TASK-112). */
 export type SlashCommandName =
   | 'model' | 'compact' | 'review' | 'status' | 'diff' | 'goal' | 'resume' | 'mcp'
   | 'policy' | 'why' | 'restore' | 'report'

@@ -1,4 +1,4 @@
-/** Unified diff split per file for display (EPIC-021 TASK-111). */
+/** Unified diff split per file for display (EPIC-022 TASK-111). */
 export type DiffLineKind = 'add' | 'del' | 'ctx' | 'hunk'
 export interface DiffFile { path: string; lines: Array<{ kind: DiffLineKind; text: string }> }
 

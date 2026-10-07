@@ -1,4 +1,4 @@
-/** What Codex asked to widen and what the user granted (EPIC-021 TASK-107). */
+/** What Codex asked to widen and what the user granted (EPIC-022 TASK-107). */
 export interface PermissionEntry { access: 'read' | 'write' | 'deny'; target: string; scope: 'inside' | 'outside' | 'unknown' }
 export interface PermissionGrant {
   granted_at: string

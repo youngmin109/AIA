@@ -1,4 +1,4 @@
-/** Codex usage limits and conversation tokens in display form (EPIC-021 TASK-108). */
+/** Codex usage limits and conversation tokens in display form (EPIC-022 TASK-108). */
 export interface UsageWindow { used_percent: number; window_minutes: number | null; resets_at: string | null }
 export interface UsageLimits { windows: UsageWindow[]; reached?: string | null }
 export interface TokenUsage { total_tokens: number; context_window: number | null }

@@ -1,4 +1,4 @@
-/** Codex connectors (MCP servers) in display form (EPIC-021 TASK-117). Read-only. */
+/** Codex connectors (MCP servers) in display form (EPIC-022 TASK-117). Read-only. */
 export interface CodexConnector {
   name: string
   status: string

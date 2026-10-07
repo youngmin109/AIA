@@ -237,7 +237,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Folders that start slowly (EPIC-021 TASK-103). */
+/* Folders that start slowly (EPIC-022 TASK-103). */
 .newrun-size {
   margin: 0;
   color: var(--warning-text);
@@ -251,7 +251,7 @@
   gap: 12px;
 }
 
-/* Resume an AIA-opened conversation (EPIC-021 TASK-116). */
+/* Resume an AIA-opened conversation (EPIC-022 TASK-116). */
 .newrun-resume {
   display: grid;
   gap: 8px;

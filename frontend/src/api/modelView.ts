@@ -1,4 +1,4 @@
-/** Visible Codex models, read from Codex itself (EPIC-021 TASK-109). */
+/** Visible Codex models, read from Codex itself (EPIC-022 TASK-109). */
 export interface CodexModel {
   model: string
   display_name: string

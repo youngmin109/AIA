@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
@@ -444,19 +444,30 @@ class RunApplicationService(
             timeout=timeout,
         )
 
-    def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
+    def _after_point_capture(self, session_id: str, action: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        """Run ``action`` once no recovery point is being captured for the run.
+
+        A capture copies the workspace; nothing that lets Codex work may start
+        during it.
+        """
+
         record = self.registry.get(session_id)
         if record is None:
-            return self._codex_workbench.send_codex_message(session_id, text)
+            return action()
         lock = self._point_lock(record)
         # A recovery-point capture is short for the workspaces it runs on; wait
         # for it rather than rejecting the user's message outright.
         if not lock.acquire(timeout=_POINT_SEND_WAIT_SECONDS):
             raise CodexAppServerError('복구 지점을 저장 중이에요. 잠시 뒤 명령을 다시 보내 주세요.')
         try:
-            return self._codex_workbench.send_codex_message(session_id, text)
+            return action()
         finally:
             lock.release()
+
+    def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.send_codex_message(session_id, text)
+        )
 
     def interrupt_codex_turn(self, session_id: str) -> dict[str, Any]:
         return self._codex_workbench.interrupt_codex_turn(session_id)
@@ -477,7 +488,9 @@ class RunApplicationService(
         return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
 
     def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
-        return self._codex_workbench.run_codex_command(session_id, command, argument)
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.run_codex_command(session_id, command, argument)
+        )
 
     def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
         return self._codex_workbench.list_codex_connectors(session_id)

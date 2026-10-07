@@ -120,7 +120,7 @@
   font-size: 18px;
 }
 
-/* Startup steps while a protected run prepares (EPIC-021 TASK-102). */
+/* Startup steps while a protected run prepares (EPIC-022 TASK-102). */
 .startup-progress {
   width: min(360px, 100%);
   display: grid;
@@ -541,7 +541,7 @@ details.chat-output pre {
   }
 }
 
-/* Codex asking the user (EPIC-021 TASK-105). */
+/* Codex asking the user (EPIC-022 TASK-105). */
 .question-card {
   margin: 0 18px 4px;
   display: grid;
@@ -626,7 +626,7 @@ details.chat-output pre {
   box-shadow: var(--focus-ring);
 }
 
-/* MCP input requests (EPIC-021 TASK-106). */
+/* MCP input requests (EPIC-022 TASK-106). */
 .question-message {
   margin: 0;
   color: var(--text-muted);
@@ -658,7 +658,7 @@ details.chat-output pre {
   font-size: 14px;
 }
 
-/* Permission requests and grants (EPIC-021 TASK-107). */
+/* Permission requests and grants (EPIC-022 TASK-107). */
 .permission-list,
 .work-grants {
   display: grid;
@@ -693,7 +693,7 @@ details.chat-output pre {
   overflow-wrap: anywhere;
 }
 
-/* Codex usage (EPIC-021 TASK-108). */
+/* Codex usage (EPIC-022 TASK-108). */
 .usage-chip {
   position: relative;
 }
@@ -729,7 +729,7 @@ details.chat-output pre {
   font-size: 13px;
 }
 
-/* Model and reasoning effort (EPIC-021 TASK-109). */
+/* Model and reasoning effort (EPIC-022 TASK-109). */
 .model-field {
   display: grid;
   gap: 4px;
@@ -741,7 +741,7 @@ details.chat-output pre {
   min-height: 38px;
 }
 
-/* Codex step plan (EPIC-021 TASK-110). */
+/* Codex step plan (EPIC-022 TASK-110). */
 .chat-plan {
   margin: 10px 18px 0;
   border: 1px solid var(--line-2);
@@ -821,7 +821,7 @@ details.chat-output pre {
   text-decoration: line-through;
 }
 
-/* Changed content per request (EPIC-021 TASK-111). */
+/* Changed content per request (EPIC-022 TASK-111). */
 .chat-card.is-diff .chat-card-head {
   display: flex;
   flex-wrap: wrap;
@@ -873,7 +873,7 @@ details.chat-output pre {
 .diff-line.is-del { background: var(--danger-bg); color: var(--danger-text); }
 .diff-line.is-hunk { color: var(--text-faint); }
 
-/* Slash commands and AIA answers (EPIC-021 TASK-112~114). */
+/* Slash commands and AIA answers (EPIC-022 TASK-112~114). */
 .command-palette {
   margin: 0 18px 4px;
   display: grid;
@@ -922,7 +922,7 @@ details.chat-output pre {
   font-size: 14px;
 }
 
-/* Connectors (EPIC-021 TASK-117). */
+/* Connectors (EPIC-022 TASK-117). */
 .work-connectors {
   display: grid;
   gap: 6px;

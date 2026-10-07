@@ -256,6 +256,38 @@ def test_a_message_waits_for_a_running_capture_instead_of_failing(tmp_path, monk
     thread.join()
 
 
+def test_codex_commands_also_wait_for_a_running_capture(tmp_path, monkeypatch):
+    import threading
+    import aia_app.service as service_module
+    from aia_app.codex_app_server import CodexAppServerError
+
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    ran = []
+    monkeypatch.setattr(service._codex_workbench, 'run_codex_command',
+                        lambda session_id, command, argument=None: ran.append(command) or {'accepted': True})
+    lock = service._point_lock(record)
+    holder = threading.Event()
+    done = threading.Event()
+
+    def hold():
+        with lock:
+            holder.set()
+            done.wait(2)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    holder.wait(2)
+    monkeypatch.setattr(service_module, '_POINT_SEND_WAIT_SECONDS', 0.1)
+    # /review starts a Codex turn; it must not run while the workspace is copied.
+    with pytest.raises(CodexAppServerError, match='저장 중'):
+        service.run_codex_command(session.session_id, 'review')
+    done.set()
+    thread.join()
+    assert ran == []
+    assert service.run_codex_command(session.session_id, 'review')['accepted'] is True
+    assert ran == ['review']
+
+
 def test_containment_errors_are_rebuilt_not_appended():
     from aia_app.protected_run import _containment_errors
 

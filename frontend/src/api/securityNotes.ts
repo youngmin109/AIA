@@ -1,4 +1,4 @@
-/** Answers of the AIA security slash commands, built from data the console already has (EPIC-021 TASK-114). */
+/** Answers of the AIA security slash commands, built from data the console already has (EPIC-022 TASK-114). */
 export interface AiaNote { title: string; lines: string[]; footnote?: string }
 
 interface NoteAction {

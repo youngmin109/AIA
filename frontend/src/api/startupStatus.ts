@@ -1,4 +1,4 @@
-/** Preparation steps the server reports while a protected run starts (EPIC-021 TASK-102). */
+/** Preparation steps the server reports while a protected run starts (EPIC-022 TASK-102). */
 export interface StartupInfo {
   current?: string | null
   steps?: Array<{ step: string; started_at: string; ended_at: string | null }>
