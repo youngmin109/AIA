@@ -3,7 +3,7 @@
 It speaks the same newline-delimited JSON-RPC shapes the real app-server uses
 for the methods AIA depends on.  The first word of a turn's text selects the
 scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``question``,
-``question-auto``, ``race``, ``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
+``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``race``, ``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
 fake reports as applied.
 """
 
@@ -118,6 +118,20 @@ def handle_turn_start(request_id, text: str) -> None:
         notify("serverRequest/resolved", requestId="srv-5")
         agent_reply(turn_id, "auto-resolved")
         complete_turn(turn_id)
+    elif scenario in {"mcp-form", "mcp-url", "mcp-custom"}:
+        state["pending"] = ("elicitation", turn_id)
+        request = {"threadId": "thr-1", "turnId": turn_id, "serverName": "tracker", "message": "Need input"}
+        if scenario == "mcp-form":
+            request.update(mode="form", requestedSchema={
+                "type": "object", "required": ["project"],
+                "properties": {"project": {"type": "string", "title": "Project", "enum": ["web", "api"]},
+                               "count": {"type": "integer", "minimum": 1},
+                               "notify": {"type": "boolean"}}})
+        elif scenario == "mcp-url":
+            request.update(mode="url", elicitationId="el-1", url="https://auth.example.com/login?state=1")
+        else:
+            request.update(mode="openai/form", requestedSchema={"anything": True})
+        send({"id": "srv-6", "method": "mcpServer/elicitation/request", "params": request})
     elif scenario == "slow":
         pass  # stays in progress until turn/interrupt
 
@@ -130,6 +144,10 @@ def handle_server_response(message: dict) -> None:
     kind, turn_id = pending
     if kind == "ask":
         agent_reply(turn_id, "got-error" if "error" in message else "got-result")
+        complete_turn(turn_id)
+        return
+    if kind == "elicitation":
+        agent_reply(turn_id, "elicitation=" + json.dumps(message.get("result"), sort_keys=True))
         complete_turn(turn_id)
         return
     if kind == "question":

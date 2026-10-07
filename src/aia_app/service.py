@@ -464,6 +464,9 @@ class RunApplicationService(
     def respond_codex_question(self, session_id: str, question_id: str, answers: Any) -> dict[str, Any]:
         return self._codex_workbench.respond_codex_question(session_id, question_id, answers)
 
+    def respond_codex_elicitation(self, session_id: str, elicitation_id: str, action: str, content: Any) -> dict[str, Any]:
+        return self._codex_workbench.respond_codex_elicitation(session_id, elicitation_id, action, content)
+
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         return self._codex_workbench._resolve_unsupported_tool_review(session_id, approval_id, decision)
 

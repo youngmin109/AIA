@@ -35,3 +35,17 @@ test('skipped, resolved by Codex, and cancelled questions each close the card', 
   assert.deepEqual(cancelled.pendingQuestions, [])
   assert.deepEqual(applyEvents(asked, [{ sequence: 2, type: 'session.exited', unexpected: true }]).pendingQuestions, [])
 })
+
+test('an MCP input request closes with its action and keeps no submitted values', () => {
+  const asked = applyEvents(EMPTY_CONVERSATION, [{
+    sequence: 1, type: 'elicitation.requested', elicitation_id: 'elicitation-1', server: 'tracker', mode: 'form', message: 'Need input',
+    fields: [{ name: 'project', title: 'Project', description: '', required: true, kind: 'select', options: [{ value: 'web', label: 'web' }] }],
+    url: null, url_host: null, supported: true,
+  }])
+  assert.deepEqual(asked.pendingElicitations.map(item => item.elicitation_id), ['elicitation-1'])
+  const done = applyEvents(asked, [{ sequence: 2, type: 'elicitation.resolved', elicitation_id: 'elicitation-1', action: 'accept' }])
+  assert.deepEqual(done.pendingElicitations, [])
+  assert.equal(done.items[0].action, 'accept')
+  assert.equal(done.items[0].request.server, 'tracker')
+  assert.equal(JSON.stringify(done.items[0]).includes('content'), false)
+})

@@ -308,6 +308,63 @@ def test_question_resolved_by_codex_is_closed_with_its_deadline(opened: CodexApp
     assert opened.snapshot()["pending_questions"] == []
 
 
+def _elicitation(opened: CodexAppServerSession, text: str) -> dict:
+    opened.send_message(text)
+    events = _wait_for(opened, lambda items: "elicitation.requested" in _types(items))
+    return next(e for e in events if e["type"] == "elicitation.requested")
+
+
+def _final_reply(opened: CodexAppServerSession) -> tuple[str, list[dict]]:
+    events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    return next(e["text"] for e in events if e["type"] == "message.completed"), events
+
+
+def test_mcp_form_input_is_validated_and_never_kept_in_events(opened: CodexAppServerSession) -> None:
+    request = _elicitation(opened, "mcp-form please")
+    assert (request["server"], request["mode"], request["supported"]) == ("tracker", "form", True)
+    fields = {field["name"]: field for field in request["fields"]}
+    assert fields["project"]["kind"] == "select" and fields["project"]["required"] is True
+    assert [option["value"] for option in fields["project"]["options"]] == ["web", "api"]
+    assert (fields["count"]["kind"], fields["notify"]["kind"]) == ("integer", "boolean")
+    assert opened.snapshot()["pending_elicitations"][0]["elicitation_id"] == request["elicitation_id"]
+
+    for bad in ({"count": 2}, {"project": "mobile"}, {"project": "web", "count": 1.5}, {"project": "web", "extra": 1}):
+        with pytest.raises(CodexAppServerError):
+            opened.respond_elicitation(request["elicitation_id"], "accept", bad)
+    opened.respond_elicitation(request["elicitation_id"], "accept", {"project": "api", "count": 3, "notify": True})
+
+    reply, events = _final_reply(opened)
+    assert reply == 'elicitation={"action": "accept", "content": {"count": 3, "notify": true, "project": "api"}}'
+    resolved = next(e for e in events if e["type"] == "elicitation.resolved")
+    assert resolved["action"] == "accept" and "content" not in resolved
+    assert opened.snapshot()["pending_elicitations"] == []
+
+
+def test_mcp_url_request_shows_the_host_and_accepts_without_content(opened: CodexAppServerSession) -> None:
+    request = _elicitation(opened, "mcp-url please")
+    assert (request["mode"], request["url_host"], request["supported"]) == ("url", "auth.example.com", True)
+    opened.respond_elicitation(request["elicitation_id"], "accept")
+    assert _final_reply(opened)[0] == 'elicitation={"action": "accept"}'
+
+
+def test_mcp_form_the_workbench_cannot_draw_can_only_be_declined(opened: CodexAppServerSession) -> None:
+    request = _elicitation(opened, "mcp-custom please")
+    assert (request["mode"], request["supported"], request["fields"]) == ("openai/form", False, [])
+    with pytest.raises(CodexAppServerError):
+        opened.respond_elicitation(request["elicitation_id"], "accept", {})
+    with pytest.raises(CodexAppServerError):
+        opened.respond_elicitation(request["elicitation_id"], "approve")
+    opened.respond_elicitation(request["elicitation_id"], "decline")
+    assert _final_reply(opened)[0] == 'elicitation={"action": "decline"}'
+
+
+def test_non_web_urls_are_never_offered_to_open() -> None:
+    parsed = app_server._parse_elicitation(
+        {"serverName": "x", "mode": "url", "message": "m", "elicitationId": "e", "url": "file:///C:/secret.txt"}
+    )
+    assert parsed["supported"] is False and parsed["url"] is None
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

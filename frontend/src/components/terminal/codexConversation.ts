@@ -39,6 +39,39 @@ export interface CodexEvent {
   auto_resolve_at?: string | null
   answers?: Record<string, string[] | null>
   skipped?: boolean
+  elicitation_id?: string
+  server?: string
+  mode?: string
+  fields?: ElicitationField[]
+  url?: string | null
+  url_host?: string | null
+  supported?: boolean
+  action?: string
+}
+
+// An MCP server asking for input through Codex (mcpServer/elicitation/request).
+// Submitted values go to Codex only; the resolved event carries the action alone.
+export interface ElicitationField {
+  name: string
+  title: string
+  description: string
+  required: boolean
+  default?: unknown
+  kind: 'text' | 'number' | 'integer' | 'boolean' | 'select' | 'multi'
+  options?: Array<{ value: string; label: string }>
+  format?: string | null
+  minimum?: number | null
+  maximum?: number | null
+}
+export interface ElicitationRequest {
+  elicitation_id: string
+  server: string
+  mode: string
+  message: string
+  fields: ElicitationField[]
+  url: string | null
+  url_host: string | null
+  supported: boolean
 }
 
 // Codex asking the user directly (item/tool/requestUserInput). Secret answers
@@ -75,6 +108,7 @@ export type TranscriptItem =
   | { kind: 'hook'; key: string; eventName: string; status: string; phase: 'started' | 'completed' }
   | { kind: 'approval'; key: string; request: ApprovalRequest; decision: string | null }
   | { kind: 'question'; key: string; request: QuestionRequest; outcome: QuestionOutcome | null; answers: Record<string, string[] | null> }
+  | { kind: 'elicitation'; key: string; request: ElicitationRequest; action: string | null }
   | { kind: 'notice'; key: string; tone: 'info' | 'warn' | 'bad'; text: string }
 
 export interface ConversationState {
@@ -84,6 +118,7 @@ export interface ConversationState {
   activeTurnId: string | null
   pendingApprovals: ApprovalRequest[]
   pendingQuestions: QuestionRequest[]
+  pendingElicitations: ElicitationRequest[]
   lastEventAt: number
 }
 
@@ -94,6 +129,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   activeTurnId: null,
   pendingApprovals: [],
   pendingQuestions: [],
+  pendingElicitations: [],
   lastEventAt: 0,
 }
 
@@ -295,6 +331,34 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingQuestions = state.pendingQuestions.filter((item) => item.question_id !== event.question_id)
       break
     }
+    case 'elicitation.requested': {
+      const request: ElicitationRequest = {
+        elicitation_id: event.elicitation_id ?? '',
+        server: event.server ?? '',
+        mode: event.mode ?? '',
+        message: event.message ?? '',
+        fields: event.fields ?? [],
+        url: event.url ?? null,
+        url_host: event.url_host ?? null,
+        supported: Boolean(event.supported),
+      }
+      const key = `elicitation:${request.elicitation_id}`
+      upsert(state, key, () => ({ kind: 'elicitation', key, request, action: null }), (item) => item)
+      state.pendingElicitations = [...state.pendingElicitations.filter((item) => item.elicitation_id !== request.elicitation_id), request]
+      break
+    }
+    case 'elicitation.resolved': {
+      const key = `elicitation:${event.elicitation_id}`
+      const action = event.action ?? 'cancel'
+      upsert(
+        state,
+        key,
+        () => ({ kind: 'elicitation', key, request: { elicitation_id: event.elicitation_id ?? '', server: '', mode: '', message: '', fields: [], url: null, url_host: null, supported: false }, action }),
+        (item) => (item.kind === 'elicitation' ? { ...item, action } : item),
+      )
+      state.pendingElicitations = state.pendingElicitations.filter((item) => item.elicitation_id !== event.elicitation_id)
+      break
+    }
     case 'warning':
       notice(state, event, 'warn', event.message ?? 'Codex 경고')
       break
@@ -305,6 +369,7 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.activeTurnId = null
       state.pendingApprovals = []
       state.pendingQuestions = []
+      state.pendingElicitations = []
       notice(state, event, event.unexpected ? 'bad' : 'info', event.unexpected ? 'Codex가 예기치 않게 종료되었습니다.' : 'Codex 세션이 종료되었습니다.')
       break
     default:
@@ -323,6 +388,7 @@ export function applyEvents(previous: ConversationState, events: CodexEvent[]): 
     positions: { ...previous.positions },
     pendingApprovals: [...previous.pendingApprovals],
     pendingQuestions: [...previous.pendingQuestions],
+    pendingElicitations: [...previous.pendingElicitations],
   }
   for (const event of fresh) {
     applyEvent(state, event)

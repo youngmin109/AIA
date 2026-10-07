@@ -1,6 +1,6 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type QuestionRequest } from './codexConversation'
+import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type ElicitationRequest, type QuestionRequest } from './codexConversation'
 
 // Talks to WS /api/runs/{id}/codex. The server pushes structured events as
 // Codex produces them; this hook only folds them into a transcript and sends
@@ -18,6 +18,7 @@ export interface CodexStatus {
   active_turn_id: string | null
   pending_approvals: ApprovalRequest[]
   pending_questions?: QuestionRequest[]
+  pending_elicitations?: ElicitationRequest[]
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -210,6 +211,14 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  const respondElicitation = useCallback(
+    (elicitationId: string, action: 'accept' | 'decline' | 'cancel', content?: Record<string, unknown>) => {
+      setErrorMessage(null)
+      return send({ type: 'elicitation_response', elicitation_id: elicitationId, action, content, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   const endSession = useCallback(() => {
     if (send({ type: 'end_session', client_id: nextClientId() })) setEndPending(true)
   }, [send])
@@ -241,6 +250,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     if (!answered.has(item.question_id)) questionsById.set(item.question_id, item)
   }
   const pendingQuestions = [...questionsById.values()]
+  const settled = new Set<string>()
+  for (const item of conversation.items) {
+    if (item.kind === 'elicitation' && item.action) settled.add(item.request.elicitation_id)
+  }
+  const elicitationsById = new Map<string, ElicitationRequest>()
+  for (const item of [...(status?.pending_elicitations ?? []), ...conversation.pendingElicitations]) {
+    if (!settled.has(item.elicitation_id)) elicitationsById.set(item.elicitation_id, item)
+  }
+  const pendingElicitations = [...elicitationsById.values()]
 
   return {
     conversation,
@@ -256,6 +274,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     endRequested: Boolean(status?.end_requested),
     pendingApprovals,
     pendingQuestions,
+    pendingElicitations,
     errorMessage,
     interruptPending,
     endPending,
@@ -263,6 +282,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     interrupt,
     decideApproval,
     answerQuestion,
+    respondElicitation,
     endSession,
     onRestoreDraft,
     dismissError: () => setErrorMessage(null),

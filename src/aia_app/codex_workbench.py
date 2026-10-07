@@ -158,6 +158,10 @@ class CodexWorkbench:
         codex_session = self._codex_session(session_id)
         return {**codex_session.respond_question(question_id, answers), "session_id": session_id}
 
+    def respond_codex_elicitation(self, session_id: str, elicitation_id: str, action: str, content: Any) -> dict[str, Any]:
+        codex_session = self._codex_session(session_id)
+        return {**codex_session.respond_elicitation(elicitation_id, action, content), "session_id": session_id}
+
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         if decision not in {"accept", "acceptForSession", "decline"}:
             raise CodexAppServerError("approval decision is not supported")

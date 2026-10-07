@@ -5,6 +5,7 @@ import { Icon } from '../common/Icon'
 import { RingTimer } from '../common/Charts'
 import { StartupProgress } from '../common/StartupProgress'
 import { QuestionCard } from './QuestionCard'
+import { ElicitationCard } from './ElicitationCard'
 import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -120,9 +121,22 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
       )
     case 'question':
       return <div className={`chat-hook ${item.outcome ? 'is-hook' : 'is-warn'}`}>{questionSummary(item)}</div>
+    case 'elicitation':
+      return (
+        <div className={`chat-hook ${item.action ? 'is-hook' : 'is-warn'}`}>
+          {`외부 도구 입력 요청${item.request.server ? ` · ${item.request.server}` : ''} · ${item.action ? ELICITATION_ACTION_LABELS[item.action] ?? item.action : '응답 대기 중'}`}
+        </div>
+      )
     case 'notice':
       return <div className={`chat-notice is-${item.tone}`}>{item.text}</div>
   }
+}
+
+const ELICITATION_ACTION_LABELS: Record<string, string> = {
+  accept: '응답을 보냈어요',
+  decline: '거절했어요',
+  cancel: '취소했어요',
+  resolved_by_codex: 'Codex가 요청을 거뒀어요',
 }
 
 const QUESTION_OUTCOME_LABELS: Record<string, string> = {
@@ -350,6 +364,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const silent = session.working && lastEventAt ? Math.max(0, Math.floor((now - lastEventAt) / 1000)) : 0
   const firstApproval = session.pendingApprovals[0]
   const firstQuestion = session.pendingQuestions[0]
+  const firstElicitation = session.pendingElicitations[0]
   const error = session.status?.error
   const dotTone = session.ended ? 'neutral' : approvalWaiting ? 'warn' : session.connection.tone === 'bad' ? 'bad' : 'ok'
 
@@ -415,6 +430,14 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         </div>
       )}
 
+      {firstElicitation && !session.ended && (
+        <ElicitationCard
+          key={firstElicitation.elicitation_id}
+          request={firstElicitation}
+          disabled={!session.connected}
+          onRespond={(action, content) => session.respondElicitation(firstElicitation.elicitation_id, action, content)}
+        />
+      )}
       {firstQuestion && !session.ended && (
         <QuestionCard
           key={firstQuestion.question_id}

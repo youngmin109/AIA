@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 import json
 import os
 from pathlib import Path
@@ -149,6 +150,10 @@ APPROVAL_DECISIONS = frozenset({"accept", "acceptForSession", "decline", "cancel
 _QUESTION_REQUEST = "item/tool/requestUserInput"
 _MAX_QUESTIONS = 10
 _MAX_ANSWER_CHARS = 4_000
+# An MCP server asking the user for input through Codex.
+_ELICITATION_REQUEST = "mcpServer/elicitation/request"
+ELICITATION_ACTIONS = frozenset({"accept", "decline", "cancel"})
+_MAX_ELICITATION_FIELDS = 20
 # A JSON-RPC "method not found" reply lets Codex continue instead of waiting
 # forever on a request the Workbench cannot present.
 _UNSUPPORTED_REQUEST_CODE = -32601
@@ -204,6 +209,113 @@ def _parse_questions(params: Mapping[str, Any]) -> list[dict[str, Any]] | None:
             }
         )
     return parsed
+
+
+def _elicitation_options(schema: Mapping[str, Any]) -> list[dict[str, str]] | None:
+    """Options of an enum field in any of the MCP enum spellings."""
+
+    items = schema.get("items") if schema.get("type") == "array" else schema
+    if not isinstance(items, Mapping):
+        return None
+    titled = items.get("oneOf") or items.get("anyOf")
+    if isinstance(titled, list):
+        options = [
+            {"value": item["const"], "label": _text_of(item.get("title")) or item["const"]}
+            for item in titled
+            if isinstance(item, Mapping) and isinstance(item.get("const"), str)
+        ]
+        return options if len(options) == len(titled) else None
+    values = items.get("enum")
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        return None
+    names = schema.get("enumNames")
+    labels = names if isinstance(names, list) and len(names) == len(values) else values
+    return [{"value": value, "label": _text_of(label) or value} for value, label in zip(values, labels)]
+
+
+def _elicitation_field(name: str, schema: Any, required: bool) -> dict[str, Any] | None:
+    """One simple form field, or ``None`` when the Workbench cannot render it."""
+
+    if not isinstance(schema, Mapping):
+        return None
+    field: dict[str, Any] = {
+        "name": name,
+        "title": _text_of(schema.get("title")) or name,
+        "description": _text_of(schema.get("description")),
+        "required": required,
+        "default": schema.get("default"),
+    }
+    kind = schema.get("type")
+    if kind == "array":
+        options = _elicitation_options(schema)
+        return {**field, "kind": "multi", "options": options} if options else None
+    if kind == "string" and ("enum" in schema or "oneOf" in schema or "anyOf" in schema):
+        options = _elicitation_options(schema)
+        return {**field, "kind": "select", "options": options} if options else None
+    if kind == "string":
+        return {**field, "kind": "text", "format": schema.get("format")}
+    if kind in {"number", "integer"}:
+        return {**field, "kind": kind, "minimum": schema.get("minimum"), "maximum": schema.get("maximum")}
+    if kind == "boolean":
+        return {**field, "kind": "boolean"}
+    return None
+
+
+def _parse_elicitation(params: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Normalize an MCP input request; ``supported`` is False for forms the
+    Workbench cannot draw, which can then only be declined or cancelled."""
+
+    server = params.get("serverName")
+    mode = params.get("mode")
+    message = params.get("message")
+    if not isinstance(server, str) or not isinstance(mode, str) or not isinstance(message, str):
+        return None
+    request: dict[str, Any] = {
+        "server": server,
+        "mode": mode,
+        "message": message,
+        "fields": [],
+        "url": None,
+        "url_host": None,
+        "supported": False,
+    }
+    if mode == "url":
+        url = params.get("url")
+        parsed = urlparse(url) if isinstance(url, str) else None
+        if parsed is not None and parsed.scheme in {"http", "https"} and parsed.hostname:
+            request.update({"url": url, "url_host": parsed.hostname, "supported": True})
+        return request
+    schema = params.get("requestedSchema")
+    if mode != "form" or not isinstance(schema, Mapping):
+        return request
+    properties = schema.get("properties")
+    required = schema.get("required") or []
+    if not isinstance(properties, Mapping) or len(properties) > _MAX_ELICITATION_FIELDS or not isinstance(required, list):
+        return request
+    fields = [_elicitation_field(str(name), item, name in required) for name, item in properties.items()]
+    if all(field is not None for field in fields):
+        request.update({"fields": fields, "supported": True})
+    return request
+
+
+def _elicitation_value(field: Mapping[str, Any], value: Any) -> Any:
+    """Validate one submitted value against its field; raises on mismatch."""
+
+    kind = field["kind"]
+    allowed = {option["value"] for option in field.get("options") or ()}
+    if kind == "text" and isinstance(value, str) and len(value) <= _MAX_ANSWER_CHARS:
+        return value
+    if kind == "boolean" and isinstance(value, bool):
+        return value
+    if kind in {"number", "integer"} and isinstance(value, (int, float)) and not isinstance(value, bool):
+        if kind == "integer" and float(value) != int(value):
+            raise CodexAppServerError("answers do not match the request")
+        return int(value) if kind == "integer" else value
+    if kind == "select" and isinstance(value, str) and value in allowed:
+        return value
+    if kind == "multi" and isinstance(value, list) and all(isinstance(item, str) and item in allowed for item in value):
+        return list(value)
+    raise CodexAppServerError("answers do not match the request")
 
 
 def _command_text(value: Any) -> str:
@@ -358,6 +470,8 @@ class CodexAppServerSession:
         self._next_approval = 1
         self._pending_questions: dict[str, dict[str, Any]] = {}
         self._next_question = 1
+        self._pending_elicitations: dict[str, dict[str, Any]] = {}
+        self._next_elicitation = 1
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -492,6 +606,8 @@ class CodexAppServerSession:
             self._pending_approvals.clear()
             questions = list(self._pending_questions.items())
             self._pending_questions.clear()
+            elicitations = list(self._pending_elicitations.items())
+            self._pending_elicitations.clear()
         if process is None:
             return
         if not force and not already_closing:
@@ -501,6 +617,9 @@ class CodexAppServerSession:
             for question_id, question in questions:
                 self._respond(question["request_id"], {"answers": {}})
                 self._append_event({"type": "question.resolved", "question_id": question_id, "reason": "cancel"})
+            for elicitation_id, elicitation in elicitations:
+                self._respond(elicitation["request_id"], {"action": "cancel"})
+                self._append_event({"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": "cancel"})
             if thread_id is not None and turn_id is not None and process.poll() is None:
                 try:
                     self._request("turn/interrupt", {"threadId": thread_id, "turnId": turn_id}, timeout=2.0)
@@ -606,6 +725,33 @@ class CodexAppServerSession:
         )
         return {"accepted": True, "question_id": question_id, "skipped": not cleaned}
 
+    def respond_elicitation(self, elicitation_id: str, action: str, content: Any = None) -> dict[str, Any]:
+        """Answer an MCP input request.  Submitted values reach Codex only."""
+
+        if action not in ELICITATION_ACTIONS:
+            raise CodexAppServerError("elicitation action is not supported")
+        with self._lock:
+            elicitation = self._pending_elicitations.get(elicitation_id)
+            if elicitation is None:
+                raise CodexAppServerError("input request is no longer pending")
+            result: dict[str, Any] = {"action": action}
+            if action == "accept":
+                if not elicitation["supported"]:
+                    raise CodexAppServerError("this input request can only be declined")
+                if elicitation["mode"] == "form":
+                    if not isinstance(content, Mapping):
+                        raise CodexAppServerError("answers do not match the request")
+                    fields = {field["name"]: field for field in elicitation["fields"]}
+                    if any(key not in fields for key in content) or any(
+                        field["required"] and name not in content for name, field in fields.items()
+                    ):
+                        raise CodexAppServerError("answers do not match the request")
+                    result["content"] = {key: _elicitation_value(fields[key], value) for key, value in content.items()}
+            del self._pending_elicitations[elicitation_id]
+        self._respond(elicitation["request_id"], result)
+        self._append_event({"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": action})
+        return {"accepted": True, "elicitation_id": elicitation_id, "action": action}
+
     # -- event buffer ------------------------------------------------------
 
     def read_events(self, after_sequence: int = 0) -> list[dict[str, Any]]:
@@ -651,6 +797,10 @@ class CodexAppServerSession:
                 {key: value for key, value in question.items() if key != "request_id"}
                 for question in self._pending_questions.values()
             ]
+            elicitations = [
+                {key: value for key, value in elicitation.items() if key != "request_id"}
+                for elicitation in self._pending_elicitations.values()
+            ]
             snapshot = {
                 "mode": "codex_app_server",
                 "status": self._status,
@@ -659,6 +809,7 @@ class CodexAppServerSession:
                 "active_turn_id": self._active_turn_id,
                 "pending_approvals": pending,
                 "pending_questions": questions,
+                "pending_elicitations": elicitations,
                 "effective": dict(self._effective),
                 "started_at": self._started_at.isoformat() if self._started_at else None,
                 "ended_at": self._ended_at.isoformat() if self._ended_at else None,
@@ -781,6 +932,7 @@ class CodexAppServerSession:
                 slot["done"].set()
             self._pending_approvals.clear()
             self._pending_questions.clear()
+            self._pending_elicitations.clear()
             self._append_event_locked({"type": "session.exited", "exit_code": exit_code, "unexpected": unexpected})
 
     def _read_stderr(self) -> None:
@@ -820,6 +972,11 @@ class CodexAppServerSession:
             questions = _parse_questions(params)
             if questions is not None:
                 self._open_question(request_id, params, questions)
+                return
+        if method == _ELICITATION_REQUEST:
+            elicitation = _parse_elicitation(params)
+            if elicitation is not None:
+                self._open_elicitation(request_id, params, elicitation)
                 return
         kind = _APPROVAL_REQUESTS.get(method)
         if kind is None:
@@ -871,6 +1028,21 @@ class CodexAppServerSession:
                 {"type": "question.requested", **{key: value for key, value in question.items() if key != "request_id"}}
             )
 
+    def _open_elicitation(self, request_id: Any, params: Mapping[str, Any], elicitation: dict[str, Any]) -> None:
+        with self._lock:
+            elicitation_id = f"elicitation-{self._next_elicitation}"
+            self._next_elicitation += 1
+            pending = {
+                "elicitation_id": elicitation_id,
+                "request_id": request_id,
+                "turn_id": params.get("turnId"),
+                **elicitation,
+            }
+            self._pending_elicitations[elicitation_id] = pending
+            self._append_event_locked(
+                {"type": "elicitation.requested", **{key: value for key, value in pending.items() if key != "request_id"}}
+            )
+
     def _handle_notification(self, method: str, params: Mapping[str, Any]) -> None:
         if method == "serverRequest/resolved":
             request_id = params.get("requestId")
@@ -886,6 +1058,12 @@ class CodexAppServerSession:
                         del self._pending_questions[question_id]
                         self._append_event_locked(
                             {"type": "question.resolved", "question_id": question_id, "reason": "resolved_by_codex"}
+                        )
+                for elicitation_id, elicitation in list(self._pending_elicitations.items()):
+                    if elicitation["request_id"] == request_id:
+                        del self._pending_elicitations[elicitation_id]
+                        self._append_event_locked(
+                            {"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": "resolved_by_codex"}
                         )
             return
         event = normalize_notification(method, params)

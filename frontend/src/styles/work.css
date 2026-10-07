@@ -611,3 +611,35 @@ details.chat-output pre {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* MCP input requests (EPIC-021 TASK-106). */
+.question-message {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.elicitation-url {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--fill-1);
+}
+
+.elicitation-url strong {
+  font-size: 18px;
+}
+
+.elicitation-url code {
+  overflow-wrap: anywhere;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.elicitation-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
