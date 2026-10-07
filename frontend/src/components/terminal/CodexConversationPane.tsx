@@ -9,6 +9,7 @@ import { ElicitationCard } from './ElicitationCard'
 import { PermissionsCard } from './PermissionsCard'
 import { UsageChip } from './UsageChip'
 import { ModelChip } from './ModelChip'
+import { PlanBar } from './PlanBar'
 import { useCodexModels } from '../../hooks/useCodexModels'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
@@ -418,6 +419,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
           </Button>
         )}
       </header>
+      {session.plan && <PlanBar plan={session.plan} />}
 
       <div
         className="chat-transcript"

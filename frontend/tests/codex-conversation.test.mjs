@@ -94,3 +94,11 @@ test('model chip names the chosen model and effort, and efforts follow the model
   const state = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'settings.changed', model: 'gpt-deep', effort: 'xhigh' }])
   assert.deepEqual(state.turnSettings, { model: 'gpt-deep', effort: 'xhigh' })
 })
+
+test('the latest Codex plan replaces the previous one', () => {
+  const state = applyEvents(EMPTY_CONVERSATION, [
+    { sequence: 1, type: 'plan.updated', turn_id: 't1', explanation: 'fix', steps: [{ step: 'read', status: 'inProgress' }] },
+    { sequence: 2, type: 'plan.updated', turn_id: 't1', explanation: 'fix', steps: [{ step: 'read', status: 'completed' }, { step: 'test', status: 'pending' }] },
+  ])
+  assert.deepEqual(state.plan.steps.map(step => step.status), ['completed', 'pending'])
+})

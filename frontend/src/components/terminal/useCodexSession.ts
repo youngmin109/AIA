@@ -1,7 +1,7 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import type { Usage } from '../../api/usageView'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
+import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type CodexPlan, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
 
 // Talks to WS /api/runs/{id}/codex. The server pushes structured events as
 // Codex produces them; this hook only folds them into a transcript and sends
@@ -23,6 +23,7 @@ export interface CodexStatus {
   pending_permissions?: PermissionsRequest[]
   usage?: Usage
   turn_settings?: { model: string | null; effort: string | null }
+  plan?: CodexPlan | null
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -291,6 +292,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const pendingPermissions = [...permissionsById.values()]
   // Events carry the newest values; the snapshot covers a viewer that joined late.
   const turnSettings = conversation.turnSettings ?? status?.turn_settings ?? { model: null, effort: null }
+  const plan = conversation.plan ?? status?.plan ?? null
   const usage: Usage = {
     limits: conversation.usage.limits ?? status?.usage?.limits ?? null,
     tokens: conversation.usage.tokens ?? status?.usage?.tokens ?? null,
@@ -314,6 +316,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     pendingPermissions,
     usage,
     turnSettings,
+    plan,
     errorMessage,
     interruptPending,
     endPending,

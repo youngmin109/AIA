@@ -2,6 +2,11 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-07 · TASK-110
+- 서버: `turn/plan/updated`를 `plan.updated`(단계 최대 50개, 모르는 상태는 버림)로, 최신 계획은 스냅샷 `plan`에도.
+- 화면: 대화 위 접히는 "작업 계획 n/N · 지금 · 단계" 줄, 펼치면 단계별 대기·진행 중·완료.
+- 테스트: pytest 911, 프론트 48 통과.
+
 ## 2026-10-07 · TASK-109
 - 모델 목록: `GET /api/codex/models`가 스레드를 열지 않는 임시 앱 서버로 `model/list`(숨김 제외)를 받아 10분 기억. 실패하면 빈 목록 → 고르는 칸을 숨기고 Codex 기본값.
 - 생각 깊이는 `thread/start`가 받지 않아 요청마다 `turn/start`의 `effort`로. 덮어쓰기는 `model`·`effort` 두 키로만 만들고 이름 형식을 검사(`settings.changed` 이벤트, 스냅샷 `turn_settings`).

@@ -3,7 +3,7 @@
 It speaks the same newline-delimited JSON-RPC shapes the real app-server uses
 for the methods AIA depends on.  The first word of a turn's text selects the
 scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``question``,
-``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``usage``, ``race``, ``crash``).
+``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``usage``, ``plan``, ``race``, ``crash``).
 ``FAKE_APP_SERVER_NO_USAGE`` makes the usage read fail like an API-key login.  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
 fake reports as applied.
 """
@@ -154,6 +154,15 @@ def handle_turn_start(request_id, text: str) -> None:
             "modelContextWindow": 200000})
         notify("account/rateLimits/updated", rateLimits={"primary": {"usedPercent": 60, "windowDurationMins": 300}})
         agent_reply(turn_id, "counted")
+        complete_turn(turn_id)
+    elif scenario == "plan":
+        steps = ["Read the code", "Fix the bug", "Run the tests"]
+        notify("turn/plan/updated", turnId=turn_id, explanation="Small fix",
+               plan=[{"step": step, "status": "inProgress" if index == 0 else "pending"} for index, step in enumerate(steps)])
+        notify("turn/plan/updated", turnId=turn_id, explanation="Small fix",
+               plan=[{"step": "Read the code", "status": "completed"}, {"step": "Fix the bug", "status": "inProgress"},
+                     {"step": "Run the tests", "status": "pending"}, {"step": "ignored", "status": "weird"}])
+        agent_reply(turn_id, "planned")
         complete_turn(turn_id)
     elif scenario == "slow":
         pass  # stays in progress until turn/interrupt

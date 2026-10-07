@@ -525,6 +525,18 @@ def normalize_notification(method: str, params: Mapping[str, Any]) -> dict[str, 
             "message": _text_of(error.get("message")) or "Codex reported an error",
             "will_retry": bool(params.get("willRetry")),
         }
+    if method == "turn/plan/updated":
+        steps = [
+            {"step": _text_of(item.get("step"))[:500], "status": item.get("status")}
+            for item in (params.get("plan") or [])[:50]
+            if isinstance(item, Mapping) and item.get("status") in {"pending", "inProgress", "completed"}
+        ]
+        return {
+            "type": "plan.updated",
+            "turn_id": params.get("turnId"),
+            "explanation": _text_of(params.get("explanation"))[:1000] or None,
+            "steps": steps,
+        }
     if method == "account/rateLimits/updated":
         limits = usage_limits(params.get("rateLimits"))
         return {"type": "usage.limits", "limits": limits} if limits else None
@@ -627,6 +639,7 @@ class CodexAppServerSession:
         self._usage_limits: dict[str, Any] | None = None
         self._token_usage: dict[str, Any] | None = None
         self._turn_settings: dict[str, str | None] = {"model": None, "effort": None}
+        self._plan: dict[str, Any] | None = None
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -1046,6 +1059,7 @@ class CodexAppServerSession:
                 "pending_permissions": permission_requests,
                 "usage": {"limits": self._usage_limits, "tokens": self._token_usage},
                 "turn_settings": dict(self._turn_settings),
+                "plan": self._plan,
                 "effective": dict(self._effective),
                 "started_at": self._started_at.isoformat() if self._started_at else None,
                 "ended_at": self._ended_at.isoformat() if self._ended_at else None,
@@ -1348,6 +1362,8 @@ class CodexAppServerSession:
                     self._active_turn_id = None
                     if self._status == "WORKING":
                         self._status = "READY"
+            elif event["type"] == "plan.updated":
+                self._plan = {key: event[key] for key in ("turn_id", "explanation", "steps")}
             elif event["type"] == "usage.limits":
                 self._usage_limits = event["limits"]
             elif event["type"] == "usage.tokens":

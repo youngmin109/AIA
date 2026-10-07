@@ -472,6 +472,16 @@ def test_turn_settings_reach_turn_start_and_nothing_else_does(opened: CodexAppSe
     assert replies[-1] == 'settings {"effort": "low", "model": "gpt-fast"}'
 
 
+def test_plan_updates_keep_the_latest_steps(opened: CodexAppServerSession) -> None:
+    opened.send_message("plan please")
+    events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    plans = [e for e in events if e["type"] == "plan.updated"]
+    assert len(plans) == 2 and plans[-1]["explanation"] == "Small fix"
+    assert [(step["step"], step["status"]) for step in plans[-1]["steps"]] == [
+        ("Read the code", "completed"), ("Fix the bug", "inProgress"), ("Run the tests", "pending")]
+    assert opened.snapshot()["plan"]["steps"] == plans[-1]["steps"]
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

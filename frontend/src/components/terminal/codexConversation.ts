@@ -56,7 +56,12 @@ export interface CodexEvent {
   limits?: UsageLimits | null
   tokens?: TokenUsage | null
   effort?: string | null
+  explanation?: string | null
+  steps?: CodexPlan['steps']
 }
+
+// Codex's step plan for the current request (turn/plan/updated).
+export interface CodexPlan { turn_id?: string | null; explanation: string | null; steps: Array<{ step: string; status: 'pending' | 'inProgress' | 'completed' }> }
 
 // Codex asking to widen its sandbox (item/permissions/requestApproval).
 export interface PermissionsRequest { permissions_id: string; reason: string; network: boolean; filesystem: PermissionEntry[] }
@@ -135,6 +140,7 @@ export interface ConversationState {
   pendingPermissions: PermissionsRequest[]
   usage: Usage
   turnSettings: { model: string | null; effort: string | null } | null
+  plan: CodexPlan | null
   lastEventAt: number
 }
 
@@ -149,6 +155,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   pendingPermissions: [],
   usage: { limits: null, tokens: null },
   turnSettings: null,
+  plan: null,
   lastEventAt: 0,
 }
 
@@ -402,6 +409,9 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingPermissions = state.pendingPermissions.filter((item) => item.permissions_id !== event.permissions_id)
       break
     }
+    case 'plan.updated':
+      state.plan = { turn_id: event.turn_id ?? null, explanation: event.explanation ?? null, steps: event.steps ?? [] }
+      break
     case 'settings.changed':
       state.turnSettings = { model: event.model ?? null, effort: event.effort ?? null }
       break
