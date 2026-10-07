@@ -7,6 +7,8 @@ import { displayStatus, statusTone } from '../../api/display'
 import type { RunStatus } from '../../api/types'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
 import { useNow } from '../../hooks/useElapsed'
+import { useCodexConnectors } from '../../hooks/useCodexConnectors'
+import { connectorSummary } from '../../api/connectorView'
 
 const FILE_LABELS: Record<string, string> = { created: '생성', modified: '수정', deleted: '삭제', moved: '이동' }
 const SENSORS: Array<[string, string]> = [['AGENT_HOOK', '실행 요청'], ['FILESYSTEM_WATCHER', '파일 변화'], ['PROCESS_RUNTIME', '프로세스']]
@@ -35,6 +37,8 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
   const processes = processDepths(activity?.processes ?? []).slice(0, 8)
   const files = (activity?.files ?? []).slice(-6).reverse()
   const checkpoint = typeof status?.checkpoint === 'string' ? status.checkpoint : null
+  // The conversation id appears once Codex's conversation is open; connectors exist from then on.
+  const { connectors } = useCodexConnectors(runId, live && Boolean(status?.codex_thread_id))
 
   const rows: Array<{ key: string; tone: Parameters<typeof GlossyIcon>[0]['tone']; icon: Parameters<typeof GlossyIcon>[0]['icon']; label: string; value: string; alert?: boolean }> = [
     { key: 'pretool', tone: 'hook', icon: 'shieldPlain', label: '실행 전 검사', value: `${summary?.pretool_events ?? 0}건` },
@@ -63,6 +67,16 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
             {(status?.permission_grants ?? []).map((grant) => <li key={grant.granted_at}>{grantSummary(grant)}</li>)}
           </ul>
           {widensBeyondProtection(status?.permission_grants) && <p className="faint-note">작업 폴더 밖 쓰기와 인터넷은 AIA 기준점·복구와 감시 범위 밖이에요.</p>}
+        </section>
+      )}
+
+      {connectors && connectors.length > 0 && (
+        <section className="work-panel-section">
+          <h3>외부 도구 {connectors.length}개</h3>
+          <ul className="work-connectors">
+            {connectors.map(connector => <li key={connector.name}><span className="mono">{connector.name}</span><small className="muted">{connectorSummary(connector)}</small></li>)}
+          </ul>
+          <p className="faint-note">AIA 보호 범위 밖이에요. 작업창에서 /mcp로 자세히 볼 수 있어요.</p>
         </section>
       )}
 

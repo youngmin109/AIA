@@ -1,4 +1,5 @@
 import type { CodexModel } from './modelView'
+import type { CodexConnector } from './connectorView'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -130,6 +131,11 @@ export interface ConsoleInfo {
 
 export function consoleInfo(): Promise<ConsoleInfo> {
   return apiGet<ConsoleInfo>('/api/console-info')
+}
+
+/** Connectors (MCP servers) of an open conversation; view only. */
+export function codexConnectors(runId: string): Promise<{ connectors: CodexConnector[] }> {
+  return apiGet<{ connectors: CodexConnector[] }>(`/api/runs/${encodeURIComponent(runId)}/codex/connectors`)
 }
 
 /** One request's diff (or the whole conversation's when turnId is null); kept in memory only. */

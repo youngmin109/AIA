@@ -921,3 +921,21 @@ details.chat-output pre {
   padding-left: 18px;
   font-size: 14px;
 }
+
+/* Connectors (EPIC-021 TASK-117). */
+.work-connectors {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.work-connectors li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}

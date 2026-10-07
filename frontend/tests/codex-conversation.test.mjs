@@ -145,3 +145,13 @@ test('security notes never claim a block was confirmed and never show raw comman
   assert.match(restoreNote(false).lines[0], /실행이 끝난 뒤/)
   assert.equal(policyNote(null, null).lines[0], '정책 정보를 아직 받지 못했어요.')
 })
+
+test('connectors read as status, login and tool count', async () => {
+  const { connectorSummary, connectorTone, connectorStatusLabel } = await import('../src/api/connectorView.ts')
+  const github = { name: 'github', status: 'connected', auth: 'oAuth', tool_count: 2, tools: [], error: null }
+  assert.equal(connectorSummary(github), '연결됨 · 로그인됨 · 도구 2개')
+  assert.equal(connectorTone(github), 'ok')
+  assert.equal(connectorTone({ ...github, status: 'authenticationRequired' }), 'warn')
+  assert.equal(connectorSummary({ ...github, status: 'weird', auth: 'unknown', tool_count: 0 }), '상태 확인 불가 · 도구 0개')
+  assert.equal(connectorStatusLabel('disabled'), '꺼짐')
+})

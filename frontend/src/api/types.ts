@@ -72,6 +72,8 @@ export interface EvidenceSummary {
 export interface RunStatus {
   startup?: StartupInfo
   permission_grants?: PermissionGrant[]
+  codex_thread_id?: string | null
+  resumed_from?: string | null
   activity?: {
     available?: boolean; live?: boolean; current_alive_count?: number | null; unique_file_count?: number;
     process_identity_count?: number; truncated?: boolean;

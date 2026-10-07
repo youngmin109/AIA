@@ -12,6 +12,7 @@ import { ModelChip } from './ModelChip'
 import { PlanBar } from './PlanBar'
 import { DiffCard } from './DiffCard'
 import { CommandPalette } from './CommandPalette'
+import { ConnectorsCard } from './ConnectorsCard'
 import { AiaNoteCard } from './AiaNoteCard'
 import { matchSlashCommands, parseSlashCommand, type SlashCommand } from './slashCommands'
 import { policyNote, reportNote, restoreNote, whyNote, type AiaNote } from '../../api/securityNotes'
@@ -326,6 +327,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [note, setNote] = useState<AiaNote | null>(null)
   const [diffOpen, setDiffOpen] = useState(false)
+  const [connectorsOpen, setConnectorsOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
   const { data: runStatus } = useRunStatus(runId)
@@ -386,6 +388,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   function runSlash(command: SlashCommand, argument: string) {
     setNote(null)
     setDiffOpen(false)
+    setConnectorsOpen(false)
     switch (command.name) {
       case 'model': setModelOpen(true); break
       case 'status': setUsageOpen(true); break
@@ -400,7 +403,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         session.runCommand('goal', argument)
         break
       case 'resume': openNewRunToResume(); break
-      case 'mcp': setNote({ title: '커넥터', lines: ['연결된 외부 도구(MCP)는 AIA 보호 범위 밖이에요.', '자세한 목록은 설정 화면의 연결 준비에서 볼 수 있어요.'] }); break
+      case 'mcp': setConnectorsOpen(true); break
       case 'policy': setNote(policyNote(policyProfile?.display_name ?? runStatus?.policy?.profile, policyProfile?.description)); break
       case 'why': setNote(whyNote(actions)); break
       case 'restore': setNote(restoreNote(runEnded || session.ended)); break
@@ -579,6 +582,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
             : <DiffCard runId={runId} turnId={null} files={diffFiles} fileCount={diffFiles.length} added={diffItems.reduce((sum, item) => sum + item.added, 0)} removed={diffItems.reduce((sum, item) => sum + item.removed, 0)} />}
         </section>
       )}
+      {connectorsOpen && !session.ended && <ConnectorsCard runId={runId} onClose={() => setConnectorsOpen(false)} />}
       {palette.length > 0 && <CommandPalette commands={palette} active={Math.min(paletteIndex, palette.length - 1)} onPick={pickCommand} />}
       {firstPermissions && !session.ended && (
         <PermissionsCard
