@@ -1,3 +1,4 @@
+import { grantSummary, widensBeyondProtection } from '../../api/permissionGrants'
 import { useMemo } from 'react'
 import { GlossyIcon, StatusDot } from '../common/Glass'
 import { MiniBars } from '../common/Charts'
@@ -54,6 +55,16 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
           </li>
         ))}
       </ul>
+
+      {(status?.permission_grants ?? []).length > 0 && (
+        <section className="work-panel-section">
+          <h3>이번 실행에서 넓힌 권한</h3>
+          <ul className="work-grants">
+            {(status?.permission_grants ?? []).map((grant) => <li key={grant.granted_at}>{grantSummary(grant)}</li>)}
+          </ul>
+          {widensBeyondProtection(status?.permission_grants) && <p className="faint-note">작업 폴더 밖 쓰기와 인터넷은 AIA 기준점·복구와 감시 범위 밖이에요.</p>}
+        </section>
+      )}
 
       <section className="work-panel-section">
         <h3 className="work-panel-head">최근 5분 활동<span>이번 1분 {recent.current}건</span></h3>

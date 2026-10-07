@@ -162,6 +162,28 @@ class CodexWorkbench:
         codex_session = self._codex_session(session_id)
         return {**codex_session.respond_elicitation(elicitation_id, action, content), "session_id": session_id}
 
+    def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
+        """Answer a sandbox-widening request and record a grant on the run."""
+
+        codex_session = self._codex_session(session_id)
+        result = codex_session.respond_permissions(permissions_id, decision)
+        if decision in {"turn", "session"}:
+            service = self._service
+            record = service.registry.get(session_id)
+            if record is not None:
+                record.permission_grants = [
+                    *record.permission_grants,
+                    {
+                        "granted_at": datetime.now(timezone.utc).isoformat(),
+                        "scope": decision,
+                        "network": result["network"],
+                        "filesystem": result["filesystem"],
+                        "reason": result["reason"],
+                    },
+                ]
+                service._persist_runtime_state(record)
+        return {**result, "session_id": session_id}
+
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         if decision not in {"accept", "acceptForSession", "decline"}:
             raise CodexAppServerError("approval decision is not supported")

@@ -41,6 +41,9 @@ class RunRecord:
     # Which preparation step is running, for display and slow-start diagnosis
     # only.  Replaced as a whole so readers never see a half-updated value.
     startup: dict[str, Any] = field(default_factory=dict)
+    # Sandbox widenings the user granted to Codex during the run.  Replaced
+    # as a whole, like ``startup``.
+    permission_grants: list[dict[str, Any]] = field(default_factory=list)
     actions: list[dict[str, Any]] = field(default_factory=list)
     incidents: list[dict[str, Any]] = field(default_factory=list)
     result: dict[str, Any] | None = None
@@ -115,6 +118,7 @@ class RunRegistry:
             lease=record.lease,
             sensor_health=dict(record.sensor_health),
             startup=record.startup,
+            permission_grants=record.permission_grants,
             actions=[dict(item) for item in record.actions],
             incidents=[dict(item) for item in record.incidents],
             result=dict(record.result) if record.result is not None else None,

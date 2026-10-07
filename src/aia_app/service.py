@@ -467,6 +467,9 @@ class RunApplicationService(
     def respond_codex_elicitation(self, session_id: str, elicitation_id: str, action: str, content: Any) -> dict[str, Any]:
         return self._codex_workbench.respond_codex_elicitation(session_id, elicitation_id, action, content)
 
+    def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
+        return self._codex_workbench.respond_codex_permissions(session_id, permissions_id, decision)
+
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         return self._codex_workbench._resolve_unsupported_tool_review(session_id, approval_id, decision)
 
@@ -1540,6 +1543,7 @@ class RunApplicationService(
             "launch_mode": record.launch_mode,
             "phase": record.phase,
             "startup": record.startup,
+            "permission_grants": record.permission_grants,
             "protection": {
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,

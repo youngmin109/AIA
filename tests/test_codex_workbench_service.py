@@ -63,6 +63,11 @@ class FakeCodexSession:
         self.calls.append(("approval", approval_id, decision))
         return {"accepted": True, "approval_id": approval_id, "decision": decision}
 
+    def respond_permissions(self, permissions_id: str, decision: str) -> dict:
+        self.calls.append(("permissions", permissions_id, decision))
+        return {"accepted": True, "permissions_id": permissions_id, "decision": decision, "network": True,
+                "filesystem": [{"access": "write", "target": "C:\shared", "scope": "outside"}], "reason": "sync"}
+
     def post_event(self, event: dict) -> None:
         self.calls.append(("event", dict(event)))
 
@@ -180,6 +185,23 @@ def test_conversation_api_delegates_to_the_attached_session(service, tmp_path) -
         ("approval", "approval-1", "decline"),
         ("close", False),
     ]
+
+
+def test_granted_permissions_are_recorded_on_the_run_and_declines_are_not(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service.registry.add(record)
+
+    service.respond_codex_permissions(record.session_id, "permissions-1", "decline")
+    assert record.permission_grants == []
+    service.respond_codex_permissions(record.session_id, "permissions-2", "session")
+
+    assert session.calls[-1] == ("permissions", "permissions-2", "session")
+    [grant] = record.permission_grants
+    assert (grant["scope"], grant["network"], grant["reason"]) == ("session", True, "sync")
+    assert grant["filesystem"][0]["scope"] == "outside"
+    assert service.get_run_status(record.session_id)["permission_grants"] == [grant]
 
 
 def test_codex_status_reports_detached_state_and_open_errors(service, tmp_path) -> None:

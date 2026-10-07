@@ -49,3 +49,16 @@ test('an MCP input request closes with its action and keeps no submitted values'
   assert.equal(done.items[0].request.server, 'tracker')
   assert.equal(JSON.stringify(done.items[0]).includes('content'), false)
 })
+
+test('a permission request closes with the decision and summarises what it widens', async () => {
+  const { grantSummary, widensBeyondProtection } = await import('../src/api/permissionGrants.ts')
+  const request = { network: true, filesystem: [{ access: 'write', target: 'D:/shared', scope: 'outside' }, { access: 'read', target: '작업 폴더 / docs', scope: 'inside' }] }
+  const asked = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'permissions.requested', permissions_id: 'permissions-1', reason: 'sync', ...request }])
+  assert.equal(asked.pendingPermissions.length, 1)
+  const granted = applyEvents(asked, [{ sequence: 2, type: 'permissions.resolved', permissions_id: 'permissions-1', decision: 'session' }])
+  assert.deepEqual(granted.pendingPermissions, [])
+  assert.equal(granted.items[0].decision, 'session')
+  assert.equal(grantSummary({ ...request, scope: 'session' }), '인터넷 · 쓰기 D:/shared · 읽기 작업 폴더 / docs · 실행 내내')
+  assert.equal(widensBeyondProtection([{ granted_at: 't', scope: 'turn', ...request }]), true)
+  assert.equal(widensBeyondProtection([{ granted_at: 't', scope: 'turn', network: false, filesystem: [{ access: 'read', target: 'x', scope: 'inside' }] }]), false)
+})

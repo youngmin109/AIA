@@ -5,6 +5,8 @@
 // folds those events into transcript items. It never inspects screen text:
 // every state change comes from a structured event.
 
+import type { PermissionEntry } from '../../api/permissionGrants'
+
 export interface CodexEvent {
   sequence: number
   type: string
@@ -47,7 +49,13 @@ export interface CodexEvent {
   url_host?: string | null
   supported?: boolean
   action?: string
+  permissions_id?: string
+  network?: boolean
+  filesystem?: PermissionEntry[]
 }
+
+// Codex asking to widen its sandbox (item/permissions/requestApproval).
+export interface PermissionsRequest { permissions_id: string; reason: string; network: boolean; filesystem: PermissionEntry[] }
 
 // An MCP server asking for input through Codex (mcpServer/elicitation/request).
 // Submitted values go to Codex only; the resolved event carries the action alone.
@@ -109,6 +117,7 @@ export type TranscriptItem =
   | { kind: 'approval'; key: string; request: ApprovalRequest; decision: string | null }
   | { kind: 'question'; key: string; request: QuestionRequest; outcome: QuestionOutcome | null; answers: Record<string, string[] | null> }
   | { kind: 'elicitation'; key: string; request: ElicitationRequest; action: string | null }
+  | { kind: 'permissions'; key: string; request: PermissionsRequest; decision: string | null }
   | { kind: 'notice'; key: string; tone: 'info' | 'warn' | 'bad'; text: string }
 
 export interface ConversationState {
@@ -119,6 +128,7 @@ export interface ConversationState {
   pendingApprovals: ApprovalRequest[]
   pendingQuestions: QuestionRequest[]
   pendingElicitations: ElicitationRequest[]
+  pendingPermissions: PermissionsRequest[]
   lastEventAt: number
 }
 
@@ -130,6 +140,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   pendingApprovals: [],
   pendingQuestions: [],
   pendingElicitations: [],
+  pendingPermissions: [],
   lastEventAt: 0,
 }
 
@@ -359,6 +370,30 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingElicitations = state.pendingElicitations.filter((item) => item.elicitation_id !== event.elicitation_id)
       break
     }
+    case 'permissions.requested': {
+      const request: PermissionsRequest = {
+        permissions_id: event.permissions_id ?? '',
+        reason: event.reason ?? '',
+        network: Boolean(event.network),
+        filesystem: event.filesystem ?? [],
+      }
+      const key = `permissions:${request.permissions_id}`
+      upsert(state, key, () => ({ kind: 'permissions', key, request, decision: null }), (item) => item)
+      state.pendingPermissions = [...state.pendingPermissions.filter((item) => item.permissions_id !== request.permissions_id), request]
+      break
+    }
+    case 'permissions.resolved': {
+      const key = `permissions:${event.permissions_id}`
+      const decision = event.decision ?? 'cancel'
+      upsert(
+        state,
+        key,
+        () => ({ kind: 'permissions', key, request: { permissions_id: event.permissions_id ?? '', reason: '', network: false, filesystem: [] }, decision }),
+        (item) => (item.kind === 'permissions' ? { ...item, decision } : item),
+      )
+      state.pendingPermissions = state.pendingPermissions.filter((item) => item.permissions_id !== event.permissions_id)
+      break
+    }
     case 'warning':
       notice(state, event, 'warn', event.message ?? 'Codex 경고')
       break
@@ -370,6 +405,7 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingApprovals = []
       state.pendingQuestions = []
       state.pendingElicitations = []
+      state.pendingPermissions = []
       notice(state, event, event.unexpected ? 'bad' : 'info', event.unexpected ? 'Codex가 예기치 않게 종료되었습니다.' : 'Codex 세션이 종료되었습니다.')
       break
     default:
@@ -389,6 +425,7 @@ export function applyEvents(previous: ConversationState, events: CodexEvent[]): 
     pendingApprovals: [...previous.pendingApprovals],
     pendingQuestions: [...previous.pendingQuestions],
     pendingElicitations: [...previous.pendingElicitations],
+    pendingPermissions: [...previous.pendingPermissions],
   }
   for (const event of fresh) {
     applyEvent(state, event)

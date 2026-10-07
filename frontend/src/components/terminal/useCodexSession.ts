@@ -1,6 +1,6 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type ElicitationRequest, type QuestionRequest } from './codexConversation'
+import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
 
 // Talks to WS /api/runs/{id}/codex. The server pushes structured events as
 // Codex produces them; this hook only folds them into a transcript and sends
@@ -19,6 +19,7 @@ export interface CodexStatus {
   pending_approvals: ApprovalRequest[]
   pending_questions?: QuestionRequest[]
   pending_elicitations?: ElicitationRequest[]
+  pending_permissions?: PermissionsRequest[]
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -219,6 +220,14 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  const decidePermissions = useCallback(
+    (permissionsId: string, decision: 'turn' | 'session' | 'decline') => {
+      setErrorMessage(null)
+      return send({ type: 'permissions_decision', permissions_id: permissionsId, decision, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   const endSession = useCallback(() => {
     if (send({ type: 'end_session', client_id: nextClientId() })) setEndPending(true)
   }, [send])
@@ -259,6 +268,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     if (!settled.has(item.elicitation_id)) elicitationsById.set(item.elicitation_id, item)
   }
   const pendingElicitations = [...elicitationsById.values()]
+  const decided = new Set<string>()
+  for (const item of conversation.items) {
+    if (item.kind === 'permissions' && item.decision) decided.add(item.request.permissions_id)
+  }
+  const permissionsById = new Map<string, PermissionsRequest>()
+  for (const item of [...(status?.pending_permissions ?? []), ...conversation.pendingPermissions]) {
+    if (!decided.has(item.permissions_id)) permissionsById.set(item.permissions_id, item)
+  }
+  const pendingPermissions = [...permissionsById.values()]
 
   return {
     conversation,
@@ -275,6 +293,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     pendingApprovals,
     pendingQuestions,
     pendingElicitations,
+    pendingPermissions,
     errorMessage,
     interruptPending,
     endPending,
@@ -283,6 +302,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     decideApproval,
     answerQuestion,
     respondElicitation,
+    decidePermissions,
     endSession,
     onRestoreDraft,
     dismissError: () => setErrorMessage(null),

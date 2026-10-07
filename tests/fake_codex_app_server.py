@@ -3,7 +3,7 @@
 It speaks the same newline-delimited JSON-RPC shapes the real app-server uses
 for the methods AIA depends on.  The first word of a turn's text selects the
 scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``question``,
-``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``race``, ``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
+``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``race``, ``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
 fake reports as applied.
 """
 
@@ -132,6 +132,15 @@ def handle_turn_start(request_id, text: str) -> None:
         else:
             request.update(mode="openai/form", requestedSchema={"anything": True})
         send({"id": "srv-6", "method": "mcpServer/elicitation/request", "params": request})
+    elif scenario == "perm":
+        state["pending"] = ("permissions", turn_id)
+        send({"id": "srv-7", "method": "item/permissions/requestApproval",
+              "params": {"threadId": "thr-1", "turnId": turn_id, "itemId": "p-1", "cwd": "C:/ws",
+                         "startedAtMs": 1, "reason": "needs the network and a sibling folder",
+                         "permissions": {"network": {"enabled": True}, "fileSystem": {"entries": [
+                             {"access": "write", "path": {"type": "path", "path": "../shared"}},
+                             {"access": "read", "path": {"type": "special", "value": {"kind": "project_roots", "subpath": "docs"}}},
+                             {"access": "write", "path": {"type": "special", "value": {"kind": "root"}}}]}}}})
     elif scenario == "slow":
         pass  # stays in progress until turn/interrupt
 
@@ -144,6 +153,10 @@ def handle_server_response(message: dict) -> None:
     kind, turn_id = pending
     if kind == "ask":
         agent_reply(turn_id, "got-error" if "error" in message else "got-result")
+        complete_turn(turn_id)
+        return
+    if kind == "permissions":
+        agent_reply(turn_id, "permissions=" + json.dumps(message.get("result"), sort_keys=True))
         complete_turn(turn_id)
         return
     if kind == "elicitation":

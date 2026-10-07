@@ -643,3 +643,38 @@ details.chat-output pre {
   gap: 8px;
   font-size: 14px;
 }
+
+/* Permission requests and grants (EPIC-021 TASK-107). */
+.permission-list,
+.work-grants {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.permission-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--fill-1);
+}
+
+.permission-list code {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.work-grants li {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--warning-line);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  overflow-wrap: anywhere;
+}

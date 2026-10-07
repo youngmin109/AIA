@@ -365,6 +365,45 @@ def test_non_web_urls_are_never_offered_to_open() -> None:
     assert parsed["supported"] is False and parsed["url"] is None
 
 
+def _permissions(opened: CodexAppServerSession) -> dict:
+    opened.send_message("perm please")
+    events = _wait_for(opened, lambda items: "permissions.requested" in _types(items))
+    return next(e for e in events if e["type"] == "permissions.requested")
+
+
+def test_permission_request_shows_where_protection_would_widen(opened: CodexAppServerSession) -> None:
+    request = _permissions(opened)
+    assert "requested" not in request and "request_id" not in request
+    assert request["network"] is True
+    assert request["reason"] == "needs the network and a sibling folder"
+    scopes = [(entry["access"], entry["scope"]) for entry in request["filesystem"]]
+    assert scopes == [("write", "outside"), ("read", "inside"), ("write", "outside")]
+    assert request["filesystem"][2]["target"] == "컴퓨터 전체"
+    assert opened.snapshot()["pending_permissions"][0]["permissions_id"] == request["permissions_id"]
+
+
+@pytest.mark.parametrize("decision", ["turn", "session"])
+def test_granting_permissions_echoes_the_request_with_its_scope(opened: CodexAppServerSession, decision: str) -> None:
+    request = _permissions(opened)
+    result = opened.respond_permissions(request["permissions_id"], decision)
+    assert result["network"] is True and len(result["filesystem"]) == 3
+    reply, events = _final_reply(opened)
+    granted = json.loads(reply.removeprefix("permissions="))
+    assert granted["scope"] == decision
+    assert granted["permissions"]["network"] == {"enabled": True}
+    assert len(granted["permissions"]["fileSystem"]["entries"]) == 3
+    assert next(e for e in events if e["type"] == "permissions.resolved")["decision"] == decision
+
+
+def test_declining_permissions_grants_nothing(opened: CodexAppServerSession) -> None:
+    request = _permissions(opened)
+    with pytest.raises(CodexAppServerError):
+        opened.respond_permissions(request["permissions_id"], "always")
+    opened.respond_permissions(request["permissions_id"], "decline")
+    assert _final_reply(opened)[0] == 'permissions={"permissions": {}}'
+    assert opened.snapshot()["pending_permissions"] == []
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

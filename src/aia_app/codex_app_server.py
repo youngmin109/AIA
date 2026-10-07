@@ -154,6 +154,15 @@ _MAX_ANSWER_CHARS = 4_000
 _ELICITATION_REQUEST = "mcpServer/elicitation/request"
 ELICITATION_ACTIONS = frozenset({"accept", "decline", "cancel"})
 _MAX_ELICITATION_FIELDS = 20
+# Codex asking to widen its sandbox (file system or network); the user decides.
+_PERMISSIONS_REQUEST = "item/permissions/requestApproval"
+PERMISSION_DECISIONS = frozenset({"turn", "session", "decline"})
+_SPECIAL_PATH_LABELS = {
+    "root": ("컴퓨터 전체", "outside"),
+    "minimal": ("기본 시스템 경로", "outside"),
+    "tmpdir": ("임시 폴더", "outside"),
+    "slash_tmp": ("/tmp", "outside"),
+}
 # A JSON-RPC "method not found" reply lets Codex continue instead of waiting
 # forever on a request the Workbench cannot present.
 _UNSUPPORTED_REQUEST_CODE = -32601
@@ -318,6 +327,65 @@ def _elicitation_value(field: Mapping[str, Any], value: Any) -> Any:
     raise CodexAppServerError("answers do not match the request")
 
 
+def _permission_target(path: Any, workspace: Path) -> tuple[str, str] | None:
+    """Readable target and whether it lies inside the protected workspace."""
+
+    if not isinstance(path, Mapping):
+        return None
+    kind = path.get("type")
+    if kind == "path" and isinstance(path.get("path"), str):
+        target = Path(path["path"]).expanduser()
+        resolved = (target if target.is_absolute() else workspace / target).resolve(strict=False)
+        inside = resolved == workspace or workspace in resolved.parents
+        return str(resolved), "inside" if inside else "outside"
+    if kind == "glob_pattern" and isinstance(path.get("pattern"), str):
+        return path["pattern"], "unknown"
+    value = path.get("value")
+    if kind == "special" and isinstance(value, Mapping):
+        special = value.get("kind")
+        if special == "project_roots":
+            subpath = _text_of(value.get("subpath"))
+            return f"작업 폴더{f' / {subpath}' if subpath else ''}", "inside"
+        if special in _SPECIAL_PATH_LABELS:
+            return _SPECIAL_PATH_LABELS[special]
+        return _text_of(value.get("path")) or "알 수 없는 경로", "unknown"
+    return None
+
+
+def _parse_permissions(params: Mapping[str, Any], workspace: Path) -> dict[str, Any] | None:
+    """What Codex asks to widen, in display form; ``None`` when the shape is unknown."""
+
+    requested = params.get("permissions")
+    if not isinstance(requested, Mapping):
+        return None
+    filesystem: list[dict[str, str]] = []
+    file_system = requested.get("fileSystem")
+    if file_system is not None:
+        if not isinstance(file_system, Mapping):
+            return None
+        for entry in file_system.get("entries") or []:
+            target = _permission_target(entry.get("path"), workspace) if isinstance(entry, Mapping) else None
+            access = entry.get("access") if isinstance(entry, Mapping) else None
+            if target is None or access not in {"read", "write", "deny"}:
+                return None
+            filesystem.append({"access": access, "target": target[0], "scope": target[1]})
+        for access in ("read", "write"):
+            for legacy in file_system.get(access) or []:
+                target = _permission_target({"type": "path", "path": legacy}, workspace)
+                if target is None:
+                    return None
+                filesystem.append({"access": access, "target": target[0], "scope": target[1]})
+    network = requested.get("network")
+    if network is not None and not isinstance(network, Mapping):
+        return None
+    return {
+        "reason": _text_of(params.get("reason")),
+        "network": bool(network and network.get("enabled")),
+        "filesystem": filesystem,
+        "requested": dict(requested),
+    }
+
+
 def _command_text(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -472,6 +540,8 @@ class CodexAppServerSession:
         self._next_question = 1
         self._pending_elicitations: dict[str, dict[str, Any]] = {}
         self._next_elicitation = 1
+        self._pending_permissions: dict[str, dict[str, Any]] = {}
+        self._next_permissions = 1
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -608,6 +678,8 @@ class CodexAppServerSession:
             self._pending_questions.clear()
             elicitations = list(self._pending_elicitations.items())
             self._pending_elicitations.clear()
+            permission_requests = list(self._pending_permissions.items())
+            self._pending_permissions.clear()
         if process is None:
             return
         if not force and not already_closing:
@@ -620,6 +692,9 @@ class CodexAppServerSession:
             for elicitation_id, elicitation in elicitations:
                 self._respond(elicitation["request_id"], {"action": "cancel"})
                 self._append_event({"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": "cancel"})
+            for permissions_id, request in permission_requests:
+                self._respond(request["request_id"], {"permissions": {}})
+                self._append_event({"type": "permissions.resolved", "permissions_id": permissions_id, "decision": "cancel"})
             if thread_id is not None and turn_id is not None and process.poll() is None:
                 try:
                     self._request("turn/interrupt", {"threadId": thread_id, "turnId": turn_id}, timeout=2.0)
@@ -752,6 +827,33 @@ class CodexAppServerSession:
         self._append_event({"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": action})
         return {"accepted": True, "elicitation_id": elicitation_id, "action": action}
 
+    def respond_permissions(self, permissions_id: str, decision: str) -> dict[str, Any]:
+        """Grant what Codex asked for (this turn or the whole session) or decline.
+
+        A grant widens the sandbox exactly as requested; the caller records it
+        so the run shows that protection reached less than before.
+        """
+
+        if decision not in PERMISSION_DECISIONS:
+            raise CodexAppServerError("permission decision is not supported")
+        with self._lock:
+            request = self._pending_permissions.pop(permissions_id, None)
+        if request is None:
+            raise CodexAppServerError("permission request is no longer pending")
+        if decision == "decline":
+            self._respond(request["request_id"], {"permissions": {}})
+        else:
+            self._respond(request["request_id"], {"permissions": request["requested"], "scope": decision})
+        self._append_event({"type": "permissions.resolved", "permissions_id": permissions_id, "decision": decision})
+        return {
+            "accepted": True,
+            "permissions_id": permissions_id,
+            "decision": decision,
+            "network": request["network"],
+            "filesystem": request["filesystem"],
+            "reason": request["reason"],
+        }
+
     # -- event buffer ------------------------------------------------------
 
     def read_events(self, after_sequence: int = 0) -> list[dict[str, Any]]:
@@ -801,6 +903,10 @@ class CodexAppServerSession:
                 {key: value for key, value in elicitation.items() if key != "request_id"}
                 for elicitation in self._pending_elicitations.values()
             ]
+            permission_requests = [
+                {key: value for key, value in request.items() if key not in {"request_id", "requested"}}
+                for request in self._pending_permissions.values()
+            ]
             snapshot = {
                 "mode": "codex_app_server",
                 "status": self._status,
@@ -810,6 +916,7 @@ class CodexAppServerSession:
                 "pending_approvals": pending,
                 "pending_questions": questions,
                 "pending_elicitations": elicitations,
+                "pending_permissions": permission_requests,
                 "effective": dict(self._effective),
                 "started_at": self._started_at.isoformat() if self._started_at else None,
                 "ended_at": self._ended_at.isoformat() if self._ended_at else None,
@@ -933,6 +1040,7 @@ class CodexAppServerSession:
             self._pending_approvals.clear()
             self._pending_questions.clear()
             self._pending_elicitations.clear()
+            self._pending_permissions.clear()
             self._append_event_locked({"type": "session.exited", "exit_code": exit_code, "unexpected": unexpected})
 
     def _read_stderr(self) -> None:
@@ -977,6 +1085,11 @@ class CodexAppServerSession:
             elicitation = _parse_elicitation(params)
             if elicitation is not None:
                 self._open_elicitation(request_id, params, elicitation)
+                return
+        if method == _PERMISSIONS_REQUEST:
+            permissions = _parse_permissions(params, self.cwd)
+            if permissions is not None:
+                self._open_permissions(request_id, params, permissions)
                 return
         kind = _APPROVAL_REQUESTS.get(method)
         if kind is None:
@@ -1043,6 +1156,25 @@ class CodexAppServerSession:
                 {"type": "elicitation.requested", **{key: value for key, value in pending.items() if key != "request_id"}}
             )
 
+    def _open_permissions(self, request_id: Any, params: Mapping[str, Any], permissions: dict[str, Any]) -> None:
+        with self._lock:
+            permissions_id = f"permissions-{self._next_permissions}"
+            self._next_permissions += 1
+            pending = {
+                "permissions_id": permissions_id,
+                "request_id": request_id,
+                "item_id": params.get("itemId"),
+                "turn_id": params.get("turnId"),
+                **permissions,
+            }
+            self._pending_permissions[permissions_id] = pending
+            self._append_event_locked(
+                {
+                    "type": "permissions.requested",
+                    **{key: value for key, value in pending.items() if key not in {"request_id", "requested"}},
+                }
+            )
+
     def _handle_notification(self, method: str, params: Mapping[str, Any]) -> None:
         if method == "serverRequest/resolved":
             request_id = params.get("requestId")
@@ -1064,6 +1196,12 @@ class CodexAppServerSession:
                         del self._pending_elicitations[elicitation_id]
                         self._append_event_locked(
                             {"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": "resolved_by_codex"}
+                        )
+                for permissions_id, request in list(self._pending_permissions.items()):
+                    if request["request_id"] == request_id:
+                        del self._pending_permissions[permissions_id]
+                        self._append_event_locked(
+                            {"type": "permissions.resolved", "permissions_id": permissions_id, "decision": "resolved_by_codex"}
                         )
             return
         event = normalize_notification(method, params)

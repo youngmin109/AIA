@@ -2,11 +2,18 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-07 · TASK-107
+- 서버: `item/permissions/requestApproval`을 `permissions.requested`로. 경로마다 작업 폴더 안/밖/확인 불가 표시(경로·패턴·특수 경로). 형식이 다르면 예전처럼 거절.
+- 사용자 선택 그대로: 이번 요청만(`scope: turn`)·실행 내내(`session`)는 요청받은 권한을 그대로 돌려주고, 거절은 빈 권한.
+- 허용하면 실행 기록 `permission_grants`에 남기고 실행 상태(진행 중·끝난 실행 모두)에 실음. 보호 패널과 ③ 결과에 "넓힌 권한"과 범위 밖 안내.
+- 테스트: pytest 902, 프론트 45 통과.
+
 ## 2026-10-07 · TASK-106
 - 서버: `mcpServer/elicitation/request`를 `elicitation.requested`로. form은 단순 칸(글자·숫자·정수·참거짓·고르기·여러 개 고르기)만, 그 밖은 `supported: false`(거절·취소만).
 - url은 http/https만 받고 도메인(`url_host`)을 따로 줌. 응답은 `elicitation_response`(accept/decline/cancel), 값은 칸 형식대로 검사.
 - 입력한 값은 Codex에만 전달. `elicitation.resolved`에는 action만. 질문과 같이 Codex 철회·세션 종료·비정상 종료 때 닫음.
 - 화면: 외부 도구 입력 카드("AIA 보호 범위 밖" 표시). 테스트: pytest 897, 프론트 44 통과.
+- 주의: 전체 pytest가 한 번 1건 실패했고, 그 뒤 연속 3번은 모두 통과(이름 미확인, 일시적). 실패를 보지 못한 채 커밋돼서, 이후로는 테스트를 확인한 뒤 따로 커밋함.
 
 ## 2026-10-07 · TASK-105
 - 서버: `item/tool/requestUserInput`을 받아 `question.requested` 이벤트로. 모르는 형식이면 예전처럼 -32601 거절. 답은 `question_answer` WebSocket 메시지 → `{answers: {id: {answers: [...]}}}`.

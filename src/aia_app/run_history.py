@@ -355,6 +355,11 @@ class RunHistoryMixin:
                     **(status.get("session") or {}),
                     "launch_mode": runtime_launch_mode,
                 }
+            # Permission grants are Workbench decisions, not Core evidence; they
+            # live in the runtime snapshot and stay visible after the run ends.
+            grants = runtime_state.get("permission_grants") if isinstance(runtime_state, Mapping) else None
+            if isinstance(grants, list) and grants:
+                status = {**status, "permission_grants": grants}
             return status
         hook_broker_healthy = (
             live_hook_broker_healthy
@@ -392,6 +397,7 @@ class RunHistoryMixin:
             "interactive": record.interactive,
             "phase": record.phase,
             "startup": record.startup,
+            "permission_grants": record.permission_grants,
             "result_path": str(record.result_path) if record.result_path is not None else None,
             "protection": {
                 "state": record.protection_state,
@@ -676,6 +682,7 @@ class RunHistoryMixin:
             "mode": state.get("mode"),
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
             "startup": state.get("startup") if isinstance(state.get("startup"), dict) else {},
+            "permission_grants": state.get("permission_grants") if isinstance(state.get("permission_grants"), list) else [],
             "result_path": state.get("result_path"),
             "protection": protection,
             "stop": stop,

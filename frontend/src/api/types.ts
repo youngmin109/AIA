@@ -4,6 +4,7 @@
 // than being exhaustively modeled (no codegen from the Python side yet).
 
 import type { StartupInfo } from './startupStatus'
+import type { PermissionGrant } from './permissionGrants'
 
 export interface SecurityEvent {
   event_id?: string
@@ -70,6 +71,7 @@ export interface EvidenceSummary {
 
 export interface RunStatus {
   startup?: StartupInfo
+  permission_grants?: PermissionGrant[]
   activity?: {
     available?: boolean; live?: boolean; current_alive_count?: number | null; unique_file_count?: number;
     process_identity_count?: number; truncated?: boolean;

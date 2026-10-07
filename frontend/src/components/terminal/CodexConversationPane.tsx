@@ -6,6 +6,8 @@ import { RingTimer } from '../common/Charts'
 import { StartupProgress } from '../common/StartupProgress'
 import { QuestionCard } from './QuestionCard'
 import { ElicitationCard } from './ElicitationCard'
+import { PermissionsCard } from './PermissionsCard'
+import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -121,6 +123,12 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
       )
     case 'question':
       return <div className={`chat-hook ${item.outcome ? 'is-hook' : 'is-warn'}`}>{questionSummary(item)}</div>
+    case 'permissions':
+      return (
+        <div className={`chat-hook ${item.decision === 'turn' || item.decision === 'session' ? 'is-warn' : item.decision ? 'is-hook' : 'is-warn'}`}>
+          {`권한 요청 · ${grantSummary(item.request)} · ${item.decision ? PERMISSION_DECISION_LABELS[item.decision] ?? item.decision : '결정 대기 중'}`}
+        </div>
+      )
     case 'elicitation':
       return (
         <div className={`chat-hook ${item.action ? 'is-hook' : 'is-warn'}`}>
@@ -130,6 +138,14 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
     case 'notice':
       return <div className={`chat-notice is-${item.tone}`}>{item.text}</div>
   }
+}
+
+const PERMISSION_DECISION_LABELS: Record<string, string> = {
+  turn: '이번 요청만 허용했어요',
+  session: '실행 내내 허용했어요',
+  decline: '거절했어요',
+  cancel: '세션 종료로 취소됐어요',
+  resolved_by_codex: 'Codex가 요청을 거뒀어요',
 }
 
 const ELICITATION_ACTION_LABELS: Record<string, string> = {
@@ -365,6 +381,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const firstApproval = session.pendingApprovals[0]
   const firstQuestion = session.pendingQuestions[0]
   const firstElicitation = session.pendingElicitations[0]
+  const firstPermissions = session.pendingPermissions[0]
   const error = session.status?.error
   const dotTone = session.ended ? 'neutral' : approvalWaiting ? 'warn' : session.connection.tone === 'bad' ? 'bad' : 'ok'
 
@@ -430,6 +447,14 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         </div>
       )}
 
+      {firstPermissions && !session.ended && (
+        <PermissionsCard
+          key={firstPermissions.permissions_id}
+          request={firstPermissions}
+          disabled={!session.connected}
+          onDecide={(decision) => session.decidePermissions(firstPermissions.permissions_id, decision)}
+        />
+      )}
       {firstElicitation && !session.ended && (
         <ElicitationCard
           key={firstElicitation.elicitation_id}
