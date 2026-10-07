@@ -182,3 +182,83 @@ def test_exception_cleanup_waits_for_snapshot_before_releasing_lease():
         assert released.is_set() and record.runtime['point_closing']
     finally:
         proceed.set(); worker.join(); cleanup.join()
+
+
+def test_auto_points_keep_the_newest_five_and_never_remove_manual_or_baseline(tmp_path, monkeypatch):
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    (workspace / 'note.txt').write_text('manual', encoding='utf-8')
+    manual = service.save_recovery_point(session.session_id, name='직접 저장')
+    saved = []
+    for index in range(7):
+        (workspace / 'note.txt').write_text(f'auto-{index}', encoding='utf-8')
+        saved.append(service.save_recovery_point(session.session_id, name='작업 완료', kind='AUTO')['checkpoint_id'])
+    points = service.list_recovery_points(session.session_id)['points']
+    kinds = [point['kind'] for point in points]
+    assert kinds.count('AUTO') == 5 and kinds.count('MANUAL') == 1 and kinds.count('BASELINE') == 1
+    kept = {point['checkpoint_id'] for point in points}
+    assert manual['checkpoint_id'] in kept and baseline.checkpoint_id in kept
+    assert set(saved[-5:]) <= kept and not set(saved[:2]) & kept
+    checkpoints = service.reader.session_directory(session.session_id) / 'checkpoints'
+    assert not any((checkpoints / checkpoint_id).exists() for checkpoint_id in saved[:2])
+
+
+def test_large_workspaces_skip_automatic_points_but_allow_manual_ones(tmp_path, monkeypatch):
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    monkeypatch.setattr('aia_app.recovery_points.AUTO_MAX_FILES', 1)
+    (workspace / 'note.txt').write_text('changed', encoding='utf-8')
+    with pytest.raises(ApplicationValidationError, match='자동 저장'):
+        service.save_recovery_point(session.session_id, name='작업 완료', kind='AUTO')
+    assert service.save_recovery_point(session.session_id, name='직접 저장')['saved'] is True
+
+
+def test_a_message_waits_for_a_running_capture_instead_of_failing(tmp_path, monkeypatch):
+    import threading
+    import time as time_module
+    import aia_app.service as service_module
+    from aia_app.codex_app_server import CodexAppServerError
+
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    sent = []
+    monkeypatch.setattr(service._codex_workbench, 'send_codex_message', lambda session_id, text: sent.append(text) or {'accepted': True})
+    lock = service._point_lock(record)
+    captured = threading.Event()
+
+    def capture_briefly():
+        # The capture runs on its own thread, like the automatic save.
+        with lock:
+            captured.set()
+            time_module.sleep(0.3)
+
+    capture = threading.Thread(target=capture_briefly)
+    capture.start()
+    captured.wait(2)
+    monkeypatch.setattr(service_module, '_POINT_SEND_WAIT_SECONDS', 5.0)
+    started = time_module.monotonic()
+    assert service.send_codex_message(session.session_id, 'next step')['accepted'] is True
+    assert sent == ['next step'] and time_module.monotonic() - started >= 0.2
+    capture.join()
+
+    holder = threading.Event()
+    done = threading.Event()
+
+    def hold():
+        with lock:
+            holder.set()
+            done.wait(2)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    holder.wait(2)
+    monkeypatch.setattr(service_module, '_POINT_SEND_WAIT_SECONDS', 0.1)
+    with pytest.raises(CodexAppServerError, match='저장 중'):
+        service.send_codex_message(session.session_id, 'too soon')
+    done.set()
+    thread.join()
+
+
+def test_containment_errors_are_rebuilt_not_appended():
+    from aia_app.protected_run import _containment_errors
+
+    containments = (SimpleNamespace(termination_error='terminate failed'), SimpleNamespace(termination_error=None))
+    assert _containment_errors(containments) == ['terminate failed']
+    assert _containment_errors(containments) == ['terminate failed'], 'a second pass gives the same list'

@@ -27,3 +27,11 @@ test('restore uses selected checkpoint and native pet cannot heartbeat on behalf
   assert.match(source('main.tsx'), /else startDesktopHeartbeat\(\)/)
   assert.match(source('components/shell/DesktopGuardian.tsx'), /최신 상태 확인 불가/)
 })
+
+test('the desktop guardian never treats a run left behind by a closed app as live', async () => {
+  const { isRunActive } = await import('../src/api/sessionNavigation.ts')
+  assert.equal(isRunActive({ session_id: 'a', status: 'RUNNING' }), true)
+  assert.equal(isRunActive({ session_id: 'b', status: 'RUNNING', runtime_reconciliation: { orphaned: true } }), false)
+  assert.equal(isRunActive({ session_id: 'c', status: 'PREPARING', runtime_reconciliation: { orphaned: true } }), false)
+  assert.equal(isRunActive({ session_id: 'd', status: 'COMPLETED' }), false)
+})

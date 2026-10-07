@@ -5,6 +5,7 @@ import type { RunStatus, RunSummary } from '../../api/types'
 import { GuardianFigure } from '../common/GuardianAvatar'
 import { Button } from '../common/Button'
 import { readPetSize } from '../../api/petSizePreference'
+import { isRunActive } from '../../api/sessionNavigation'
 
 const UNKNOWN: GuardianStatus = { state: 'review', label: '확인 필요', headline: '보호 상태를 확인하는 중이에요', detail: '현재 상태를 확인하기 전에는 정상 보호로 해석하지 마세요.' }
 const POLICY: Record<string, string> = { PROTECTED_DEVELOPMENT: '표준 보호', BASIC_DEVELOPMENT: '협업 개발', CONSERVATIVE_SECURITY: '변경 통제 강화', FREE_DEVELOPMENT: '관찰 전용', CUSTOM: '사용자 지정' }
@@ -26,7 +27,8 @@ export function DesktopGuardian() {
       try {
         const response = await apiGet<RunSummary[] | { runs: RunSummary[] }>('/api/runs')
         const runs = Array.isArray(response) ? response : response.runs
-        const active = runs.filter(run => !['COMPLETED', 'ABORTED', 'FAILED'].includes(run.status ?? ''))
+        // Runs left behind by a closed app (orphaned) are not live; never watch them.
+        const active = runs.filter(isRunActive)
         const observations = await Promise.all(active.map(async run => {
           const status = await apiGet<RunStatus>(`/api/runs/${encodeURIComponent(run.session_id)}`)
           const conversation = run.launch_mode === 'codex_app_server' ? await apiGet<{ pending_approvals?: unknown[] }>(`/api/runs/${encodeURIComponent(run.session_id)}/codex/status`) : null

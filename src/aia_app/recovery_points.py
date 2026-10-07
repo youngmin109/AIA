@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+from pathlib import Path
+import shutil
 from threading import RLock, Thread
 import time
 from uuid import uuid4
@@ -13,6 +15,40 @@ from uuid import uuid4
 from aia.checkpoint import SafeCheckpointManager, _validate_artifact, _checkpoint_from_artifact
 from .protected_run import ApplicationValidationError, _sensors_runtime_healthy
 from .run_history import _hook_broker_runtime_healthy
+
+
+# Automatic points copy the whole workspace; keep the newest few and skip
+# workspaces whose copies would be slow or large.  Manual points are the
+# user's explicit choice and keep the existing per-session limit of 50.
+AUTO_POINTS_KEPT = 5
+AUTO_MAX_FILES = 1_000
+AUTO_MAX_BYTES = 50 * 1024 * 1024
+
+
+def _too_large_for_auto(workspace: Path) -> bool:
+    """Bounded walk: stops as soon as the workspace passes either limit."""
+
+    files = 0
+    total = 0
+    pending = [Path(workspace)]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            files += 1
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+                    if files >= AUTO_MAX_FILES or total >= AUTO_MAX_BYTES:
+                        return True
+        except OSError:
+            continue
+    return False
 
 
 def seal(body):
@@ -140,6 +176,8 @@ class RecoveryPointsMixin:
         if not isinstance(name, str) or not name.strip() or len(name) > 80:
             raise ApplicationValidationError('복구 지점 이름은 1~80자로 입력해 주세요.')
         record = self.registry.require(session_id)
+        if kind == 'AUTO' and _too_large_for_auto(record.workspace):
+            raise ApplicationValidationError('작업 폴더가 커서(파일 1,000개 또는 50MB 이상) 자동 저장을 하지 않았어요. 필요하면 직접 저장해 주세요.')
         lock = self._point_lock(record)
         if not lock.acquire(blocking=False):
             raise ApplicationValidationError('복구 지점을 저장 중이에요. 잠시 뒤 다시 시도해 주세요.')
@@ -170,10 +208,38 @@ class RecoveryPointsMixin:
             path = root / f'{point.checkpoint_id}.json'
             with path.open('x', encoding='utf-8') as stream:
                 json.dump(note, stream, ensure_ascii=False, indent=2)
+            if kind == 'AUTO':
+                self._prune_auto_points(session_id)
             record.runtime.pop('point_error', None)
             return {'saved': True, 'checkpoint_id': point.checkpoint_id, 'created_at': point.created_at.isoformat()}
         finally:
             lock.release()
+
+    def _prune_auto_points(self, session_id):
+        """Keep the newest AUTO_POINTS_KEPT automatic points; others are removed.
+
+        The note goes first, so an interrupted removal leaves a point without a
+        note, which is never offered for restore.
+        """
+
+        notes = []
+        for path in self._point_directory(session_id).glob('point-*.json'):
+            try:
+                note = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            if note.get('kind') == 'AUTO' and note.get('record_sha256') == seal(note):
+                notes.append((str(note.get('created_at') or ''), path, note))
+        checkpoints = self.reader.session_directory(session_id) / 'checkpoints'
+        for _, path, note in sorted(notes, key=lambda item: item[0])[:-AUTO_POINTS_KEPT]:
+            checkpoint_id = str(note.get('checkpoint_id') or '')
+            if not checkpoint_id.startswith('point-') or path.stem != checkpoint_id:
+                continue
+            try:
+                path.unlink()
+                shutil.rmtree(checkpoints / checkpoint_id, ignore_errors=True)
+            except OSError:
+                continue
 
     def _maybe_auto_checkpoint(self, record):
         codex = record.runtime.get('codex_session')

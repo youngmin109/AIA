@@ -140,6 +140,9 @@ def _product_sensor_set_present(sensors: Any) -> bool:
     return _PRODUCT_SENSOR_NAMES.issubset(names)
 
 
+_POINT_SEND_WAIT_SECONDS = 30.0
+
+
 class RunApplicationService(
     RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin
 ):
@@ -405,7 +408,9 @@ class RunApplicationService(
         if record is None:
             return self._codex_workbench.send_codex_message(session_id, text)
         lock = self._point_lock(record)
-        if not lock.acquire(blocking=False):
+        # A recovery-point capture is short for the workspaces it runs on; wait
+        # for it rather than rejecting the user's message outright.
+        if not lock.acquire(timeout=_POINT_SEND_WAIT_SECONDS):
             raise CodexAppServerError('복구 지점을 저장 중이에요. 잠시 뒤 명령을 다시 보내 주세요.')
         try:
             return self._codex_workbench.send_codex_message(session_id, text)
