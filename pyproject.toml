@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aia-mvp"
-version = "0.1.29"
+version = "0.1.30"
 description = "Protected execution and evidence product for Codex agents"
 readme = "README.md"
 license = { file = "LICENSE" }

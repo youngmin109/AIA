@@ -143,6 +143,12 @@ def _runtime_action_view(
     }
 
 
+def _containment_errors(containments: Any) -> list[str]:
+    """Termination errors of post-action containments, once per containment."""
+
+    return [item.termination_error for item in containments if item.termination_error]
+
+
 def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
     """Return only tool-use identifiers proven by PostToolUse Evidence.
 
@@ -291,6 +297,13 @@ class ProtectedRunMixin:
         self._open_codex_conversation(record)
         process = launcher.process_handle
         exit_code = self._wait_for_agent(record, process, launcher)
+        record.runtime['point_closing'] = True
+        worker = record.runtime.get('point_worker')
+        if worker is not None:
+            worker.join()
+        # No supplemental capture may race Lease release / final bundle creation.
+        with self._point_lock(record):
+            pass
         record.runtime["exit_code"] = exit_code
         hook_broker_healthy_before_stop = _hook_broker_runtime_healthy(record)
         record.runtime["hook_broker_runtime_healthy_before_stop"] = (
@@ -419,10 +432,13 @@ class ProtectedRunMixin:
                 execution_observed=True,
                 tool_name=_event_tool_name(containment.source_event),
             )
-            if containment.termination_error:
-                record.runtime.setdefault("post_action_containment_errors", []).append(
-                    containment.termination_error
-                )
+        # Evidence is now also processed during a run (recovery-point checks), so
+        # rebuild the error list from the containments instead of appending.
+        containment_errors = _containment_errors(post_action_containments)
+        if containment_errors:
+            record.runtime["post_action_containment_errors"] = containment_errors
+        else:
+            record.runtime.pop("post_action_containment_errors", None)
         all_actions = tuple(
             (*normalized.actions, *(item.action for item in post_action_containments))
         )

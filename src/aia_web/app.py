@@ -272,6 +272,16 @@ def _register_catalog_routes(app: FastAPI) -> None:
 
 
 def _register_policy_routes(app: FastAPI) -> None:
+    @app.get('/api/policy/templates/{profile}')
+    def policy_template(profile: str) -> JSONResponse:
+        from aia import resolve_profile
+        from aia.protection import policy_content_mapping
+        try:
+            resolved = resolve_profile(profile)
+            return JSONResponse({'document': policy_content_mapping(resolved)})
+        except (OSError, ValueError) as error:
+            return JSONResponse({'error': str(error)}, status_code=400)
+
     @app.post("/api/policy/preview")
     async def preview_policy(request: Request) -> JSONResponse:
         try:
@@ -415,9 +425,10 @@ def _register_run_details_routes(app: FastAPI) -> None:
         return JSONResponse(bundle, headers={'Cache-Control': 'no-store'})
 
     @app.get("/api/runs/{session_id}/recovery")
-    def recovery_status(session_id: str) -> JSONResponse:
+    def recovery_status(session_id: str, checkpoint_id: str | None = None) -> JSONResponse:
         try:
-            status = app.state.service.get_recovery_status(session_id)
+            status = (app.state.service.get_recovery_status(session_id, checkpoint_id)
+                      if checkpoint_id is not None else app.state.service.get_recovery_status(session_id))
             response = {
                 key: value
                 for key, value in status.items()
@@ -437,6 +448,10 @@ def _register_run_details_routes(app: FastAPI) -> None:
             payload = {}
         try:
             kwargs = {'confirm': isinstance(payload, dict) and payload.get('confirm') is True}
+            if isinstance(payload, dict) and 'checkpoint_id' in payload:
+                if not isinstance(payload['checkpoint_id'], str) or not payload['checkpoint_id'] or len(payload['checkpoint_id']) > 100:
+                    raise ValueError('복구 지점 식별값이 올바르지 않습니다.')
+                kwargs['checkpoint_id'] = payload['checkpoint_id']
             if isinstance(payload, dict) and 'expected_fingerprint' in payload:
                 if not isinstance(payload['expected_fingerprint'], str) or len(payload['expected_fingerprint']) != 64:
                     raise ValueError('복구 미리보기 확인값이 올바르지 않습니다.')
@@ -447,6 +462,29 @@ def _register_run_details_routes(app: FastAPI) -> None:
         except (OSError, ValueError) as error:
             return JSONResponse({"error": str(error)}, status_code=409)
         return JSONResponse(result, status_code=200)
+
+    @app.get('/api/runs/{session_id}/checkpoints')
+    async def recovery_points(session_id: str) -> JSONResponse:
+        try:
+            result = await to_thread.run_sync(lambda: app.state.service.list_recovery_points(session_id))
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+        except KeyError:
+            return JSONResponse({'error': '실행을 찾을 수 없어요.'}, status_code=404)
+        except (ValueError, OSError) as error:
+            return JSONResponse({'error': str(error)}, status_code=409)
+
+    @app.post('/api/runs/{session_id}/checkpoints')
+    async def save_recovery_point(request: Request, session_id: str) -> JSONResponse:
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict) or set(payload) - {'name'}:
+                raise ValueError('복구 지점 저장 요청이 올바르지 않습니다.')
+            result = await to_thread.run_sync(lambda: app.state.service.save_recovery_point(session_id, name=payload.get('name', '수동 복구 지점')))
+            return JSONResponse(result)
+        except KeyError:
+            return JSONResponse({'error': '실행을 찾을 수 없어요.'}, status_code=404)
+        except (ValueError, OSError) as error:
+            return JSONResponse({'error': str(error)}, status_code=409)
 
     @app.get("/api/runs/{session_id}/actions")
     def run_actions(session_id: str) -> JSONResponse:

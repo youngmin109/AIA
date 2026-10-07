@@ -17,6 +17,8 @@ import { applyGlassPreference, readGlassPreference, type GlassPreference } from 
 import { applyPetPreference, readPetPreference, type PetPreference } from '../../api/petPreference'
 import { connectionLights } from '../../api/settingsStatus'
 import { isConnectionLost } from '../../api/connectionState'
+import { syncDesktopGuardian } from '../../desktopBridge'
+import { applyPetSize, readPetSize, PET_SIZE_OPTIONS, type PetSizePreference } from '../../api/petSizePreference'
 
 const MOTION_OPTIONS: Array<[MotionPreference, string]> = [['auto', '자동'], ['full', '켜기'], ['reduced', '줄이기']]
 
@@ -29,6 +31,7 @@ export function SettingsView() {
   const [motion, setMotion] = useState(readMotionPreference)
   const [glass, setGlass] = useState<GlassPreference>(readGlassPreference)
   const [pet, setPet] = useState<PetPreference>(readPetPreference)
+  const [petSize, setPetSize] = useState(readPetSize)
   const [guideOpen, setGuideOpen] = useState(false)
   const guardian = useGuardianState()
   const [exporting, setExporting] = useState(false)
@@ -58,6 +61,13 @@ export function SettingsView() {
     const next: PetPreference = pet === 'on' ? 'off' : 'on'
     applyPetPreference(next)
     setPet(next)
+    syncDesktopGuardian()
+  }
+
+  function changePetSize(value: PetSizePreference) {
+    applyPetSize(value)
+    setPetSize(value)
+    window.pywebview?.api?.set_guardian_size?.(value).catch(() => setNotice('펫 창의 크기를 바꾸지 못했어요. 다시 선택해 주세요.'))
   }
 
   async function exportDiagnostics() {
@@ -128,9 +138,15 @@ export function SettingsView() {
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
           <button type="button" role="switch" aria-checked={pet === 'on'} className="glass-switch" onClick={togglePet}>
-            <span>가디언 펫<small>화면 위에 띄워 두고 끌어서 옮겨요</small></span>
+            <span>가디언 펫<small>Windows 앱에서는 바탕화면에 떠 있고, 앱을 최소화해도 상태를 안내해요. 완전히 종료하면 함께 꺼져요.</small></span>
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
+          <div className="settings-motion">
+            <span>펫 크기<small>바탕화면 아이아 크기 조절</small></span>
+            <div className="segmented" role="group" aria-label="펫 크기">
+              {PET_SIZE_OPTIONS.map(([value, label]) => <button key={value} type="button" aria-pressed={petSize === value} onClick={() => changePetSize(value)}>{label}</button>)}
+            </div>
+          </div>
           <div className="settings-motion">
             <span>움직임<small>가디언·화면 전환 애니메이션</small></span>
             <div className="segmented" role="group" aria-label="움직임">

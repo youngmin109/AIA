@@ -717,6 +717,8 @@ def _control_root_for_context(
 def _validate_preparation_context(
     session: ProtectedRunSession,
     context: ProtectionPreparationContext,
+    *,
+    runtime_snapshot: bool = False,
 ) -> None:
     if not isinstance(session, ProtectedRunSession):
         raise CheckpointRefusedError("session must be a ProtectedRunSession")
@@ -724,8 +726,9 @@ def _validate_preparation_context(
         raise CheckpointRefusedError(
             "context must be a ProtectionPreparationContext"
         )
-    if session.status is not SessionStatus.PREPARING:
-        raise CheckpointRefusedError("Safe Checkpoint requires PREPARING Session")
+    required_status = SessionStatus.RUNNING if runtime_snapshot else SessionStatus.PREPARING
+    if session.status is not required_status:
+        raise CheckpointRefusedError(f"Safe Checkpoint requires {required_status.value} Session")
     if context.session_id != session.session_id:
         raise CheckpointRefusedError("preparation context session does not match")
     if context.workspace != session.workspace:
@@ -749,8 +752,11 @@ class SafeCheckpointManager:
         lease_manager: WorkspaceLeaseManager | None = None,
         checkpoint_id: str | None = None,
         created_at: datetime | None = None,
+        runtime_snapshot: bool = False,
     ) -> SafeCheckpoint:
-        _validate_preparation_context(session, context)
+        # Explicit opt-in for a supplemental point. The original preparation
+        # contract and all ownership/content validation stay unchanged.
+        _validate_preparation_context(session, context, runtime_snapshot=runtime_snapshot)
         control_root = _control_root_for_context(session, context)
         manager = lease_manager or WorkspaceLeaseManager(control_root)
         manager.validate_ownership(context.workspace_lease)

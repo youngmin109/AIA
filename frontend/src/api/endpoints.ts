@@ -56,8 +56,8 @@ export function reconcileRun(sessionId: string): Promise<ReconcileResult> {
 /** Restores the whole Workspace of an ended run to its pre-run checkpoint and
  * re-verifies it with SHA-256 (service.py restore_run). The server refuses
  * without `confirm: true`, so callers must ask the user first. */
-export function restoreWorkspace(sessionId: string, fingerprint: string): Promise<Record<string, unknown>> {
-  return apiPost<Record<string, unknown>>(`/api/runs/${encodeURIComponent(sessionId)}/recovery/restore`, { confirm: true, expected_fingerprint: fingerprint })
+export function restoreWorkspace(sessionId: string, fingerprint: string, checkpointId?: string): Promise<Record<string, unknown>> {
+  return apiPost<Record<string, unknown>>(`/api/runs/${encodeURIComponent(sessionId)}/recovery/restore`, { confirm: true, expected_fingerprint: fingerprint, ...(checkpointId ? { checkpoint_id: checkpointId } : {}) })
 }
 
 export interface CreateRunPayload {
@@ -65,6 +65,7 @@ export interface CreateRunPayload {
   agent?: string
   model?: string | null
   policy_profile?: string
+  custom_policy_path?: string
   mode?: string
   interactive?: boolean
   launch_mode?: 'inherit' | 'new_terminal' | 'codex_app_server'

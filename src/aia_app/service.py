@@ -96,6 +96,7 @@ from .protected_run import (
     _sensors_runtime_healthy,
 )
 from .run_control import RunControlMixin
+from .recovery_points import RecoveryPointsMixin
 
 
 # The dashboard refreshes active runs every five seconds. Keep the verified
@@ -139,8 +140,11 @@ def _product_sensor_set_present(sensors: Any) -> bool:
     return _PRODUCT_SENSOR_NAMES.issubset(names)
 
 
+_POINT_SEND_WAIT_SECONDS = 30.0
+
+
 class RunApplicationService(
-    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin
+    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin
 ):
     """Connect UI requests to existing AIA Core APIs.
 
@@ -222,9 +226,9 @@ class RunApplicationService(
                 "개발 흐름을 가장 넓게 허용하고 위험 행위를 주로 기록하는 프로필입니다.",
             ),
             PolicyProfile.CUSTOM: (
-                "직접 설정",
+                "사용자 지정",
                 "Custom Policy",
-                "실행 시 지정한 Strict Validation 통과 정책 JSON을 사용합니다.",
+                "파일 경로·명령·행동별 규칙을 직접 설정하고 검증해 저장합니다. 저장한 규칙은 다음 보호 실행부터 적용됩니다.",
             ),
         }
         return [
@@ -400,7 +404,18 @@ class RunApplicationService(
         )
 
     def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
-        return self._codex_workbench.send_codex_message(session_id, text)
+        record = self.registry.get(session_id)
+        if record is None:
+            return self._codex_workbench.send_codex_message(session_id, text)
+        lock = self._point_lock(record)
+        # A recovery-point capture is short for the workspaces it runs on; wait
+        # for it rather than rejecting the user's message outright.
+        if not lock.acquire(timeout=_POINT_SEND_WAIT_SECONDS):
+            raise CodexAppServerError('복구 지점을 저장 중이에요. 잠시 뒤 명령을 다시 보내 주세요.')
+        try:
+            return self._codex_workbench.send_codex_message(session_id, text)
+        finally:
+            lock.release()
 
     def interrupt_codex_turn(self, session_id: str) -> dict[str, Any]:
         return self._codex_workbench.interrupt_codex_turn(session_id)
@@ -740,7 +755,7 @@ class RunApplicationService(
             "reason": value.reason,
         }
 
-    def _manual_recovery_context(self, session_id: str) -> dict[str, Any]:
+    def _manual_recovery_context(self, session_id: str, checkpoint_id: str | None = None) -> dict[str, Any]:
         """Load a completed run and its immutable checkpoint without mutation."""
 
         record = self.registry.get(session_id)
@@ -751,30 +766,11 @@ class RunApplicationService(
         except (KeyError, OSError, ValueError) as error:
             raise KeyError(session_id) from error
         workspace = self._validate_workspace(raw_result.get("workspace"))
-        checkpoints_root = self.control_root / "sessions" / session_id / "checkpoints"
-        candidates = sorted(
-            (path for path in checkpoints_root.iterdir() if path.is_dir())
-            if checkpoints_root.is_dir()
-            else (),
-            key=lambda path: path.name,
-        )
-        import aia.checkpoint as checkpoint_module
-
-        checkpoint = None
-        for candidate in candidates:
-            try:
-                metadata, manifest = checkpoint_module._validate_artifact(candidate)
-                checkpoint = checkpoint_module._checkpoint_from_artifact(
-                    candidate,
-                    metadata,
-                    manifest,
-                )
-                if checkpoint.session_id != session_id or checkpoint.workspace != workspace:
-                    checkpoint = None
-                    continue
-                break
-            except Exception:
-                continue
+        points = self._recovery_checkpoints(session_id, workspace)
+        # Supplemental points never become the implicit launch baseline.
+        checkpoint = next((point for point in points if
+                           (point.checkpoint_id == checkpoint_id if checkpoint_id is not None
+                            else not point.checkpoint_id.startswith('point-'))), None)
         if checkpoint is None:
             return {"available": False, "reason": "CHECKPOINT_UNAVAILABLE"}
         from aia.checkpoint import compare_workspace_to_checkpoint
@@ -786,6 +782,7 @@ class RunApplicationService(
             "workspace": workspace,
             "raw_result": raw_result,
             "checkpoint": checkpoint,
+            "checkpoint_id": checkpoint.checkpoint_id,
             "workspace_matches": comparison.matches,
             "checkpoint_validity": checkpoint.validity.value,
             "checkpoint_created_at": checkpoint.created_at.isoformat(),
@@ -797,10 +794,14 @@ class RunApplicationService(
             "preview_truncated": len(comparison.created_paths) + len(comparison.changed_paths) + len(comparison.deleted_paths) > 200,
         }
 
-    def get_recovery_status(self, session_id: str) -> dict[str, Any]:
-        context = self._manual_recovery_context(session_id)
+    def get_recovery_status(self, session_id: str, checkpoint_id: str | None = None) -> dict[str, Any]:
+        context = self._manual_recovery_context(session_id, checkpoint_id)
         manual = self._read_manual_recovery(session_id)
-        if manual is not None and manual.get('record_verification') == 'VALID':
+        if checkpoint_id is not None:
+            # A selected point previews CURRENT bytes, not an old restore's result.
+            context.update(status='NOT_REQUIRED' if context.get('workspace_matches') else 'NOT_ATTEMPTED',
+                           integrity_status='VERIFIED' if context.get('workspace_matches') else 'NOT_CHECKED')
+        elif manual is not None and manual.get('record_verification') == 'VALID':
             context = {
                 **context,
                 "available": False,
@@ -838,22 +839,24 @@ class RunApplicationService(
             if key not in {"workspace", "raw_result", "checkpoint"}
         }
 
-    def restore_run(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None) -> dict[str, Any]:
+    def restore_run(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None, checkpoint_id: str | None = None) -> dict[str, Any]:
         with self._manual_restore_lock:
-            return self._restore_run_locked(session_id, confirm=confirm, expected_fingerprint=expected_fingerprint)
+            return self._restore_run_locked(session_id, confirm=confirm, expected_fingerprint=expected_fingerprint, checkpoint_id=checkpoint_id)
 
-    def _restore_run_locked(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None) -> dict[str, Any]:
+    def _restore_run_locked(self, session_id: str, *, confirm: bool, expected_fingerprint: str | None = None, checkpoint_id: str | None = None) -> dict[str, Any]:
         if confirm is not True:
             raise ApplicationValidationError("전체 Workspace 복구 확인이 필요합니다.")
         existing = self._read_manual_recovery(session_id)
-        if existing is not None and existing.get('record_verification') == 'VALID':
+        if checkpoint_id is None and existing is not None and existing.get('record_verification') == 'VALID':
             return existing
-        context = self._manual_recovery_context(session_id)
+        if checkpoint_id is not None and expected_fingerprint is None:
+            raise ApplicationValidationError('선택한 복구 지점의 미리보기를 먼저 확인해 주세요.')
+        context = self._manual_recovery_context(session_id, checkpoint_id)
         if not context.get("available"):
             raise ApplicationValidationError(str(context.get("reason") or "RECOVERY_UNAVAILABLE"))
         if expected_fingerprint is not None and expected_fingerprint != context.get('preview_fingerprint'):
             raise ApplicationValidationError('미리보기 이후 작업공간이 변경됐습니다. 복구 목록을 다시 확인해주세요.')
-        if existing is not None:
+        if existing is not None and existing.get('record_verification') != 'VALID':
             # An older unsealed (or damaged) record is never overwritten: it is
             # kept beside the new one so the restore is not blocked forever.
             self._archive_unverified_manual_recovery(session_id)
@@ -902,6 +905,7 @@ class RunApplicationService(
             "original_result_sha256": hashlib.sha256(self.reader.read_result_json(session_id)).hexdigest(),
             "checkpoint_manifest_sha256": checkpoint.manifest_sha256,
             "session_id": session_id,
+            "checkpoint_id": checkpoint.checkpoint_id,
             "workspace": str(workspace),
             "recovery_result": self._recovery_mapping(verification.recovery),
             "integrity_result": self._integrity_mapping(verification.integrity),
@@ -912,6 +916,20 @@ class RunApplicationService(
         payload["record_sha256"] = _manual_recovery_digest(payload)
         path = self._manual_recovery_artifact_path(session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
+        history = path.parent / 'recovery-history'
+        history.mkdir(exist_ok=True)
+        # Preserve every outcome independently; the old file remains a latest
+        # compatibility view. No finalized result bundle is modified.
+        if existing is not None and existing.get('record_verification') == 'VALID':
+            previous = {key: value for key, value in existing.items() if key != 'record_verification'}
+            previous_id = (previous.get('recovery_result') or {}).get('recovery_id')
+            previous_path = history / f'{hashlib.sha256(str(previous_id).encode()).hexdigest()}.json'
+            if not previous_path.exists():
+                with previous_path.open('x', encoding='utf-8') as stream:
+                    json.dump(previous, stream, ensure_ascii=False, indent=2)
+        history_path = history / f'{hashlib.sha256(str(payload["recovery_result"]["recovery_id"]).encode()).hexdigest()}.json'
+        with history_path.open('x', encoding='utf-8') as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2)
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         os.replace(temporary, path)
@@ -1127,6 +1145,15 @@ class RunApplicationService(
     ) -> None:
         """Release run resources that were not already released by finalization."""
 
+        # Exceptional exits must wait for captures too, before releasing ownership.
+        record.runtime['point_closing'] = True
+        point_worker = record.runtime.get('point_worker')
+        if point_worker is not None:
+            point_worker.join()
+        point_lock = record.runtime.get('point_lock')
+        if point_lock is not None:
+            with point_lock:
+                pass
         launcher = record.runtime.get("launcher")
         if launcher is not None:
             try:

@@ -39,7 +39,7 @@ export function RestoreDialog({ runId, recovery, onClose, onDone }: {
     if (!recovery.preview_fingerprint || !acknowledged || restoring) return
     setRestoring(true)
     try {
-      const response = await restoreWorkspace(runId, recovery.preview_fingerprint)
+      const response = await restoreWorkspace(runId, recovery.preview_fingerprint, recovery.checkpoint_id)
       onDone({
         recovery: (response.recovery_result as RestoreRecord | undefined) ?? null,
         integrity: (response.integrity_result as IntegrityRecord | undefined) ?? null,
@@ -59,7 +59,7 @@ export function RestoreDialog({ runId, recovery, onClose, onDone }: {
       <div className="glass-scrim" aria-hidden="true" onClick={() => { if (!restoring) onClose() }} />
       <div className="glass-dialog-layer">
         <div ref={ref} tabIndex={-1} className="glass-dialog restore-dialog" role="alertdialog" aria-modal="true" aria-labelledby="restore-title" aria-busy={restoring}>
-          <h2 id="restore-title" className="dialog-title">작업 폴더를 실행 전으로 되돌릴까요?</h2>
+          <h2 id="restore-title" className="dialog-title">작업 폴더를 {recovery.checkpoint_id ? '선택한 지점' : '실행 전'}으로 되돌릴까요?</h2>
           <p className="muted dialog-text">
             기준점 {timeLabel(recovery.checkpoint_created_at) ?? '확인 전'} · 바뀔 항목 {recovery.change_count ?? '확인 전'}개.
             이 실행 이후 다른 프로그램이나 사용자가 만든 변경도 함께 되돌아가요.
@@ -106,7 +106,7 @@ export function RestoreComplete({ outcome, onBack, onHome }: { outcome: RestoreO
         {outcome.error
           ? `요청을 끝내지 못했어요: ${outcome.error}`
           : success
-            ? `실행 전 기준점${checkpoint ? `(${checkpoint})` : ''}과 같아요 · SHA-256 일치`
+            ? `선택한 복구 기준점${checkpoint ? `(${checkpoint})` : ''}과 같아요 · SHA-256 일치`
             : '복구와 무결성 검증 결과가 완전히 확인되지 않았어요. 완료로 보지 마세요.'}
       </p>
       {!outcome.error && (

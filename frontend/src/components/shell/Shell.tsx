@@ -1,4 +1,5 @@
 import { Rail } from './Rail'
+import { useEffect } from 'react'
 import { GuardianPet } from './GuardianPet'
 import { WorkView } from '../work/WorkView'
 import { ConnectionBanner } from './ConnectionBanner'
@@ -14,7 +15,17 @@ import { useShellStore, type ShellView } from '../../state/shellStore'
 
 export function Shell() {
   useActiveRunReconciliation()
-  const { activeView } = useShellStore()
+  const { activeView, setView, setActiveRun } = useShellStore()
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const detail = (event as CustomEvent<{ view: ShellView; sessionId?: string }>).detail
+      if (!detail || !['home', 'work', 'history', 'policy', 'settings'].includes(detail.view)) return
+      if (detail.sessionId) setActiveRun(detail.sessionId)
+      setView(detail.view)
+    }
+    window.addEventListener('aia:navigate', navigate)
+    return () => window.removeEventListener('aia:navigate', navigate)
+  }, [setView, setActiveRun])
 
   function viewClass(view: ShellView, flush = false) {
     return `app-view${flush ? ' is-flush' : ''}${activeView === view ? '' : ' is-hidden'}`
