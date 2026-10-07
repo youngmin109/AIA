@@ -356,7 +356,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   }, [session.conversation.items])
 
   // The home view reflects live Codex activity through the shell store.
-  const { reportCodexActivity, clearCodexActivity, endRequest, setView, openNewRun } = useShellStore()
+  const { reportCodexActivity, clearCodexActivity, endRequest, setView, openNewRunToResume } = useShellStore()
   const approvalWaiting = session.pendingApprovals.length > 0
   useEffect(() => {
     const mode = session.ended ? 'STOPPED' : approvalWaiting ? 'ACTION' : session.working ? 'WORKING' : session.statusName === 'READY' ? 'WAITING' : 'STARTING'
@@ -399,7 +399,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         }
         session.runCommand('goal', argument)
         break
-      case 'resume': setNote({ title: '이전 대화 이어하기', lines: ['이전 대화는 새 보호 실행에서 고를 수 있어요.', 'AIA로 연 대화만 보여요.'] }); break
+      case 'resume': openNewRunToResume(); break
       case 'mcp': setNote({ title: '커넥터', lines: ['연결된 외부 도구(MCP)는 AIA 보호 범위 밖이에요.', '자세한 목록은 설정 화면의 연결 준비에서 볼 수 있어요.'] }); break
       case 'policy': setNote(policyNote(policyProfile?.display_name ?? runStatus?.policy?.profile, policyProfile?.description)); break
       case 'why': setNote(whyNote(actions)); break
@@ -566,7 +566,6 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
       {note && (
         <AiaNoteCard note={note} onClose={() => setNote(null)}>
           {note.title === '복구 열기' && (runEnded || session.ended) && <Button variant="cta" className="is-compact" onClick={() => setView('history')}>결과와 복구 열기</Button>}
-          {note.title === '이전 대화 이어하기' && <Button variant="secondary" className="is-compact" onClick={openNewRun}>새 보호 실행 열기</Button>}
         </AiaNoteCard>
       )}
       {diffOpen && (

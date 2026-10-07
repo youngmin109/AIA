@@ -48,6 +48,9 @@ class RunRecord:
     # Codex conversation id of a Workbench run, so a later run can resume only
     # conversations AIA itself opened.  The conversation text is never stored.
     codex_thread_id: str | None = None
+    # A Workbench run may resume a conversation an earlier AIA run opened.
+    resume_thread_id: str | None = None
+    resumed_from: str | None = None
     actions: list[dict[str, Any]] = field(default_factory=list)
     incidents: list[dict[str, Any]] = field(default_factory=list)
     result: dict[str, Any] | None = None
@@ -125,6 +128,8 @@ class RunRegistry:
             startup=record.startup,
             permission_grants=record.permission_grants,
             codex_thread_id=record.codex_thread_id,
+            resume_thread_id=record.resume_thread_id,
+            resumed_from=record.resumed_from,
             actions=[dict(item) for item in record.actions],
             incidents=[dict(item) for item in record.incidents],
             result=dict(record.result) if record.result is not None else None,

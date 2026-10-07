@@ -250,3 +250,30 @@
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 12px;
 }
+
+/* Resume an AIA-opened conversation (EPIC-021 TASK-116). */
+.newrun-resume {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.newrun-resume-item {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.newrun-resume-item.is-selected {
+  border-color: var(--accent);
+  background: var(--fill-3);
+}
+
+.newrun-resume-item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

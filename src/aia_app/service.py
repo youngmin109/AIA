@@ -482,6 +482,69 @@ class RunApplicationService(
     def read_codex_diff(self, session_id: str, turn_id: str | None = None) -> dict[str, Any]:
         return self._codex_workbench.read_codex_diff(session_id, turn_id)
 
+    def _resumable_threads(self) -> list[dict[str, Any]]:
+        """Conversations AIA opened, newest run first, one entry per conversation."""
+
+        runs: dict[str, dict[str, Any]] = {}
+        for state in self._list_runtime_states():
+            thread_id = state.get("codex_thread_id")
+            session = state.get("session") if isinstance(state.get("session"), Mapping) else {}
+            if isinstance(thread_id, str) and thread_id and session.get("workspace"):
+                runs[str(state.get("session_id"))] = {
+                    "session_id": str(state.get("session_id")),
+                    "thread_id": thread_id,
+                    "workspace": str(session.get("workspace")),
+                    "created_at": session.get("created_at"),
+                    "status": session.get("status"),
+                }
+        # A conversation still open in a live run here cannot be resumed twice.
+        busy: set[str] = set()
+        for record in self.registry.snapshots():
+            if not record.codex_thread_id:
+                continue
+            if record.status not in {"COMPLETED", "ABORTED", "FAILED"}:
+                busy.add(record.codex_thread_id)
+                continue
+            runs[record.session_id] = {
+                "session_id": record.session_id,
+                "thread_id": record.codex_thread_id,
+                "workspace": str(record.workspace),
+                "created_at": record.created_at.isoformat(),
+                "status": record.status,
+            }
+        newest: dict[str, dict[str, Any]] = {}
+        for item in sorted(runs.values(), key=lambda value: str(value.get("created_at") or ""), reverse=True):
+            if item["thread_id"] not in busy:
+                newest.setdefault(item["thread_id"], item)
+        return list(newest.values())
+
+    def list_resumable_conversations(self, limit: int = 20) -> dict[str, Any]:
+        """AIA-opened conversations with their live Codex name and preview."""
+
+        items = self._resumable_threads()[:limit]
+        if not items:
+            return {"conversations": []}
+        try:
+            executable = CodexAdapter().discover()
+            session = CodexAppServerSession(
+                [str(executable), "app-server"], cwd=self.control_root, env=dict(os.environ), client_version=__version__
+            )
+            session.start()
+        except Exception as error:  # noqa: BLE001 - names are optional
+            return {"conversations": [{**item, "name": None, "preview": "", "missing": None} for item in items],
+                    "error": f"{type(error).__name__}: {error}"}
+        try:
+            session.handshake()
+            conversations = []
+            for item in items:
+                try:
+                    conversations.append({**item, **session.read_thread(item["thread_id"]), "missing": False})
+                except CodexAppServerError:
+                    conversations.append({**item, "name": None, "preview": "", "missing": True})
+        finally:
+            session.close(force=True)
+        return {"conversations": conversations}
+
     def list_codex_models(self) -> dict[str, Any]:
         """Visible Codex models, from a short-lived app-server that starts no thread."""
 
@@ -541,6 +604,7 @@ class RunApplicationService(
                 sandbox="workspace-write",
                 approval_policy="on-request",
                 model=record.model,
+                **({"resume_thread_id": record.resume_thread_id} if record.resume_thread_id else {}),
             )
         except CodexAppServerError as error:
             record.runtime["codex_app_server_error"] = f"CODEX_APP_SERVER_OPEN_FAILED: {error}"
@@ -1591,6 +1655,7 @@ class RunApplicationService(
             "startup": record.startup,
             "permission_grants": record.permission_grants,
             "codex_thread_id": record.codex_thread_id,
+            "resumed_from": record.resumed_from,
             "protection": {
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,

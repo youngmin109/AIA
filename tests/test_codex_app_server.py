@@ -527,6 +527,44 @@ def test_a_review_waits_for_the_current_request(opened: CodexAppServerSession) -
     opened.interrupt()
 
 
+def test_resuming_keeps_protection_and_shows_earlier_messages(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    try:
+        effective = session.open(resume_thread_id="thr-old")
+        assert effective["sandbox"] == "workspaceWrite" and effective["approval_policy"] == "on-request"
+        assert session.snapshot()["thread_id"] == "thr-old"
+        events = session.read_events()
+        assert [e["text"] for e in events if e["type"] == "user_message"] == ["earlier question"]
+        assert [e["text"] for e in events if e["type"] == "message.completed"] == ["earlier answer"]
+        assert next(e for e in events if e["type"] == "history.restored")["count"] == 2
+    finally:
+        session.close(force=True)
+
+
+def test_a_missing_conversation_starts_a_new_one_and_says_so(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    try:
+        session.open(resume_thread_id="missing")
+        assert session.snapshot()["thread_id"] == "thr-1"
+        assert any(e["type"] == "warning" and "새 대화" in e["message"] for e in session.read_events())
+    finally:
+        session.close(force=True)
+
+
+def test_thread_names_are_read_live_without_opening_a_conversation(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    try:
+        session.handshake()
+        info = session.read_thread("thr-old")
+        assert (info["name"], info["preview"]) == ("Fix login", "earlier question")
+        assert info["updated_at"].startswith("2026-10-")
+        with pytest.raises(CodexAppServerError):
+            session.read_thread("missing")
+        assert session.snapshot()["thread_id"] is None
+    finally:
+        session.close(force=True)
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

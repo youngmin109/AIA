@@ -1,3 +1,6 @@
+import { useResumableConversations } from '../../hooks/useResumableConversations'
+import type { ResumableConversation } from '../../api/endpoints'
+import { sessionCreatedLabel } from '../shell/sessionLabel'
 import { useCodexModels } from '../../hooks/useCodexModels'
 import { effortLabel, effortsFor } from '../../api/modelView'
 import { largeFolderNotice } from '../../api/startupStatus'
@@ -65,6 +68,10 @@ function NewRunSheet() {
   const [sizeNotice, setSizeNotice] = useState<string | null>(null)
   const models = useCodexModels()
   const [model, setModel] = useState('')
+  const { newRunResume } = useShellStore()
+  const [resumeMode, setResumeMode] = useState(newRunResume)
+  const [resumeThread, setResumeThread] = useState<ResumableConversation | null>(null)
+  const conversations = useResumableConversations(resumeMode)
   const [effort, setEffort] = useState('')
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
@@ -139,6 +146,7 @@ function NewRunSheet() {
         launch_mode: 'codex_app_server',
         model: model || undefined,
         reasoning_effort: effort || undefined,
+        resume_thread_id: resumeMode && resumeThread ? resumeThread.thread_id : undefined,
       })
       setActiveRun(result.session_id)
       setView('work')
@@ -173,6 +181,34 @@ function NewRunSheet() {
             <h2 id="newrun-title">새 보호 실행</h2>
             <Button variant="icon" onClick={closeNewRun} aria-label="닫기"><Icon name="close" /></Button>
           </header>
+
+          <section className="newrun-section" aria-labelledby="newrun-conversation">
+            <h3 id="newrun-conversation">대화</h3>
+            <div className="segmented" role="group" aria-label="대화 시작 방식">
+              <button type="button" aria-pressed={!resumeMode} onClick={() => { setResumeMode(false); setResumeThread(null) }}>새 대화</button>
+              <button type="button" aria-pressed={resumeMode} onClick={() => setResumeMode(true)}>이전 대화 이어하기</button>
+            </div>
+            {resumeMode && (
+              <div className="newrun-resume">
+                {conversations === null && <p className="muted">AIA로 연 대화를 불러오는 중…</p>}
+                {conversations?.length === 0 && <p className="muted">이어할 수 있는 대화가 없어요. AIA로 연 대화만 보여요.</p>}
+                {conversations?.map(item => (
+                  <button
+                    key={item.thread_id}
+                    type="button"
+                    className={`glass-row newrun-resume-item${resumeThread?.thread_id === item.thread_id ? ' is-selected' : ''}`}
+                    aria-pressed={resumeThread?.thread_id === item.thread_id}
+                    disabled={item.missing === true}
+                    onClick={() => { setResumeThread(item); changeWorkspace(item.workspace) }}
+                  >
+                    <strong>{item.name || item.preview || '이름 없는 대화'}</strong>
+                    <span className="muted">{workspaceShortName(item.workspace)} · {sessionCreatedLabel(item.created_at ?? undefined)}{item.missing ? ' · Codex에서 찾을 수 없어요' : ''}</span>
+                  </button>
+                ))}
+                <p className="faint-note">이전 대화에서 일어난 일은 이번 보호 기록 범위 밖이에요. 고른 대화의 작업 폴더로 시작해요.</p>
+              </div>
+            )}
+          </section>
 
           <section className="newrun-section" aria-labelledby="newrun-folder">
             <h3 id="newrun-folder"><span className="newrun-step">1</span>작업 폴더</h3>

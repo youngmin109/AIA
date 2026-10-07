@@ -102,6 +102,7 @@ def add_live_run(service: RunApplicationService) -> CodexAppServerSession:
     session.start()
     session.open()
     record.runtime["codex_session"] = session
+    record.codex_thread_id = session.snapshot()["thread_id"]
     service.registry.add(record)
     return session
 

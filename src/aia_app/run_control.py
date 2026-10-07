@@ -299,6 +299,22 @@ class RunControlMixin:
                 "이전 Codex가 실행 중이면 먼저 종료하고, Agent Root가 사라진 것을 "
                 f"확인한 뒤 '{cli_prefix} reconcile {session_id}'를 실행하세요."
             )
+        resumed_from: str | None = None
+        if request.resume_thread_id is not None:
+            if request.launch_mode != "codex_app_server":
+                raise ApplicationValidationError("이전 대화 이어하기는 Codex 대화 실행에서만 할 수 있어요.")
+            match = next(
+                (
+                    item
+                    for item in self._resumable_threads()
+                    if item["thread_id"] == request.resume_thread_id
+                    and Path(item["workspace"]).resolve(strict=False) == workspace.resolve(strict=False)
+                ),
+                None,
+            )
+            if match is None:
+                raise ApplicationValidationError("AIA로 연 같은 작업 폴더의 대화만 이어할 수 있어요.")
+            resumed_from = match["session_id"]
         if not request.interactive and not request.task.strip():
             raise ApplicationValidationError(
                 "task is required for a non-interactive protected run"
@@ -363,6 +379,8 @@ class RunControlMixin:
             interactive=request.interactive,
             launch_mode=request.launch_mode,
             reasoning_effort=request.reasoning_effort,
+            resume_thread_id=request.resume_thread_id,
+            resumed_from=resumed_from,
             created_at=session.created_at,
             protection_state="STARTING",
             coordinator_pid=os.getpid(),

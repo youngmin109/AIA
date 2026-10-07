@@ -219,6 +219,33 @@ def test_the_codex_conversation_id_is_kept_for_resuming_but_no_text(service, tmp
     assert service.get_run_status(record.session_id)["codex_thread_id"] == "thr-42"
 
 
+def test_only_conversations_aia_opened_in_the_same_folder_can_be_resumed(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.codex_thread_id = "thr-42"
+    service.registry.add(record)
+    service._persist_runtime_state(record)
+    assert service._resumable_threads() == [], "a conversation still open in a live run is not offered"
+    record.status = "COMPLETED"
+    threads = service._resumable_threads()
+    assert [(item["thread_id"], item["session_id"]) for item in threads] == [("thr-42", record.session_id)]
+
+    other = tmp_path / "other"
+    other.mkdir()
+    base = {"interactive": True, "launch_mode": "codex_app_server"}
+    monkey_service = service
+    monkey_service.require_hook_verification = False
+    with pytest.raises(service_module.ApplicationValidationError, match="같은 작업 폴더"):
+        service.create_protected_run({**base, "workspace": str(other), "resume_thread_id": "thr-42"})
+    with pytest.raises(service_module.ApplicationValidationError, match="같은 작업 폴더"):
+        service.create_protected_run({**base, "workspace": str(tmp_path), "resume_thread_id": "thr-unknown"})
+
+
+def test_resume_thread_id_must_look_like_a_conversation_id() -> None:
+    for bad in ("../x", "a b", "", "x" * 101, 5):
+        with pytest.raises(DTOValidationError):
+            CreateRunRequest.from_mapping({"workspace": ".", "resume_thread_id": bad})
+
+
 def test_chosen_reasoning_effort_is_applied_once_the_conversation_opens(service, tmp_path) -> None:
     record = make_record(tmp_path)
     record.reasoning_effort = "high"

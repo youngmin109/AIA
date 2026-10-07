@@ -511,6 +511,10 @@ def _register_codex_routes(app: FastAPI) -> None:
         except CodexAppServerError as error:
             return JSONResponse({"error": str(error)}, status_code=409)
 
+    @app.get("/api/codex/conversations")
+    async def codex_conversations() -> JSONResponse:
+        return JSONResponse(await to_thread.run_sync(app.state.service.list_resumable_conversations))
+
     @app.get("/api/codex/models")
     async def codex_models() -> JSONResponse:
         return JSONResponse(await to_thread.run_sync(app.state.service.list_codex_models))

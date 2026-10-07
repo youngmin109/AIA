@@ -743,6 +743,7 @@ class CodexAppServerSession:
         approval_policy: str = "on-request",
         model: str | None = None,
         timeout: float | None = None,
+        resume_thread_id: str | None = None,
     ) -> dict[str, Any]:
         """Initialize the protocol and start the Workbench thread.
 
@@ -768,7 +769,19 @@ class CodexAppServerSession:
         }
         if model:
             params["model"] = model
-        result = self._request("thread/start", params, timeout=timeout)
+        result: dict[str, Any] | None = None
+        if resume_thread_id:
+            # Resuming keeps AIA's protected cwd, sandbox and approval policy.
+            try:
+                result = self._request("thread/resume", {**params, "threadId": resume_thread_id}, timeout=timeout)
+            except CodexAppServerError:
+                self._append_event(
+                    {"type": "warning", "message": "이전 대화를 찾지 못해 새 대화로 시작했어요."}
+                )
+        if result is None:
+            result = self._request("thread/start", params, timeout=timeout)
+        elif isinstance(result.get("thread"), Mapping):
+            self._replay_history(result["thread"])
         thread = result.get("thread") or {}
         thread_id = thread.get("id")
         if not isinstance(thread_id, str) or not thread_id:
@@ -1036,8 +1049,8 @@ class CodexAppServerSession:
             self._append_event_locked({"type": "settings.changed", "model": model, "effort": effort})
         return {"accepted": True, "model": model, "effort": effort}
 
-    def list_models(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
-        """Ask a not-yet-opened app-server for its visible models (no thread is started)."""
+    def handshake(self, *, timeout: float = 15.0) -> None:
+        """Initialize a not-yet-opened app-server for read-only questions (no thread is started)."""
 
         self._request(
             "initialize",
@@ -1045,8 +1058,48 @@ class CodexAppServerSession:
             timeout=timeout,
         )
         self._notify("initialized")
+
+    def list_models(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
+        """Visible models; the session must not be opened (see ``handshake``)."""
+
+        self.handshake(timeout=timeout)
         result = self._request("model/list", {"includeHidden": False, "limit": 50}, timeout=timeout)
         return [view for view in (_model_view(item) for item in result.get("data") or []) if view]
+
+    def read_thread(self, thread_id: str, *, timeout: float = 10.0) -> dict[str, Any]:
+        """Name and preview of a conversation, read live from Codex (after ``handshake``)."""
+
+        result = self._request("thread/read", {"threadId": thread_id, "includeTurns": False}, timeout=timeout)
+        thread = result.get("thread") if isinstance(result.get("thread"), Mapping) else {}
+        updated = thread.get("updatedAt")
+        return {
+            "name": _text_of(thread.get("name")) or None,
+            "preview": _text_of(thread.get("preview"))[:200],
+            "updated_at": (
+                datetime.fromtimestamp(updated / 1000 if updated > 10**12 else updated, tz=timezone.utc).isoformat()
+                if isinstance(updated, int) and not isinstance(updated, bool) and updated > 0
+                else None
+            ),
+        }
+
+    def _replay_history(self, thread: Mapping[str, Any], limit: int = 60) -> None:
+        """Show the resumed conversation's earlier messages (text only, newest ``limit``)."""
+
+        messages: list[dict[str, Any]] = []
+        for turn in thread.get("turns") or []:
+            for item in (turn.get("items") if isinstance(turn, Mapping) else None) or []:
+                if not isinstance(item, Mapping):
+                    continue
+                item_id = f"history-{_text_of(item.get('id'))}"
+                if item.get("type") == "userMessage":
+                    messages.append({"type": "user_message", "item_id": item_id, "text": _user_message_text(item)[:20_000]})
+                elif item.get("type") == "agentMessage":
+                    messages.append({"type": "message.completed", "item_id": item_id, "text": _text_of(item.get("text"))[:20_000]})
+        kept = messages[-limit:]
+        with self._lock:
+            for message in kept:
+                self._append_event_locked(message)
+            self._append_event_locked({"type": "history.restored", "count": len(kept)})
 
     def respond_permissions(self, permissions_id: str, decision: str) -> dict[str, Any]:
         """Grant what Codex asked for (this turn or the whole session) or decline.

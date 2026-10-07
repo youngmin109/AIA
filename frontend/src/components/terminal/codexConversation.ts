@@ -428,6 +428,9 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       upsert(state, key, () => next, () => next)
       break
     }
+    case 'history.restored':
+      notice(state, event, 'info', '이전 대화를 이어서 시작했어요. 위 내용은 이전 대화이고, 그때 일어난 일은 이번 보호 기록 범위 밖이에요.')
+      break
     case 'review.started':
       notice(state, event, 'info', 'Codex가 작업 폴더의 바뀐 내용을 검토하고 있어요.')
       break

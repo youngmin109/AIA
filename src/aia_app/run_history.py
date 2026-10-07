@@ -402,6 +402,7 @@ class RunHistoryMixin:
             "startup": record.startup,
             "permission_grants": record.permission_grants,
             "codex_thread_id": record.codex_thread_id,
+            "resumed_from": record.resumed_from,
             "result_path": str(record.result_path) if record.result_path is not None else None,
             "protection": {
                 "state": record.protection_state,
@@ -688,6 +689,7 @@ class RunHistoryMixin:
             "startup": state.get("startup") if isinstance(state.get("startup"), dict) else {},
             "permission_grants": state.get("permission_grants") if isinstance(state.get("permission_grants"), list) else [],
             "codex_thread_id": state.get("codex_thread_id") if isinstance(state.get("codex_thread_id"), str) else None,
+            "resumed_from": state.get("resumed_from") if isinstance(state.get("resumed_from"), str) else None,
             "result_path": state.get("result_path"),
             "protection": protection,
             "stop": stop,

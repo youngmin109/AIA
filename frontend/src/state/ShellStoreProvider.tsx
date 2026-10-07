@@ -17,6 +17,7 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
 
   const setView = useCallback((view: ShellView) => dispatch({ type: 'SET_VIEW', view }), [])
   const openNewRun = useCallback(() => dispatch({ type: 'OPEN_NEW_RUN' }), [])
+  const openNewRunToResume = useCallback(() => dispatch({ type: 'OPEN_NEW_RUN', resume: true }), [])
   const closeNewRun = useCallback(() => dispatch({ type: 'CLOSE_NEW_RUN' }), [])
   const setActiveRun = useCallback((id: string) => dispatch({ type: 'SET_ACTIVE_RUN', id }), [])
   const clearActiveRun = useCallback(() => dispatch({ type: 'CLEAR_ACTIVE_RUN' }), [])
@@ -31,6 +32,7 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
       ...state,
       setView,
       openNewRun,
+      openNewRunToResume,
       closeNewRun,
       setActiveRun,
       clearActiveRun,
@@ -40,7 +42,7 @@ export function ShellStoreProvider({ children }: { children: ReactNode }) {
       openResult,
       closeResult,
     }),
-    [state, setView, openNewRun, closeNewRun, setActiveRun, clearActiveRun, reportCodexActivity, clearCodexActivity, requestEnd, openResult, closeResult],
+    [state, setView, openNewRun, openNewRunToResume, closeNewRun, setActiveRun, clearActiveRun, reportCodexActivity, clearCodexActivity, requestEnd, openResult, closeResult],
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

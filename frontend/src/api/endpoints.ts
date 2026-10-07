@@ -74,6 +74,7 @@ export interface CreateRunPayload {
   interactive?: boolean
   launch_mode?: 'inherit' | 'new_terminal' | 'codex_app_server'
   reasoning_effort?: string | null
+  resume_thread_id?: string | null
 }
 
 export interface CreateRunResult {
@@ -135,6 +136,23 @@ export function consoleInfo(): Promise<ConsoleInfo> {
 export function codexDiff(runId: string, turnId: string | null): Promise<{ diff: string; truncated: boolean }> {
   const query = turnId ? `?turn_id=${encodeURIComponent(turnId)}` : ''
   return apiGet<{ diff: string; truncated: boolean }>(`/api/runs/${encodeURIComponent(runId)}/codex/diff${query}`)
+}
+
+/** A Codex conversation an earlier AIA run opened; name and preview are read live from Codex. */
+export interface ResumableConversation {
+  session_id: string
+  thread_id: string
+  workspace: string
+  created_at?: string | null
+  status?: string | null
+  name?: string | null
+  preview?: string
+  updated_at?: string | null
+  missing?: boolean | null
+}
+
+export function codexConversations(): Promise<{ conversations: ResumableConversation[]; error?: string }> {
+  return apiGet<{ conversations: ResumableConversation[]; error?: string }>('/api/codex/conversations')
 }
 
 /** Visible Codex models from a short-lived app-server; an empty list hides the pickers. */

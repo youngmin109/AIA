@@ -29,6 +29,7 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "task",
         "launch_mode",
         "reasoning_effort",
+        "resume_thread_id",
     }
 )
 
@@ -62,6 +63,7 @@ class CreateRunRequest:
     interactive: bool = False
     launch_mode: str = "inherit"
     reasoning_effort: str | None = None
+    resume_thread_id: str | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "CreateRunRequest":
@@ -117,6 +119,13 @@ class CreateRunRequest:
             or len(reasoning_effort) > 20
         ):
             raise DTOValidationError("reasoning_effort must be a lowercase word")
+        resume_thread_id = value.get("resume_thread_id")
+        if resume_thread_id is not None and (
+            not isinstance(resume_thread_id, str)
+            or not 0 < len(resume_thread_id) <= 100
+            or any(not (character.isalnum() or character in "-_") for character in resume_thread_id)
+        ):
+            raise DTOValidationError("resume_thread_id is not a Codex conversation id")
         return cls(
             workspace=workspace,
             agent=agent,
@@ -129,6 +138,7 @@ class CreateRunRequest:
             interactive=interactive,
             launch_mode=launch_mode,
             reasoning_effort=reasoning_effort,
+            resume_thread_id=resume_thread_id,
         )
 
     def to_mapping(self) -> dict[str, Any]:

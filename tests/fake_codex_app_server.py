@@ -246,6 +246,23 @@ def main() -> None:
                 "modelProvider": "fake", "cwd": params.get("cwd"), "approvalsReviewer": "user",
                 "approvalPolicy": params.get("approvalPolicy"), "sandbox": {"type": sandbox}}})
             notify("thread/started", thread={"id": "thr-1"})
+        elif method == "thread/resume":
+            if params.get("threadId") == "missing":
+                send({"id": request_id, "error": {"code": -32600, "message": "thread not found"}})
+                continue
+            sandbox = os.environ.get("FAKE_APP_SERVER_SANDBOX", "workspaceWrite")
+            send({"id": request_id, "result": {
+                "thread": {"id": params["threadId"], "turns": [{"id": "old-1", "items": [
+                    {"type": "userMessage", "id": "ou-1", "content": [{"type": "text", "text": "earlier question"}]},
+                    {"type": "agentMessage", "id": "oa-1", "text": "earlier answer"}]}]},
+                "model": params.get("model") or "fake-model", "modelProvider": "fake", "cwd": params.get("cwd"),
+                "approvalsReviewer": "user", "approvalPolicy": params.get("approvalPolicy"), "sandbox": {"type": sandbox}}})
+        elif method == "thread/read":
+            if params.get("threadId") == "missing":
+                send({"id": request_id, "error": {"code": -32600, "message": "thread not found"}})
+            else:
+                send({"id": request_id, "result": {"thread": {"id": params["threadId"], "name": "Fix login",
+                                                              "preview": "earlier question", "updatedAt": 1791370000}}})
         elif method == "turn/start":
             text = "".join(part.get("text", "") for part in params.get("input", []))
             if text.startswith("settings"):
