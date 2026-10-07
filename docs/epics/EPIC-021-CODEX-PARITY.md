@@ -1,6 +1,6 @@
 # EPIC-021 — Codex 작업 경험 보강 (작업 계획)
 
-> 상태: **진행 중** (브랜치 `feature/codex-parity`, 2026-10-07 시작). 진행 기록은 `docs/codex-parity/PROGRESS.md`.
+> 상태: **구현 완료, 검토 대기** (브랜치 `feature/codex-parity`, 2026-10-07). 진행 기록은 `docs/codex-parity/PROGRESS.md`.
 
 ## 목적
 
