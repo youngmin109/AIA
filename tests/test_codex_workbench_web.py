@@ -176,6 +176,14 @@ def test_diff_text_is_served_on_demand(conversation) -> None:
     assert client.get("/api/runs/missing/codex/diff").status_code == 404
 
 
+def test_connectors_are_served_for_an_open_conversation(conversation) -> None:
+    client, _ = conversation
+    response = client.get("/api/runs/run-1/codex/connectors")
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()["connectors"]] == ["github", "tracker"]
+    assert client.get("/api/runs/missing/codex/connectors").status_code == 404
+
+
 def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
     client, _ = conversation
     with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:

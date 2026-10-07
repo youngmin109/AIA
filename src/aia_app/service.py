@@ -479,6 +479,9 @@ class RunApplicationService(
     def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
         return self._codex_workbench.run_codex_command(session_id, command, argument)
 
+    def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
+        return self._codex_workbench.list_codex_connectors(session_id)
+
     def read_codex_diff(self, session_id: str, turn_id: str | None = None) -> dict[str, Any]:
         return self._codex_workbench.read_codex_diff(session_id, turn_id)
 

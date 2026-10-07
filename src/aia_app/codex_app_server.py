@@ -1066,6 +1066,28 @@ class CodexAppServerSession:
         result = self._request("model/list", {"includeHidden": False, "limit": 50}, timeout=timeout)
         return [view for view in (_model_view(item) for item in result.get("data") or []) if view]
 
+    def list_connectors(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
+        """MCP servers Codex has for this conversation; read-only, outside AIA's protection."""
+
+        self._require_thread()
+        result = self._request("mcpServerStatus/list", {"limit": 100}, timeout=timeout)
+        connectors: list[dict[str, Any]] = []
+        for server in result.get("data") or []:
+            if not isinstance(server, Mapping) or not isinstance(server.get("name"), str):
+                continue
+            tools = server.get("tools") if isinstance(server.get("tools"), Mapping) else {}
+            connectors.append(
+                {
+                    "name": server["name"],
+                    "status": _text_of(server.get("runtimeStatus")) or "unknown",
+                    "auth": _text_of(server.get("authStatus")) or "unknown",
+                    "tool_count": len(tools),
+                    "tools": sorted(str(name) for name in tools)[:30],
+                    "error": _text_of(server.get("toolsError")) or None,
+                }
+            )
+        return connectors
+
     def read_thread(self, thread_id: str, *, timeout: float = 10.0) -> dict[str, Any]:
         """Name and preview of a conversation, read live from Codex (after ``handshake``)."""
 

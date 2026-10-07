@@ -565,6 +565,23 @@ def test_thread_names_are_read_live_without_opening_a_conversation(tmp_path: Pat
         session.close(force=True)
 
 
+def test_connectors_are_listed_read_only_while_a_conversation_is_open(opened: CodexAppServerSession) -> None:
+    connectors = opened.list_connectors()
+    assert [(c["name"], c["status"], c["auth"], c["tool_count"]) for c in connectors] == [
+        ("github", "connected", "oAuth", 2), ("tracker", "authenticationRequired", "notLoggedIn", 0)]
+    assert connectors[0]["tools"] == ["create_issue", "search_code"]
+    assert connectors[1]["error"] == "login required"
+
+
+def test_connectors_need_an_open_conversation(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    try:
+        with pytest.raises(CodexAppServerError):
+            session.list_connectors()
+    finally:
+        session.close(force=True)
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

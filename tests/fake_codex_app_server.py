@@ -257,6 +257,13 @@ def main() -> None:
                     {"type": "agentMessage", "id": "oa-1", "text": "earlier answer"}]}]},
                 "model": params.get("model") or "fake-model", "modelProvider": "fake", "cwd": params.get("cwd"),
                 "approvalsReviewer": "user", "approvalPolicy": params.get("approvalPolicy"), "sandbox": {"type": sandbox}}})
+        elif method == "mcpServerStatus/list":
+            send({"id": request_id, "result": {"data": [
+                {"name": "github", "authStatus": "oAuth", "runtimeStatus": "connected",
+                 "tools": {"search_code": {}, "create_issue": {}}, "toolsError": None, "resources": [], "resourceTemplates": []},
+                {"name": "tracker", "authStatus": "notLoggedIn", "runtimeStatus": "authenticationRequired",
+                 "tools": {}, "toolsError": "login required", "resources": [], "resourceTemplates": []},
+            ], "nextCursor": None}})
         elif method == "thread/read":
             if params.get("threadId") == "missing":
                 send({"id": request_id, "error": {"code": -32600, "message": "thread not found"}})

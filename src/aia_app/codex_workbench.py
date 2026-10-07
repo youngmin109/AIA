@@ -176,6 +176,9 @@ class CodexWorkbench:
             raise CodexAppServerError("지원하지 않는 명령이에요.")
         return {**result, "command": command, "session_id": session_id}
 
+    def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
+        return {"connectors": self._codex_session(session_id).list_connectors(), "session_id": session_id}
+
     def read_codex_diff(self, session_id: str, turn_id: str | None) -> dict[str, Any]:
         return {**self._codex_session(session_id).read_diff(turn_id), "session_id": session_id}
 
