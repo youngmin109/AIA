@@ -476,6 +476,9 @@ class RunApplicationService(
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
 
+    def read_codex_diff(self, session_id: str, turn_id: str | None = None) -> dict[str, Any]:
+        return self._codex_workbench.read_codex_diff(session_id, turn_id)
+
     def list_codex_models(self) -> dict[str, Any]:
         """Visible Codex models, from a short-lived app-server that starts no thread."""
 

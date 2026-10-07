@@ -162,6 +162,9 @@ class CodexWorkbench:
         codex_session = self._codex_session(session_id)
         return {**codex_session.respond_elicitation(elicitation_id, action, content), "session_id": session_id}
 
+    def read_codex_diff(self, session_id: str, turn_id: str | None) -> dict[str, Any]:
+        return {**self._codex_session(session_id).read_diff(turn_id), "session_id": session_id}
+
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return {**self._codex_session(session_id).set_turn_settings(model, effort), "session_id": session_id}
 

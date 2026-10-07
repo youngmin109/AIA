@@ -502,6 +502,15 @@ def _register_run_details_routes(app: FastAPI) -> None:
 
 
 def _register_codex_routes(app: FastAPI) -> None:
+    @app.get("/api/runs/{session_id}/codex/diff")
+    def codex_diff(session_id: str, turn_id: str | None = None) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.read_codex_diff(session_id, turn_id))
+        except KeyError:
+            return JSONResponse({"error": _CODEX_RUN_NOT_FOUND}, status_code=404)
+        except CodexAppServerError as error:
+            return JSONResponse({"error": str(error)}, status_code=409)
+
     @app.get("/api/codex/models")
     async def codex_models() -> JSONResponse:
         return JSONResponse(await to_thread.run_sync(app.state.service.list_codex_models))

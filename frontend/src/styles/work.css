@@ -806,3 +806,55 @@ details.chat-output pre {
   color: var(--text-muted);
   text-decoration: line-through;
 }
+
+/* Changed content per request (EPIC-021 TASK-111). */
+.chat-card.is-diff .chat-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-card.is-diff .chat-card-head .is-compact {
+  margin-left: auto;
+}
+
+.diff-add { color: var(--success-text); }
+.diff-del { color: var(--danger-text); }
+
+.diff-files {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.diff-body {
+  display: grid;
+  gap: 10px;
+  max-height: 480px;
+  overflow: auto;
+}
+
+.diff-file pre {
+  margin: 6px 0 0;
+  padding: 8px 0;
+  border-radius: 10px;
+  background: var(--fill-1);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.diff-path {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diff-line {
+  display: block;
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.diff-line.is-add { background: var(--success-bg); color: var(--success-text); }
+.diff-line.is-del { background: var(--danger-bg); color: var(--danger-text); }
+.diff-line.is-hunk { color: var(--text-faint); }

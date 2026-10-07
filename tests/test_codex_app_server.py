@@ -482,6 +482,26 @@ def test_plan_updates_keep_the_latest_steps(opened: CodexAppServerSession) -> No
     assert opened.snapshot()["plan"]["steps"] == plans[-1]["steps"]
 
 
+def test_diff_events_carry_a_summary_and_the_text_is_read_on_demand(opened: CodexAppServerSession) -> None:
+    opened.send_message("diff please")
+    events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    updates = [e for e in events if e["type"] == "diff.updated"]
+    assert len(updates) == 2
+    last = updates[-1]
+    assert (last["files"], last["file_count"], last["added"], last["removed"]) == (["app.py", "notes.md"], 2, 2, 1)
+    assert all("print(" not in json.dumps(e) for e in events if e["type"] == "diff.updated")
+    diff = opened.read_diff(last["turn_id"])
+    assert "+print('new')" in diff["diff"] and "+hello" in diff["diff"] and diff["truncated"] is False
+    assert "notes.md" in opened.read_diff()["diff"]
+    with pytest.raises(CodexAppServerError):
+        opened.read_diff("turn-unknown")
+
+
+def test_diff_summary_ignores_headers_and_dev_null() -> None:
+    summary = app_server.diff_summary("--- a/x\n+++ b/x\n-a\n+b\n+c\n--- a/gone\n+++ /dev/null\n-z\n")
+    assert summary == {"files": ["x"], "file_count": 1, "added": 2, "removed": 2}
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

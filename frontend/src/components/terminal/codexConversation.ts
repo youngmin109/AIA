@@ -58,6 +58,10 @@ export interface CodexEvent {
   effort?: string | null
   explanation?: string | null
   steps?: CodexPlan['steps']
+  files?: string[]
+  file_count?: number
+  added?: number
+  removed?: number
 }
 
 // Codex's step plan for the current request (turn/plan/updated).
@@ -127,6 +131,7 @@ export type TranscriptItem =
   | { kind: 'question'; key: string; request: QuestionRequest; outcome: QuestionOutcome | null; answers: Record<string, string[] | null> }
   | { kind: 'elicitation'; key: string; request: ElicitationRequest; action: string | null }
   | { kind: 'permissions'; key: string; request: PermissionsRequest; decision: string | null }
+  | { kind: 'diff'; key: string; turnId: string | null; files: string[]; fileCount: number; added: number; removed: number }
   | { kind: 'notice'; key: string; tone: 'info' | 'warn' | 'bad'; text: string }
 
 export interface ConversationState {
@@ -407,6 +412,20 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
         (item) => (item.kind === 'permissions' ? { ...item, decision } : item),
       )
       state.pendingPermissions = state.pendingPermissions.filter((item) => item.permissions_id !== event.permissions_id)
+      break
+    }
+    case 'diff.updated': {
+      const key = `diff:${event.turn_id ?? event.sequence}`
+      const next: TranscriptItem = {
+        kind: 'diff',
+        key,
+        turnId: event.turn_id ?? null,
+        files: event.files ?? [],
+        fileCount: event.file_count ?? (event.files ?? []).length,
+        added: event.added ?? 0,
+        removed: event.removed ?? 0,
+      }
+      upsert(state, key, () => next, () => next)
       break
     }
     case 'plan.updated':

@@ -131,6 +131,12 @@ export function consoleInfo(): Promise<ConsoleInfo> {
   return apiGet<ConsoleInfo>('/api/console-info')
 }
 
+/** One request's diff (or the whole conversation's when turnId is null); kept in memory only. */
+export function codexDiff(runId: string, turnId: string | null): Promise<{ diff: string; truncated: boolean }> {
+  const query = turnId ? `?turn_id=${encodeURIComponent(turnId)}` : ''
+  return apiGet<{ diff: string; truncated: boolean }>(`/api/runs/${encodeURIComponent(runId)}/codex/diff${query}`)
+}
+
 /** Visible Codex models from a short-lived app-server; an empty list hides the pickers. */
 export function codexModels(): Promise<{ models: CodexModel[]; error?: string }> {
   return apiGet<{ models: CodexModel[]; error?: string }>('/api/codex/models')

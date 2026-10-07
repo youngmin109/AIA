@@ -478,6 +478,32 @@ def _token_usage(params: Mapping[str, Any]) -> dict[str, Any] | None:
     return {"total_tokens": total_tokens, "context_window": window if isinstance(window, int) else None}
 
 
+_MAX_DIFF_CHARS = 500_000
+_MAX_DIFF_TURNS = 30
+_MAX_DIFF_FILES = 50
+
+
+def diff_summary(diff: str) -> dict[str, Any]:
+    """Files and line counts of a unified diff; the text itself is not included."""
+
+    files: list[str] = []
+    added = removed = 0
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            if path != "/dev/null":
+                path = path[2:] if path.startswith(("a/", "b/")) else path
+                if path not in files:
+                    files.append(path)
+        elif line.startswith("--- "):
+            continue
+        elif line.startswith("+"):
+            added += 1
+        elif line.startswith("-"):
+            removed += 1
+    return {"files": files[:_MAX_DIFF_FILES], "file_count": len(files), "added": added, "removed": removed}
+
+
 def normalize_notification(method: str, params: Mapping[str, Any]) -> dict[str, Any] | None:
     """Translate one Codex notification into a Workbench event.
 
@@ -640,6 +666,8 @@ class CodexAppServerSession:
         self._token_usage: dict[str, Any] | None = None
         self._turn_settings: dict[str, str | None] = {"model": None, "effort": None}
         self._plan: dict[str, Any] | None = None
+        # Latest unified diff per turn, in memory only and fetched on demand.
+        self._diffs: dict[str, str] = {}
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -945,6 +973,19 @@ class CodexAppServerSession:
         self._respond(elicitation["request_id"], result)
         self._append_event({"type": "elicitation.resolved", "elicitation_id": elicitation_id, "action": action})
         return {"accepted": True, "elicitation_id": elicitation_id, "action": action}
+
+    def read_diff(self, turn_id: str | None = None) -> dict[str, Any]:
+        """One turn's diff, or every kept turn in order when ``turn_id`` is None."""
+
+        with self._lock:
+            if turn_id is None:
+                text = "\n".join(self._diffs.values())
+            elif turn_id in self._diffs:
+                text = self._diffs[turn_id]
+            else:
+                raise CodexAppServerError("no changes were recorded for this request")
+        truncated = len(text) > _MAX_DIFF_CHARS
+        return {"turn_id": turn_id, "diff": text[:_MAX_DIFF_CHARS], "truncated": truncated}
 
     def set_turn_settings(self, model: Any = None, effort: Any = None) -> dict[str, Any]:
         """Choose the model and reasoning effort for the next turns."""
@@ -1346,6 +1387,16 @@ class CodexAppServerSession:
                         self._append_event_locked(
                             {"type": "permissions.resolved", "permissions_id": permissions_id, "decision": "resolved_by_codex"}
                         )
+            return
+        if method == "turn/diff/updated":
+            turn_id, diff = params.get("turnId"), params.get("diff")
+            if isinstance(turn_id, str) and isinstance(diff, str):
+                with self._lock:
+                    self._diffs.pop(turn_id, None)
+                    self._diffs[turn_id] = diff[: _MAX_DIFF_CHARS + 1]
+                    while len(self._diffs) > _MAX_DIFF_TURNS:
+                        self._diffs.pop(next(iter(self._diffs)))
+                    self._append_event_locked({"type": "diff.updated", "turn_id": turn_id, **diff_summary(diff)})
             return
         event = normalize_notification(method, params)
         if event is None:

@@ -102,3 +102,19 @@ test('the latest Codex plan replaces the previous one', () => {
   ])
   assert.deepEqual(state.plan.steps.map(step => step.status), ['completed', 'pending'])
 })
+
+test('a unified diff splits per file and stops at the line budget', async () => {
+  const { parseUnifiedDiff } = await import('../src/api/diffView.ts')
+  const text = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/n.md b/n.md\nnew file mode 100644\n--- /dev/null\n+++ b/n.md\n+hi\n"
+  const parsed = parseUnifiedDiff(text)
+  assert.deepEqual(parsed.files.map(file => file.path), ['app.py', 'n.md'])
+  assert.deepEqual(parsed.files[0].lines.map(line => line.kind), ['hunk', 'del', 'add'])
+  assert.equal(parsed.cut, false)
+  assert.equal(parseUnifiedDiff(text, 2).cut, true)
+  const state = applyEvents(EMPTY_CONVERSATION, [
+    { sequence: 1, type: 'diff.updated', turn_id: 't1', files: ['app.py'], file_count: 1, added: 1, removed: 1 },
+    { sequence: 2, type: 'diff.updated', turn_id: 't1', files: ['app.py', 'n.md'], file_count: 2, added: 2, removed: 1 },
+  ])
+  assert.equal(state.items.length, 1, 'one card per request, updated in place')
+  assert.equal(state.items[0].fileCount, 2)
+})

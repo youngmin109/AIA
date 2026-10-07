@@ -164,6 +164,18 @@ def test_socket_relays_question_answers_to_codex(conversation) -> None:
         assert answered["answers"] == {"scope": ["Some"], "token": None}
 
 
+def test_diff_text_is_served_on_demand(conversation) -> None:
+    client, _ = conversation
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
+        websocket.send_json({"type": "user_message", "text": "diff please"})
+        messages = _receive_until(websocket, _turn_completed)
+        update = [e for e in _events(messages) if e["type"] == "diff.updated"][-1]
+    response = client.get(f"/api/runs/run-1/codex/diff?turn_id={update['turn_id']}")
+    assert response.status_code == 200 and "+hello" in response.json()["diff"]
+    assert client.get("/api/runs/run-1/codex/diff?turn_id=nope").status_code == 409
+    assert client.get("/api/runs/missing/codex/diff").status_code == 404
+
+
 def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
     client, _ = conversation
     with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:

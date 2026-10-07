@@ -10,6 +10,7 @@ import { PermissionsCard } from './PermissionsCard'
 import { UsageChip } from './UsageChip'
 import { ModelChip } from './ModelChip'
 import { PlanBar } from './PlanBar'
+import { DiffCard } from './DiffCard'
 import { useCodexModels } from '../../hooks/useCodexModels'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
@@ -64,8 +65,10 @@ function approvalTitle(request: ApprovalRequest): string {
   return request.kind === 'file_change' ? '파일 변경 승인 요청' : '명령 실행 승인 요청'
 }
 
-function TranscriptRow({ item }: { item: TranscriptItem }) {
+function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string }) {
   switch (item.kind) {
+    case 'diff':
+      return <DiffCard runId={runId} turnId={item.turnId} files={item.files} fileCount={item.fileCount} added={item.added} removed={item.removed} />
     case 'user':
       return (
         <div className="chat-row is-user">
@@ -449,7 +452,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
           ))
         )}
         {session.conversation.items.map((item) => (
-          <TranscriptRow key={item.key} item={item} />
+          <TranscriptRow key={item.key} item={item} runId={runId} />
         ))}
       </div>
 

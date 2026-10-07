@@ -3,7 +3,7 @@
 It speaks the same newline-delimited JSON-RPC shapes the real app-server uses
 for the methods AIA depends on.  The first word of a turn's text selects the
 scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``question``,
-``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``usage``, ``plan``, ``race``, ``crash``).
+``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``usage``, ``plan``, ``diff``, ``race``, ``crash``).
 ``FAKE_APP_SERVER_NO_USAGE`` makes the usage read fail like an API-key login.  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
 fake reports as applied.
 """
@@ -154,6 +154,14 @@ def handle_turn_start(request_id, text: str) -> None:
             "modelContextWindow": 200000})
         notify("account/rateLimits/updated", rateLimits={"primary": {"usedPercent": 60, "windowDurationMins": 300}})
         agent_reply(turn_id, "counted")
+        complete_turn(turn_id)
+    elif scenario == "diff":
+        diff = ("diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,2 +1,2 @@\n-print('old')\n+print('new')\n"
+                " keep\n"
+                "diff --git a/notes.md b/notes.md\n--- /dev/null\n+++ b/notes.md\n@@ -0,0 +1 @@\n+hello\n")
+        notify("turn/diff/updated", turnId=turn_id, diff=diff.split("diff --git a/notes.md")[0])
+        notify("turn/diff/updated", turnId=turn_id, diff=diff)
+        agent_reply(turn_id, "changed")
         complete_turn(turn_id)
     elif scenario == "plan":
         steps = ["Read the code", "Fix the bug", "Run the tests"]
