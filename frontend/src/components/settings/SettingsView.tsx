@@ -5,6 +5,8 @@ import { Icon } from '../common/Icon'
 import { GlossyIcon, StatusDot } from '../common/Glass'
 import { TintPicker } from '../common/TintPicker'
 import { HookStatusControl } from './HookStatusControl'
+import { GuardianGuide } from '../shell/GuardianGuide'
+import { useGuardianState } from '../../hooks/useGuardianState'
 import { usePreflight } from '../../hooks/usePreflight'
 import { useRunList } from '../../hooks/useRunList'
 import { useShellStore } from '../../state/shellStore'
@@ -12,6 +14,7 @@ import { consoleInfo, type ConsoleInfo } from '../../api/endpoints'
 import { apiPost } from '../../api/client'
 import { applyMotionPreference, readMotionPreference, type MotionPreference } from '../../api/motionPreference'
 import { applyGlassPreference, readGlassPreference, type GlassPreference } from '../../api/glassPreference'
+import { applyPetPreference, readPetPreference, type PetPreference } from '../../api/petPreference'
 import { connectionLights } from '../../api/settingsStatus'
 import { isConnectionLost } from '../../api/connectionState'
 
@@ -25,6 +28,9 @@ export function SettingsView() {
   const [info, setInfo] = useState<ConsoleInfo | null>(null)
   const [motion, setMotion] = useState(readMotionPreference)
   const [glass, setGlass] = useState<GlassPreference>(readGlassPreference)
+  const [pet, setPet] = useState<PetPreference>(readPetPreference)
+  const [guideOpen, setGuideOpen] = useState(false)
+  const guardian = useGuardianState()
   const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState('')
   const lights = connectionLights(error ? null : preflight)
@@ -46,6 +52,12 @@ export function SettingsView() {
     const next: GlassPreference = glass === 'on' ? 'off' : 'on'
     applyGlassPreference(next)
     setGlass(next)
+  }
+
+  function togglePet() {
+    const next: PetPreference = pet === 'on' ? 'off' : 'on'
+    applyPetPreference(next)
+    setPet(next)
   }
 
   async function exportDiagnostics() {
@@ -115,6 +127,10 @@ export function SettingsView() {
             <span>유리 효과<small>느린 PC에서는 끄면 가벼워져요</small></span>
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
+          <button type="button" role="switch" aria-checked={pet === 'on'} className="glass-switch" onClick={togglePet}>
+            <span>가디언 펫<small>화면 위에 띄워 두고 끌어서 옮겨요</small></span>
+            <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
+          </button>
           <div className="settings-motion">
             <span>움직임<small>가디언·화면 전환 애니메이션</small></span>
             <div className="segmented" role="group" aria-label="움직임">
@@ -132,6 +148,7 @@ export function SettingsView() {
           </ul>
           <div className="settings-actions">
             <Button variant="secondary" className="is-compact" disabled={exporting} onClick={exportDiagnostics}>{exporting ? '준비 중…' : '진단 정보 저장'}</Button>
+            <Button variant="text" onClick={() => setGuideOpen(true)}>도움말</Button>
             <Button variant="text" onClick={() => setView('history')}>감사 기록 보기 <Icon name="arrowRight" size={14} /></Button>
           </div>
           {notice && <p className="faint-note" role="status">{notice}</p>}
@@ -144,6 +161,7 @@ export function SettingsView() {
         <p>진단 정보는 버전·연결 상태만 모아요. 원시 증거, 명령 원문, 파일 내용은 넣지 않아요.</p>
         <p>아이아는 AI의 내부 사고가 아니라 실제 실행 요청·파일 변화·관리 프로세스를 관찰해요. 지원 범위 밖 도구나 경로는 보호 수준이 낮아질 수 있어요.</p>
       </details>
+      {guideOpen && <GuardianGuide guardian={guardian} initialTopic="start" onClose={() => setGuideOpen(false)} />}
     </div>
   )
 }

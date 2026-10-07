@@ -110,3 +110,18 @@ test('refraction maps are neutral in the centre and only push inward at the rim'
   assert.ok(decodeURIComponent(rimMask(400, 200, 30, 40)).includes("stroke-width='72.0'"))
   assert.deepEqual(Object.keys(LENS_KINDS), ['hero', 'panel', 'dialog'])
 })
+
+test('guardian pet stays inside the window and remembers where it was dropped', async () => {
+  const { PET_SIZE, normalizePetPreference, normalizePetPosition, petPixels, petPosition } = await import('../src/api/petPreference.ts')
+  assert.equal(normalizePetPreference(null), 'on')
+  assert.equal(normalizePetPreference('off'), 'off')
+  assert.deepEqual(normalizePetPosition(null), { x: 1, y: 1 })
+  assert.deepEqual(normalizePetPosition({ x: -2, y: 0.5 }), { x: 0, y: 0.5 })
+  assert.deepEqual(normalizePetPosition({ x: 'left', y: 3 }), { x: 1, y: 1 })
+  const window = { width: 1440, height: 900 }
+  assert.deepEqual(petPixels({ x: 1, y: 1 }, window), { left: 1440 - PET_SIZE - 12, top: 900 - PET_SIZE - 12 })
+  assert.deepEqual(petPixels({ x: 0, y: 0 }, window), { left: 12, top: 12 })
+  assert.deepEqual(petPosition({ left: 5000, top: -40 }, window), { x: 1, y: 0 })
+  assert.deepEqual(petPixels(petPosition({ left: 600, top: 300 }, window), window), { left: 600, top: 300 })
+  assert.deepEqual(petPixels({ x: 1, y: 1 }, { width: 60, height: 60 }), { left: 12, top: 12 })
+})

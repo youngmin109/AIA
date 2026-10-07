@@ -139,7 +139,7 @@ def _remove_webview_storage(path: Path) -> None:
         return
 
 
-WINDOW_TITLE = "AIA · Protected Workbench"
+WINDOW_TITLE = "AIA"
 _ERROR_ALREADY_EXISTS = 183
 _SW_RESTORE = 9
 

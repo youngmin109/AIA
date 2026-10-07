@@ -1,7 +1,8 @@
 """Screenshot the preview console at 1440x900 with headless Edge (EPIC-020).
 
 Steps run in order; each is ``click:<visible text>``, ``wait:<seconds>``,
-``eval:<javascript>`` or ``type:<css selector>=<text>``. ``url:<address>`` and
+``eval:<javascript>``, ``type:<css selector>=<text>`` or ``drag:<x1>,<y1>,<x2>,<y2>``
+(a real mouse drag in page pixels). ``url:<address>`` and
 ``size:<w>x<h>`` change the page and viewport (defaults: preview server, 1440x900). A screenshot is saved
 after the last step.
 
@@ -86,6 +87,16 @@ async def run(out: Path, steps: list[str], width: int, height: int, port: int, u
                 selector, _, text = value.partition("=")
                 result = await call("Runtime.evaluate", expression=TYPE_JS % (json.dumps(selector), json.dumps(text)), returnByValue=True)
                 print(result.get("result", {}).get("value"))
+            elif kind == "drag":
+                x1, y1, x2, y2 = (float(part) for part in value.split(","))
+                await call("Input.dispatchMouseEvent", type="mouseMoved", x=x1, y=y1)
+                await call("Input.dispatchMouseEvent", type="mousePressed", x=x1, y=y1, button="left", clickCount=1)
+                for index in range(1, 11):
+                    await call("Input.dispatchMouseEvent", type="mouseMoved", x=x1 + (x2 - x1) * index / 10,
+                               y=y1 + (y2 - y1) * index / 10, button="left", buttons=1)
+                    await asyncio.sleep(0.02)
+                await call("Input.dispatchMouseEvent", type="mouseReleased", x=x2, y=y2, button="left", clickCount=1)
+                await asyncio.sleep(0.5)
             elif kind == "eval":
                 result = await call("Runtime.evaluate", expression=value, returnByValue=True, awaitPromise=True)
                 print(result.get("result", {}).get("value"))

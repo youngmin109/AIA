@@ -1,4 +1,5 @@
 import { Rail } from './Rail'
+import { GuardianPet } from './GuardianPet'
 import { WorkView } from '../work/WorkView'
 import { ConnectionBanner } from './ConnectionBanner'
 import { ProtectionSetupModal } from '../settings/ProtectionSetupModal'
@@ -48,6 +49,7 @@ export function Shell() {
       </div>
       <ProtectionSetupModal />
       <EvidenceReviewModal />
+      <GuardianPet />
     </div>
   )
 }

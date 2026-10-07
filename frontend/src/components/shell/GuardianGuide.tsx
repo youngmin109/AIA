@@ -42,8 +42,8 @@ const CONTENT: Record<GuideTopic, { title: string; text: string; steps: string[]
   },
 }
 
-/** Help popover opened from the rail's guardian. It explains; it never approves, blocks, or restores. */
-export function GuardianGuide({ guardian, initialTopic, onClose }: { guardian: GuardianStatus; initialTopic: GuideTopic; onClose: () => void }) {
+/** Help popover opened from the guardian pet or settings. It explains; it never approves, blocks, or restores. */
+export function GuardianGuide({ guardian, initialTopic, side = 'left', onClose }: { guardian: GuardianStatus; initialTopic: GuideTopic; side?: 'left' | 'right'; onClose: () => void }) {
   const { activeRunId, setView, openNewRun } = useShellStore()
   const [topic, setTopic] = useState<GuideTopic>(initialTopic)
   const [reportCopied, setReportCopied] = useState(false)
@@ -79,7 +79,7 @@ export function GuardianGuide({ guardian, initialTopic, onClose }: { guardian: G
   return createPortal(
     <>
       <div className="guide-scrim" aria-hidden="true" onClick={onClose} />
-      <div ref={ref} tabIndex={-1} className="guide-popover" role="dialog" aria-modal="true" aria-label="아이아 가디언 도움말">
+      <div ref={ref} tabIndex={-1} className={`guide-popover is-${side}`} role="dialog" aria-modal="true" aria-label="아이아 가디언 도움말">
         <Button variant="icon" className="guide-close" onClick={onClose} aria-label="도움말 닫기"><Icon name="close" size={14} /></Button>
         <div className="guide-hero">
           <GuardianAvatar state={guardian.state} alt={`아이아 가디언 · ${guardian.label}`} size="guide" />

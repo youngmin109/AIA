@@ -139,7 +139,7 @@
 }
 
 .rail-item:focus-visible,
-.rail-guardian:focus-visible {
+.guardian-pet:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
@@ -186,6 +186,11 @@
   backdrop-filter: blur(var(--glass-blur)) saturate(190%);
   box-shadow: var(--dialog-shadow);
   animation: glass-arrive 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.guide-popover.is-right {
+  left: auto;
+  right: 16px;
 }
 
 .guide-popover:focus {
@@ -266,29 +271,115 @@
   gap: 4px;
 }
 
-.rail-spacer {
-  flex: 1;
-}
+/* ---- Guardian pet: floats over the app, drag to move, click for help ---- */
 
-.rail-guardian {
-  width: 68px;
-  height: 68px;
-  display: grid;
-  place-items: center;
+.guardian-pet {
+  --pet-bubble-fill: color-mix(in srgb, var(--page-base) 84%, transparent);
+  --pet-x: calc(100vw - 116px);
+  --pet-y: calc(100vh - 116px);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 50;
+  width: 104px;
+  height: 104px;
   padding: 0;
-  border: 1px solid var(--line-2);
-  border-radius: 20px;
-  background: var(--fill-1);
+  border: 0;
+  border-radius: 30px;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transform: translate(var(--pet-x), var(--pet-y));
 }
 
-.rail-guardian:hover {
-  background: var(--fill-2);
+.guardian-pet:not(.is-dragging) {
+  transition: transform 0.2s ease;
 }
 
-.rail-guardian img {
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
+.guardian-pet.is-dragging {
+  cursor: grabbing;
+}
+
+:root[data-pet='off'] .guardian-pet {
+  display: none;
+}
+
+.guardian-pet .guardian-avatar {
+  transition: transform 0.2s ease;
+}
+
+.guardian-pet:hover .guardian-avatar {
+  transform: scale(1.05);
+}
+
+.guardian-pet.is-dragging .guardian-avatar {
+  transform: scale(1.1) rotate(-6deg);
+}
+
+.guardian-pet img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.guardian-pet-bubble {
+  position: absolute;
+  right: 4px;
+  bottom: calc(100% + 4px);
+  width: max-content;
+  max-width: 250px;
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--pet-bubble-fill) padding-box, var(--glass-rim) border-box;
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  box-shadow: var(--glass-shadow-soft);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: left;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.guardian-pet-bubble b {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.guardian-pet.is-left .guardian-pet-bubble {
+  right: auto;
+  left: 4px;
+  border-radius: 16px 16px 16px 4px;
+}
+
+.guardian-pet.is-top .guardian-pet-bubble {
+  top: calc(100% + 4px);
+  bottom: auto;
+}
+
+.guardian-pet.is-review .guardian-pet-bubble {
+  background: var(--pet-bubble-fill) padding-box, var(--warning-line) border-box;
+}
+
+.guardian-pet.is-blocked .guardian-pet-bubble {
+  background: var(--pet-bubble-fill) padding-box, var(--danger-line) border-box;
+}
+
+.guardian-pet:hover .guardian-pet-bubble,
+.guardian-pet:focus-visible .guardian-pet-bubble,
+.guardian-pet.is-speaking .guardian-pet-bubble {
+  opacity: 1;
+  transform: none;
+}
+
+.guardian-pet.is-dragging .guardian-pet-bubble {
+  opacity: 0;
 }
 
 /* ---- Page heading ---- */
@@ -1123,7 +1214,7 @@ html[data-motion='reduced'] *::after {
   }
 }
 
-/* ---- Guardian avatar (rail and help) ---- */
+/* ---- Guardian avatar (pet and help) ---- */
 
 .guardian-avatar {
   --guardian-color: var(--accent);
@@ -1137,8 +1228,8 @@ html[data-motion='reduced'] *::after {
 .guardian-avatar.is-review { --guardian-color: var(--warning); }
 .guardian-avatar.is-recovery { --guardian-color: var(--success); }
 
-.guardian-avatar-sidebar { width: 56px; height: 56px; }
 .guardian-avatar-guide { width: 84px; height: 84px; }
+.guardian-avatar-pet { width: 104px; height: 104px; }
 .guardian-avatar-hero { width: 180px; height: 180px; }
 
 .guardian-avatar img {
@@ -1167,11 +1258,6 @@ html[data-motion='reduced'] *::after {
   border: 1px solid color-mix(in srgb, var(--guardian-color) 40%, transparent);
   border-radius: 50%;
   transform: rotate(-24deg);
-}
-
-.guardian-avatar-sidebar .guardian-orbit-ring,
-.guardian-avatar-sidebar .guardian-spark {
-  display: none;
 }
 
 .guardian-spark {

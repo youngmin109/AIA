@@ -2,7 +2,7 @@ import type { GuardianState } from '../../api/guardianStatus'
 import { GUARDIAN_IMAGES } from './guardianImages'
 
 /** Decorative movement follows real display state; it confers no authority. */
-export function GuardianAvatar({ state, alt, size = 'hero' }: { state: GuardianState; alt: string; size?: 'hero' | 'guide' | 'sidebar' }) {
+export function GuardianAvatar({ state, alt, size = 'hero' }: { state: GuardianState; alt: string; size?: 'hero' | 'guide' | 'pet' }) {
   return <span className={`guardian-avatar guardian-avatar-${size} is-${state}`}>
     <span className="guardian-aura" aria-hidden="true" />
     <span className="guardian-orbit-ring" aria-hidden="true" />
