@@ -96,7 +96,7 @@
 
 .home-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -126,6 +126,7 @@
 
 .home-tile-label {
   position: relative;
+  padding-right: 70px;
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 600;
@@ -301,7 +302,7 @@
 
 .home-live-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -323,5 +324,46 @@
   .home-hero-guardian,
   .home-live-guardian {
     display: none;
+  }
+}
+
+/* Short windows (for example the first 1024×700 launch): keep home on one screen. */
+@media (max-height: 760px) {
+  .home-hero {
+    min-height: 220px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+
+  .home-hero-guardian {
+    width: 180px;
+    height: 200px;
+  }
+
+  .home-tile {
+    min-height: 136px;
+  }
+
+  .home-action {
+    padding-top: 10px;
+  }
+
+  .round-action {
+    width: 108px;
+    height: 108px;
+  }
+}
+
+@container aia-content (max-width: 980px) {
+  .home-tile .tile-corner {
+    right: -20px;
+    top: -20px;
+    width: 76px;
+    height: 76px;
+    padding: 18px 18px 0 0;
+  }
+
+  .home-tile-label {
+    padding-right: 48px;
   }
 }

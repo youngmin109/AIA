@@ -55,6 +55,7 @@
   --scrim: rgba(8, 3, 28, 0.6);
   --ring-track: rgba(255, 255, 255, 0.14);
   --ring-core: rgba(28, 14, 70, 0.82);
+  --scrollbar: rgba(255, 255, 255, 0.22);
 
   /* Text */
   --text: #ffffff;
@@ -157,6 +158,10 @@ html,
 body,
 #root {
   height: 100%;
+}
+
+html {
+  scrollbar-color: var(--scrollbar) transparent;
 }
 
 body {
