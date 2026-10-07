@@ -18,6 +18,12 @@
   padding: 12px;
 }
 
+/* A long list spans the bright parts of the page; a dark base under the
+   glass keeps the white text readable there. */
+.glass.history-list {
+  background: linear-gradient(var(--inset-bg), var(--inset-bg)) padding-box, var(--glass-rim-soft) border-box;
+}
+
 .history-row {
   min-height: 66px;
   display: flex;
