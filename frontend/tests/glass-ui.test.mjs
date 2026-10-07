@@ -2,6 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { barPercent, bucketCounts, donutArcs, remainingSeconds, verdictSlices } from '../src/api/chartMath.ts'
 import { normalizeTintPreference } from '../src/api/tintPreference.ts'
+import { readFileSync } from 'node:fs'
+
+test('mounted recovery views refresh when another view completes a restore', () => {
+  const source = readFileSync(new URL('../src/hooks/useRecoveryStatus.ts', import.meta.url), 'utf8')
+  assert.ok(source.includes("window.addEventListener('aia:result-updated', updated)"))
+  assert.ok(source.includes("window.removeEventListener('aia:result-updated', updated)"))
+  assert.ok(source.includes('detail === sessionId'))
+})
 
 test('donut arcs split the circle by value and skip empty slices', () => {
   const arcs = donutArcs([
