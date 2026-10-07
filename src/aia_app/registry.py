@@ -38,6 +38,9 @@ class RunRecord:
     checkpoint: str = "NOT_READY"
     lease: str = "NOT_READY"
     sensor_health: dict[str, str] = field(default_factory=dict)
+    # Which preparation step is running, for display and slow-start diagnosis
+    # only.  Replaced as a whole so readers never see a half-updated value.
+    startup: dict[str, Any] = field(default_factory=dict)
     actions: list[dict[str, Any]] = field(default_factory=list)
     incidents: list[dict[str, Any]] = field(default_factory=list)
     result: dict[str, Any] | None = None
@@ -111,6 +114,7 @@ class RunRegistry:
             checkpoint=record.checkpoint,
             lease=record.lease,
             sensor_health=dict(record.sensor_health),
+            startup=record.startup,
             actions=[dict(item) for item in record.actions],
             incidents=[dict(item) for item in record.incidents],
             result=dict(record.result) if record.result is not None else None,

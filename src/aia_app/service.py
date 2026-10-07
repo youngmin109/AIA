@@ -1081,6 +1081,7 @@ class RunApplicationService(
             # the product phase must show that Codex creation is in progress.
             record.protection_state = "LAUNCHING"
             self._phase(record, "LAUNCHING", SessionStatus.READY)
+            self._startup_step(record, "launch")
             record.runtime.update(
                 {"launcher": launcher, "codex_controller": controller}
             )
@@ -1377,6 +1378,24 @@ class RunApplicationService(
         record.status = status.value
         self._persist_runtime_state(record)
 
+    def _startup_step(self, record: RunRecord, step: str | None) -> None:
+        """Mark the preparation step now running; ``None`` ends the startup.
+
+        Display only: the steps name work that already happens, and never
+        stand in for the checkpoint, sensor or readiness results themselves.
+        """
+
+        now = _now().isoformat()
+        steps = [dict(item) for item in record.startup.get("steps", [])]
+        if steps and steps[-1].get("ended_at") is None:
+            steps[-1]["ended_at"] = now
+        if step is not None:
+            steps.append({"step": step, "started_at": now, "ended_at": None})
+        record.startup = {"current": step, "steps": steps}
+
+    def _startup_progress(self, record: RunRecord, stage: str, done: int, total: int | None) -> None:
+        record.startup = {**record.startup, "progress": {"stage": stage, "done": done, "total": total}}
+
     def _record_launch_context(
         self,
         record: RunRecord,
@@ -1473,6 +1492,7 @@ class RunApplicationService(
             },
             "launch_mode": record.launch_mode,
             "phase": record.phase,
+            "startup": record.startup,
             "protection": {
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,

@@ -2662,6 +2662,25 @@ def test_protected_run_lifecycle_keeps_successful_phases_in_order(
         service.shutdown()
 
 
+def test_startup_steps_close_in_order_and_end_with_no_current_step(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = service.registry.add(make_record(tmp_path))
+    try:
+        service._startup_step(record, "checkpoint")
+        service._startup_progress(record, "copy", 2, 5)
+        assert record.startup["progress"] == {"stage": "copy", "done": 2, "total": 5}
+        service._startup_step(record, "sensors")
+        assert "progress" not in record.startup
+        service._startup_step(record, None)
+
+        assert record.startup["current"] is None
+        assert [step["step"] for step in record.startup["steps"]] == ["checkpoint", "sensors"]
+        assert all(step["ended_at"] for step in record.startup["steps"])
+        assert service.get_run_status(record.session_id)["startup"] == record.startup
+    finally:
+        service.shutdown()
+
+
 def test_protected_run_lifecycle_cleans_up_after_prelaunch_abort(
     tmp_path, monkeypatch
 ) -> None:

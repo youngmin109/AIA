@@ -3,6 +3,8 @@ import { Badge, type BadgeTone } from '../common/Badge'
 import { useDialog } from '../common/useDialog'
 import { Icon } from '../common/Icon'
 import { RingTimer } from '../common/Charts'
+import { StartupProgress } from '../common/StartupProgress'
+import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShellStore } from '../../state/shellStore'
@@ -222,7 +224,7 @@ function EndSessionDialog({ external, onConfirm, onCancel }: { external: boolean
   )
 }
 
-function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: number, silent: number, ownerPid: number | null): string {
+function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: number, silent: number, ownerPid: number | null, startupLabel?: string): string {
   if (approvals > 0) return '승인 결정을 기다리는 중'
   switch (statusName) {
     case 'EXTERNAL':
@@ -238,11 +240,11 @@ function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: 
     case 'FAILED':
       return 'Codex 연결 실패'
     default:
-      return 'Codex 연결을 준비하는 중'
+      return startupLabel ?? 'Codex 연결을 준비하는 중'
   }
 }
 
-export function CodexConversationPane({ runId, runEnded, context }: { runId: string; runEnded: boolean; context?: ReactNode }) {
+export function CodexConversationPane({ runId, runEnded, context, startup }: { runId: string; runEnded: boolean; context?: ReactNode; startup?: StartupView | null }) {
   const session = useCodexSession(runId, { runEnded })
   const [draft, setDraft] = useState('')
   // The deferred submit after an IME composition runs from an older render;
@@ -333,7 +335,7 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
     <div className="chat">
       <header className="chat-head">
         <span className={`status-dot is-${dotTone}`} aria-hidden="true" />
-        <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid)}</span>
+        <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid, startup?.label)}</span>
         <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
         {context}
         <span className="chat-head-spacer" />
@@ -368,12 +370,14 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
               : '작업 표시줄에서 그 AIA 창을 열어 계속하거나, "작업 종료"로 종료를 요청할 수 있어요.'}
           </div>
         ) : (
-          session.conversation.items.length === 0 && (
+          session.conversation.items.length === 0 && (session.statusName !== 'READY' && startup ? (
+            <div className="chat-empty"><StartupProgress view={startup} /></div>
+          ) : (
             <div className="chat-empty">
               <strong>{session.statusName === 'READY' ? 'Codex가 준비됐어요' : 'Codex 세션을 준비하고 있어요…'}</strong>
               <span>{session.statusName === 'READY' ? '아래 입력창에 하고 싶은 작업을 적어 보세요.' : '잠시만 기다려 주세요.'}</span>
             </div>
-          )
+          ))
         )}
         {session.conversation.items.map((item) => (
           <TranscriptRow key={item.key} item={item} />

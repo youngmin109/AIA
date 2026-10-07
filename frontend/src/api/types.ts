@@ -3,6 +3,8 @@
 // actually reads; unknown additional fields pass through untyped rather
 // than being exhaustively modeled (no codegen from the Python side yet).
 
+import type { StartupInfo } from './startupStatus'
+
 export interface SecurityEvent {
   event_id?: string
   category?: string
@@ -67,6 +69,7 @@ export interface EvidenceSummary {
 }
 
 export interface RunStatus {
+  startup?: StartupInfo
   activity?: {
     available?: boolean; live?: boolean; current_alive_count?: number | null; unique_file_count?: number;
     process_identity_count?: number; truncated?: boolean;

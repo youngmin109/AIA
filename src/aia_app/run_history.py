@@ -391,6 +391,7 @@ class RunHistoryMixin:
             "mode": record.mode,
             "interactive": record.interactive,
             "phase": record.phase,
+            "startup": record.startup,
             "result_path": str(record.result_path) if record.result_path is not None else None,
             "protection": {
                 "state": record.protection_state,
@@ -674,6 +675,7 @@ class RunHistoryMixin:
             "lease": state.get("lease", "UNKNOWN"),
             "mode": state.get("mode"),
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
+            "startup": state.get("startup") if isinstance(state.get("startup"), dict) else {},
             "result_path": state.get("result_path"),
             "protection": protection,
             "stop": stop,
