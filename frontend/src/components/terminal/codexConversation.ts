@@ -34,7 +34,19 @@ export interface CodexEvent {
   sandbox?: string | null
   approval_policy?: string | null
   unexpected?: boolean
+  question_id?: string
+  questions?: UserQuestion[]
+  auto_resolve_at?: string | null
+  answers?: Record<string, string[] | null>
+  skipped?: boolean
 }
+
+// Codex asking the user directly (item/tool/requestUserInput). Secret answers
+// come back as null: AIA never keeps a copy of them.
+export interface QuestionOption { label: string; description: string }
+export interface UserQuestion { id: string; header: string; question: string; options: QuestionOption[]; allow_other: boolean; secret: boolean }
+export interface QuestionRequest { question_id: string; questions: UserQuestion[]; auto_resolve_at?: string | null }
+export type QuestionOutcome = 'answered' | 'skipped' | 'resolved' | 'cancelled'
 
 // 'command' / 'file_change' are Codex sandbox approvals. 'aia_tool' is AIA's
 // human-in-the-loop review of a tool AIA cannot interpret (auto-refused when
@@ -62,6 +74,7 @@ export type TranscriptItem =
   | { kind: 'tool'; key: string; tool: string; status: string | null }
   | { kind: 'hook'; key: string; eventName: string; status: string; phase: 'started' | 'completed' }
   | { kind: 'approval'; key: string; request: ApprovalRequest; decision: string | null }
+  | { kind: 'question'; key: string; request: QuestionRequest; outcome: QuestionOutcome | null; answers: Record<string, string[] | null> }
   | { kind: 'notice'; key: string; tone: 'info' | 'warn' | 'bad'; text: string }
 
 export interface ConversationState {
@@ -70,6 +83,7 @@ export interface ConversationState {
   lastSequence: number
   activeTurnId: string | null
   pendingApprovals: ApprovalRequest[]
+  pendingQuestions: QuestionRequest[]
   lastEventAt: number
 }
 
@@ -79,6 +93,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   lastSequence: 0,
   activeTurnId: null,
   pendingApprovals: [],
+  pendingQuestions: [],
   lastEventAt: 0,
 }
 
@@ -253,6 +268,33 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingApprovals = state.pendingApprovals.filter((item) => item.approval_id !== event.approval_id)
       break
     }
+    case 'question.requested': {
+      const request: QuestionRequest = {
+        question_id: event.question_id ?? '',
+        questions: event.questions ?? [],
+        auto_resolve_at: event.auto_resolve_at ?? null,
+      }
+      const key = `question:${request.question_id}`
+      upsert(state, key, () => ({ kind: 'question', key, request, outcome: null, answers: {} }), (item) => item)
+      state.pendingQuestions = [...state.pendingQuestions.filter((item) => item.question_id !== request.question_id), request]
+      break
+    }
+    case 'question.answered':
+    case 'question.resolved': {
+      const key = `question:${event.question_id}`
+      const outcome: QuestionOutcome = event.type === 'question.answered'
+        ? (event.skipped ? 'skipped' : 'answered')
+        : (event.reason === 'cancel' ? 'cancelled' : 'resolved')
+      const answers = event.answers ?? {}
+      upsert(
+        state,
+        key,
+        () => ({ kind: 'question', key, request: { question_id: event.question_id ?? '', questions: [] }, outcome, answers }),
+        (item) => (item.kind === 'question' ? { ...item, outcome, answers } : item),
+      )
+      state.pendingQuestions = state.pendingQuestions.filter((item) => item.question_id !== event.question_id)
+      break
+    }
     case 'warning':
       notice(state, event, 'warn', event.message ?? 'Codex 경고')
       break
@@ -262,6 +304,7 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
     case 'session.exited':
       state.activeTurnId = null
       state.pendingApprovals = []
+      state.pendingQuestions = []
       notice(state, event, event.unexpected ? 'bad' : 'info', event.unexpected ? 'Codex가 예기치 않게 종료되었습니다.' : 'Codex 세션이 종료되었습니다.')
       break
     default:
@@ -279,6 +322,7 @@ export function applyEvents(previous: ConversationState, events: CodexEvent[]): 
     items: [...previous.items],
     positions: { ...previous.positions },
     pendingApprovals: [...previous.pendingApprovals],
+    pendingQuestions: [...previous.pendingQuestions],
   }
   for (const event of fresh) {
     applyEvent(state, event)

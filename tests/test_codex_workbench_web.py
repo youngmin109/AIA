@@ -146,6 +146,24 @@ def test_socket_relays_an_approval_decision_to_codex(conversation) -> None:
         assert completed["status"] == "completed"
 
 
+def test_socket_relays_question_answers_to_codex(conversation) -> None:
+    client, _ = conversation
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
+        websocket.send_json({"type": "user_message", "text": "question please"})
+        messages = _receive_until(
+            websocket,
+            lambda m: m["type"] == "events" and any(e["type"] == "question.requested" for e in m["events"]),
+        )
+        request = next(e for e in _events(messages) if e["type"] == "question.requested")
+        websocket.send_json({"type": "question_answer", "question_id": request["question_id"],
+                             "answers": {"scope": ["Some"], "token": ["t0ken"]}})
+        messages = messages + _receive_until_all(websocket, _turn_completed, _accepted("question_answer"))
+        accepted = next(m for m in messages if m["type"] == "accepted")
+        assert "t0ken" not in str(accepted)
+        answered = next(e for e in _events(messages) if e["type"] == "question.answered")
+        assert answered["answers"] == {"scope": ["Some"], "token": None}
+
+
 def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
     client, _ = conversation
     with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:

@@ -1,6 +1,6 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState } from './codexConversation'
+import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type QuestionRequest } from './codexConversation'
 
 // Talks to WS /api/runs/{id}/codex. The server pushes structured events as
 // Codex produces them; this hook only folds them into a transcript and sends
@@ -17,6 +17,7 @@ export interface CodexStatus {
   pid: number | null
   active_turn_id: string | null
   pending_approvals: ApprovalRequest[]
+  pending_questions?: QuestionRequest[]
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -200,6 +201,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  /** Empty answers skip the question; secret answers are only sent, never stored. */
+  const answerQuestion = useCallback(
+    (questionId: string, answers: Record<string, string[]>) => {
+      setErrorMessage(null)
+      return send({ type: 'question_answer', question_id: questionId, answers, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   const endSession = useCallback(() => {
     if (send({ type: 'end_session', client_id: nextClientId() })) setEndPending(true)
   }, [send])
@@ -222,6 +232,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     if (!resolved.has(item.approval_id)) pendingById.set(item.approval_id, item)
   }
   const pendingApprovals = [...pendingById.values()]
+  const answered = new Set<string>()
+  for (const item of conversation.items) {
+    if (item.kind === 'question' && item.outcome) answered.add(item.request.question_id)
+  }
+  const questionsById = new Map<string, QuestionRequest>()
+  for (const item of [...(status?.pending_questions ?? []), ...conversation.pendingQuestions]) {
+    if (!answered.has(item.question_id)) questionsById.set(item.question_id, item)
+  }
+  const pendingQuestions = [...questionsById.values()]
 
   return {
     conversation,
@@ -236,12 +255,14 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     ownerPid: status?.owner_pid ?? null,
     endRequested: Boolean(status?.end_requested),
     pendingApprovals,
+    pendingQuestions,
     errorMessage,
     interruptPending,
     endPending,
     sendMessage,
     interrupt,
     decideApproval,
+    answerQuestion,
     endSession,
     onRestoreDraft,
     dismissError: () => setErrorMessage(null),

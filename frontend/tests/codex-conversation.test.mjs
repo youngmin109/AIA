@@ -1,0 +1,37 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { applyEvents, EMPTY_CONVERSATION } from '../src/components/terminal/codexConversation.ts'
+
+const question = {
+  sequence: 1,
+  type: 'question.requested',
+  question_id: 'question-1',
+  questions: [
+    { id: 'scope', header: 'Scope', question: 'Which files?', options: [{ label: 'All', description: '' }], allow_other: true, secret: false },
+    { id: 'token', header: 'Token', question: 'Paste it', options: [], allow_other: false, secret: true },
+  ],
+  auto_resolve_at: null,
+}
+
+test('a Codex question stays pending until it is answered, and a secret answer is never kept', () => {
+  const asked = applyEvents(EMPTY_CONVERSATION, [question])
+  assert.deepEqual(asked.pendingQuestions.map(item => item.question_id), ['question-1'])
+  assert.equal(asked.items[0].kind, 'question')
+  assert.equal(asked.items[0].outcome, null)
+
+  const answered = applyEvents(asked, [{ sequence: 2, type: 'question.answered', question_id: 'question-1', skipped: false, answers: { scope: ['All'], token: null } }])
+  assert.deepEqual(answered.pendingQuestions, [])
+  assert.equal(answered.items[0].outcome, 'answered')
+  assert.deepEqual(answered.items[0].answers, { scope: ['All'], token: null })
+  assert.equal(answered.items[0].request.questions.length, 2, 'the question text survives the answer')
+})
+
+test('skipped, resolved by Codex, and cancelled questions each close the card', () => {
+  const asked = applyEvents(EMPTY_CONVERSATION, [question])
+  assert.equal(applyEvents(asked, [{ sequence: 2, type: 'question.answered', question_id: 'question-1', skipped: true, answers: {} }]).items[0].outcome, 'skipped')
+  assert.equal(applyEvents(asked, [{ sequence: 2, type: 'question.resolved', question_id: 'question-1', reason: 'resolved_by_codex' }]).items[0].outcome, 'resolved')
+  const cancelled = applyEvents(asked, [{ sequence: 2, type: 'question.resolved', question_id: 'question-1', reason: 'cancel' }])
+  assert.equal(cancelled.items[0].outcome, 'cancelled')
+  assert.deepEqual(cancelled.pendingQuestions, [])
+  assert.deepEqual(applyEvents(asked, [{ sequence: 2, type: 'session.exited', unexpected: true }]).pendingQuestions, [])
+})

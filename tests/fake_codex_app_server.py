@@ -2,8 +2,8 @@
 
 It speaks the same newline-delimited JSON-RPC shapes the real app-server uses
 for the methods AIA depends on.  The first word of a turn's text selects the
-scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``race``,
-``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
+scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``question``,
+``question-auto``, ``race``, ``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
 fake reports as applied.
 """
 
@@ -99,6 +99,25 @@ def handle_turn_start(request_id, text: str) -> None:
         state["pending"] = ("ask", turn_id)
         send({"id": "srv-3", "method": "item/tool/requestUserInput",
               "params": {"threadId": "thr-1", "turnId": turn_id, "itemId": "q-1", "questions": []}})
+    elif scenario == "question":
+        state["pending"] = ("question", turn_id)
+        send({"id": "srv-4", "method": "item/tool/requestUserInput",
+              "params": {"threadId": "thr-1", "turnId": turn_id, "itemId": "q-2", "isBlocking": True,
+                         "questions": [
+                             {"id": "scope", "header": "Scope", "question": "Which files?", "isOther": True,
+                              "options": [{"label": "All", "description": "every file"},
+                                          {"label": "Some", "description": "only tests"}]},
+                             {"id": "token", "header": "Token", "question": "Paste the token", "isSecret": True,
+                              "options": None},
+                         ]}})
+    elif scenario == "question-auto":
+        send({"id": "srv-5", "method": "item/tool/requestUserInput",
+              "params": {"threadId": "thr-1", "turnId": turn_id, "itemId": "q-3", "isBlocking": False,
+                         "autoResolutionMs": 50,
+                         "questions": [{"id": "go", "header": "Go", "question": "Continue?", "options": []}]}})
+        notify("serverRequest/resolved", requestId="srv-5")
+        agent_reply(turn_id, "auto-resolved")
+        complete_turn(turn_id)
     elif scenario == "slow":
         pass  # stays in progress until turn/interrupt
 
@@ -111,6 +130,11 @@ def handle_server_response(message: dict) -> None:
     kind, turn_id = pending
     if kind == "ask":
         agent_reply(turn_id, "got-error" if "error" in message else "got-result")
+        complete_turn(turn_id)
+        return
+    if kind == "question":
+        answers = (message.get("result") or {}).get("answers")
+        agent_reply(turn_id, "answers=" + json.dumps(answers, sort_keys=True))
         complete_turn(turn_id)
         return
     decision = (message.get("result") or {}).get("decision")

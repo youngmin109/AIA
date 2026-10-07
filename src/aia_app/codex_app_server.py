@@ -17,7 +17,7 @@ persisted into the Evidence Bundle or the Result Bundle.
 from __future__ import annotations
 
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -145,6 +145,10 @@ _APPROVAL_REQUESTS = {
     "item/fileChange/requestApproval": "file_change",
 }
 APPROVAL_DECISIONS = frozenset({"accept", "acceptForSession", "decline", "cancel"})
+# Codex asking the user directly (experimental in the app-server protocol).
+_QUESTION_REQUEST = "item/tool/requestUserInput"
+_MAX_QUESTIONS = 10
+_MAX_ANSWER_CHARS = 4_000
 # A JSON-RPC "method not found" reply lets Codex continue instead of waiting
 # forever on a request the Workbench cannot present.
 _UNSUPPORTED_REQUEST_CODE = -32601
@@ -162,6 +166,44 @@ def _user_message_text(item: Mapping[str, Any]) -> str:
         if isinstance(entry, Mapping) and entry.get("type") == "text":
             parts.append(_text_of(entry.get("text")))
     return "".join(parts)
+
+
+def _parse_questions(params: Mapping[str, Any]) -> list[dict[str, Any]] | None:
+    """Keep the fields the Workbench renders; ``None`` when the shape is unknown.
+
+    The request is experimental, so anything unexpected falls back to the
+    unsupported reply instead of a half-rendered question.
+    """
+
+    questions = params.get("questions")
+    if not isinstance(questions, list) or not 0 < len(questions) <= _MAX_QUESTIONS:
+        return None
+    parsed: list[dict[str, Any]] = []
+    for question in questions:
+        if not isinstance(question, Mapping):
+            return None
+        question_id, text = question.get("id"), question.get("question")
+        if not isinstance(question_id, str) or not question_id or not isinstance(text, str):
+            return None
+        options = question.get("options") or []
+        if not isinstance(options, list) or any(
+            not isinstance(option, Mapping) or not isinstance(option.get("label"), str) for option in options
+        ):
+            return None
+        parsed.append(
+            {
+                "id": question_id,
+                "header": _text_of(question.get("header")),
+                "question": text,
+                "options": [
+                    {"label": option["label"], "description": _text_of(option.get("description"))}
+                    for option in options
+                ],
+                "allow_other": bool(question.get("isOther")),
+                "secret": bool(question.get("isSecret")),
+            }
+        )
+    return parsed
 
 
 def _command_text(value: Any) -> str:
@@ -314,6 +356,8 @@ class CodexAppServerSession:
         self._pending_requests: dict[int, dict[str, Any]] = {}
         self._pending_approvals: dict[str, dict[str, Any]] = {}
         self._next_approval = 1
+        self._pending_questions: dict[str, dict[str, Any]] = {}
+        self._next_question = 1
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -446,12 +490,17 @@ class CodexAppServerSession:
             turn_id = self._active_turn_id
             approvals = list(self._pending_approvals.items())
             self._pending_approvals.clear()
+            questions = list(self._pending_questions.items())
+            self._pending_questions.clear()
         if process is None:
             return
         if not force and not already_closing:
             for approval_id, approval in approvals:
                 self._respond(approval["request_id"], {"decision": "cancel"})
                 self._append_event({"type": "approval.resolved", "approval_id": approval_id, "decision": "cancel"})
+            for question_id, question in questions:
+                self._respond(question["request_id"], {"answers": {}})
+                self._append_event({"type": "question.resolved", "question_id": question_id, "reason": "cancel"})
             if thread_id is not None and turn_id is not None and process.poll() is None:
                 try:
                     self._request("turn/interrupt", {"threadId": thread_id, "turnId": turn_id}, timeout=2.0)
@@ -521,6 +570,42 @@ class CodexAppServerSession:
         self._append_event({"type": "approval.resolved", "approval_id": approval_id, "decision": decision})
         return {"accepted": True, "approval_id": approval_id, "decision": decision}
 
+    def respond_question(self, question_id: str, answers: Any) -> dict[str, Any]:
+        """Send the user's answers; an empty mapping skips the question.
+
+        Secret answers reach Codex only: the event keeps no copy of them.
+        """
+
+        if not isinstance(answers, Mapping):
+            raise CodexAppServerError("answers must be an object")
+        with self._lock:
+            question = self._pending_questions.get(question_id)
+            if question is None:
+                raise CodexAppServerError("question is no longer pending")
+            known = {item["id"]: item for item in question["questions"]}
+            cleaned: dict[str, list[str]] = {}
+            for key, values in answers.items():
+                if key not in known or not isinstance(values, list) or not values or any(
+                    not isinstance(value, str) or not value.strip() or len(value) > _MAX_ANSWER_CHARS
+                    for value in values
+                ):
+                    raise CodexAppServerError("answers do not match the question")
+                cleaned[key] = list(values)
+            del self._pending_questions[question_id]
+        self._respond(
+            question["request_id"],
+            {"answers": {key: {"answers": values} for key, values in cleaned.items()}},
+        )
+        self._append_event(
+            {
+                "type": "question.answered",
+                "question_id": question_id,
+                "skipped": not cleaned,
+                "answers": {key: None if known[key]["secret"] else values for key, values in cleaned.items()},
+            }
+        )
+        return {"accepted": True, "question_id": question_id, "skipped": not cleaned}
+
     # -- event buffer ------------------------------------------------------
 
     def read_events(self, after_sequence: int = 0) -> list[dict[str, Any]]:
@@ -562,6 +647,10 @@ class CodexAppServerSession:
                 {key: value for key, value in approval.items() if key != "request_id"}
                 for approval in self._pending_approvals.values()
             ]
+            questions = [
+                {key: value for key, value in question.items() if key != "request_id"}
+                for question in self._pending_questions.values()
+            ]
             snapshot = {
                 "mode": "codex_app_server",
                 "status": self._status,
@@ -569,6 +658,7 @@ class CodexAppServerSession:
                 "thread_id": self._thread_id,
                 "active_turn_id": self._active_turn_id,
                 "pending_approvals": pending,
+                "pending_questions": questions,
                 "effective": dict(self._effective),
                 "started_at": self._started_at.isoformat() if self._started_at else None,
                 "ended_at": self._ended_at.isoformat() if self._ended_at else None,
@@ -690,6 +780,7 @@ class CodexAppServerSession:
                 slot["error"] = {"message": "Codex app-server exited"}
                 slot["done"].set()
             self._pending_approvals.clear()
+            self._pending_questions.clear()
             self._append_event_locked({"type": "session.exited", "exit_code": exit_code, "unexpected": unexpected})
 
     def _read_stderr(self) -> None:
@@ -725,6 +816,11 @@ class CodexAppServerSession:
         self._handle_notification(method, params)
 
     def _handle_server_request(self, request_id: Any, method: str, params: Mapping[str, Any]) -> None:
+        if method == _QUESTION_REQUEST:
+            questions = _parse_questions(params)
+            if questions is not None:
+                self._open_question(request_id, params, questions)
+                return
         kind = _APPROVAL_REQUESTS.get(method)
         if kind is None:
             self._respond(
@@ -752,6 +848,29 @@ class CodexAppServerSession:
                 {"type": "approval.requested", **{key: value for key, value in approval.items() if key != "request_id"}}
             )
 
+    def _open_question(self, request_id: Any, params: Mapping[str, Any], questions: list[dict[str, Any]]) -> None:
+        auto_ms = params.get("autoResolutionMs")
+        auto_resolve_at = (
+            (_now() + timedelta(milliseconds=auto_ms)).isoformat()
+            if isinstance(auto_ms, int) and not isinstance(auto_ms, bool) and auto_ms > 0
+            else None
+        )
+        with self._lock:
+            question_id = f"question-{self._next_question}"
+            self._next_question += 1
+            question = {
+                "question_id": question_id,
+                "request_id": request_id,
+                "item_id": params.get("itemId"),
+                "turn_id": params.get("turnId"),
+                "questions": questions,
+                "auto_resolve_at": auto_resolve_at,
+            }
+            self._pending_questions[question_id] = question
+            self._append_event_locked(
+                {"type": "question.requested", **{key: value for key, value in question.items() if key != "request_id"}}
+            )
+
     def _handle_notification(self, method: str, params: Mapping[str, Any]) -> None:
         if method == "serverRequest/resolved":
             request_id = params.get("requestId")
@@ -761,6 +880,12 @@ class CodexAppServerSession:
                         del self._pending_approvals[approval_id]
                         self._append_event_locked(
                             {"type": "approval.resolved", "approval_id": approval_id, "decision": "resolved_by_codex"}
+                        )
+                for question_id, question in list(self._pending_questions.items()):
+                    if question["request_id"] == request_id:
+                        del self._pending_questions[question_id]
+                        self._append_event_locked(
+                            {"type": "question.resolved", "question_id": question_id, "reason": "resolved_by_codex"}
                         )
             return
         event = normalize_notification(method, params)

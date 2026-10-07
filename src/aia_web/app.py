@@ -581,6 +581,11 @@ def _register_codex_routes(app: FastAPI) -> None:
                     str(message.get("approval_id", "")),
                     str(message.get("decision", "")),
                 ),
+                "question_answer": lambda message: service.respond_codex_question(
+                    session_id,
+                    str(message.get("question_id", "")),
+                    message.get("answers"),
+                ),
                 "end_session": lambda message: service.end_codex_session(session_id),
             }
             while True:

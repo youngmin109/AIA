@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
 from pathlib import Path
 import sys
@@ -258,6 +259,53 @@ def test_unsupported_server_request_gets_an_error_reply_instead_of_hanging(opene
     events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
     assert [e["text"] for e in events if e["type"] == "message.completed"] == ["got-error"]
     assert any(e["type"] == "warning" and "requestUserInput" in e["message"] for e in events)
+
+
+def test_question_round_trip_never_keeps_a_secret_answer(opened: CodexAppServerSession) -> None:
+    opened.send_message("question please")
+    events = _wait_for(opened, lambda items: "question.requested" in _types(items))
+    request = next(e for e in events if e["type"] == "question.requested")
+    assert "request_id" not in request
+    scope, token = request["questions"]
+    assert (scope["id"], scope["allow_other"], [o["label"] for o in scope["options"]]) == ("scope", True, ["All", "Some"])
+    assert (token["id"], token["secret"], token["options"]) == ("token", True, [])
+    assert opened.snapshot()["pending_questions"][0]["question_id"] == request["question_id"]
+
+    with pytest.raises(CodexAppServerError):
+        opened.respond_question(request["question_id"], {"unknown": ["x"]})
+    with pytest.raises(CodexAppServerError):
+        opened.respond_question(request["question_id"], {"scope": "All"})
+    assert opened.snapshot()["pending_questions"], "a rejected answer keeps the question open"
+
+    opened.respond_question(request["question_id"], {"scope": ["All"], "token": ["sk-secret-value"]})
+
+    events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    reply = next(e["text"] for e in events if e["type"] == "message.completed")
+    assert reply == 'answers={"scope": {"answers": ["All"]}, "token": {"answers": ["sk-secret-value"]}}'
+    answered = next(e for e in events if e["type"] == "question.answered")
+    assert answered["answers"] == {"scope": ["All"], "token": None}
+    # The fake Codex echoes what it received; AIA's own question events never hold the secret.
+    assert all("sk-secret-value" not in json.dumps(e) for e in events if e["type"].startswith("question."))
+    assert opened.snapshot()["pending_questions"] == []
+
+
+def test_skipping_a_question_sends_no_answers(opened: CodexAppServerSession) -> None:
+    opened.send_message("question please")
+    events = _wait_for(opened, lambda items: "question.requested" in _types(items))
+    question_id = next(e for e in events if e["type"] == "question.requested")["question_id"]
+    assert opened.respond_question(question_id, {})["skipped"] is True
+    events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    assert next(e["text"] for e in events if e["type"] == "message.completed") == "answers={}"
+
+
+def test_question_resolved_by_codex_is_closed_with_its_deadline(opened: CodexAppServerSession) -> None:
+    opened.send_message("question-auto now")
+    events = _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    request = next(e for e in events if e["type"] == "question.requested")
+    assert request["auto_resolve_at"] is not None
+    resolved = next(e for e in events if e["type"] == "question.resolved")
+    assert (resolved["question_id"], resolved["reason"]) == (request["question_id"], "resolved_by_codex")
+    assert opened.snapshot()["pending_questions"] == []
 
 
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:

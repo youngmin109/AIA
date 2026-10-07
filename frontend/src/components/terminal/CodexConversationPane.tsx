@@ -4,6 +4,7 @@ import { useDialog } from '../common/useDialog'
 import { Icon } from '../common/Icon'
 import { RingTimer } from '../common/Charts'
 import { StartupProgress } from '../common/StartupProgress'
+import { QuestionCard } from './QuestionCard'
 import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -117,9 +118,29 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
           {item.decision ? ` · ${DECISION_LABELS[item.decision] ?? item.decision}` : ' · 결정 대기 중'}
         </div>
       )
+    case 'question':
+      return <div className={`chat-hook ${item.outcome ? 'is-hook' : 'is-warn'}`}>{questionSummary(item)}</div>
     case 'notice':
       return <div className={`chat-notice is-${item.tone}`}>{item.text}</div>
   }
+}
+
+const QUESTION_OUTCOME_LABELS: Record<string, string> = {
+  skipped: '건너뛰었어요',
+  resolved: 'Codex가 질문을 거뒀어요',
+  cancelled: '세션 종료로 취소됐어요',
+}
+
+function questionSummary(item: Extract<TranscriptItem, { kind: 'question' }>): string {
+  const headers = item.request.questions.map((question) => question.header || question.question).join(', ')
+  const title = `Codex 질문${headers ? ` · ${headers}` : ''}`
+  if (!item.outcome) return `${title} · 답을 기다리는 중`
+  if (item.outcome !== 'answered') return `${title} · ${QUESTION_OUTCOME_LABELS[item.outcome]}`
+  const replies = Object.entries(item.answers).map(([id, values]) => {
+    const question = item.request.questions.find((entry) => entry.id === id)
+    return `${question?.header || id}: ${values === null ? '비밀 답변을 보냈어요' : values.join(', ')}`
+  })
+  return `${title} · ${replies.join(' · ') || '답을 보냈어요'}`
 }
 
 function ApprovalDialog({
@@ -328,6 +349,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const lastEventAt = session.conversation.lastEventAt
   const silent = session.working && lastEventAt ? Math.max(0, Math.floor((now - lastEventAt) / 1000)) : 0
   const firstApproval = session.pendingApprovals[0]
+  const firstQuestion = session.pendingQuestions[0]
   const error = session.status?.error
   const dotTone = session.ended ? 'neutral' : approvalWaiting ? 'warn' : session.connection.tone === 'bad' ? 'bad' : 'ok'
 
@@ -391,6 +413,15 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
             <Button variant="icon" onClick={session.dismissError} aria-label="닫기">×</Button>
           )}
         </div>
+      )}
+
+      {firstQuestion && !session.ended && (
+        <QuestionCard
+          key={firstQuestion.question_id}
+          request={firstQuestion}
+          disabled={!session.connected}
+          onSubmit={(answers) => session.answerQuestion(firstQuestion.question_id, answers)}
+        />
       )}
 
       <form

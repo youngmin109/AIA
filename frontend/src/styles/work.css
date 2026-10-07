@@ -526,3 +526,88 @@ details.chat-output pre {
     grid-template-rows: minmax(520px, 1fr) auto;
   }
 }
+
+/* Codex asking the user (EPIC-021 TASK-105). */
+.question-card {
+  margin: 0 18px 4px;
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border-color: var(--warning-line);
+}
+
+.question-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.question-head strong {
+  font-size: 15px;
+}
+
+.question-timer {
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.question-item {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.question-item legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.question-header {
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fill-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.question-option {
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--fill-1);
+  color: var(--text);
+  text-align: left;
+}
+
+.question-option small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.question-option[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--fill-3);
+}
+
+.question-option:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
