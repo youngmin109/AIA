@@ -20,6 +20,7 @@ import { useRunStatus } from '../../hooks/useRunStatus'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
 import { useProfiles } from '../../hooks/useProfiles'
 import { useCodexModels } from '../../hooks/useCodexModels'
+import { useNow } from '../../hooks/useElapsed'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -310,6 +311,29 @@ function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: 
   }
 }
 
+/** The status line. Only this ticks every second while Codex works, so a long conversation is not redrawn each second. */
+function ChatActivity({ statusName, approvals, working, lastEventAt, ownerPid, startupLabel }: {
+  statusName: CodexStatusName
+  approvals: number
+  working: boolean
+  lastEventAt: number
+  ownerPid: number | null
+  startupLabel?: string
+}) {
+  const [workingSince, setWorkingSince] = useState(0)
+  const now = useNow(working)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (working) setWorkingSince((since) => since || Date.now())
+      else setWorkingSince(0)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [working])
+  const elapsed = workingSince ? Math.max(0, Math.floor((now - workingSince) / 1000)) : 0
+  const silent = working && lastEventAt ? Math.max(0, Math.floor((now - lastEventAt) / 1000)) : 0
+  return <span className="chat-activity">{activityLabel(statusName, approvals, elapsed, silent, ownerPid, startupLabel)}</span>
+}
+
 export function CodexConversationPane({ runId, runEnded, context, startup }: { runId: string; runEnded: boolean; context?: ReactNode; startup?: StartupView | null }) {
   const session = useCodexSession(runId, { runEnded })
   const [draft, setDraft] = useState('')
@@ -320,8 +344,6 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const submitAfterCompositionRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
-  const [workingSince, setWorkingSince] = useState(0)
-  const [now, setNow] = useState(() => Date.now())
 
   const { onRestoreDraft } = session
   const [paletteIndex, setPaletteIndex] = useState(0)
@@ -337,20 +359,6 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   useEffect(() => {
     onRestoreDraft((text) => setDraft((current) => (current ? current : text)))
   }, [onRestoreDraft])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (session.working) setWorkingSince((since) => since || Date.now())
-      else setWorkingSince(0)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [session.working])
-
-  useEffect(() => {
-    if (!session.working) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [session.working])
 
   useLayoutEffect(() => {
     const node = scrollRef.current
@@ -474,9 +482,6 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
     }
   }
 
-  const elapsed = workingSince ? Math.max(0, Math.floor((now - workingSince) / 1000)) : 0
-  const lastEventAt = session.conversation.lastEventAt
-  const silent = session.working && lastEventAt ? Math.max(0, Math.floor((now - lastEventAt) / 1000)) : 0
   const firstApproval = session.pendingApprovals[0]
   const firstQuestion = session.pendingQuestions[0]
   const firstElicitation = session.pendingElicitations[0]
@@ -493,7 +498,8 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
       <header className="chat-head">
         <div className="chat-head-row">
         <span className={`status-dot is-${dotTone}`} aria-hidden="true" />
-        <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid, startup?.label)}</span>
+        <ChatActivity statusName={session.statusName} approvals={session.pendingApprovals.length} working={session.working}
+          lastEventAt={session.conversation.lastEventAt} ownerPid={session.ownerPid} startupLabel={startup?.label} />
         <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
         <span className="chat-head-spacer" />
         {session.status?.pid ? <span className="chat-pid">PID {session.status.pid}</span> : null}
