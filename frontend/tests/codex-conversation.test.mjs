@@ -118,3 +118,30 @@ test('a unified diff splits per file and stops at the line budget', async () => 
   assert.equal(state.items.length, 1, 'one card per request, updated in place')
   assert.equal(state.items[0].fileCount, 2)
 })
+
+test('slash commands match by prefix, need a known name, and leave risky commands out', async () => {
+  const { SLASH_COMMANDS, matchSlashCommands, parseSlashCommand } = await import('../src/components/terminal/slashCommands.ts')
+  assert.deepEqual(matchSlashCommands('/re').map(command => command.name), ['review', 'resume', 'restore', 'report'])
+  assert.deepEqual(matchSlashCommands('hello'), [])
+  assert.deepEqual(matchSlashCommands('/goal fix'), [], 'the list closes once an argument is typed')
+  assert.equal(parseSlashCommand('/goal  로그인 고치기 ').argument, '로그인 고치기')
+  assert.equal(parseSlashCommand('/etc/hosts 열어줘'), null, 'unknown words go to Codex as a normal message')
+  for (const risky of ['approvals', 'permissions', 'new', 'logout']) {
+    assert.equal(SLASH_COMMANDS.some(command => command.name === risky), false)
+  }
+})
+
+test('security notes never claim a block was confirmed and never show raw commands', async () => {
+  const { whyNote, reportNote, restoreNote, policyNote } = await import('../src/api/securityNotes.ts')
+  assert.deepEqual(whyNote([]).lines, ['이번 실행에서 아직 차단 판정이 없어요.'])
+  const why = whyNote([
+    { enforcement_decision: 'ALLOW', operation: 'READ' },
+    { enforcement_decision: 'CONTAIN', policy_decision: 'VIOLATION', operation: 'EXECUTE', observation_stage: 'PRE_ACTION', matched_rule_ids: ['rm-rf'], target: { display: 'rm -rf /' } },
+  ])
+  assert.deepEqual(why.lines, ['판정: 차단 판정 · 실행 전 검사', '동작: 명령 실행', '규칙: rm-rf'])
+  assert.equal(JSON.stringify(why).includes('rm -rf'), false)
+  assert.match(why.footnote, /실제로 막혔다는 확인과 달라요/)
+  assert.equal(reportNote({ pretool: 3, blocks: 1, files: 2, grants: 0, sensorsHealthy: true }).lines[0], '실행 전 검사 3건 · 차단 판정 1건')
+  assert.match(restoreNote(false).lines[0], /실행이 끝난 뒤/)
+  assert.equal(policyNote(null, null).lines[0], '정책 정보를 아직 받지 못했어요.')
+})

@@ -165,9 +165,9 @@ def validate_turn_settings(model: Any, effort: Any) -> tuple[str | None, str | N
     """Model and reasoning effort for the next turns; ``None`` keeps Codex's default."""
 
     if model is not None and (not isinstance(model, str) or not _MODEL_PATTERN.match(model)):
-        raise CodexAppServerError("model is not a valid Codex model name")
+        raise CodexAppServerError("모델 이름 형식이 올바르지 않아요.")
     if effort is not None and (not isinstance(effort, str) or not _EFFORT_PATTERN.match(effort)):
-        raise CodexAppServerError("reasoning effort is not valid")
+        raise CodexAppServerError("생각 깊이 값이 올바르지 않아요.")
     return model, effort
 
 
@@ -353,13 +353,13 @@ def _elicitation_value(field: Mapping[str, Any], value: Any) -> Any:
         return value
     if kind in {"number", "integer"} and isinstance(value, (int, float)) and not isinstance(value, bool):
         if kind == "integer" and float(value) != int(value):
-            raise CodexAppServerError("answers do not match the request")
+            raise CodexAppServerError("입력값이 요청 형식과 맞지 않아요.")
         return int(value) if kind == "integer" else value
     if kind == "select" and isinstance(value, str) and value in allowed:
         return value
     if kind == "multi" and isinstance(value, list) and all(isinstance(item, str) and item in allowed for item in value):
         return list(value)
-    raise CodexAppServerError("answers do not match the request")
+    raise CodexAppServerError("입력값이 요청 형식과 맞지 않아요.")
 
 
 def _permission_target(path: Any, workspace: Path) -> tuple[str, str] | None:
@@ -610,6 +610,12 @@ def _normalize_item(started: bool, item: Mapping[str, Any]) -> dict[str, Any] | 
         }
     if item_type == "reasoning":
         return {"type": "reasoning.started" if started else "reasoning.completed", "item_id": item_id}
+    if item_type == "exitedReviewMode" and not started:
+        return {"type": "review.completed", "item_id": item_id, "text": _text_of(item.get("review"))}
+    if item_type == "enteredReviewMode" and started:
+        return {"type": "review.started", "item_id": item_id}
+    if item_type == "contextCompaction" and not started:
+        return {"type": "compaction.completed", "item_id": item_id}
     if item_type in {"mcpToolCall", "dynamicToolCall", "webSearch"}:
         tool = item.get("tool") or item.get("query") or item_type
         return {
@@ -918,11 +924,11 @@ class CodexAppServerSession:
         """
 
         if not isinstance(answers, Mapping):
-            raise CodexAppServerError("answers must be an object")
+            raise CodexAppServerError("답이 질문 형식과 맞지 않아요.")
         with self._lock:
             question = self._pending_questions.get(question_id)
             if question is None:
-                raise CodexAppServerError("question is no longer pending")
+                raise CodexAppServerError("이미 끝난 질문이에요.")
             known = {item["id"]: item for item in question["questions"]}
             cleaned: dict[str, list[str]] = {}
             for key, values in answers.items():
@@ -930,7 +936,7 @@ class CodexAppServerSession:
                     not isinstance(value, str) or not value.strip() or len(value) > _MAX_ANSWER_CHARS
                     for value in values
                 ):
-                    raise CodexAppServerError("answers do not match the question")
+                    raise CodexAppServerError("답이 질문 형식과 맞지 않아요.")
                 cleaned[key] = list(values)
             del self._pending_questions[question_id]
         self._respond(
@@ -951,23 +957,23 @@ class CodexAppServerSession:
         """Answer an MCP input request.  Submitted values reach Codex only."""
 
         if action not in ELICITATION_ACTIONS:
-            raise CodexAppServerError("elicitation action is not supported")
+            raise CodexAppServerError("지원하지 않는 응답이에요.")
         with self._lock:
             elicitation = self._pending_elicitations.get(elicitation_id)
             if elicitation is None:
-                raise CodexAppServerError("input request is no longer pending")
+                raise CodexAppServerError("이미 끝난 입력 요청이에요.")
             result: dict[str, Any] = {"action": action}
             if action == "accept":
                 if not elicitation["supported"]:
-                    raise CodexAppServerError("this input request can only be declined")
+                    raise CodexAppServerError("이 입력 요청은 거절이나 취소만 할 수 있어요.")
                 if elicitation["mode"] == "form":
                     if not isinstance(content, Mapping):
-                        raise CodexAppServerError("answers do not match the request")
+                        raise CodexAppServerError("입력값이 요청 형식과 맞지 않아요.")
                     fields = {field["name"]: field for field in elicitation["fields"]}
                     if any(key not in fields for key in content) or any(
                         field["required"] and name not in content for name, field in fields.items()
                     ):
-                        raise CodexAppServerError("answers do not match the request")
+                        raise CodexAppServerError("입력값이 요청 형식과 맞지 않아요.")
                     result["content"] = {key: _elicitation_value(fields[key], value) for key, value in content.items()}
             del self._pending_elicitations[elicitation_id]
         self._respond(elicitation["request_id"], result)
@@ -983,9 +989,43 @@ class CodexAppServerSession:
             elif turn_id in self._diffs:
                 text = self._diffs[turn_id]
             else:
-                raise CodexAppServerError("no changes were recorded for this request")
+                raise CodexAppServerError("이 요청에서 기록된 바뀐 내용이 없어요.")
         truncated = len(text) > _MAX_DIFF_CHARS
         return {"turn_id": turn_id, "diff": text[:_MAX_DIFF_CHARS], "truncated": truncated}
+
+    def compact(self) -> dict[str, Any]:
+        """Ask Codex to summarize the conversation so far (``/compact``)."""
+
+        thread_id, _ = self._require_thread()
+        self._request("thread/compact/start", {"threadId": thread_id})
+        return {"accepted": True}
+
+    def start_review(self) -> dict[str, Any]:
+        """Ask Codex to review the uncommitted changes in the workspace (``/review``)."""
+
+        thread_id, turn_id = self._require_thread()
+        if turn_id is not None:
+            raise CodexAppServerError("진행 중인 요청이 끝난 뒤에 코드 검토를 시작할 수 있어요.")
+        result = self._request(
+            "review/start",
+            {"threadId": thread_id, "target": {"type": "uncommittedChanges"}, "delivery": "inline"},
+        )
+        new_turn_id = (result.get("turn") or {}).get("id")
+        with self._lock:
+            if isinstance(new_turn_id, str) and self._status == "READY" and new_turn_id not in self._completed_turns:
+                self._active_turn_id = new_turn_id
+                self._status = "WORKING"
+        return {"accepted": True, "turn_id": new_turn_id}
+
+    def set_goal(self, objective: Any) -> dict[str, Any]:
+        """Set the conversation goal (``/goal``)."""
+
+        if not isinstance(objective, str) or not objective.strip() or len(objective) > 2_000:
+            raise CodexAppServerError("목표는 2,000자 이내의 문장으로 적어 주세요.")
+        thread_id, _ = self._require_thread()
+        self._request("thread/goal/set", {"threadId": thread_id, "objective": objective.strip()})
+        self._append_event({"type": "goal.set", "text": objective.strip()})
+        return {"accepted": True}
 
     def set_turn_settings(self, model: Any = None, effort: Any = None) -> dict[str, Any]:
         """Choose the model and reasoning effort for the next turns."""
@@ -1016,11 +1056,11 @@ class CodexAppServerSession:
         """
 
         if decision not in PERMISSION_DECISIONS:
-            raise CodexAppServerError("permission decision is not supported")
+            raise CodexAppServerError("지원하지 않는 권한 결정이에요.")
         with self._lock:
             request = self._pending_permissions.pop(permissions_id, None)
         if request is None:
-            raise CodexAppServerError("permission request is no longer pending")
+            raise CodexAppServerError("이미 끝난 권한 요청이에요.")
         if decision == "decline":
             self._respond(request["request_id"], {"permissions": {}})
         else:

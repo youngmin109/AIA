@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { useNow } from '../../hooks/useElapsed'
 import { resetLabel, tokensLabel, usageChip, windowLabel, type Usage } from '../../api/usageView'
 
 /** Remaining Codex usage, read from Codex itself; hidden when Codex reports none. */
-export function UsageChip({ usage }: { usage: Usage }) {
-  const [open, setOpen] = useState(false)
+export function UsageChip({ usage, open, onOpenChange }: { usage: Usage; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const setOpen = (next: boolean | ((value: boolean) => boolean)) => onOpenChange(typeof next === 'function' ? next(open) : next)
   const now = useNow(open, 30_000)
   const chip = usageChip(usage)
   if (!chip) return null

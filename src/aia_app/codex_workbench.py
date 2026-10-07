@@ -162,6 +162,20 @@ class CodexWorkbench:
         codex_session = self._codex_session(session_id)
         return {**codex_session.respond_elicitation(elicitation_id, action, content), "session_id": session_id}
 
+    def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
+        """Slash commands that reach Codex: compact, review, goal."""
+
+        codex_session = self._codex_session(session_id)
+        if command == "compact":
+            result = codex_session.compact()
+        elif command == "review":
+            result = codex_session.start_review()
+        elif command == "goal":
+            result = codex_session.set_goal(argument)
+        else:
+            raise CodexAppServerError("지원하지 않는 명령이에요.")
+        return {**result, "command": command, "session_id": session_id}
+
     def read_codex_diff(self, session_id: str, turn_id: str | None) -> dict[str, Any]:
         return {**self._codex_session(session_id).read_diff(turn_id), "session_id": session_id}
 

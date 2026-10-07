@@ -599,6 +599,11 @@ def _register_codex_routes(app: FastAPI) -> None:
                     str(message.get("question_id", "")),
                     message.get("answers"),
                 ),
+                "command": lambda message: service.run_codex_command(
+                    session_id,
+                    str(message.get("command", "")),
+                    message.get("argument"),
+                ),
                 "turn_settings": lambda message: service.set_codex_turn_settings(
                     session_id,
                     message.get("model"),

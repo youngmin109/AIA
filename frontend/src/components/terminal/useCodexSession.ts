@@ -232,6 +232,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  /** Slash commands that reach Codex: compact, review, goal. */
+  const runCommand = useCallback(
+    (command: 'compact' | 'review' | 'goal', argument?: string) => {
+      setErrorMessage(null)
+      return send({ type: 'command', command, argument, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   /** Model and effort for the next turns; the server forwards nothing else. */
   const setTurnSettings = useCallback(
     (model: string | null, effort: string | null) => {
@@ -327,6 +336,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     respondElicitation,
     decidePermissions,
     setTurnSettings,
+    runCommand,
     endSession,
     onRestoreDraft,
     dismissError: () => setErrorMessage(null),

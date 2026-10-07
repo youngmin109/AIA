@@ -428,6 +428,21 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       upsert(state, key, () => next, () => next)
       break
     }
+    case 'review.started':
+      notice(state, event, 'info', 'Codex가 작업 폴더의 바뀐 내용을 검토하고 있어요.')
+      break
+    case 'review.completed': {
+      const key = `review:${id}`
+      const text = `### 코드 검토 결과\n\n${event.text ?? ''}`
+      upsert(state, key, () => ({ kind: 'agent', key, text, streaming: false }), () => ({ kind: 'agent', key, text, streaming: false }))
+      break
+    }
+    case 'compaction.completed':
+      notice(state, event, 'info', '대화를 줄였어요. 앞의 내용은 요약으로 이어져요.')
+      break
+    case 'goal.set':
+      notice(state, event, 'info', `목표를 정했어요 · ${event.text ?? ''}`)
+      break
     case 'plan.updated':
       state.plan = { turn_id: event.turn_id ?? null, explanation: event.explanation ?? null, steps: event.steps ?? [] }
       break

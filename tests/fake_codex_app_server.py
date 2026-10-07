@@ -252,6 +252,19 @@ def main() -> None:
                 extra = sorted(key for key in params if key not in {"threadId", "input"})
                 text = "settings " + json.dumps({key: params[key] for key in extra}, sort_keys=True)
             handle_turn_start(request_id, text)
+        elif method == "thread/compact/start":
+            send({"id": request_id, "result": {}})
+            notify("item/started", turnId="compact", item={"type": "contextCompaction", "id": "cc-1"})
+            notify("item/completed", turnId="compact", item={"type": "contextCompaction", "id": "cc-1"})
+        elif method == "review/start":
+            turn_id = start_turn()
+            send({"id": request_id, "result": {"reviewThreadId": "thr-1", "turn": {"id": turn_id, "status": "inProgress", "items": []}}})
+            notify("turn/started", turn={"id": turn_id, "status": "inProgress", "items": []})
+            notify("item/started", turnId=turn_id, item={"type": "enteredReviewMode", "id": "rv-1", "review": "current changes"})
+            notify("item/completed", turnId=turn_id, item={"type": "exitedReviewMode", "id": "rv-2", "review": "Looks good. One nit."})
+            complete_turn(turn_id)
+        elif method == "thread/goal/set":
+            send({"id": request_id, "result": {"goal": {"objective": params.get("objective")}}})
         elif method == "model/list":
             send({"id": request_id, "result": {"data": [
                 {"id": "m1", "model": "gpt-fast", "displayName": "GPT Fast", "description": "quick", "hidden": False,

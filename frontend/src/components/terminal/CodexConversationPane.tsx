@@ -11,6 +11,13 @@ import { UsageChip } from './UsageChip'
 import { ModelChip } from './ModelChip'
 import { PlanBar } from './PlanBar'
 import { DiffCard } from './DiffCard'
+import { CommandPalette } from './CommandPalette'
+import { AiaNoteCard } from './AiaNoteCard'
+import { matchSlashCommands, parseSlashCommand, type SlashCommand } from './slashCommands'
+import { policyNote, reportNote, restoreNote, whyNote, type AiaNote } from '../../api/securityNotes'
+import { useRunStatus } from '../../hooks/useRunStatus'
+import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
+import { useProfiles } from '../../hooks/useProfiles'
 import { useCodexModels } from '../../hooks/useCodexModels'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
@@ -316,6 +323,15 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const [now, setNow] = useState(() => Date.now())
 
   const { onRestoreDraft } = session
+  const [paletteIndex, setPaletteIndex] = useState(0)
+  const [note, setNote] = useState<AiaNote | null>(null)
+  const [diffOpen, setDiffOpen] = useState(false)
+  const [modelOpen, setModelOpen] = useState(false)
+  const [usageOpen, setUsageOpen] = useState(false)
+  const { data: runStatus } = useRunStatus(runId)
+  const { data: actions } = useRunActions(runId, !runEnded)
+  const { profiles } = useProfiles()
+  const policyProfile = profiles.find(profile => profile.value === runStatus?.policy?.profile)
   useEffect(() => {
     onRestoreDraft((text) => setDraft((current) => (current ? current : text)))
   }, [onRestoreDraft])
@@ -340,7 +356,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   }, [session.conversation.items])
 
   // The home view reflects live Codex activity through the shell store.
-  const { reportCodexActivity, clearCodexActivity, endRequest } = useShellStore()
+  const { reportCodexActivity, clearCodexActivity, endRequest, setView, openNewRun } = useShellStore()
   const approvalWaiting = session.pendingApprovals.length > 0
   useEffect(() => {
     const mode = session.ended ? 'STOPPED' : approvalWaiting ? 'ACTION' : session.working ? 'WORKING' : session.statusName === 'READY' ? 'WAITING' : 'STARTING'
@@ -361,8 +377,63 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
     session.endSession()
   }
 
+  function clearDraft() {
+    draftRef.current = ''
+    setDraft('')
+    setPaletteIndex(0)
+  }
+
+  function runSlash(command: SlashCommand, argument: string) {
+    setNote(null)
+    setDiffOpen(false)
+    switch (command.name) {
+      case 'model': setModelOpen(true); break
+      case 'status': setUsageOpen(true); break
+      case 'diff': setDiffOpen(true); break
+      case 'compact': session.runCommand('compact'); break
+      case 'review': session.runCommand('review'); break
+      case 'goal':
+        if (!argument) {
+          setNote({ title: '목표 정하기', lines: ['/goal 다음에 목표를 적어 주세요. 예: /goal 로그인 오류 고치기'] })
+          return
+        }
+        session.runCommand('goal', argument)
+        break
+      case 'resume': setNote({ title: '이전 대화 이어하기', lines: ['이전 대화는 새 보호 실행에서 고를 수 있어요.', 'AIA로 연 대화만 보여요.'] }); break
+      case 'mcp': setNote({ title: '커넥터', lines: ['연결된 외부 도구(MCP)는 AIA 보호 범위 밖이에요.', '자세한 목록은 설정 화면의 연결 준비에서 볼 수 있어요.'] }); break
+      case 'policy': setNote(policyNote(policyProfile?.display_name ?? runStatus?.policy?.profile, policyProfile?.description)); break
+      case 'why': setNote(whyNote(actions)); break
+      case 'restore': setNote(restoreNote(runEnded || session.ended)); break
+      case 'report':
+        setNote(reportNote({
+          pretool: runStatus?.evidence_summary?.pretool_events,
+          blocks: blockDecisionCount(actions),
+          files: runStatus?.activity?.unique_file_count,
+          grants: (runStatus?.permission_grants ?? []).length,
+          sensorsHealthy: runStatus?.sensor_health ? Object.values(runStatus.sensor_health).every(value => value === 'HEALTHY') : null,
+        }))
+        break
+    }
+    clearDraft()
+  }
+
+  function pickCommand(command: SlashCommand) {
+    if (command.takesArgument) {
+      const next = `/${command.name} `
+      draftRef.current = next
+      setDraft(next)
+      return
+    }
+    runSlash(command, '')
+  }
+
   function submit() {
     const value = draftRef.current
+    const slash = parseSlashCommand(value)
+    if (slash) {
+      runSlash(slash.command, slash.argument)
+      return
+    }
     if (!session.canSend || !value.trim()) return
     if (session.sendMessage(value)) {
       draftRef.current = ''
@@ -376,6 +447,24 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
       return
     }
     if (event.nativeEvent.isComposing || composingRef.current) return
+    if (palette.length > 0) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const step = event.key === 'ArrowDown' ? 1 : -1
+        setPaletteIndex(index => (index + step + palette.length) % palette.length)
+        return
+      }
+      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+        event.preventDefault()
+        pickCommand(palette[Math.min(paletteIndex, palette.length - 1)])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        clearDraft()
+        return
+      }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       submit()
@@ -390,25 +479,19 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const firstElicitation = session.pendingElicitations[0]
   const firstPermissions = session.pendingPermissions[0]
   const models = useCodexModels(!session.ended)
+  const palette = session.ended ? [] : matchSlashCommands(draft)
+  const diffItems = session.conversation.items.filter((item): item is Extract<TranscriptItem, { kind: 'diff' }> => item.kind === 'diff')
+  const diffFiles = [...new Set(diffItems.flatMap(item => item.files))]
   const error = session.status?.error
   const dotTone = session.ended ? 'neutral' : approvalWaiting ? 'warn' : session.connection.tone === 'bad' ? 'bad' : 'ok'
 
   return (
     <div className="chat">
       <header className="chat-head">
+        <div className="chat-head-row">
         <span className={`status-dot is-${dotTone}`} aria-hidden="true" />
         <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid, startup?.label)}</span>
         <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
-        {context}
-        <ModelChip
-          models={models}
-          model={session.turnSettings.model}
-          effort={session.turnSettings.effort}
-          applied={session.status?.effective?.model ?? null}
-          disabled={!session.connected || session.ended}
-          onApply={session.setTurnSettings}
-        />
-        <UsageChip usage={session.usage} />
         <span className="chat-head-spacer" />
         {session.status?.pid ? <span className="chat-pid">PID {session.status.pid}</span> : null}
         {session.working && (
@@ -421,6 +504,21 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
             {session.endRequested ? '종료 요청됨' : session.endPending ? '종료하는 중…' : '작업 종료'}
           </Button>
         )}
+        </div>
+        <div className="chat-head-row is-chips">
+        {context}
+        <ModelChip
+          models={models}
+          model={session.turnSettings.model}
+          effort={session.turnSettings.effort}
+          applied={session.status?.effective?.model ?? null}
+          disabled={!session.connected || session.ended}
+          onApply={session.setTurnSettings}
+          open={modelOpen}
+          onOpenChange={setModelOpen}
+        />
+        <UsageChip usage={session.usage} open={usageOpen} onOpenChange={setUsageOpen} />
+        </div>
       </header>
       {session.plan && <PlanBar plan={session.plan} />}
 
@@ -465,6 +563,24 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         </div>
       )}
 
+      {note && (
+        <AiaNoteCard note={note} onClose={() => setNote(null)}>
+          {note.title === '복구 열기' && (runEnded || session.ended) && <Button variant="cta" className="is-compact" onClick={() => setView('history')}>결과와 복구 열기</Button>}
+          {note.title === '이전 대화 이어하기' && <Button variant="secondary" className="is-compact" onClick={openNewRun}>새 보호 실행 열기</Button>}
+        </AiaNoteCard>
+      )}
+      {diffOpen && (
+        <section className="glass-card question-card" aria-label="이번 대화에서 바뀐 내용">
+          <div className="question-head">
+            <strong>이번 대화에서 바뀐 내용</strong>
+            <Button variant="icon" className="aia-note-close" onClick={() => setDiffOpen(false)} aria-label="닫기"><Icon name="close" size={14} /></Button>
+          </div>
+          {diffItems.length === 0
+            ? <p className="muted">아직 바뀐 내용이 없어요.</p>
+            : <DiffCard runId={runId} turnId={null} files={diffFiles} fileCount={diffFiles.length} added={diffItems.reduce((sum, item) => sum + item.added, 0)} removed={diffItems.reduce((sum, item) => sum + item.removed, 0)} />}
+        </section>
+      )}
+      {palette.length > 0 && <CommandPalette commands={palette} active={Math.min(paletteIndex, palette.length - 1)} onPick={pickCommand} />}
       {firstPermissions && !session.ended && (
         <PermissionsCard
           key={firstPermissions.permissions_id}
@@ -513,6 +629,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
           onChange={(event) => {
             draftRef.current = event.target.value
             setDraft(event.target.value)
+            setPaletteIndex(0)
           }}
           onKeyDown={handleKeyDown}
           onCompositionStart={() => {

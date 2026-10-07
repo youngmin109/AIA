@@ -2,6 +2,13 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-07 · TASK-112~114
+- 명령 목록: 요청 칸 첫 단어가 `/`로 시작하면 목록(방향키·엔터·탭·Esc, 한글 조합 중엔 무시). 정의는 `slashCommands.ts` 한 곳. 모르는 단어(예: `/etc/hosts`)는 그대로 Codex에 보냄.
+- Codex 명령: `/model` `/status`(칩 열기), `/diff`(대화 전체 바뀐 내용), `/compact`(`thread/compact/start`), `/review`(`review/start`, 작업 폴더의 커밋 안 된 변경, 진행 중 요청이 있으면 거절), `/goal 문장`(`thread/goal/set`), `/resume` `/mcp`(안내).
+- 넣지 않음: `/approvals` `/permissions` `/new` `!` `/logout`. 검토 결과(`exitedReviewMode`)와 대화 압축 항목도 대화에 표시.
+- AIA 명령: `/policy` `/why`(규칙·단계만, 원문 명령 없음, "막았다" 아님) `/restore` `/report` → 입력창 위 카드.
+- 같이 고침: 작업창 위쪽 줄을 두 줄로(버튼 줄 + 칩 줄), 새로 만든 서버 오류 문구를 한국어로. 테스트: pytest 916, 프론트 51 통과.
+
 ## 2026-10-07 · TASK-111
 - 서버: `turn/diff/updated`의 글은 메모리에만(요청 30개, 50만 자까지), 이벤트에는 요약(`diff.updated`: 파일·+/− 줄 수)만. 글은 `GET /api/runs/{id}/codex/diff?turn_id=`로 펼칠 때 가져옴(turn_id 없으면 대화 전체 = 나중 `/diff`).
 - 화면: 요청마다 "바뀐 내용 · 파일 n개 · +a −r" 카드, 펼치면 파일별 색 구분(2,000줄까지, 넘으면 "일부만 표시"). 보호 패널은 그대로 경로만.

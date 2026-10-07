@@ -502,6 +502,31 @@ def test_diff_summary_ignores_headers_and_dev_null() -> None:
     assert summary == {"files": ["x"], "file_count": 1, "added": 2, "removed": 2}
 
 
+def test_slash_commands_reach_codex_and_show_their_results(opened: CodexAppServerSession) -> None:
+    opened.compact()
+    events = _wait_for(opened, lambda items: "compaction.completed" in _types(items))
+    assert "compaction.completed" in _types(events)
+
+    opened.start_review()
+    events = _wait_for(opened, lambda items: "review.completed" in _types(items))
+    assert next(e for e in events if e["type"] == "review.completed")["text"] == "Looks good. One nit."
+    _wait_for(opened, lambda _: opened.snapshot()["status"] == "READY")
+
+    opened.set_goal("Ship the login fix")
+    assert any(e["type"] == "goal.set" and e["text"] == "Ship the login fix" for e in opened.read_events())
+    for bad in ("", "   ", "x" * 2001, 3):
+        with pytest.raises(CodexAppServerError):
+            opened.set_goal(bad)
+
+
+def test_a_review_waits_for_the_current_request(opened: CodexAppServerSession) -> None:
+    opened.send_message("slow work")
+    _wait_for(opened, lambda _: opened.snapshot()["active_turn_id"] is not None)
+    with pytest.raises(CodexAppServerError):
+        opened.start_review()
+    opened.interrupt()
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")

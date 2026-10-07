@@ -46,12 +46,26 @@
 }
 
 .chat-head {
+  display: grid;
+  gap: 8px;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.chat-head-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--line-1);
+  min-width: 0;
+}
+
+.chat-head-row.is-chips {
+  gap: 8px;
+}
+
+.chat-head-row.is-chips:empty {
+  display: none;
 }
 
 .chat-activity {
@@ -858,3 +872,52 @@ details.chat-output pre {
 .diff-line.is-add { background: var(--success-bg); color: var(--success-text); }
 .diff-line.is-del { background: var(--danger-bg); color: var(--danger-text); }
 .diff-line.is-hunk { color: var(--text-faint); }
+
+/* Slash commands and AIA answers (EPIC-021 TASK-112~114). */
+.command-palette {
+  margin: 0 18px 4px;
+  display: grid;
+  gap: 2px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.command-option {
+  display: grid;
+  grid-template-columns: 90px 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.command-option .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-option[aria-selected='true'],
+.command-option:hover {
+  background: var(--fill-3);
+}
+
+.aia-note-close {
+  margin-left: auto;
+}
+
+.aia-note-lines {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+}
