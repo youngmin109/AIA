@@ -2,6 +2,10 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-07 · TASK-115
+- 대화가 열리면 Codex 대화 번호(`codex_thread_id`)만 실행 기록에 저장하고 실행 상태(진행 중·끝난 실행)에 실음. 이름·미리보기·대화 글은 저장하지 않음(목록을 볼 때 Codex에 물어봄, TASK-116).
+- 이 기능 전에 끝난 실행은 번호가 없어 이어하기 목록에 나오지 않음. 테스트: pytest 917 통과.
+
 ## 2026-10-07 · TASK-112~114
 - 명령 목록: 요청 칸 첫 단어가 `/`로 시작하면 목록(방향키·엔터·탭·Esc, 한글 조합 중엔 무시). 정의는 `slashCommands.ts` 한 곳. 모르는 단어(예: `/etc/hosts`)는 그대로 Codex에 보냄.
 - Codex 명령: `/model` `/status`(칩 열기), `/diff`(대화 전체 바뀐 내용), `/compact`(`thread/compact/start`), `/review`(`review/start`, 작업 폴더의 커밋 안 된 변경, 진행 중 요청이 있으면 거절), `/goal 문장`(`thread/goal/set`), `/resume` `/mcp`(안내).

@@ -360,6 +360,9 @@ class RunHistoryMixin:
             grants = runtime_state.get("permission_grants") if isinstance(runtime_state, Mapping) else None
             if isinstance(grants, list) and grants:
                 status = {**status, "permission_grants": grants}
+            thread_id = runtime_state.get("codex_thread_id") if isinstance(runtime_state, Mapping) else None
+            if isinstance(thread_id, str) and thread_id:
+                status = {**status, "codex_thread_id": thread_id}
             return status
         hook_broker_healthy = (
             live_hook_broker_healthy
@@ -398,6 +401,7 @@ class RunHistoryMixin:
             "phase": record.phase,
             "startup": record.startup,
             "permission_grants": record.permission_grants,
+            "codex_thread_id": record.codex_thread_id,
             "result_path": str(record.result_path) if record.result_path is not None else None,
             "protection": {
                 "state": record.protection_state,
@@ -683,6 +687,7 @@ class RunHistoryMixin:
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
             "startup": state.get("startup") if isinstance(state.get("startup"), dict) else {},
             "permission_grants": state.get("permission_grants") if isinstance(state.get("permission_grants"), list) else [],
+            "codex_thread_id": state.get("codex_thread_id") if isinstance(state.get("codex_thread_id"), str) else None,
             "result_path": state.get("result_path"),
             "protection": protection,
             "stop": stop,

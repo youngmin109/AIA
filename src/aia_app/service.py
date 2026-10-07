@@ -547,6 +547,10 @@ class RunApplicationService(
             codex_session.close(force=True)
             return
         record.runtime["codex_effective_settings"] = effective
+        thread_id = codex_session.snapshot().get("thread_id")
+        if isinstance(thread_id, str) and thread_id:
+            record.codex_thread_id = thread_id
+            self._persist_runtime_state(record)
         if record.reasoning_effort:
             try:
                 codex_session.set_turn_settings(record.model, record.reasoning_effort)
@@ -1586,6 +1590,7 @@ class RunApplicationService(
             "phase": record.phase,
             "startup": record.startup,
             "permission_grants": record.permission_grants,
+            "codex_thread_id": record.codex_thread_id,
             "protection": {
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,

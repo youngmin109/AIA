@@ -49,7 +49,7 @@ class FakeCodexSession:
         self.calls.append(("close", force))
 
     def snapshot(self) -> dict:
-        return {"mode": "codex_app_server", "status": "READY", "error": None, "last_sequence": 3}
+        return {"mode": "codex_app_server", "status": "READY", "error": None, "last_sequence": 3, "thread_id": "thr-42"}
 
     def send_message(self, text: str) -> dict:
         self.calls.append(("send", text))
@@ -206,6 +206,17 @@ def test_granted_permissions_are_recorded_on_the_run_and_declines_are_not(servic
     assert (grant["scope"], grant["network"], grant["reason"]) == ("session", True, "sync")
     assert grant["filesystem"][0]["scope"] == "outside"
     assert service.get_run_status(record.session_id)["permission_grants"] == [grant]
+
+
+def test_the_codex_conversation_id_is_kept_for_resuming_but_no_text(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.runtime["codex_session"] = FakeCodexSession()
+    service.registry.add(record)
+    service._open_codex_conversation(record)
+    assert record.codex_thread_id == "thr-42"
+    state = service._read_runtime_state(record.session_id)
+    assert state["codex_thread_id"] == "thr-42"
+    assert service.get_run_status(record.session_id)["codex_thread_id"] == "thr-42"
 
 
 def test_chosen_reasoning_effort_is_applied_once_the_conversation_opens(service, tmp_path) -> None:
