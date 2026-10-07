@@ -1,0 +1,238 @@
+/* ④ New protected run sheet and the Hook setup steps (EPIC-020). */
+
+.newrun-sheet {
+  gap: 16px;
+  padding: 26px 30px;
+}
+
+.newrun-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.newrun-head h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.newrun-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.newrun-section h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.newrun-step {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--fill-3);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.newrun-folder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.newrun-folder-main {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.newrun-folder-main strong {
+  font-size: 16px;
+}
+
+.newrun-folder-main .glass-input {
+  min-height: 40px;
+  font-size: 13px;
+}
+
+.newrun-folder-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.newrun-folder-state.is-valid { color: var(--success); }
+.newrun-folder-state.is-invalid { color: var(--danger); }
+
+.newrun-policies {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 12px;
+}
+
+.newrun-policy {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.newrun-policy strong {
+  font-size: 17px;
+}
+
+.newrun-policy > span:not(.badge) {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.newrun-policy:hover {
+  border-color: var(--line-3);
+}
+
+.newrun-policy.is-selected {
+  border: 2px solid var(--line-4);
+  background: var(--glass-fill-selected);
+}
+
+.newrun-policy-mark {
+  margin-top: auto;
+}
+
+.newrun-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.newrun-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.newrun-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+/* ---- Hook setup ---- */
+
+.hook-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hook-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hook-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line-1);
+  background: var(--fill-1);
+}
+
+.hook-steps li b {
+  display: block;
+  font-size: 14px;
+}
+
+.hook-steps li small {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.hook-step-mark {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--fill-3);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.hook-steps li.is-done {
+  border-color: var(--success-line);
+  background: var(--success-bg);
+}
+
+.hook-steps li.is-done .hook-step-mark {
+  background: var(--tile-success);
+}
+
+.hook-phase {
+  justify-content: space-between;
+}
+
+.hook-phase > div {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.hook-advanced summary {
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.hook-command {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.hook-command code {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--inset-bg);
+  overflow-wrap: anywhere;
+}

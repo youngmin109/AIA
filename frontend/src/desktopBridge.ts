@@ -7,6 +7,7 @@
 type WorkspacePicker = {
   choose_workspace?: () => Promise<{ path?: string | null }>
   heartbeat?: () => Promise<boolean>
+  set_title_bar?: (tint: string) => Promise<boolean>
 }
 
 declare global {
@@ -17,6 +18,11 @@ declare global {
 
 export function hasNativeWorkspacePicker(): boolean {
   return typeof window.pywebview?.api?.choose_workspace === 'function'
+}
+
+/** Colour the native Windows title bar like the page's colour theme. No-op in a browser. */
+export function syncTitleBar(tint: string): void {
+  window.pywebview?.api?.set_title_bar?.(tint).catch(() => {})
 }
 
 export async function chooseNativeWorkspace(): Promise<string | null> {

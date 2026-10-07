@@ -1,0 +1,369 @@
+/* ① Home and ② running (EPIC-020). The home view fills the window: the hero
+   grows with the height, tiles and the round action keep their size. */
+
+.home-page {
+  min-height: 100%;
+}
+
+.home-hero-wrap,
+.home-live-grid {
+  flex: 1 1 auto;
+}
+
+.home-hero-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.guardian-figure {
+  display: block;
+  object-fit: contain;
+  filter: var(--image-shadow);
+  animation: glass-float 6s ease-in-out infinite;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--text);
+  animation: glass-spin 1s linear infinite;
+}
+
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.home-hero {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 300px;
+  padding: clamp(30px, 4vh, 56px) clamp(30px, 3vw, 56px);
+}
+
+.home-hero-copy {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-hero-copy h1 {
+  margin: 0;
+  font-size: clamp(32px, min(3.4vw, 5.4vh), 60px);
+  line-height: 1.16;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.home-hero-next {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.home-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.home-hero-guardian {
+  flex: 0 0 auto;
+  width: clamp(220px, 30vh, 340px);
+  height: clamp(240px, 32vh, 360px);
+  margin: -40px 10px -30px 0;
+}
+
+.home-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 16px;
+}
+
+.home-tile {
+  min-height: clamp(170px, 20vh, 230px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 22px;
+  color: var(--text);
+  text-align: left;
+}
+
+.home-tile.is-button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.home-tile.is-button:hover:not(:disabled) {
+  border-color: var(--line-3);
+}
+
+.home-tile.is-button:disabled {
+  cursor: default;
+}
+
+.home-tile-label {
+  position: relative;
+  padding-right: 70px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.home-tile-value {
+  position: relative;
+  margin-top: auto;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.home-tile-note {
+  position: relative;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.home-tile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--link);
+  font-weight: 700;
+}
+
+.home-action {
+  display: flex;
+  justify-content: center;
+  padding: clamp(14px, 3vh, 36px) 0 8px;
+}
+
+.home-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+/* ---- ② Running ---- */
+
+.home-live-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.home-live-hero {
+  flex: 999 1 520px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: clamp(28px, 4vh, 52px) clamp(30px, 3vw, 52px);
+}
+
+.home-live-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-live-copy h1 {
+  margin: 0 0 clamp(16px, 2.6vh, 30px);
+  font-size: clamp(40px, 5vh, 56px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.home-live-list {
+  max-width: 720px;
+  display: grid;
+  gap: clamp(8px, 1.4vh, 16px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-live-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 22px;
+  align-items: center;
+  gap: 12px;
+  min-height: clamp(50px, 6vh, 66px);
+  padding: 0 14px 0 10px;
+  border-radius: 16px;
+  font-size: clamp(15px, 1.8vh, 18px);
+  font-weight: 600;
+}
+
+.home-live-list li.is-alert {
+  border: 1px solid var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  animation: glass-pulse 2.4s ease-in-out infinite;
+}
+
+.home-live-list li > svg {
+  color: var(--success);
+}
+
+.home-live-list li.is-alert > svg {
+  color: var(--danger);
+}
+
+.home-live-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.home-live-guardian {
+  flex: 0 0 auto;
+  margin: 0 auto;
+  width: clamp(190px, 26vh, 300px);
+  height: clamp(210px, 28vh, 320px);
+}
+
+.home-codex {
+  flex: 1 1 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.home-codex-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-codex-head .text-action {
+  font-size: 13px;
+}
+
+.home-codex-state {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.home-codex-approval {
+  justify-content: space-between;
+  color: var(--warning-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.home-codex-sub {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.home-codex-events {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.home-codex-events li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--fill-1);
+}
+
+.home-live-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 16px;
+}
+
+.home-live-tiles .stat-tile {
+  min-height: clamp(150px, 17vh, 210px);
+  justify-content: center;
+}
+
+.home-live-tiles .mini-bars {
+  height: clamp(64px, 9vh, 110px);
+}
+
+@container aia-content (max-width: 760px) {
+  .home-hero,
+  .home-live-hero {
+    padding: 24px;
+  }
+
+  .home-hero-guardian,
+  .home-live-guardian {
+    display: none;
+  }
+}
+
+/* Short windows (for example the first 1024×700 launch): keep home on one screen. */
+@media (max-height: 760px) {
+  .home-hero {
+    min-height: 220px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+
+  .home-hero-guardian {
+    width: 180px;
+    height: 200px;
+  }
+
+  .home-tile {
+    min-height: 136px;
+  }
+
+  .home-action {
+    padding-top: 10px;
+  }
+
+  .round-action {
+    width: 108px;
+    height: 108px;
+  }
+}
+
+@container aia-content (max-width: 980px) {
+  .home-tile .tile-corner {
+    right: -20px;
+    top: -20px;
+    width: 76px;
+    height: 76px;
+    padding: 18px 18px 0 0;
+  }
+
+  .home-tile-label {
+    padding-right: 48px;
+  }
+}

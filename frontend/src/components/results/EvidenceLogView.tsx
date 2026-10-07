@@ -6,7 +6,7 @@ import type { IncidentView } from '../../api/resultTypes'
 // presenters.py strips before it reaches the frontend.
 export function EvidenceLogView({ incidents }: { incidents: IncidentView[] }) {
   if (incidents.length === 0) {
-    return <p className="empty-hint">기록된 정책 사건이 없습니다.</p>
+    return <p className="faint-note">기록된 정책 사건이 없어요.</p>
   }
 
   return (

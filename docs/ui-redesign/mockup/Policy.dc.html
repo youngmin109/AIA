@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AIA 정책</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face { font-family: 'Pretendard'; src: url('/_blob/363a19a5d70bea2676c5dc69df393846') format('woff2'); font-weight: 45 920; font-display: swap; }
+body { margin: 0; background: #120a33; }
+a { color: #e5dcff; } a:hover { color: #ffffff; }
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 100vh; display: flex; flex-wrap: wrap; background: {{bg}}; color: #ffffff; font-family: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;">
+  <div aria-hidden="true" style="position: absolute; left: 15%; top: -140px; width: 540px; height: 540px; border-radius: 50%; background: {{blobA}}; filter: blur(70px); opacity: 0.5;"></div>
+  <div aria-hidden="true" style="position: absolute; right: -80px; top: 380px; width: 460px; height: 460px; border-radius: 50%; background: {{blobB}}; filter: blur(70px); opacity: 0.4;"></div>
+
+  <nav aria-label="주 메뉴" style="position: relative; flex: 1 1 88px; display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center; gap: 8px; margin: 16px 0 16px 16px; padding: 16px 10px; border-radius: 26px; border: 1px solid transparent; background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03)) padding-box, linear-gradient(160deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.06) 40%, rgba(255, 255, 255, 0.22)) border-box; backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 24px 60px rgba(6, 2, 28, 0.45);">
+    <div style="width: 52px; height: 52px; display: grid; place-items: center; border-radius: 18px; background: {{accent}}; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 24px rgba(10, 4, 40, 0.5); font-weight: 800; font-size: 15px; letter-spacing: 0.04em;">AIA</div>
+    <a href="Main.dc.html" aria-label="홈" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10v9.5h13V10"></path></svg>
+    </a>
+    <a href="Work.dc.html" aria-label="작업창" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+    </a>
+    <a href="Policy.dc.html" aria-label="정책" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); color: #ffffff;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5V6L12 3Z"></path></svg>
+    </a>
+    <a href="History.dc.html" aria-label="기록" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10l3 3v13H7z"></path><path d="M10 11h7M10 15h7"></path><path d="M4 8v12h3"></path></svg>
+    </a>
+    <a href="Settings.dc.html" aria-label="설정" style="width: 60px; height: 56px; display: grid; place-items: center; border-radius: 16px; color: rgba(255, 255, 255, 0.72);">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z"></path></svg>
+    </a>
+  </nav>
+
+  <main style="position: relative; flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px; padding: 26px clamp(16px, 3vw, 40px) 30px;">
+    <header style="display: flex; flex-direction: column; gap: 6px;">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em;">정책</h1>
+      <span style="color: rgba(255, 255, 255, 0.75); font-size: 15px;">다음 보호 실행에 쓸 규칙을 골라요</span>
+    </header>
+
+    <section aria-label="정책 템플릿" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 16px;">
+      <sc-for list="{{policies}}" as="p" hint-placeholder-count="4">
+        <button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="position: relative; overflow: hidden; min-height: 230px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 22px; border-radius: 26px; border: {{p.border}}; background: {{p.fill}}; backdrop-filter: blur({{blur}}px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); color: #ffffff; font: inherit; text-align: left; cursor: pointer;">
+          <span aria-hidden="true" style="position: absolute; right: -24px; top: -24px; width: 104px; height: 104px; border-radius: 32px; transform: rotate(16deg); background: {{p.shape}}; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 16px 28px rgba(10, 4, 40, 0.5);"></span>
+          <span style="position: relative; padding: 4px 10px; border-radius: 999px; background: {{p.badgeFill}}; font-size: 12px; font-weight: 700;">{{p.badge}}</span>
+          <strong style="position: relative; margin-top: 18px; font-size: 21px; font-weight: 800;">{{p.name}}</strong>
+          <span style="position: relative; color: rgba(255, 255, 255, 0.75); font-size: 14px; line-height: 1.45;">{{p.line}}</span>
+          <span style="position: relative; margin-top: auto; display: flex; flex-wrap: wrap; gap: 6px;">
+            <sc-for list="{{p.rules}}" as="r" hint-placeholder-count="2">
+              <span style="padding: 4px 9px; border-radius: 10px; background: {{r.fill}}; color: {{r.color}}; font-size: 12px; font-weight: 700;">{{r.text}}</span>
+            </sc-for>
+          </span>
+        </button>
+      </sc-for>
+    </section>
+
+    <section aria-label="판정 미리보기" style="display: flex; flex-direction: column; gap: 16px; padding: 22px 26px; border-radius: 28px; border: 1px solid transparent; background: linear-gradient(140deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)) padding-box, linear-gradient(140deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.3)) border-box; backdrop-filter: blur({{blur}}px) saturate(180%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);">
+      <strong style="font-size: 17px;">이 명령은 어떻게 판정될까?</strong>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+        <div role="group" aria-label="행동 종류" style="display: flex; padding: 4px; border-radius: 14px; background: rgba(8, 2, 30, 0.4);">
+          <button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: transparent; color: rgba(255, 255, 255, 0.7); font: inherit; font-size: 14px;">읽기</button>
+          <button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: transparent; color: rgba(255, 255, 255, 0.7); font: inherit; font-size: 14px;">수정</button>
+          <button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: transparent; color: rgba(255, 255, 255, 0.7); font: inherit; font-size: 14px;">삭제</button>
+          <button type="button" aria-pressed="true" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.2); color: #ffffff; font: inherit; font-size: 14px; font-weight: 700;">실행</button>
+        </div>
+        <label for="preview-command" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">확인할 명령</label>
+        <input id="preview-command" value="rm -rf data/" style="flex: 1 1 260px; min-width: 0; min-height: 48px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 14px; background: rgba(8, 2, 30, 0.4); color: #ffffff; font-family: 'Cascadia Code', Consolas, monospace; font-size: 15px;">
+        <button type="button" style="min-height: 48px; padding: 0 20px; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 14px; background: {{button}}; color: #ffffff; font: inherit; font-size: 15px; font-weight: 800; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);">판정 보기</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 77, 106, 0.16); border: 1px solid rgba(255, 140, 155, 0.5);"><span style="font-size: 14px; font-weight: 600;">표준 보호</span><span style="color: #ffd2d8; font-size: 13px; font-weight: 800;">차단</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 77, 106, 0.16); border: 1px solid rgba(255, 140, 155, 0.5);"><span style="font-size: 14px; font-weight: 600;">협업 개발</span><span style="color: #ffd2d8; font-size: 13px; font-weight: 800;">차단</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 77, 106, 0.16); border: 1px solid rgba(255, 140, 155, 0.5);"><span style="font-size: 14px; font-weight: 600;">변경 통제 강화</span><span style="color: #ffd2d8; font-size: 13px; font-weight: 800;">차단</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 200, 96, 0.16); border: 1px solid rgba(255, 210, 120, 0.45);"><span style="font-size: 14px; font-weight: 600;">관찰 전용</span><span style="color: #ffe2a6; font-size: 13px; font-weight: 800;">기록</span></div>
+      </div>
+      <span style="color: rgba(255, 255, 255, 0.62); font-size: 13px;">미리보기는 판정만 보여줘요. 명령을 실제로 실행하지 않아요.</span>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tint":{"editor":"enum","options":["보라","남색","청록"],"default":"보라"},"blur":{"editor":"range","min":8,"max":40,"step":2,"unit":"px","default":24},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: 'standard' };
+  }
+  renderVals() {
+    const themes = {
+      '보라': { bg: 'radial-gradient(circle at 12% 8%, #5a23b8 0%, rgba(90,35,184,0) 42%), radial-gradient(circle at 88% 18%, #a42d8f 0%, rgba(164,45,143,0) 40%), radial-gradient(circle at 55% 100%, #2a3fb0 0%, rgba(42,63,176,0) 50%), linear-gradient(160deg, #1d0d4d, #0f0a2e)', blobA: '#7b4dff', blobB: '#ff4fb0', accent: 'linear-gradient(145deg, #a98bff, #6a3cff)', button: 'linear-gradient(150deg, #ff7ad1 0%, #a35bff 45%, #5b7dff 100%)' },
+      '남색': { bg: 'radial-gradient(circle at 12% 8%, #2346b8 0%, rgba(35,70,184,0) 42%), radial-gradient(circle at 88% 18%, #5b2db0 0%, rgba(91,45,176,0) 40%), radial-gradient(circle at 55% 100%, #1d6fb0 0%, rgba(29,111,176,0) 50%), linear-gradient(160deg, #0f1a4d, #0a0f2e)', blobA: '#4d7bff', blobB: '#8b5bff', accent: 'linear-gradient(145deg, #8bb0ff, #3c62ff)', button: 'linear-gradient(150deg, #7ad0ff 0%, #5b7dff 50%, #7a4dff 100%)' },
+      '청록': { bg: 'radial-gradient(circle at 12% 8%, #13797a 0%, rgba(19,121,122,0) 42%), radial-gradient(circle at 88% 18%, #2357a8 0%, rgba(35,87,168,0) 40%), radial-gradient(circle at 55% 100%, #136f5a 0%, rgba(19,111,90,0) 50%), linear-gradient(160deg, #0b2a3a, #071a24)', blobA: '#2fd6c2', blobB: '#3c8bff', accent: 'linear-gradient(145deg, #8affe0, #1fb39a)', button: 'linear-gradient(150deg, #8affd8 0%, #2fc8a0 45%, #2f7dff 100%)' },
+    };
+    const t = themes[this.props.tint] ?? themes['보라'];
+    const block = { fill: 'rgba(255, 77, 106, 0.2)', color: '#ffd2d8' };
+    const log = { fill: 'rgba(255, 200, 96, 0.2)', color: '#ffe2a6' };
+    const list = [
+      { id: 'standard', name: '표준 보호', line: '비밀 파일 읽기와 파괴 명령을 막고, 나머지는 기록해요', shape: 'linear-gradient(145deg, #8fb3ff, #5a5cff 60%, #3b2bb8)', rules: [{ text: '.env 읽기 차단', ...block }, { text: '파괴 명령 차단', ...block }] },
+      { id: 'collab', name: '협업 개발', line: '일반 개발은 허용하고 위험한 DB·Git 명령만 통제해요', shape: 'linear-gradient(145deg, #8affd8, #2fc8a0 60%, #137a72)', rules: [{ text: '.env 삭제 차단', ...block }, { text: '위험 Git 차단', ...block }] },
+      { id: 'strict', name: '변경 통제 강화', line: '의존성·인프라 파일 삭제까지 막아요', shape: 'linear-gradient(145deg, #ffb37a, #ff5e9c 60%, #b8338f)', rules: [{ text: '인프라 삭제 차단', ...block }, { text: '.env 읽기 기록', ...log }] },
+      { id: 'observe', name: '관찰 전용', line: '막지 않고 위험 행동을 모두 기록해요', shape: 'linear-gradient(145deg, #ffe08a, #ffb23d 60%, #c9731a)', rules: [{ text: '모두 기록', ...log }] },
+    ];
+    const policies = list.map((p) => {
+      const on = this.state.picked === p.id;
+      return {
+        ...p,
+        pressed: on ? 'true' : 'false',
+        badge: on ? '사용 중' : '선택하기',
+        badgeFill: on ? 'rgba(69, 224, 168, 0.3)' : 'rgba(255, 255, 255, 0.14)',
+        border: on ? '2px solid rgba(255, 255, 255, 0.85)' : '1px solid rgba(255, 255, 255, 0.2)',
+        fill: on ? 'linear-gradient(160deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08))' : 'linear-gradient(160deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03))',
+        pick: () => this.setState({ picked: p.id }),
+      };
+    });
+    return { ...t, blur: this.props.blur ?? 24, policies };
+  }
+}
+</script>
+</body>
+</html>

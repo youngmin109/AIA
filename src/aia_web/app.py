@@ -134,6 +134,14 @@ def _console_project_root() -> Path | None:
 def _console_module_cli_prefix() -> str:
     """Return the launcher that bypasses a blocked generated ``aia.exe``."""
 
+    if getattr(sys, "frozen", False):
+        # A packaged build may sit inside a checkout (dist\...); the command the
+        # user copies must still be the bundled aia-cli.exe that the installed
+        # Hook points to, not the source tree's uv command.
+        try:
+            return subprocess.list2cmdline(_aia_cli_command())
+        except FileNotFoundError:
+            pass
     project_root = _console_project_root()
     if project_root is not None:
         return subprocess.list2cmdline(
@@ -190,6 +198,10 @@ def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tup
         completed = subprocess.run(
             command,
             cwd=Path.cwd(),
+            # The packaged desktop app frees its hidden console, so its standard
+            # input handle is invalid; inheriting it makes Windows refuse to
+            # start the child. The verifier reads nothing from stdin.
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -204,6 +216,12 @@ def _run_hook_verification(control_root: Path, *, timeout: float = 180.0) -> tup
             "protection_claim": "PROTECTION_NOT_PROVEN",
             "reason": "HOOK_VERIFICATION_TIMEOUT",
         }, 504
+    except OSError:
+        return {
+            "verified": False,
+            "protection_claim": "PROTECTION_NOT_PROVEN",
+            "reason": "HOOK_VERIFICATION_START_FAILED",
+        }, 503
     try:
         payload = json.loads(completed.stdout)
     except (TypeError, json.JSONDecodeError):

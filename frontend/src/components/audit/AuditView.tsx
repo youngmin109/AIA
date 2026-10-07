@@ -1,78 +1,109 @@
-import { EmptyState } from '../common/EmptyState'
+import { useState } from 'react'
 import { Button } from '../common/Button'
-import { Badge } from '../common/Badge'
-import { displayStatus, statusTone } from '../../api/display'
+import { Icon } from '../common/Icon'
+import { StatTile, GlossyIcon } from '../common/Glass'
 import { useShellStore } from '../../state/shellStore'
 import { useRunList } from '../../hooks/useRunList'
 import { ResultView } from '../results/ResultView'
 import type { RunSummary } from '../../api/types'
-import { sessionCreatedLabel, sessionDisplayName, sessionShortId } from '../shell/sessionLabel'
+import { HISTORY_STATE_LABEL, filterRuns, historyState, type HistoryFilter } from '../../api/historyFilter'
+import { sessionCreatedLabel, sessionShortId, workspaceShortName } from '../shell/sessionLabel'
 
-const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
+const FILTERS: Array<[HistoryFilter, string]> = [['all', '전체'], ['review', '확인 필요'], ['ok', '정상']]
+const STATE_TONE = { live: 'ok', review: 'warn', ok: 'ok', failed: 'bad', orphaned: 'warn' } as const
+const PILL_TONE = { live: 'good', review: 'warning', ok: 'good', failed: 'bad', orphaned: 'warning' } as const
 
-
-// Absorbs the old RunListPanel/ResultsListPanel's list+select behavior into
-// one view: every run (running included) browsable from a single list,
-// with the selected run's verdict/evidence shown alongside it.
+/** ⑨ History: every protected run; a row opens its result (③). */
 export function AuditView() {
-  const { activeRunId, setActiveRun, setView } = useShellStore()
-  const { data: runs, isLoading, error } = useRunList()
-  const selected = runs?.find((run) => run.session_id === activeRunId) ?? null
-  const selectedEnded = Boolean(selected && ENDED_STATUSES.has(String(selected.status)))
-  const selectedOrphaned = Boolean((selected?.runtime_reconciliation as { orphaned?: boolean } | undefined)?.orphaned)
+  const { activeRunId, historyRunId, openResult, closeResult, setView } = useShellStore()
+  const { data: runs, isLoading, error, refetch } = useRunList()
+  const [filter, setFilter] = useState<HistoryFilter>('all')
+  const all = runs ?? []
+  const selected = all.find(run => run.session_id === historyRunId) ?? null
+
+  if (selected) {
+    return <HistoryDetail run={selected} onBack={closeResult} onOpenWork={() => setView('work')} />
+  }
+
+  const visible = filterRuns(all, filter)
+  const counts = { review: filterRuns(all, 'review').length, ok: filterRuns(all, 'ok').length }
+  const live = all.filter(run => historyState(run) === 'live').length
+
+  function open(run: RunSummary) {
+    openResult(run.session_id)
+  }
 
   return (
-    <div className="dashboard-view">
-      <div className="audit-grid">
-        <div className="card audit-list-card">
-          <div className="dashboard-card-title audit-list-title">전체 실행 기록</div>
-          <div className="audit-list-scroll">
-            {isLoading && !runs && <p className="empty-hint">불러오는 중입니다…</p>}
-            {error && <p className="empty-hint">실행 기록을 불러오지 못했습니다.</p>}
-            {runs && runs.length === 0 && <p className="empty-hint">아직 보호 실행 기록이 없습니다.</p>}
-            <div className="run-list">
-              {(runs ?? []).map((run: RunSummary) => (
-                <button
-                  key={run.session_id}
-                  type="button"
-                  className={`run-row${activeRunId === run.session_id ? ' is-active' : ''}`}
-                  onClick={() => setActiveRun(run.session_id)}
-                >
-                  <div className="run-row-top">
-                    <span>{sessionDisplayName(run.workspace)}</span>
-                    <Badge tone={statusTone(run.status)}>{displayStatus(run.status)}</Badge>
-                    {Boolean(run.incident_count) && <Badge tone="warn">사건 {run.incident_count}</Badge>}
-                  </div>
-                  <div className="run-row-path" title={run.workspace}>
-                    {run.workspace ?? '작업공간 확인 중'}
-                  </div>
-                  <div className="run-row-meta"><span>시작 {sessionCreatedLabel(run.created_at)}</span><code>{sessionShortId(run.session_id)}</code></div>
-                </button>
-              ))}
-            </div>
-          </div>
+    <div className="page-stack history-page view-enter">
+      <header className="page-head">
+        <div>
+          <h1>기록</h1>
+          <p>지금까지 보호한 실행 {all.length}건</p>
         </div>
+        <div className="segmented history-filters" role="group" aria-label="기록 필터">
+          {FILTERS.map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>
+              {label} <span className="history-filter-count">{value === 'all' ? all.length : counts[value]}</span>
+            </button>
+          ))}
+        </div>
+      </header>
 
-        <div className="card audit-detail-card">
-          {!selected && (
-            <EmptyState title="왼쪽에서 실행을 선택하세요">
-              <p>실행 기록을 선택하면 판정과 증거 요약을 확인할 수 있습니다.</p>
-            </EmptyState>
-          )}
-          {selected && !selectedEnded && selectedOrphaned && (
-            <EmptyState title="이전 실행의 연결이 끊겼습니다"><p>저장된 상태는 실행 중으로 남아 있지만, 현재 AIA가 대화를 다시 연결할 수 없습니다. 새 보호 실행 설정에서 작업공간을 선택해 안전한 정리 가능 여부를 확인하세요. 살아 있는 프로세스는 자동으로 강제 종료하지 않습니다.</p></EmptyState>
-          )}
-          {selected && !selectedEnded && !selectedOrphaned && (
-            <EmptyState title="이 실행은 아직 진행 중입니다">
-              <p>실시간 상태와 명령 입력은 에이전트 작업에서 확인할 수 있습니다.</p>
-              <Button variant="cta" className="is-compact" onClick={() => setView('terminal')}>
-                에이전트 작업 열기 →
-              </Button>
-            </EmptyState>
-          )}
-          {selected && selectedEnded && activeRunId && <ResultView runId={activeRunId} showEvidenceLog />}
+      <section className="stat-grid history-summary" aria-label="요약">
+        <StatTile label="전체 실행" value={all.length} note="이 PC의 기록" />
+        <StatTile label="확인 필요" value={counts.review} tone={counts.review > 0 ? 'warning' : undefined} note="사건·검증 확인" />
+        <StatTile label="실행 중" value={live} tone={live > 0 ? 'success' : undefined} note="작업창에서 이어가기" />
+      </section>
+
+      <section className="glass history-list" aria-label="실행 목록">
+        {isLoading && !runs && <p className="faint-note">기록을 불러오는 중이에요…</p>}
+        {error && <div className="glass-notice is-warning"><strong>기록을 새로 불러오지 못했어요</strong><Button variant="text" onClick={refetch}>다시 불러오기</Button></div>}
+        {runs && visible.length === 0 && <div className="glass-empty"><strong>{all.length === 0 ? '아직 보호 실행 기록이 없어요' : '이 조건의 기록이 없어요'}</strong></div>}
+        {visible.map(run => {
+          const state = historyState(run)
+          return (
+            <button key={run.session_id} type="button" className={`history-row${run.session_id === activeRunId ? ' is-current' : ''}`} onClick={() => open(run)}>
+              <span className={`status-dot is-${STATE_TONE[state]}`} aria-hidden="true" />
+              <span className="history-row-main">
+                <strong>{workspaceShortName(run.workspace)}</strong>
+                <small>{sessionCreatedLabel(run.created_at)} · {sessionShortId(run.session_id)}</small>
+              </span>
+              <span className="history-row-chips">
+                {(run.incident_count ?? 0) > 0 && <span className="badge is-bad">사건 {run.incident_count}</span>}
+                {run.bundle_status === 'VALID' && <span className="badge is-neutral">기록 확인됨</span>}
+              </span>
+              <span className={`status-pill ${PILL_TONE[state]}`}>{HISTORY_STATE_LABEL[state]}</span>
+              <Icon name="arrowRight" size={16} />
+            </button>
+          )
+        })}
+        <p className="faint-note history-foot">각 실행의 감사 기록은 해시 체인으로 검증돼요.</p>
+      </section>
+    </div>
+  )
+}
+
+function HistoryDetail({ run, onBack, onOpenWork }: { run: RunSummary; onBack: () => void; onOpenWork: () => void }) {
+  const state = historyState(run)
+  return (
+    <div className="history-detail">
+      <Button variant="text" className="history-back" onClick={onBack}><span className="history-back-arrow" aria-hidden="true"><Icon name="arrowRight" size={16} /></span>기록 목록</Button>
+      {state === 'live' ? (
+        <div className="glass is-soft work-empty">
+          <GlossyIcon tone="success" icon="pulse" size="lg" />
+          <strong>이 실행은 아직 진행 중이에요</strong>
+          <span className="muted">대화와 실시간 보호 상태는 작업창에서 볼 수 있어요.</span>
+          <Button variant="cta" onClick={onOpenWork}>작업창 열기</Button>
         </div>
-      </div>
+      ) : state === 'orphaned' && !['COMPLETED', 'ABORTED', 'FAILED'].includes(String(run.status)) ? (
+        <div className="glass is-soft work-empty">
+          <GlossyIcon tone="amber" icon="alert" size="lg" />
+          <strong>이전 실행의 연결이 끊겼어요</strong>
+          <span className="muted">저장된 상태는 실행 중으로 남아 있지만 지금 대화를 다시 연결할 수 없어요. 새 보호 실행에서 같은 작업 폴더를 고르면 안전하게 정리할 수 있는지 확인해요. 살아 있는 프로세스를 자동으로 강제 종료하지 않아요.</span>
+        </div>
+      ) : (
+        <ResultView runId={run.session_id} showEvidenceLog />
+      )}
     </div>
   )
 }

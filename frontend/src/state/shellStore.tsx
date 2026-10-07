@@ -1,8 +1,9 @@
 import { createContext, useContext } from 'react'
 
-export type ShellView = 'dashboard' | 'agents' | 'terminal' | 'policy' | 'audit' | 'reports' | 'settings'
+/** The five rail destinations (EPIC-020). Result and restore live inside history; new run is a sheet. */
+export type ShellView = 'home' | 'work' | 'policy' | 'history' | 'settings'
 
-/** Live Codex status shared with GuardianHero in the dashboard view. */
+/** Live Codex status shared with the home view's guardian. */
 export interface CodexActivitySignal {
   runId: string
   mode: string
@@ -21,52 +22,50 @@ function readStoredActiveRunId(): string | null {
 
 export interface ShellState {
   activeView: ShellView
-  sidebarCollapsed: boolean
-  rightPanelCollapsed: boolean
-  settingsModalOpen: boolean
-  /** The single protected run currently shown in the center pane -- the
-   * shell shows one active run at a time (not a multi-tab workspace);
-   * browsing other runs happens via the audit view's list, which replaces
-   * the active run when clicked. Persisted so a reload re-attaches to the
-   * same run instead of losing context. */
+  /** New protected run sheet (④). */
+  newRunOpen: boolean
+  /** The single protected run the work and history views show. Persisted so
+   * a reload re-attaches to the same run instead of losing context. */
   activeRunId: string | null
   codexActivity: CodexActivitySignal | null
+  /** Run whose result the history view shows; null shows the list. */
+  historyRunId: string | null
+  /** Bumped to ask the work view to open its end-session confirmation. */
+  endRequest: number
 }
 
 export type ShellAction =
   | { type: 'SET_VIEW'; view: ShellView }
-  | { type: 'TOGGLE_SIDEBAR' }
-  | { type: 'TOGGLE_RIGHT_PANEL' }
-  | { type: 'OPEN_SETTINGS_MODAL' }
-  | { type: 'CLOSE_SETTINGS_MODAL' }
+  | { type: 'OPEN_NEW_RUN' }
+  | { type: 'CLOSE_NEW_RUN' }
   | { type: 'SET_ACTIVE_RUN'; id: string }
   | { type: 'CLEAR_ACTIVE_RUN' }
   | { type: 'SET_CODEX_ACTIVITY'; signal: CodexActivitySignal }
   | { type: 'CLEAR_CODEX_ACTIVITY'; runId: string }
+  | { type: 'REQUEST_END' }
+  | { type: 'OPEN_RESULT'; id: string }
+  | { type: 'CLOSE_RESULT' }
 
 export function initialState(): ShellState {
   return {
-    activeView: 'dashboard',
-    sidebarCollapsed: false,
-    rightPanelCollapsed: false,
-    settingsModalOpen: false,
+    activeView: 'home',
+    newRunOpen: false,
     activeRunId: readStoredActiveRunId(),
     codexActivity: null,
+    historyRunId: null,
+    endRequest: 0,
   }
 }
 
 export function reducer(state: ShellState, action: ShellAction): ShellState {
   switch (action.type) {
     case 'SET_VIEW':
-      return { ...state, activeView: action.view }
-    case 'TOGGLE_SIDEBAR':
-      return { ...state, sidebarCollapsed: !state.sidebarCollapsed }
-    case 'TOGGLE_RIGHT_PANEL':
-      return { ...state, rightPanelCollapsed: !state.rightPanelCollapsed }
-    case 'OPEN_SETTINGS_MODAL':
-      return { ...state, settingsModalOpen: true }
-    case 'CLOSE_SETTINGS_MODAL':
-      return { ...state, settingsModalOpen: false }
+      // Entering history from the rail always starts at the list.
+      return { ...state, activeView: action.view, historyRunId: action.view === 'history' ? null : state.historyRunId }
+    case 'OPEN_NEW_RUN':
+      return { ...state, newRunOpen: true }
+    case 'CLOSE_NEW_RUN':
+      return { ...state, newRunOpen: false }
     case 'SET_ACTIVE_RUN':
       return { ...state, activeRunId: action.id }
     case 'CLEAR_ACTIVE_RUN':
@@ -75,6 +74,12 @@ export function reducer(state: ShellState, action: ShellAction): ShellState {
       return { ...state, codexActivity: action.signal }
     case 'CLEAR_CODEX_ACTIVITY':
       return state.codexActivity?.runId === action.runId ? { ...state, codexActivity: null } : state
+    case 'REQUEST_END':
+      return { ...state, activeView: 'work', endRequest: state.endRequest + 1 }
+    case 'OPEN_RESULT':
+      return { ...state, activeView: 'history', activeRunId: action.id, historyRunId: action.id }
+    case 'CLOSE_RESULT':
+      return { ...state, historyRunId: null }
     default:
       return state
   }
@@ -82,14 +87,16 @@ export function reducer(state: ShellState, action: ShellAction): ShellState {
 
 export interface ShellContextValue extends ShellState {
   setView: (view: ShellView) => void
-  toggleSidebar: () => void
-  toggleRightPanel: () => void
-  openSettingsModal: () => void
-  closeSettingsModal: () => void
+  openNewRun: () => void
+  closeNewRun: () => void
   setActiveRun: (id: string) => void
   clearActiveRun: () => void
   reportCodexActivity: (signal: CodexActivitySignal) => void
   clearCodexActivity: (runId: string) => void
+  requestEnd: () => void
+  /** Show one run's result (③) in the history view and select it. */
+  openResult: (id: string) => void
+  closeResult: () => void
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null)

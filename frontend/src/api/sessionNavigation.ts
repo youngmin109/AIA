@@ -25,9 +25,9 @@ export function sidebarSessions(runs: RunSummary[], selectedId: string | null, l
   return visible
 }
 
-export function sessionDestination(run: RunSummary): 'terminal' | 'audit' {
+export function sessionDestination(run: RunSummary): 'work' | 'history' {
   // Orphaned sessions cannot be reattached as a live app-server conversation.
-  return isRunActive(run) ? 'terminal' : 'audit'
+  return isRunActive(run) ? 'work' : 'history'
 }
 
 export function sessionStateLabel(run: RunSummary): string {

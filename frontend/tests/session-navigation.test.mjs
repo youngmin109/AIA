@@ -14,7 +14,7 @@ test('READY and PREPARING sessions remain visible and open the workbench', () =>
   for (const status of ['READY', 'PREPARING', 'RUNNING', 'STARTING']) {
     const run = { session_id: 'r', status }
     assert.equal(isRunActive(run), true)
-    assert.equal(sessionDestination(run), 'terminal')
+    assert.equal(sessionDestination(run), 'work')
   }
   assert.equal(sessionStateLabel({ session_id: 'r', status: 'READY' }), '입력 준비 완료')
 })
@@ -23,13 +23,13 @@ test('completed and stopped sessions stay in sidebar history and open evidence',
   assert.equal(sidebarSessions(runs, null).length, 3)
   for (const run of runs) {
     assert.equal(isRunActive(run), false)
-    assert.equal(sessionDestination(run), 'audit')
+    assert.equal(sessionDestination(run), 'history')
   }
 })
 test('orphaned sessions are history, not a reattachable running session', () => {
   const run = { session_id: 'r', status: 'RUNNING', runtime_reconciliation: { orphaned: true } }
   assert.equal(isRunActive(run), false)
-  assert.equal(sessionDestination(run), 'audit')
+  assert.equal(sessionDestination(run), 'history')
   assert.equal(sessionStateLabel(run), '연결 끊김 · 기록 확인')
 })
 test('active sessions precede recent history while a selected older session stays visible', () => {

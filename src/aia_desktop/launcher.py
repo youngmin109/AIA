@@ -21,6 +21,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from aia_desktop.webview_recovery import WebViewRecovery, desktop_log
+from aia_desktop.title_bar import apply_title_bar, window_handle
 from aia_desktop.window_state import (
     MIN_SIZE,
     capture_window_state,
@@ -138,7 +139,7 @@ def _remove_webview_storage(path: Path) -> None:
         return
 
 
-WINDOW_TITLE = "AIA · Protected Workbench"
+WINDOW_TITLE = "AIA"
 _ERROR_ALREADY_EXISTS = 183
 _SW_RESTORE = 9
 
@@ -449,6 +450,17 @@ class DesktopBridge:
             self._on_heartbeat()
         return True
 
+    def set_title_bar(self, tint: str) -> bool:
+        """Called by the page with its colour theme so the caption matches it."""
+
+        handle = window_handle(self._window) if self._window is not None else None
+        if handle is None:
+            return False
+        try:
+            return apply_title_bar(handle, str(tint))
+        except Exception:
+            return False
+
     def choose_workspace(self) -> dict[str, str | None]:
         return self.choose_directory()
 
@@ -534,6 +546,8 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         window.events.closing += lambda: save_window_state(state_path, capture_window_state(window.native))
         # Returning False from a closing handler keeps the window open.
         window.events.closing += _confirm_close_with_live_runs
+        # Dark caption from the first frame; the page then sends its own colour theme.
+        window.events.shown += lambda: bridge.set_title_bar("violet")
         recovery.start()
         desktop_log("desktop-started", port=port)
         webview.start(

@@ -6,6 +6,11 @@ export function useRecoveryStatus(sessionId: string) {
   const [reloadToken, setReloadToken] = useState(0)
   const reload = useCallback(() => setReloadToken(value => value + 1), [])
   useEffect(() => {
+    const updated = (event: Event) => { if ((event as CustomEvent).detail === sessionId) reload() }
+    window.addEventListener('aia:result-updated', updated)
+    return () => window.removeEventListener('aia:result-updated', updated)
+  }, [sessionId, reload])
+  useEffect(() => {
     const controller = new AbortController()
     apiGet<RecoveryStatusView>(`/api/runs/${encodeURIComponent(sessionId)}/recovery`, controller.signal)
       .then(data => { if (!controller.signal.aborted) setSnapshot({ id: sessionId, data, error: null }) })
