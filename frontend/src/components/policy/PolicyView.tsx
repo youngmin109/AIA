@@ -6,6 +6,7 @@ import { PolicyPreview } from './PolicyPreview'
 import type { PolicyProfile } from '../../api/endpoints'
 import { useProfiles } from '../../hooks/useProfiles'
 import { readDefaultPolicyProfile, writeDefaultPolicyProfile } from './policyStorage'
+import { CustomPolicyEditor } from './CustomPolicyEditor'
 
 type SupportStatus = '지원' | '부분 지원'
 
@@ -48,7 +49,7 @@ const ENGINE_FACTS: Array<{ title: string; items: Array<{ title: string; descrip
 /** ⑧ Policy: pick the next run's default template and dry-run a command against every template. */
 export function PolicyView() {
   const { profiles: all, error } = useProfiles()
-  const profiles = all.filter(profile => profile.value !== 'CUSTOM')
+  const profiles = all
   const [chosen, setChosen] = useState<string | null>(readDefaultPolicyProfile)
   const [notice, setNotice] = useState('')
   const selected = profiles.some(profile => profile.value === chosen) ? chosen : profiles[0]?.value ?? null
@@ -87,7 +88,9 @@ export function PolicyView() {
         {profiles.length === 0 && !error && <p className="faint-note">정책을 불러오는 중이에요…</p>}
       </section>
 
-      <PolicyPreview key={selected} profile={selected} profiles={profiles} />
+      {selected === 'CUSTOM' ? <CustomPolicyEditor onSaved={() => setNotice('사용자 지정 규칙을 저장했어요. 다음 보호 실행에 적용할 수 있어요.')} /> : <>
+        <PolicyPreview key={selected} profile={selected} profiles={profiles.filter(profile => profile.value !== 'CUSTOM')} />
+      </>}
 
       <section className="glass-card policy-facts" aria-label="AIA가 실제로 하는 일">
         <h2>AIA가 실제로 하는 일</h2>
@@ -104,7 +107,7 @@ export function PolicyView() {
             </ul>
           </details>
         ))}
-        <p className="faint-note">이 목록에는 엔진이 지금 실제로 하는 일만 적었어요. 직접 쓴 정책은 엄격한 형식 검증을 통과한 JSON을 <code className="mono">--policy &lt;json&gt;</code>으로 지정해요.</p>
+        <p className="faint-note">이 목록에는 엔진이 지금 실제로 하는 일만 적었어요. 사용자 지정에서는 세부 규칙을 검증하고 저장한 뒤 새 보호 실행에 적용할 수 있어요.</p>
         <Button variant="text" onClick={() => document.getElementById('policy-preview-target')?.focus()}>명령 판정해 보기 <Icon name="arrowRight" size={14} /></Button>
       </section>
     </div>

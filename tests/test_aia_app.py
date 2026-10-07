@@ -2264,7 +2264,7 @@ def test_application_exposes_fixed_profile_choices(tmp_path) -> None:
             "협업 개발",
             "변경 통제 강화",
             "관찰 전용",
-            "직접 설정",
+            "사용자 지정",
         }
         assert all(item["english_name"] for item in profiles)
         conservative = next(item for item in profiles if item["value"] == "CONSERVATIVE_SECURITY")

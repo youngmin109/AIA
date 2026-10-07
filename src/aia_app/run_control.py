@@ -675,4 +675,5 @@ class RunControlMixin:
                         record.runtime["protection_failure_termination_result"] = result
                         self._persist_runtime_state(record)
                     continue
+                self._maybe_auto_checkpoint(record)
                 continue

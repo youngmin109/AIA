@@ -9,6 +9,7 @@
 /* Liquid glass (EPIC-020): one dark theme. data-tint picks the color theme
    (violet by default, indigo, teal); everything else is shared. */
 :root {
+  --surface-transparent: transparent;
   color-scheme: dark;
   --font-ui: 'Pretendard', 'Malgun Gothic', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Cascadia Code', Consolas, ui-monospace, monospace;

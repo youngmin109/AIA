@@ -5,6 +5,7 @@ import { useRunStatus } from '../../hooks/useRunStatus'
 import { useShellStore } from '../../state/shellStore'
 import { normalizePetPosition, petPixels, petPosition, readPetPosition, savePetPosition, type PetPosition } from '../../api/petPreference'
 import { GuardianGuide, type GuideTopic } from './GuardianGuide'
+import { readPetSize, petPixelSize } from '../../api/petSizePreference'
 
 const DRAG_THRESHOLD = 4
 const SPEAK_MS = 6000
@@ -20,6 +21,8 @@ export function GuardianPet() {
   const { activeRunId } = useShellStore()
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
   const guardian = useGuardianState()
+  const [petSize, setPetSize] = useState(readPetSize)
+  const pixels = petPixelSize(petSize)
   const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null)
   const [position, setPosition] = useState<PetPosition>(readPetPosition)
   const [dragging, setDragging] = useState(false)
@@ -38,13 +41,20 @@ export function GuardianPet() {
 
   useLayoutEffect(() => {
     function fit() {
-      const { left, top } = petPixels(position, viewport())
+      const { left, top } = petPixels(position, viewport(), pixels)
       place(left, top)
     }
     fit()
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
-  }, [position])
+  }, [position, pixels])
+
+  useEffect(() => {
+    const updateSize = () => setPetSize(readPetSize())
+    window.addEventListener('aia:pet-size-changed', updateSize)
+    window.addEventListener('storage', updateSize)
+    return () => { window.removeEventListener('aia:pet-size-changed', updateSize); window.removeEventListener('storage', updateSize) }
+  }, [])
 
   // A new headline shows the speech bubble for a few seconds.
   useEffect(() => {
@@ -74,7 +84,7 @@ export function GuardianPet() {
       current.moved = true
       setDragging(true)
     }
-    const { left, top } = petPixels(petPosition({ left: current.left + dx, top: current.top + dy }, viewport()), viewport())
+    const { left, top } = petPixels(petPosition({ left: current.left + dx, top: current.top + dy }, viewport(), pixels), viewport(), pixels)
     place(left, top)
   }
 
@@ -85,7 +95,7 @@ export function GuardianPet() {
     if (!current.moved) return
     dropped.current = true
     setDragging(false)
-    settle(petPosition(placed.current, viewport()))
+    settle(petPosition(placed.current, viewport(), pixels))
   }
 
   function onClick(event: MouseEvent<HTMLButtonElement>) {

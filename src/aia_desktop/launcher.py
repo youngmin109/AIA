@@ -438,6 +438,10 @@ class DesktopBridge:
         # attributes are intentionally skipped by pywebview's API scanner.
         self._window: Any | None = None
         self._on_heartbeat: Callable[[], None] | None = None
+        self._guardian: Any | None = None
+        self._guardian_url: str | None = None
+        self._guardian_shutting_down = False
+        self._guardian_size = 'medium'
 
     def attach(self, window: Any, on_heartbeat: Callable[[], None] | None = None) -> None:
         self._window = window
@@ -448,6 +452,67 @@ class DesktopBridge:
 
         if self._on_heartbeat is not None:
             self._on_heartbeat()
+        return True
+
+    def _configure_guardian(self, url: str) -> None:
+        self._guardian_url = url + '?surface=guardian'
+
+    def set_guardian_visible(self, visible: bool) -> bool:
+        if type(visible) is not bool or self._guardian_shutting_down or not self._guardian_url:
+            return False
+        if not visible:
+            if self._guardian is not None:
+                self._guardian.hide()
+            return True
+        if self._guardian is None:
+            import webview
+            width, height = self._guardian_dimensions(self._guardian_size)
+            self._guardian = webview.create_window(
+                '아이아 가디언', self._guardian_url, width=width, height=height,
+                min_size=(240, 300), frameless=True, easy_drag=True, on_top=True,
+                transparent=True, shadow=False, resizable=False, focus=False, js_api=self,
+            )
+            self._guardian.events.closing += self._guardian_closing
+        else:
+            self._guardian.show()
+        return True
+
+    @staticmethod
+    def _guardian_dimensions(size: str) -> tuple[int, int]:
+        return {'small': (240, 300), 'medium': (280, 340), 'large': (340, 410)}[size]
+
+    def set_guardian_size(self, size: str) -> bool:
+        if not isinstance(size, str) or size not in {'small', 'medium', 'large'} or self._guardian_shutting_down:
+            return False
+        self._guardian_size = size
+        if self._guardian is not None:
+            self._guardian.resize(*self._guardian_dimensions(size))
+            # Enum validation above keeps this presentation-only JS assignment narrow.
+            self._guardian.evaluate_js('document.documentElement.dataset.petSize = ' + json.dumps(size))
+        return True
+
+    def _guardian_closing(self) -> bool:
+        if self._guardian_shutting_down:
+            return True
+        if self._guardian is not None:
+            self._guardian.hide()
+        return False
+
+    def _close_guardian(self) -> None:
+        self._guardian_shutting_down = True
+        if self._guardian is not None:
+            guardian, self._guardian = self._guardian, None
+            guardian.destroy()
+
+    def open_main(self, view: str = 'home', session_id: str | None = None) -> bool:
+        if self._window is None or view not in {'home', 'work', 'history', 'settings', 'policy'}:
+            return False
+        if session_id is not None and (not isinstance(session_id, str) or not session_id or any(not (ch.isascii() and (ch.isalnum() or ch == '-')) for ch in session_id)):
+            return False
+        self._window.show()
+        self._window.restore()
+        self._window.evaluate_js('window.dispatchEvent(new CustomEvent("aia:navigate", {detail: '
+                                 + json.dumps({'view': view, 'sessionId': session_id}) + '}))')
         return True
 
     def set_title_bar(self, tint: str) -> bool:
@@ -542,6 +607,9 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         )
         recovery = WebViewRecovery(window, url)
         bridge.attach(window, on_heartbeat=recovery.heartbeat)
+        bridge._configure_guardian(url)
+        if hasattr(window.events, 'closed'):
+            window.events.closed += bridge._close_guardian
         # The closing handler runs on the UI thread, so the form can be read here.
         window.events.closing += lambda: save_window_state(state_path, capture_window_state(window.native))
         # Returning False from a closing handler keeps the window open.
@@ -564,6 +632,7 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
         )
         return 1
     finally:
+        bridge._close_guardian()
         if recovery is not None:
             recovery.stop()
         desktop_log("desktop-stopped")

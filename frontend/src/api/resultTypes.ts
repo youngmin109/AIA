@@ -49,6 +49,7 @@ export interface ResultView {
 }
 
 export interface RecoveryStatusView {
+  checkpoint_id?: string;
   checkpoint_created_at?: string;
   preview_fingerprint?: string;
   change_count?: number;

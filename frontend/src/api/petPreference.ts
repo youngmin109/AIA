@@ -40,18 +40,18 @@ export function savePetPosition(position: PetPosition): void {
   try { localStorage.setItem('aia.pet.position', JSON.stringify(position)) } catch { /* the pet still stays where it was dropped */ }
 }
 
-function span(length: number): number {
-  return Math.max(0, length - PET_SIZE - 2 * EDGE)
+function span(length: number, size: number): number {
+  return Math.max(0, length - size - 2 * EDGE)
 }
 
 /** Top-left corner of the pet in pixels; always inside the window. */
-export function petPixels(position: PetPosition, viewport: Viewport): PetPixels {
-  return { left: Math.round(EDGE + position.x * span(viewport.width)), top: Math.round(EDGE + position.y * span(viewport.height)) }
+export function petPixels(position: PetPosition, viewport: Viewport, size = PET_SIZE): PetPixels {
+  return { left: Math.round(EDGE + position.x * span(viewport.width, size)), top: Math.round(EDGE + position.y * span(viewport.height, size)) }
 }
 
 /** Inverse of petPixels for a drag; a drop past the edge is clamped to it. */
-export function petPosition(pixels: PetPixels, viewport: Viewport): PetPosition {
-  const width = span(viewport.width)
-  const height = span(viewport.height)
+export function petPosition(pixels: PetPixels, viewport: Viewport, size = PET_SIZE): PetPosition {
+  const width = span(viewport.width, size)
+  const height = span(viewport.height, size)
   return normalizePetPosition({ x: width ? (pixels.left - EDGE) / width : 0, y: height ? (pixels.top - EDGE) / height : 0 })
 }

@@ -8,18 +8,16 @@ import {
   createProtectedRun,
   reconcileRun,
   validateWorkspace,
-  type PolicyProfile,
   type WorkspaceRecovery,
 } from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
-import { readDefaultPolicyProfile } from '../policy/policyStorage'
+import { readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 import { useProfiles } from '../../hooks/useProfiles'
 import { usePreflight } from '../../hooks/usePreflight'
 import { workspaceShortName } from '../shell/sessionLabel'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
-const isStandardProfile = (profile: PolicyProfile) => profile.value !== 'CUSTOM'
 const CARD_TONES: GlossTone[] = ['hook', 'file', 'process', 'amber']
 
 // service.py's reconcile_orphaned_run reason codes, mapped to copy that
@@ -47,7 +45,8 @@ export function ProtectionSetupModal() {
 function NewRunSheet() {
   const { closeNewRun, setActiveRun, setView } = useShellStore()
   const { profiles: allProfiles } = useProfiles()
-  const profiles = allProfiles.filter(isStandardProfile)
+  const profiles = allProfiles
+  const customPolicy = readCustomPolicy()
   const { data: preflight } = usePreflight()
   // Same condition HookStatusControl reports as ready; the steps stay visible until it holds.
   const hookReady = preflight?.readiness_code === 'READY'
@@ -91,7 +90,7 @@ function NewRunSheet() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [workspace])
 
-  const canSubmit = workspaceState.status === 'valid' && !recovery?.required && hookReady && !submitting && profiles.some(profile => profile.value === policyProfile)
+  const canSubmit = workspaceState.status === 'valid' && !recovery?.required && hookReady && !submitting && profiles.some(profile => profile.value === policyProfile) && (policyProfile !== 'CUSTOM' || Boolean(customPolicy))
 
   async function handleReconcile() {
     if (!recovery?.session_id || reconciling) return
@@ -123,6 +122,7 @@ function NewRunSheet() {
         workspace: workspace.trim(),
         agent: 'codex',
         policy_profile: policyProfile || undefined,
+        ...(policyProfile === 'CUSTOM' ? { custom_policy_path: customPolicy?.path } : {}),
         mode: 'ENFORCE',
         interactive: true,
         // Structured Codex conversation (app-server) instead of the PTY/TUI
@@ -209,6 +209,7 @@ function NewRunSheet() {
               })}
               {profiles.length === 0 && <p className="faint-note">정책 목록을 불러오는 중…</p>}
             </div>
+            {policyProfile === 'CUSTOM' && <p className="faint-note">{customPolicy ? '저장한 사용자 지정 규칙을 실행 시작 시 다시 검증해요.' : '정책 화면에서 사용자 지정 규칙을 먼저 검증하고 저장해 주세요.'}</p>}
           </section>
 
           <section className="newrun-section" aria-labelledby="newrun-connection">

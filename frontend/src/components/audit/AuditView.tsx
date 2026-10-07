@@ -5,6 +5,7 @@ import { StatTile, GlossyIcon } from '../common/Glass'
 import { useShellStore } from '../../state/shellStore'
 import { useRunList } from '../../hooks/useRunList'
 import { ResultView } from '../results/ResultView'
+import { RecoveryPoints } from '../results/RecoveryPoints'
 import type { RunSummary } from '../../api/types'
 import { HISTORY_STATE_LABEL, filterRuns, historyState, type HistoryFilter } from '../../api/historyFilter'
 import { sessionCreatedLabel, sessionShortId, workspaceShortName } from '../shell/sessionLabel'
@@ -104,6 +105,7 @@ function HistoryDetail({ run, onBack, onOpenWork }: { run: RunSummary; onBack: (
       ) : (
         <ResultView runId={run.session_id} showEvidenceLog />
       )}
+      <RecoveryPoints key={run.session_id} runId={run.session_id} />
     </div>
   )
 }

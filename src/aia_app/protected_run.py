@@ -291,6 +291,13 @@ class ProtectedRunMixin:
         self._open_codex_conversation(record)
         process = launcher.process_handle
         exit_code = self._wait_for_agent(record, process, launcher)
+        record.runtime['point_closing'] = True
+        worker = record.runtime.get('point_worker')
+        if worker is not None:
+            worker.join()
+        # No supplemental capture may race Lease release / final bundle creation.
+        with self._point_lock(record):
+            pass
         record.runtime["exit_code"] = exit_code
         hook_broker_healthy_before_stop = _hook_broker_runtime_healthy(record)
         record.runtime["hook_broker_runtime_healthy_before_stop"] = (

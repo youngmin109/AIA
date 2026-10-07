@@ -281,8 +281,8 @@
   left: 0;
   top: 0;
   z-index: 50;
-  width: 104px;
-  height: 104px;
+  width: var(--browser-pet-size, 104px);
+  height: var(--browser-pet-size, 104px);
   padding: 0;
   border: 0;
   border-radius: 30px;
@@ -306,6 +306,8 @@
 }
 
 .guardian-pet .guardian-avatar {
+  width: 100%;
+  height: 100%;
   transition: transform 0.2s ease;
 }
 
@@ -1425,3 +1427,21 @@ summary:focus-visible {
 :root[data-glass='off'] .lens-orb {
   display: none;
 }
+html[data-native-guardian="on"] .guardian-pet { display: none; }
+html[data-surface="guardian"], html[data-surface="guardian"] body, html[data-surface="guardian"] #root {
+  background: var(--surface-transparent); min-width: 0; min-height: 0; overflow: hidden;
+}
+html[data-surface="guardian"] body::before, html[data-surface="guardian"] body::after { display: none; }
+.desktop-guardian { padding: 8px 12px; text-align: center; height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; }
+.desktop-guardian-drag { cursor: grab; flex: 1; min-height: 0; position: relative; }
+.desktop-guardian-drag .guardian-figure { position: absolute; inset: 6px 0; margin: auto; width: var(--desktop-pet-size, 190px); max-width: 100%; height: var(--desktop-pet-size, 190px); max-height: calc(100% - 12px); object-fit: contain; animation: desktop-guardian-float 4s ease-in-out infinite; }
+html[data-pet-size="small"] { --desktop-pet-size: 140px; --browser-pet-size: 84px; }
+html[data-pet-size="medium"] { --desktop-pet-size: 190px; --browser-pet-size: 104px; }
+html[data-pet-size="large"] { --desktop-pet-size: 250px; --browser-pet-size: 136px; }
+@keyframes desktop-guardian-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.desktop-guardian-note { background: var(--page-base); border: 1px solid var(--line-3); border-radius: 18px; padding: 10px; font-size: 12px; flex-shrink: 0; }
+.desktop-guardian-note p { margin: 5px 0 0; line-height: 1.4; }
+.desktop-guardian.is-blocked .desktop-guardian-note { border-color: var(--danger); }
+.desktop-guardian.is-review .desktop-guardian-note { border-color: var(--warning); }
+.desktop-guardian-actions { display: flex; justify-content: center; gap: 12px; margin-top: 6px; border-top: 1px solid var(--line-3); padding-top: 5px; }
+.desktop-guardian-actions .text-action { min-height: 28px; padding: 3px 8px; font-size: 11px; line-height: 1.4; }
