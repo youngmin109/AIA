@@ -96,7 +96,7 @@ function HomeIdle() {
         <article className="glass-card home-tile">
           <TileCorner tone="file" icon="restore" />
           <span className="home-tile-label">실행 후 복구</span>
-          <strong className="home-tile-value">{recovery === 'setup' ? '설정 필요' : '기준점 저장'}</strong>
+          <strong className="home-tile-value">{recovery === 'checking' ? '확인 중' : recovery === 'setup' ? '설정 필요' : '실행 전 저장'}</strong>
           <span className="home-tile-note">실행하면 시작 시점을 저장해요</span>
         </article>
         <button type="button" className="glass-card home-tile is-button" onClick={openLastRun} disabled={!lastRun}>
@@ -188,7 +188,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
 
       <section className="home-live-tiles" aria-label="실시간 숫자">
         <StatTile label="차단 판정" value={blocks} tone={blocks > 0 ? 'danger' : undefined} note="실행 전 정책 판정" />
-        <StatTile label="감시 중 프로세스" value={processes ?? '—'} note={activity?.current_alive_count == null ? '누적 관찰 수' : '지금 살아 있는 수'} />
+        <StatTile label={activity?.current_alive_count == null ? '누적 관찰 프로세스' : '현재 실행 프로세스'} value={processes ?? '—'} note={activity?.current_alive_count == null ? '세션 전체 관찰 수' : '지금 살아 있는 수'} />
         <StatTile label="파일 변경" value={activity?.unique_file_count ?? 0} note="관찰된 경로 수" />
         <div className="glass-card stat-tile">
           <span className="stat-label">최근 5분 활동</span>

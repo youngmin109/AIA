@@ -38,7 +38,7 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
   const rows: Array<{ key: string; tone: Parameters<typeof GlossyIcon>[0]['tone']; icon: Parameters<typeof GlossyIcon>[0]['icon']; label: string; value: string; alert?: boolean }> = [
     { key: 'pretool', tone: 'hook', icon: 'shieldPlain', label: '실행 전 검사', value: `${summary?.pretool_events ?? 0}건` },
     { key: 'block', tone: 'danger', icon: 'block', label: '차단 판정', value: `${blocks}건`, alert: blocks > 0 },
-    { key: 'process', tone: 'process', icon: 'pulse', label: '감시 중 프로세스', value: `${activity?.current_alive_count ?? activity?.process_identity_count ?? 0}개` },
+    { key: 'process', tone: 'process', icon: 'pulse', label: activity?.current_alive_count == null ? '누적 관찰 프로세스' : '현재 실행 프로세스', value: activity?.current_alive_count != null || activity?.process_identity_count != null ? `${activity.current_alive_count ?? activity.process_identity_count}개` : '—' },
     { key: 'file', tone: 'file', icon: 'file', label: '파일 변경', value: `${activity?.unique_file_count ?? 0}개` },
   ]
 

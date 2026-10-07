@@ -25,7 +25,7 @@ export function resultHeadline(result: SummaryInput, changedFiles: number | null
   const lines: string[] = []
   const confirmedBlocks = result.codex_block_confirmation === 'BLOCK_CONFIRMED' ? counts.blocked ?? 0 : 0
   if (confirmedBlocks > 0) lines.push(`위험 요청 ${confirmedBlocks}건을 막았어요`)
-  else if ((counts.terminated ?? 0) > 0) lines.push(`위험 프로세스 ${counts.terminated}개를 종료했어요`)
+  else if ((counts.terminated ?? 0) > 0) lines.push(`프로세스 종료 ${counts.terminated}건을 확인했어요`)
   else if ((counts.contain ?? 0) > 0) lines.push(`위험 요청 ${counts.contain}건을 차단 판정했어요`)
   else if ((counts.violation ?? 0) > 0) lines.push(`정책 사건 ${counts.violation}건이 기록됐어요`)
   else lines.push('위험한 요청은 관찰되지 않았어요')

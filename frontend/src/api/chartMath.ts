@@ -28,7 +28,7 @@ export interface ActionSummaryCounts {
 
 /**
  * COMPLIANT covers both ALLOW and AUDIT effects, so allowed = compliant - audit.
- * VIOLATION is a block decision, not a confirmed block.
+ * VIOLATION is a policy finding; the Gate can refuse containment when attribution is insufficient.
  */
 export function verdictSlices(summary?: ActionSummaryCounts | null): DonutSlice[] {
   const compliant = summary?.compliant ?? 0
@@ -36,7 +36,7 @@ export function verdictSlices(summary?: ActionSummaryCounts | null): DonutSlice[
   return [
     { key: 'allow', label: '허용', value: Math.max(0, compliant - audit), tone: 'allow' },
     { key: 'log', label: '기록', value: audit, tone: 'log' },
-    { key: 'block', label: '차단 판정', value: summary?.violation ?? 0, tone: 'block' },
+    { key: 'block', label: '정책 위반', value: summary?.violation ?? 0, tone: 'block' },
     { key: 'unknown', label: '판단 보류', value: summary?.indeterminate ?? 0, tone: 'unknown' },
   ]
 }

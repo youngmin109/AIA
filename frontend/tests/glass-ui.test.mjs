@@ -13,10 +13,10 @@ test('donut arcs split the circle by value and skip empty slices', () => {
   assert.deepEqual(donutArcs([{ key: 'x', label: 'x', value: 0, tone: 'allow' }]), [])
 })
 
-test('verdict slices separate allowed from audited and keep block as a decision', () => {
+test('verdict slices do not equate policy violations with containment decisions', () => {
   const slices = verdictSlices({ compliant: 48, audit: 6, violation: 1, indeterminate: 0 })
   assert.deepEqual(slices.map(slice => [slice.key, slice.value]), [['allow', 42], ['log', 6], ['block', 1], ['unknown', 0]])
-  assert.equal(slices.find(slice => slice.key === 'block').label, '차단 판정')
+  assert.equal(slices.find(slice => slice.key === 'block').label, '정책 위반')
   assert.ok(verdictSlices(null).every(slice => slice.value === 0))
 })
 
@@ -50,6 +50,8 @@ test('home pillars only call pre-execution blocking ready when every Hook check 
   const { blockingPillar, recoveryPillar, formatElapsed } = await import('../src/api/homeStatus.ts')
   const ok = name => ({ name, label: name, ok: true })
   assert.equal(blockingPillar(null), 'checking')
+  assert.equal(blockingPillar([ok('pretool_hook')]), 'checking')
+  assert.equal(blockingPillar([ok('pretool_hook'), ok('codex_hook_trust')]), 'checking')
   assert.equal(blockingPillar([ok('pretool_hook'), ok('codex_hook_trust'), ok('hook_verification')]), 'ready')
   assert.equal(blockingPillar([ok('pretool_hook'), { ...ok('hook_verification'), ok: false }]), 'setup')
   assert.equal(recoveryPillar([ok('control_root')]), 'ready')
@@ -65,6 +67,7 @@ test('result headline keeps decision, confirmed block, and restore apart', async
   assert.equal(resultHeadline({ action_summary: { contain: 1, blocked: 1 }, codex_block_confirmation: 'NOT_CONFIRMED' }, null)[0], '위험 요청 1건을 차단 판정했어요')
   assert.equal(resultHeadline({ action_summary: {}, recovery_status: 'RESTORED', integrity_status: 'VERIFIED' }, 4)[1], '작업 폴더를 되돌리고 검증했어요')
   assert.equal(resultHeadline({ action_summary: {}, recovery_status: 'RESTORED', integrity_status: 'FAILED' }, 4)[1], '파일 4개가 바뀌었어요')
+  assert.equal(resultHeadline({ action_summary: { terminated: 1 } }, null)[0], '프로세스 종료 1건을 확인했어요')
   assert.deepEqual(fileBreakdown([{ event_type: 'created' }, { event_type: 'deleted' }, { event_type: 'created' }, { event_type: 'odd' }]), { created: 2, modified: 0, deleted: 1, moved: 0 })
   const steps = restoreSteps({ recovery_status: 'RESTORED', planned_operation_count: 3, succeeded_operation_count: 3, failed_operation_count: 0 }, { integrity_status: 'FAILED', changed_paths: ['a'] }, '14:20')
   assert.deepEqual(steps.map(step => step.state), ['done', 'done', 'fail'])

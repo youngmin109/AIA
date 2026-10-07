@@ -217,7 +217,7 @@ def test_run_desktop_opens_the_window_where_it_was_last_closed(tmp_path, monkeyp
     (tmp_path / "AIA").mkdir()
     _write(tmp_path / "AIA" / "desktop-window.json", x=320, y=240, width=1600, height=1000, scale=1.0, maximized=True)
     created = {}
-    window = SimpleNamespace(events=SimpleNamespace(closing=FakeEvent(), loaded=FakeEvent(), minimized=FakeEvent(), restored=FakeEvent()))
+    window = SimpleNamespace(events=SimpleNamespace(closing=FakeEvent(), loaded=FakeEvent(), shown=FakeEvent(), minimized=FakeEvent(), restored=FakeEvent()))
 
     def create_window(title, url, **kwargs):
         created.update(kwargs, url=url)

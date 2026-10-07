@@ -12,8 +12,8 @@ const BLOCKING_CHECKS = ['pretool_hook', 'codex_hook_trust', 'hook_verification'
 export function blockingPillar(checks?: PreflightCheck[] | null): PillarState {
   if (!checks) return 'checking'
   const relevant = checks.filter(check => BLOCKING_CHECKS.includes(check.name))
-  if (relevant.length === 0) return 'checking'
-  return relevant.every(check => check.ok) ? 'ready' : 'setup'
+  if (relevant.some(check => !check.ok)) return 'setup'
+  return BLOCKING_CHECKS.every(name => relevant.some(check => check.name === name && check.ok)) ? 'ready' : 'checking'
 }
 
 export function recoveryPillar(checks?: PreflightCheck[] | null): PillarState {
