@@ -96,3 +96,50 @@ def test_pet_window_is_reshown_without_focus_so_the_desktop_shows_through(monkey
     # Shown again, it takes the chosen size.
     assert bridge.set_guardian_visible(True)
     assert calls == [(240, 300), 'show'] and native == [(77, 0), (77, 4)]
+
+
+def test_folding_puts_a_bubble_on_the_pet_and_unfolding_grows_around_it_on_screen():
+    from aia_desktop.guardian_window import fold_rect
+
+    work = (0, 0, 1920, 1040)
+    # A 280x340 pet at (1000, 300): the bubble sits on the figure, and unfolds back to the same place.
+    assert fold_rect((1000, 300, 1280, 640), work, 1.0, (280, 340), folded=True) == (1102, 384, 76, 76)
+    assert fold_rect((1102, 384, 1178, 460), work, 1.0, (280, 340), folded=False) == (1000, 300, 280, 340)
+    # A bubble dragged to the corner unfolds inside the work area.
+    assert fold_rect((1840, 960, 1916, 1036), work, 1.0, (280, 340), folded=False) == (1640, 700, 280, 340)
+    assert fold_rect((-30, -30, 46, 46), work, 1.0, (280, 340), folded=False) == (0, 0, 280, 340)
+    # Physical pixels follow the DPI scale.
+    assert fold_rect((0, 0, 420, 510), work, 1.5, (280, 340), folded=True)[2:] == (114, 114)
+
+
+def test_folding_moves_the_window_and_a_folded_pet_keeps_its_bubble(monkeypatch):
+    native, placed, calls = [], [], []
+    monkeypatch.setattr(launcher.ctypes, 'windll', SimpleNamespace(user32=SimpleNamespace(
+        ShowWindow=lambda handle, command: native.append((handle, command)))), raising=False)
+    monkeypatch.setattr(launcher.guardian_window, 'window_screen',
+                        lambda handle: ((1000, 300, 1280, 640), (0, 0, 1920, 1040), 1.0))
+    monkeypatch.setattr(launcher.guardian_window, 'place_window', lambda handle, rect: placed.append((handle, rect)))
+    child = SimpleNamespace(events=SimpleNamespace(closing=Event(), loaded=Event()),
+                            native=SimpleNamespace(Handle=SimpleNamespace(ToInt64=lambda: 77)),
+                            hide=lambda: calls.append('hide'), show=lambda: calls.append('show'),
+                            resize=lambda *size: calls.append(size), evaluate_js=lambda script: None)
+    monkeypatch.setitem(sys.modules, 'webview', SimpleNamespace(create_window=lambda title, url, **options: child))
+    bridge = DesktopBridge()
+    bridge._configure_guardian('http://127.0.0.1:8787/')
+    assert bridge.set_guardian_folded(True) is False  # no pet window yet
+    assert bridge.set_guardian_visible(True)
+    assert bridge.set_guardian_folded('yes') is False
+
+    assert bridge.set_guardian_folded(True)
+    # Every change of size is reshown so the corners around the bubble stay see-through.
+    assert placed == [(77, (1102, 384, 76, 76))] and native == [(77, 0), (77, 4)]
+    assert bridge.set_guardian_folded(True) and len(placed) == 1
+    # Folded, a new size waits for the unfold, and showing again keeps the bubble.
+    assert bridge.set_guardian_size('large') and calls == []
+    assert bridge.set_guardian_visible(False) and bridge.set_guardian_visible(True)
+    assert calls == ['hide', 'show']
+
+    calls.clear(); native.clear()
+    assert bridge.set_guardian_folded(False)
+    assert placed[-1] == (77, (970, 322, 340, 410))  # large size, around the (stubbed) window centre
+    assert native == [(77, 0), (77, 4)]

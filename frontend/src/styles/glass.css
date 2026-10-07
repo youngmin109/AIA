@@ -1446,3 +1446,10 @@ html[data-pet-size="large"] { --desktop-pet-size: 250px; --browser-pet-size: 136
 .desktop-guardian.is-review .desktop-guardian-note { border-color: var(--warning); }
 .desktop-guardian-actions { display: flex; justify-content: center; gap: 12px; margin-top: 6px; border-top: 1px solid var(--line-3); padding-top: 5px; }
 .desktop-guardian-actions .text-action { min-height: 28px; padding: 3px 8px; font-size: 11px; line-height: 1.4; }
+/* Folded pet: a small bubble filling its little window; the ring keeps the status colour. */
+.desktop-guardian-bubble { position: fixed; inset: 4px; display: grid; place-items: center; padding: 0; border: 3px solid var(--line-4); border-radius: 50%; background: var(--page-base); cursor: grab; overflow: hidden; }
+.desktop-guardian-bubble .guardian-figure { width: 86%; height: 86%; object-fit: contain; pointer-events: none; }
+.desktop-guardian-bubble:focus-visible { outline: 2px solid var(--accent); outline-offset: -6px; }
+.desktop-guardian-bubble.is-review { border-color: var(--warning); }
+.desktop-guardian-bubble.is-blocked { border-color: var(--danger); animation: desktop-bubble-alert 1.6s ease-in-out infinite; }
+@keyframes desktop-bubble-alert { 0%, 100% { border-color: var(--danger); } 50% { border-color: var(--line-3); } }

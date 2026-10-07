@@ -1,21 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiGet } from '../../api/client'
 import { guardianStatus, type GuardianStatus } from '../../api/guardianStatus'
 import type { RunStatus, RunSummary } from '../../api/types'
 import { GuardianFigure } from '../common/GuardianAvatar'
 import { Button } from '../common/Button'
 import { readPetSize } from '../../api/petSizePreference'
-import { applyPetPreference } from '../../api/petPreference'
 import { isRunActive } from '../../api/sessionNavigation'
 
 const UNKNOWN: GuardianStatus = { state: 'review', label: '확인 필요', headline: '보호 상태를 확인하는 중이에요', detail: '현재 상태를 확인하기 전에는 정상 보호로 해석하지 마세요.' }
 const POLICY: Record<string, string> = { PROTECTED_DEVELOPMENT: '표준 보호', BASIC_DEVELOPMENT: '협업 개발', CONSERVATIVE_SECURITY: '변경 통제 강화', FREE_DEVELOPMENT: '관찰 전용', CUSTOM: '사용자 지정' }
-
-/** Hiding is saved as the settings choice, so the main window's "가디언 펫" switch shows it off and can bring the pet back. */
-function hidePet() {
-  applyPetPreference('off')
-  window.pywebview?.api?.set_guardian_visible?.(false)
-}
 
 /** Read-only observer in a separate native window; no security authority. */
 export function DesktopGuardian() {
@@ -27,6 +20,15 @@ export function DesktopGuardian() {
   const [guardian, setGuardian] = useState(UNKNOWN)
   const [selected, setSelected] = useState<string | null>(null)
   const [policy, setPolicy] = useState('보호 실행 없음')
+  const [folded, setFolded] = useState(false)
+  const press = useRef<{ x: number; y: number } | null>(null)
+  // The page starts unfolded; make the window match it (after a reload too).
+  useEffect(() => {
+    const unfold = () => { window.pywebview?.api?.set_guardian_folded?.(false).catch(() => {}) }
+    if (window.pywebview?.api) unfold()
+    window.addEventListener('pywebviewready', unfold)
+    return () => window.removeEventListener('pywebviewready', unfold)
+  }, [])
   useEffect(() => {
     let cancelled = false
     let timer: ReturnType<typeof setTimeout>
@@ -55,13 +57,34 @@ export function DesktopGuardian() {
     refresh()
     return () => { cancelled = true; clearTimeout(timer) }
   }, [])
+  function fold(next: boolean) {
+    const setWindow = window.pywebview?.api?.set_guardian_folded
+    if (!setWindow) return
+    setFolded(next)
+    setWindow(next).then(ok => { if (!ok) setFolded(!next) }).catch(() => setFolded(!next))
+  }
+
+  if (folded) {
+    // The ring keeps the status colour; a drag moves the bubble and also ends in a click, so only a press that stayed put unfolds.
+    return <button type="button" className={`desktop-guardian-bubble is-${guardian.state}`} aria-label={`아이아 펼치기 · ${guardian.label}`} title={`${guardian.label} · 누르면 펼쳐요, 끌면 옮겨요`}
+      onMouseDown={event => { press.current = { x: event.screenX, y: event.screenY } }}
+      onClick={event => {
+        const start = press.current
+        press.current = null
+        if (start && Math.hypot(event.screenX - start.x, event.screenY - start.y) > 4) return
+        fold(false)
+      }}>
+      <GuardianFigure state={guardian.state} alt="" />
+    </button>
+  }
+
   return <div className={`desktop-guardian is-${guardian.state}`}>
     <div className="desktop-guardian-drag pywebview-drag-region" title="끌어서 바탕화면 어디로든 옮겨요"><GuardianFigure state={guardian.state} alt="아이아 가디언" /></div>
     <div className="desktop-guardian-note">
       <div role="status" aria-live="polite"><strong>{guardian.label} · {policy}</strong><p>{guardian.headline}</p></div>
       <div className="desktop-guardian-actions">
         <Button variant="text" onClick={() => window.pywebview?.api?.open_main?.(selected ? 'work' : 'home', selected)}>AIA 열기</Button>
-        <Button variant="text" title="설정 › 가디언 펫에서 다시 켤 수 있어요" onClick={hidePet}>숨기기</Button>
+        <Button variant="text" title="작은 동그라미로 접어 두고, 누르면 다시 펼쳐요" onClick={() => fold(true)}>접기</Button>
       </div>
     </div>
   </div>

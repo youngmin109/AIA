@@ -12,6 +12,7 @@ type WorkspacePicker = {
   set_title_bar?: (tint: string) => Promise<boolean>
   set_guardian_visible?: (visible: boolean) => Promise<boolean>
   set_guardian_size?: (size: string) => Promise<boolean>
+  set_guardian_folded?: (folded: boolean) => Promise<boolean>
   open_main?: (view: string, sessionId: string | null) => Promise<boolean>
 }
 
