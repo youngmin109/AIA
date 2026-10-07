@@ -173,5 +173,14 @@ test('startup view names the running step and only shows a percent with a known 
   assert.equal(copy.largeFolder, false)
   assert.match(copy.detail, /파일 복사 30\/120/)
   const launch = startupView({ current: 'launch', progress: { stage: 'copy', done: 1, total: 2 } })
-  assert.deepEqual([launch.label, launch.index, launch.total, launch.detail, launch.startedAt], ['Codex 시작 중', 4, 5, null, null])
+  assert.deepEqual([launch.label, launch.index, launch.total, launch.detail, launch.startedAt], ['Codex 시작 전 최종 확인 중', 4, 5, null, null])
+})
+
+test('new-run sheet only warns for folders that will start slowly', async () => {
+  const { largeFolderNotice } = await import('../src/api/startupStatus.ts')
+  assert.equal(largeFolderNotice(null), null)
+  assert.equal(largeFolderNotice({ files: 34, bytes: 600_000, complete: true }), null)
+  assert.match(largeFolderNotice({ files: 3211, bytes: 128_000_000, complete: true }), /파일 3,211개\(122MB\)인 큰 폴더/)
+  assert.match(largeFolderNotice({ files: 20, bytes: 80 * 1024 * 1024, complete: true }), /큰 폴더/)
+  assert.match(largeFolderNotice({ files: 5000, bytes: 1, complete: false }), /5,000개가 넘는 큰 폴더/)
 })

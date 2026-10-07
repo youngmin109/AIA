@@ -3484,6 +3484,22 @@ def test_validate_workspace_exposes_orphan_recovery_action(
         service.shutdown()
 
 
+def test_workspace_size_estimate_counts_files_and_stops_at_its_budget(tmp_path) -> None:
+    (tmp_path / "nested" / "deeper").mkdir(parents=True)
+    for index, name in enumerate(("a.txt", "nested/b.txt", "nested/deeper/c.txt")):
+        (tmp_path / name).write_bytes(b"x" * (index + 1))
+
+    assert service_module._workspace_size_estimate(tmp_path) == {"files": 3, "bytes": 6, "complete": True}
+    partial = service_module._workspace_size_estimate(tmp_path, max_files=2)
+    assert partial["files"] == 2 and partial["complete"] is False
+
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        assert service.validate_workspace(str(tmp_path))["size_estimate"]["files"] == 3
+    finally:
+        service.shutdown()
+
+
 def test_new_run_allows_workspace_after_orphan_reconciliation(
     tmp_path,
     monkeypatch,

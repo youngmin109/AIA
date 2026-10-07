@@ -29,7 +29,10 @@ export interface WorkspaceValidation {
   canonical_path?: string
   error?: string
   recovery?: WorkspaceRecovery | null
+  size_estimate?: WorkspaceSizeEstimate | null
 }
+
+export interface WorkspaceSizeEstimate { files: number; bytes: number; complete: boolean }
 
 export function validateWorkspace(path: string): Promise<WorkspaceValidation> {
   return apiGet<WorkspaceValidation>(`/api/workspaces/validate?path=${encodeURIComponent(path)}`)

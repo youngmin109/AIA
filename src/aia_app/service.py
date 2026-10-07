@@ -108,6 +108,44 @@ _RUNTIME_STATES_CACHE_LIMIT = 2_048
 
 # Human-in-the-loop review stays inside Codex's 30 s Hook timeout.
 _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
+_WORKSPACE_SIZE_MAX_FILES = 5_000
+_WORKSPACE_SIZE_MAX_SECONDS = 1.5
+
+
+def _workspace_size_estimate(
+    workspace: Path,
+    *,
+    max_files: int = _WORKSPACE_SIZE_MAX_FILES,
+    max_seconds: float = _WORKSPACE_SIZE_MAX_SECONDS,
+) -> dict[str, Any]:
+    """Count files and bytes so a slow start can be announced before it begins.
+
+    Bounded by a file count and a time budget; ``complete`` is False when the
+    count stopped early.  Links are not followed, matching the checkpoint.
+    """
+
+    deadline = time.monotonic() + max_seconds
+    files = 0
+    total = 0
+    pending = [workspace]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            files += 1
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+                    if files >= max_files or time.monotonic() > deadline:
+                        return {"files": files, "bytes": total, "complete": False}
+        except OSError:
+            continue
+    return {"files": files, "bytes": total, "complete": True}
 
 
 # app-server reports sandbox modes in camelCase; the Result Bundle and the
@@ -1013,6 +1051,7 @@ class RunApplicationService(
             "is_directory": workspace.is_dir(),
             "canonical_path": str(workspace),
             "recovery": recovery,
+            "size_estimate": _workspace_size_estimate(workspace) if workspace.is_dir() else None,
         }
 
     def _run(self, record: RunRecord) -> None:
@@ -1422,6 +1461,8 @@ class RunApplicationService(
         record.protection_state = "FAILED"
         record.error = f"{type(error).__name__}: {error}"
         record.lease = "FAILED" if record.lease == "ACTIVE" else record.lease
+        if record.startup.get("current"):
+            self._startup_step(record, None)
         self._persist_runtime_state(record)
 
     def _runtime_state_path(self, session_id: str) -> Path:

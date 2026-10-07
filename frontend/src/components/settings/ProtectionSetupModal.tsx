@@ -1,3 +1,4 @@
+import { largeFolderNotice } from '../../api/startupStatus'
 import { Button } from '../common/Button'
 import { useEffect, useState } from 'react'
 import { useDialog } from '../common/useDialog'
@@ -59,6 +60,7 @@ function NewRunSheet() {
   const [reconciling, setReconciling] = useState(false)
   const [reconcileError, setReconcileError] = useState<string | null>(null)
   const [pickerMessage, setPickerMessage] = useState<string | null>(null)
+  const [sizeNotice, setSizeNotice] = useState<string | null>(null)
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
   const storedDefault = readDefaultPolicyProfile()
@@ -68,6 +70,7 @@ function NewRunSheet() {
     setWorkspace(value)
     setRecovery(null)
     setReconcileError(null)
+    setSizeNotice(null)
     setWorkspaceState({ status: value.trim() ? 'checking' : 'idle' })
   }
 
@@ -81,6 +84,7 @@ function NewRunSheet() {
           if (result.valid) {
             setWorkspaceState({ status: 'valid' })
             setRecovery(result.recovery?.required ? result.recovery : null)
+            setSizeNotice(largeFolderNotice(result.size_estimate))
           } else {
             setWorkspaceState({ status: 'invalid', message: result.error ?? '폴더를 확인할 수 없습니다.' })
           }
@@ -180,6 +184,7 @@ function NewRunSheet() {
               <Button variant="secondary" className="is-compact" onClick={handleChooseWorkspace}>폴더 바꾸기</Button>
             </div>
             {workspaceState.status === 'invalid' && <p className="danger-text">{workspaceState.message}</p>}
+            {workspaceState.status === 'valid' && sizeNotice && <p className="glass-notice is-warning newrun-size" role="note">{sizeNotice}</p>}
             {pickerMessage && <p className="faint-note">{pickerMessage}</p>}
             {recovery?.required && (
               <div className="glass-notice is-warning">

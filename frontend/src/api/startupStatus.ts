@@ -23,12 +23,13 @@ const LABELS: Record<Step, string> = {
   checkpoint: '기준점 저장 중',
   sensors: '감시 장치 시작 중',
   readiness: '보호 준비 확인 중',
-  launch: 'Codex 시작 중',
+  launch: 'Codex 시작 전 최종 확인 중',
   conversation: 'Codex 대화 연결 중',
 }
 
-/** Above this many files the checkpoint visibly slows the start. */
+/** Above this many files or bytes the checkpoint visibly slows the start. */
 export const LARGE_FOLDER_FILES = 1000
+export const LARGE_FOLDER_BYTES = 50 * 1024 * 1024
 
 function count(value: number): string {
   return value.toLocaleString('ko-KR')
@@ -59,4 +60,12 @@ export function startupView(startup?: StartupInfo | null): StartupView | null {
     percent,
     largeFolder: Boolean(progress && Math.max(progress.done, progress.total ?? 0) >= LARGE_FOLDER_FILES),
   }
+}
+
+/** New-run sheet notice for a folder that will start slowly; null when it is small. */
+export function largeFolderNotice(estimate?: { files: number; bytes: number; complete: boolean } | null): string | null {
+  if (!estimate || (estimate.complete && estimate.files < LARGE_FOLDER_FILES && estimate.bytes < LARGE_FOLDER_BYTES)) return null
+  const megabytes = Math.round(estimate.bytes / (1024 * 1024))
+  const size = estimate.complete ? `파일 ${count(estimate.files)}개(${count(megabytes)}MB)인` : `파일 ${count(estimate.files)}개가 넘는`
+  return `${size} 큰 폴더예요. 시작할 때 폴더 전체를 기준점으로 저장하고 다시 확인해서 1분 넘게 걸릴 수 있어요. 작업할 하위 폴더만 고르면 빨라져요.`
 }
