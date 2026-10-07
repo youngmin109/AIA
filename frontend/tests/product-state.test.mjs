@@ -41,3 +41,12 @@ test('motion follows accessibility preferences by default, with explicit full an
   assert.equal(normalizeMotionPreference('full'), 'full')
   assert.equal(normalizeMotionPreference('reduced'), 'reduced')
 })
+
+test('guardian names an orphaned run instead of waiting for a result that never comes', () => {
+  const preparing = guardianStatus({ selected: true, ready: true, status: { session: { status: 'PREPARING' }, runtime_reconciliation: { orphaned: true, agent_process_status: 'NOT_STARTED' } } })
+  assert.equal(preparing.label, '준비 중 중단')
+  const lost = guardianStatus({ selected: true, ready: true, status: { session: { status: 'RUNNING' }, runtime_reconciliation: { orphaned: true, agent_process_status: 'PROCESS_GONE' } } })
+  assert.equal(lost.label, '연결 끊김')
+  const finished = guardianStatus({ selected: true, ready: true, status: { session: { status: 'COMPLETED' } } })
+  assert.equal(finished.label, '결과 확인 중')
+})

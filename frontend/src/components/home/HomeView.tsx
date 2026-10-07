@@ -15,6 +15,7 @@ import { useShellStore } from '../../state/shellStore'
 import { usePreflight } from '../../hooks/usePreflight'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { useRunList, isRunActive } from '../../hooks/useRunList'
+import { sessionStateLabel } from '../../api/sessionNavigation'
 import { useGuardianState } from '../../hooks/useGuardianState'
 import { useProfiles } from '../../hooks/useProfiles'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
@@ -103,7 +104,7 @@ function HomeIdle() {
         <button type="button" className="glass-card home-tile is-button" onClick={openLastRun} disabled={!lastRun}>
           <TileCorner tone="amber" icon="clock" />
           <span className="home-tile-label">최근 실행{lastRun ? ` · ${sessionCreatedLabel(lastRun.created_at)}` : ''}</span>
-          <strong className="home-tile-value">{!lastRun ? '없음' : (lastRun.incident_count ?? 0) > 0 ? `사건 ${lastRun.incident_count}건` : displayStatus(lastRun.status)}</strong>
+          <strong className="home-tile-value">{!lastRun ? '없음' : (lastRun.incident_count ?? 0) > 0 ? `사건 ${lastRun.incident_count}건` : sessionStateLabel(lastRun)}</strong>
           <span className="home-tile-note home-tile-link">{lastRun ? <>결과 보기 <Icon name="arrowRight" size={14} /></> : '보호 실행을 시작해 보세요'}</span>
         </button>
       </section>

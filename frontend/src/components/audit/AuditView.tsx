@@ -7,7 +7,8 @@ import { useRunList } from '../../hooks/useRunList'
 import { ResultView } from '../results/ResultView'
 import { RecoveryPoints } from '../results/RecoveryPoints'
 import type { RunSummary } from '../../api/types'
-import { HISTORY_STATE_LABEL, filterRuns, historyState, type HistoryFilter } from '../../api/historyFilter'
+import { filterRuns, historyState, historyStateLabel, type HistoryFilter } from '../../api/historyFilter'
+import { stoppedWhilePreparing } from '../../api/sessionNavigation'
 import { sessionCreatedLabel, sessionShortId, workspaceShortName } from '../shell/sessionLabel'
 
 const FILTERS: Array<[HistoryFilter, string]> = [['all', '전체'], ['review', '확인 필요'], ['ok', '정상']]
@@ -73,7 +74,7 @@ export function AuditView() {
                 {(run.incident_count ?? 0) > 0 && <span className="badge is-bad">사건 {run.incident_count}</span>}
                 {run.bundle_status === 'VALID' && <span className="badge is-neutral">기록 확인됨</span>}
               </span>
-              <span className={`status-pill ${PILL_TONE[state]}`}>{HISTORY_STATE_LABEL[state]}</span>
+              <span className={`status-pill ${PILL_TONE[state]}`}>{historyStateLabel(run)}</span>
               <Icon name="arrowRight" size={16} />
             </button>
           )
@@ -85,7 +86,9 @@ export function AuditView() {
 }
 
 function HistoryDetail({ run, onBack, onOpenWork }: { run: RunSummary; onBack: () => void; onOpenWork: () => void }) {
+  const { openNewRun } = useShellStore()
   const state = historyState(run)
+  const acknowledged = Boolean((run.runtime_reconciliation as { acknowledged?: boolean } | undefined)?.acknowledged)
   return (
     <div className="history-detail">
       <Button variant="text" className="history-back" onClick={onBack}><span className="history-back-arrow" aria-hidden="true"><Icon name="arrowRight" size={16} /></span>기록 목록</Button>
@@ -95,6 +98,13 @@ function HistoryDetail({ run, onBack, onOpenWork }: { run: RunSummary; onBack: (
           <strong>이 실행은 아직 진행 중이에요</strong>
           <span className="muted">대화와 실시간 보호 상태는 작업창에서 볼 수 있어요.</span>
           <Button variant="cta" onClick={onOpenWork}>작업창 열기</Button>
+        </div>
+      ) : stoppedWhilePreparing(run) ? (
+        <div className="glass is-soft work-empty">
+          <GlossyIcon tone="amber" icon="alert" size="lg" />
+          <strong>준비하던 중에 앱이 닫혀 시작되지 않은 실행이에요</strong>
+          <span className="muted">AIA가 기준점 저장이나 감시를 준비하던 중 앱이 닫혔어요. Codex는 시작되지 않았어요.{acknowledged ? ' 다시 열 때 정리 확인을 마쳤어요.' : ''} 같은 폴더로 새 보호 실행을 시작하면 돼요.</span>
+          <Button variant="cta" onClick={openNewRun}>새 보호 실행</Button>
         </div>
       ) : state === 'orphaned' && !['COMPLETED', 'ABORTED', 'FAILED'].includes(String(run.status)) ? (
         <div className="glass is-soft work-empty">

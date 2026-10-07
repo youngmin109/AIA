@@ -15,6 +15,13 @@ export function guardianStatus({ ready, selected, status, result, approval, erro
   if (error || !status) return { state: 'review', label: '확인 중', headline: '최신 보호 상태를 확인하고 있습니다', detail: '연결이 복구되기 전에는 이전 표시를 현재 상태로 해석하지 마세요.' }
   const running = isSessionRunning(status.session?.status, status.runtime_reconciliation?.orphaned)
   if (!running) {
+    const reconciliation = status.runtime_reconciliation as { orphaned?: boolean; agent_process_status?: string } | undefined
+    if (!result && reconciliation?.orphaned) {
+      // No result will ever arrive for an orphaned run; say what was verified instead of "checking".
+      return reconciliation.agent_process_status === 'NOT_STARTED'
+        ? { state: 'review', label: '준비 중 중단', headline: '준비하던 중에 앱이 닫힌 실행이에요', detail: 'Codex는 시작되지 않았어요. 같은 폴더로 새 보호 실행을 시작하면 돼요.' }
+        : { state: 'review', label: '연결 끊김', headline: '이전 실행의 연결이 끊겼어요', detail: '기록에서 저장된 상태를 확인하세요. 살아 있는 프로세스를 자동으로 강제 종료하지 않아요.' }
+    }
     if (!result) return { state: 'review', label: '결과 확인 중', headline: '실행이 끝났습니다. 결과를 확인하고 있어요', detail: '감사 결과가 확인되기 전에는 보호 성공이나 복구 완료를 확정하지 않습니다.' }
     if (result.bundle_status !== 'VALID' || /DEGRADED|UNKNOWN/.test(result.protection_state ?? '') || result.session_status === 'FAILED') {
       return { state: 'review', label: '검증 확인 필요', headline: result.session_status === 'ABORTED' ? '실행이 중지됐습니다. 보호 결과를 확인해주세요' : '보호 결과가 완전히 확인되지 않았습니다', detail: '관찰 이상과 정책 위반은 다릅니다. 감사 기록에서 검증 상태와 제한사항을 확인하세요.' }

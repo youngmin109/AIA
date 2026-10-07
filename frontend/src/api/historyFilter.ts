@@ -1,5 +1,5 @@
 import type { RunSummary } from './types'
-import { isRunActive } from './sessionNavigation.ts'
+import { isRunActive, stoppedWhilePreparing } from './sessionNavigation.ts'
 
 export type HistoryFilter = 'all' | 'review' | 'ok'
 export type HistoryState = 'live' | 'review' | 'ok' | 'failed' | 'orphaned'
@@ -30,4 +30,9 @@ export const HISTORY_STATE_LABEL: Record<HistoryState, string> = {
   ok: '정상',
   failed: '실패',
   orphaned: '연결 끊김',
+}
+
+/** Row label; a run stopped while preparing says so instead of a generic lost connection. */
+export function historyStateLabel(run: RunSummary): string {
+  return stoppedWhilePreparing(run) ? '준비 중 중단' : HISTORY_STATE_LABEL[historyState(run)]
 }

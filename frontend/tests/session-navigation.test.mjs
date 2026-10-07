@@ -42,3 +42,16 @@ test('active sessions precede recent history while a selected older session stay
   assert.deepEqual(sidebarSessions(runs, 'older', 2).map(run => run.session_id), ['live', 'older'])
   assert.equal(sidebarSessions([...runs, runs[0]], null).length, 3)
 })
+
+test('a run whose app closed while preparing says so instead of a lost connection', async () => {
+  const { stoppedWhilePreparing, sessionStateLabel } = await import('../src/api/sessionNavigation.ts')
+  const { historyStateLabel } = await import('../src/api/historyFilter.ts')
+  const preparing = { session_id: 'p', status: 'PREPARING', runtime_reconciliation: { orphaned: true, agent_process_status: 'NOT_STARTED', acknowledged: true } }
+  assert.equal(stoppedWhilePreparing(preparing), true)
+  assert.equal(sessionStateLabel(preparing), '준비 중 중단')
+  assert.equal(historyStateLabel(preparing), '준비 중 중단')
+  const lostWhileRunning = { session_id: 'r', status: 'RUNNING', runtime_reconciliation: { orphaned: true, agent_process_status: 'PROCESS_GONE' } }
+  assert.equal(stoppedWhilePreparing(lostWhileRunning), false)
+  assert.equal(historyStateLabel(lostWhileRunning), '연결 끊김')
+  assert.equal(stoppedWhilePreparing({ session_id: 'n', status: 'PREPARING' }), false)
+})
