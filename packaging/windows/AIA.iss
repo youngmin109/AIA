@@ -19,6 +19,7 @@ Compression=lzma2
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\AIA.exe
+SetupIconFile=aia.ico
 WizardStyle=modern
 #ifdef AIA_SIGNTOOL
 SignTool=AIA

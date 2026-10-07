@@ -14,6 +14,7 @@ else {
     [IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputRoot))
 }
 $buildPath = Join-Path $repositoryRoot ".tmp-build\windows"
+$iconPath = Join-Path $repositoryRoot "packaging\windows\aia.ico"
 
 if ($Clean -and (Test-Path -LiteralPath $outputPath)) {
     Remove-Item -LiteralPath $outputPath -Recurse -Force
@@ -58,6 +59,7 @@ try {
         --console `
         --hide-console hide-early `
         --name AIA `
+        --icon $iconPath `
         --distpath $outputPath `
         --workpath (Join-Path $buildPath "AIA") `
         --specpath (Join-Path $buildPath "spec") `
@@ -78,6 +80,7 @@ try {
         --onedir `
         --console `
         --name aia-cli `
+        --icon $iconPath `
         --distpath $outputPath `
         --workpath (Join-Path $buildPath "aia-cli") `
         --specpath (Join-Path $buildPath "spec") `

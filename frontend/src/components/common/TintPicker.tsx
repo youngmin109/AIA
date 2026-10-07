@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { TINT_OPTIONS, applyTintPreference, readTintPreference, type TintPreference } from '../../api/tintPreference'
+import { syncTitleBar } from '../../desktopBridge'
 
 /** Color theme swatches (violet, indigo, teal) for the single dark glass theme. */
 export function TintPicker() {
@@ -7,6 +8,7 @@ export function TintPicker() {
 
   function choose(next: TintPreference) {
     applyTintPreference(next)
+    syncTitleBar(next)
     setTint(next)
   }
 

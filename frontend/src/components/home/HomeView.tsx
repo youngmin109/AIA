@@ -63,7 +63,7 @@ function HomeIdle() {
         </StatusPill>
       </header>
 
-      <div className="lens-anchor">
+      <div className="lens-anchor home-hero-wrap">
       <span className="lens-orb at-home" aria-hidden="true" />
       <section className="glass is-hero lens-hero home-hero" aria-label="보호 준비">
         <div className="home-hero-copy">
@@ -128,7 +128,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
   const elapsed = elapsedLabel(status.session?.created_at, now)
   const buckets = useMemo(() => bucketCounts((status.evidence_timeline ?? []).map(item => item.captured_at), now), [status.evidence_timeline, now])
   const waitingApproval = codexActivity?.runId === activeRunId && Boolean(codexActivity?.terminalAction)
-  const recent = (status.events ?? []).filter(event => event.category !== 'SENSOR').slice(-3).reverse()
+  const recent = (status.events ?? []).filter(event => event.category !== 'SENSOR').slice(-6).reverse()
   const processes = activity?.current_alive_count ?? activity?.process_identity_count
 
   const rows: Array<{ key: string; icon: Parameters<typeof GlossyIcon>[0]['icon']; tone: Parameters<typeof GlossyIcon>[0]['tone']; label: string; value: string; state: 'done' | 'live' | 'alert' }> = [
