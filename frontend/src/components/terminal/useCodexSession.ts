@@ -1,4 +1,5 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
+import type { Usage } from '../../api/usageView'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
 
@@ -20,6 +21,7 @@ export interface CodexStatus {
   pending_questions?: QuestionRequest[]
   pending_elicitations?: ElicitationRequest[]
   pending_permissions?: PermissionsRequest[]
+  usage?: Usage
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -277,6 +279,11 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     if (!decided.has(item.permissions_id)) permissionsById.set(item.permissions_id, item)
   }
   const pendingPermissions = [...permissionsById.values()]
+  // Events carry the newest values; the snapshot covers a viewer that joined late.
+  const usage: Usage = {
+    limits: conversation.usage.limits ?? status?.usage?.limits ?? null,
+    tokens: conversation.usage.tokens ?? status?.usage?.tokens ?? null,
+  }
 
   return {
     conversation,
@@ -294,6 +301,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     pendingQuestions,
     pendingElicitations,
     pendingPermissions,
+    usage,
     errorMessage,
     interruptPending,
     endPending,

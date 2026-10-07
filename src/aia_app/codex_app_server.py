@@ -402,6 +402,47 @@ def _change_paths(item: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def _usage_window(window: Any) -> dict[str, Any] | None:
+    if not isinstance(window, Mapping) or not isinstance(window.get("usedPercent"), int):
+        return None
+    resets_at = window.get("resetsAt")
+    if isinstance(resets_at, int) and not isinstance(resets_at, bool) and resets_at > 0:
+        # Codex reports epoch seconds; tolerate milliseconds as well.
+        seconds = resets_at / 1000 if resets_at > 10**12 else resets_at
+        resets = datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat()
+    else:
+        resets = None
+    minutes = window.get("windowDurationMins")
+    return {
+        "used_percent": max(0, min(100, window["usedPercent"])),
+        "window_minutes": minutes if isinstance(minutes, int) else None,
+        "resets_at": resets,
+    }
+
+
+def usage_limits(snapshot: Any) -> dict[str, Any] | None:
+    """Rate-limit windows in display form; ``None`` when Codex reports none."""
+
+    if not isinstance(snapshot, Mapping):
+        return None
+    windows = [window for window in (_usage_window(snapshot.get("primary")), _usage_window(snapshot.get("secondary"))) if window]
+    if not windows:
+        return None
+    return {"windows": windows, "reached": _text_of(snapshot.get("rateLimitReachedType")) or None}
+
+
+def _token_usage(params: Mapping[str, Any]) -> dict[str, Any] | None:
+    usage = params.get("tokenUsage")
+    if not isinstance(usage, Mapping):
+        return None
+    total = usage.get("total") if isinstance(usage.get("total"), Mapping) else {}
+    total_tokens = total.get("totalTokens")
+    if not isinstance(total_tokens, int) or isinstance(total_tokens, bool):
+        return None
+    window = usage.get("modelContextWindow")
+    return {"total_tokens": total_tokens, "context_window": window if isinstance(window, int) else None}
+
+
 def normalize_notification(method: str, params: Mapping[str, Any]) -> dict[str, Any] | None:
     """Translate one Codex notification into a Workbench event.
 
@@ -449,6 +490,12 @@ def normalize_notification(method: str, params: Mapping[str, Any]) -> dict[str, 
             "message": _text_of(error.get("message")) or "Codex reported an error",
             "will_retry": bool(params.get("willRetry")),
         }
+    if method == "account/rateLimits/updated":
+        limits = usage_limits(params.get("rateLimits"))
+        return {"type": "usage.limits", "limits": limits} if limits else None
+    if method == "thread/tokenUsage/updated":
+        tokens = _token_usage(params)
+        return {"type": "usage.tokens", "tokens": tokens} if tokens else None
     if method in {"warning", "configWarning", "deprecationNotice", "guardianWarning"}:
         message = params.get("message") or params.get("summary") or params.get("details")
         return {"type": "warning", "message": _text_of(message) or method}
@@ -542,6 +589,8 @@ class CodexAppServerSession:
         self._next_elicitation = 1
         self._pending_permissions: dict[str, dict[str, Any]] = {}
         self._next_permissions = 1
+        self._usage_limits: dict[str, Any] | None = None
+        self._token_usage: dict[str, Any] | None = None
         self._stderr_tail: deque[str] = deque(maxlen=self.STDERR_TAIL_LINES)
         self._readers: list[Thread] = []
         self._status = "NOT_STARTED"
@@ -654,7 +703,20 @@ class CodexAppServerSession:
             if self._status == "STARTING":
                 self._status = "READY"
         self._append_event({"type": "session.ready", **effective})
+        # Usage is informational; read it without delaying the conversation.
+        Thread(target=self._read_usage_limits, name="codex-usage", daemon=True).start()
         return dict(effective)
+
+    def _read_usage_limits(self) -> None:
+        try:
+            result = self._request("account/rateLimits/read", {"excludeResetCreditDetails": True}, timeout=10.0)
+        except CodexAppServerError:
+            return  # API-key logins and older Codex releases have no usage limits
+        limits = usage_limits(result.get("rateLimits"))
+        if limits is not None:
+            with self._lock:
+                self._usage_limits = limits
+                self._append_event_locked({"type": "usage.limits", "limits": limits})
 
     def close(self, *, force: bool = False) -> None:
         """End the conversation and let the app-server exit.
@@ -917,6 +979,7 @@ class CodexAppServerSession:
                 "pending_questions": questions,
                 "pending_elicitations": elicitations,
                 "pending_permissions": permission_requests,
+                "usage": {"limits": self._usage_limits, "tokens": self._token_usage},
                 "effective": dict(self._effective),
                 "started_at": self._started_at.isoformat() if self._started_at else None,
                 "ended_at": self._ended_at.isoformat() if self._ended_at else None,
@@ -1219,6 +1282,10 @@ class CodexAppServerSession:
                     self._active_turn_id = None
                     if self._status == "WORKING":
                         self._status = "READY"
+            elif event["type"] == "usage.limits":
+                self._usage_limits = event["limits"]
+            elif event["type"] == "usage.tokens":
+                self._token_usage = event["tokens"]
             elif event["type"] == "file_change.started" and isinstance(event.get("item_id"), str):
                 self._change_paths[event["item_id"]] = list(event.get("paths") or ())
                 if len(self._change_paths) > 256:

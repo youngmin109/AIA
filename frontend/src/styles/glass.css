@@ -274,7 +274,8 @@
 /* ---- Guardian pet: floats over the app, drag to move, click for help ---- */
 
 .guardian-pet {
-  --pet-bubble-fill: color-mix(in srgb, var(--page-base) 84%, transparent);
+  --pet-bubble-color: color-mix(in srgb, var(--page-base) 84%, transparent);
+  --pet-bubble-fill: linear-gradient(var(--pet-bubble-color), var(--pet-bubble-color));
   --pet-x: calc(100vw - 116px);
   --pet-y: calc(100vh - 116px);
   position: fixed;

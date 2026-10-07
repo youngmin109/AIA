@@ -2,6 +2,12 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-07 · TASK-108
+- 서버: 대화가 열리면 따로 `account/rateLimits/read`(실패하면 조용히 넘어감 = API 키 로그인). `account/rateLimits/updated`, `thread/tokenUsage/updated`를 `usage.limits`/`usage.tokens`로, 최신값은 스냅샷 `usage`에도.
+- 화면: 작업창 위 칩 "5시간 한도 n% 남음"(가장 많이 쓴 창 기준, 20% 이하면 경고색), 누르면 창별 남은 비율·초기화까지 남은 시간·이번 대화 토큰. 정보가 없으면 숨김.
+- 같이 고침: 여러 겹 배경에서 단색은 맨 아래 겹에만 쓸 수 있어 가디언 펫 말풍선 배경이 무시되던 문제(그라데이션으로 감쌈).
+- 테스트: pytest 905, 프론트 46 통과.
+
 ## 2026-10-07 · TASK-107
 - 서버: `item/permissions/requestApproval`을 `permissions.requested`로. 경로마다 작업 폴더 안/밖/확인 불가 표시(경로·패턴·특수 경로). 형식이 다르면 예전처럼 거절.
 - 사용자 선택 그대로: 이번 요청만(`scope: turn`)·실행 내내(`session`)는 요청받은 권한을 그대로 돌려주고, 거절은 빈 권한.

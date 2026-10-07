@@ -6,6 +6,7 @@
 // every state change comes from a structured event.
 
 import type { PermissionEntry } from '../../api/permissionGrants'
+import type { TokenUsage, Usage, UsageLimits } from '../../api/usageView'
 
 export interface CodexEvent {
   sequence: number
@@ -52,6 +53,8 @@ export interface CodexEvent {
   permissions_id?: string
   network?: boolean
   filesystem?: PermissionEntry[]
+  limits?: UsageLimits | null
+  tokens?: TokenUsage | null
 }
 
 // Codex asking to widen its sandbox (item/permissions/requestApproval).
@@ -129,6 +132,7 @@ export interface ConversationState {
   pendingQuestions: QuestionRequest[]
   pendingElicitations: ElicitationRequest[]
   pendingPermissions: PermissionsRequest[]
+  usage: Usage
   lastEventAt: number
 }
 
@@ -141,6 +145,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   pendingQuestions: [],
   pendingElicitations: [],
   pendingPermissions: [],
+  usage: { limits: null, tokens: null },
   lastEventAt: 0,
 }
 
@@ -394,6 +399,12 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingPermissions = state.pendingPermissions.filter((item) => item.permissions_id !== event.permissions_id)
       break
     }
+    case 'usage.limits':
+      state.usage = { ...state.usage, limits: event.limits ?? null }
+      break
+    case 'usage.tokens':
+      state.usage = { ...state.usage, tokens: event.tokens ?? null }
+      break
     case 'warning':
       notice(state, event, 'warn', event.message ?? 'Codex 경고')
       break

@@ -678,3 +678,39 @@ details.chat-output pre {
   color: var(--warning-text);
   overflow-wrap: anywhere;
 }
+
+/* Codex usage (EPIC-021 TASK-108). */
+.usage-chip {
+  position: relative;
+}
+
+.usage-chip > .chip {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.usage-chip > .chip.is-warn {
+  border-color: var(--warning-line);
+  color: var(--warning-text);
+}
+
+.usage-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 280px;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  --usage-pop-fill: color-mix(in srgb, var(--page-base) 92%, transparent);
+  background: linear-gradient(var(--usage-pop-fill), var(--usage-pop-fill)) padding-box, var(--glass-rim) border-box;
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.usage-row {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}

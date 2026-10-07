@@ -3,7 +3,8 @@
 It speaks the same newline-delimited JSON-RPC shapes the real app-server uses
 for the methods AIA depends on.  The first word of a turn's text selects the
 scenario (``hello``, ``run``, ``patch``, ``slow``, ``ask``, ``question``,
-``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``race``, ``crash``).  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
+``question-auto``, ``mcp-form``, ``mcp-url``, ``mcp-custom``, ``perm``, ``usage``, ``race``, ``crash``).
+``FAKE_APP_SERVER_NO_USAGE`` makes the usage read fail like an API-key login.  Setting ``FAKE_APP_SERVER_SANDBOX`` overrides the sandbox the
 fake reports as applied.
 """
 
@@ -141,6 +142,16 @@ def handle_turn_start(request_id, text: str) -> None:
                              {"access": "write", "path": {"type": "path", "path": "../shared"}},
                              {"access": "read", "path": {"type": "special", "value": {"kind": "project_roots", "subpath": "docs"}}},
                              {"access": "write", "path": {"type": "special", "value": {"kind": "root"}}}]}}}})
+    elif scenario == "usage":
+        notify("thread/tokenUsage/updated", turnId=turn_id, tokenUsage={
+            "total": {"totalTokens": 12345, "inputTokens": 10000, "cachedInputTokens": 0, "outputTokens": 2345,
+                      "reasoningOutputTokens": 0},
+            "last": {"totalTokens": 345, "inputTokens": 300, "cachedInputTokens": 0, "outputTokens": 45,
+                     "reasoningOutputTokens": 0},
+            "modelContextWindow": 200000})
+        notify("account/rateLimits/updated", rateLimits={"primary": {"usedPercent": 60, "windowDurationMins": 300}})
+        agent_reply(turn_id, "counted")
+        complete_turn(turn_id)
     elif scenario == "slow":
         pass  # stays in progress until turn/interrupt
 
@@ -218,6 +229,13 @@ def main() -> None:
         elif method == "turn/start":
             text = "".join(part.get("text", "") for part in params.get("input", []))
             handle_turn_start(request_id, text)
+        elif method == "account/rateLimits/read":
+            if os.environ.get("FAKE_APP_SERVER_NO_USAGE"):
+                send({"id": request_id, "error": {"code": -32600, "message": "not available for API keys"}})
+            else:
+                send({"id": request_id, "result": {"rateLimits": {
+                    "primary": {"usedPercent": 42, "windowDurationMins": 300, "resetsAt": 1791370000},
+                    "secondary": {"usedPercent": 15, "windowDurationMins": 10080, "resetsAt": None}}}})
         elif method == "turn/steer":
             active = state["active"]
             if active is None:

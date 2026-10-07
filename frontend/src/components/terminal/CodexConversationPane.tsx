@@ -7,6 +7,7 @@ import { StartupProgress } from '../common/StartupProgress'
 import { QuestionCard } from './QuestionCard'
 import { ElicitationCard } from './ElicitationCard'
 import { PermissionsCard } from './PermissionsCard'
+import { UsageChip } from './UsageChip'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -392,6 +393,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid, startup?.label)}</span>
         <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
         {context}
+        <UsageChip usage={session.usage} />
         <span className="chat-head-spacer" />
         {session.status?.pid ? <span className="chat-pid">PID {session.status.pid}</span> : null}
         {session.working && (

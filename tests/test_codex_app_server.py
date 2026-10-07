@@ -404,6 +404,44 @@ def test_declining_permissions_grants_nothing(opened: CodexAppServerSession) -> 
     assert opened.snapshot()["pending_permissions"] == []
 
 
+def test_usage_limits_are_read_after_open_and_follow_codex_updates(opened: CodexAppServerSession) -> None:
+    events = _wait_for(opened, lambda items: "usage.limits" in _types(items))
+    limits = next(e for e in events if e["type"] == "usage.limits")["limits"]
+    assert [(w["used_percent"], w["window_minutes"]) for w in limits["windows"]] == [(42, 300), (15, 10080)]
+    assert limits["windows"][0]["resets_at"].startswith("2026-10-")
+    assert opened.snapshot()["usage"]["limits"] == limits
+
+    opened.send_message("usage please")
+    _wait_for(opened, lambda items: "turn.completed" in _types(items))
+    usage = opened.snapshot()["usage"]
+    assert usage["tokens"] == {"total_tokens": 12345, "context_window": 200000}
+    assert [w["used_percent"] for w in usage["limits"]["windows"]] == [60]
+
+
+def test_usage_is_hidden_when_codex_has_no_limits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FAKE_APP_SERVER_NO_USAGE", "1")
+    session = CodexAppServerSession(
+        [sys.executable, "-u", str(FAKE_SERVER)], cwd=tmp_path, env=dict(os.environ), client_version="test"
+    )
+    session.start()
+    try:
+        session.open()
+        session.send_message("hello there")
+        _wait_for(session, lambda items: "turn.completed" in _types(items))
+        assert session.snapshot()["usage"] == {"limits": None, "tokens": None}
+        assert "usage.limits" not in _types(session.read_events())
+    finally:
+        session.close(force=True)
+
+
+def test_usage_limits_accept_milliseconds_and_ignore_empty_snapshots() -> None:
+    limits = app_server.usage_limits({"primary": {"usedPercent": 130, "resetsAt": 1791370000000}})
+    assert limits["windows"][0]["used_percent"] == 100
+    assert limits["windows"][0]["resets_at"].startswith("2026-10-")
+    assert app_server.usage_limits({"primary": None}) is None
+    assert app_server.usage_limits(None) is None
+
+
 def test_interrupt_ends_the_active_turn(opened: CodexAppServerSession) -> None:
     opened.send_message("slow task")
     _wait_for(opened, lambda _: opened.snapshot()["status"] == "WORKING")
