@@ -442,6 +442,7 @@ class DesktopBridge:
         self._guardian_url: str | None = None
         self._guardian_shutting_down = False
         self._guardian_size = 'medium'
+        self._guardian_visible = False
 
     def attach(self, window: Any, on_heartbeat: Callable[[], None] | None = None) -> None:
         self._window = window
@@ -460,6 +461,7 @@ class DesktopBridge:
     def set_guardian_visible(self, visible: bool) -> bool:
         if type(visible) is not bool or self._guardian_shutting_down or not self._guardian_url:
             return False
+        self._guardian_visible = visible
         if not visible:
             if self._guardian is not None:
                 self._guardian.hide()
@@ -473,9 +475,28 @@ class DesktopBridge:
                 transparent=True, shadow=False, resizable=False, focus=False, js_api=self,
             )
             self._guardian.events.closing += self._guardian_closing
+            self._guardian.events.loaded += self._refresh_guardian_transparency
         else:
+            # A hidden pet is not resized (resizing shows it); it takes the size now.
+            self._guardian.resize(*self._guardian_dimensions(self._guardian_size))
             self._guardian.show()
+            self._refresh_guardian_transparency()
         return True
+
+    def _refresh_guardian_transparency(self) -> None:
+        """Let the desktop show through the pet window again.
+
+        pywebview paints a transparent window's form grey after its first load
+        and after it grows. Hiding and showing it once clears that; showing
+        without activation keeps the focus where the user is working.
+        """
+
+        handle = window_handle(self._guardian) if self._guardian is not None else None
+        if handle is None or not self._guardian_visible or self._guardian_shutting_down:
+            return
+        user32 = ctypes.windll.user32
+        user32.ShowWindow(handle, 0)  # SW_HIDE
+        user32.ShowWindow(handle, 4)  # SW_SHOWNOACTIVATE
 
     @staticmethod
     def _guardian_dimensions(size: str) -> tuple[int, int]:
@@ -486,7 +507,9 @@ class DesktopBridge:
             return False
         self._guardian_size = size
         if self._guardian is not None:
-            self._guardian.resize(*self._guardian_dimensions(size))
+            if self._guardian_visible:
+                self._guardian.resize(*self._guardian_dimensions(size))
+                self._refresh_guardian_transparency()
             # Enum validation above keeps this presentation-only JS assignment narrow.
             self._guardian.evaluate_js('document.documentElement.dataset.petSize = ' + json.dumps(size))
         return True
@@ -494,6 +517,7 @@ class DesktopBridge:
     def _guardian_closing(self) -> bool:
         if self._guardian_shutting_down:
             return True
+        self._guardian_visible = False
         if self._guardian is not None:
             self._guardian.hide()
         return False

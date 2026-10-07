@@ -45,6 +45,12 @@ export function SettingsView() {
   const serverLost = isConnectionLost(connectionFailures)
 
   useEffect(() => { consoleInfo().then(setInfo).catch(() => setInfo(null)) }, [])
+  // The desktop pet can hide itself; follow that so this switch can bring it back.
+  useEffect(() => {
+    const follow = (event: StorageEvent) => { if (event.key === 'aia.pet') setPet(readPetPreference()) }
+    window.addEventListener('storage', follow)
+    return () => window.removeEventListener('storage', follow)
+  }, [])
 
   function changeMotion(value: MotionPreference) {
     applyMotionPreference(value)
@@ -134,11 +140,11 @@ export function SettingsView() {
         </div>
         <div className="glass-card settings-card">
           <button type="button" role="switch" aria-checked={glass === 'on'} className="glass-switch" onClick={toggleGlass}>
-            <span>유리 효과<small>느린 PC에서는 끄면 가벼워져요</small></span>
+            <span>유리 효과<small>기본은 꺼짐이에요. 켜면 흐림·굴절 효과가 생기지만 느린 PC에서는 무거워져요</small></span>
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
           <button type="button" role="switch" aria-checked={pet === 'on'} className="glass-switch" onClick={togglePet}>
-            <span>가디언 펫<small>Windows 앱에서는 바탕화면에 떠 있고, 앱을 최소화해도 상태를 안내해요. 완전히 종료하면 함께 꺼져요.</small></span>
+            <span>가디언 펫<small>Windows 앱에서는 바탕화면에 떠 있고, 앱을 최소화해도 상태를 안내해요. 완전히 종료하면 함께 꺼져요. 펫에서 숨겼다면 여기서 다시 켜요.</small></span>
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
           <div className="settings-motion">

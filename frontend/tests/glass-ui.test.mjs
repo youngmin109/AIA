@@ -108,7 +108,8 @@ test('settings lights never call an unverified connection healthy', async () => 
   const missing = connectionLights({ checks: [{ name: 'pretool_hook', ok: false }] })
   assert.deepEqual(missing.map(light => light.state), ['warn', 'warn', 'warn'])
   assert.equal(normalizeGlassPreference('off'), 'off')
-  assert.equal(normalizeGlassPreference(null), 'on')
+  assert.equal(normalizeGlassPreference(null), 'off')
+  assert.equal(normalizeGlassPreference('on'), 'on')
 })
 
 test('refraction maps are neutral in the centre and only push inward at the rim', async () => {

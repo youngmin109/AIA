@@ -82,19 +82,21 @@
 .newrun-folder-state.is-valid { color: var(--success); }
 .newrun-folder-state.is-invalid { color: var(--danger); }
 
+/* All five policies on one line; a narrow window still wraps them. */
 .newrun-policies {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 10px;
 }
 
+/* Icon and name side by side, the description below (full text on hover). */
 .newrun-policy {
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
   gap: 8px;
-  padding: 18px;
+  padding: 14px;
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -102,16 +104,19 @@
 }
 
 .newrun-policy strong {
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 1.3;
 }
 
-.newrun-policy > span:not(.badge) {
+.newrun-policy-text {
+  grid-column: 1 / -1;
+  align-self: start;
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.45;
 }
 
@@ -125,7 +130,8 @@
 }
 
 .newrun-policy-mark {
-  margin-top: auto;
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .newrun-pills {

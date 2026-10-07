@@ -247,10 +247,10 @@ function NewRunSheet() {
               {profiles.map((profile, index) => {
                 const selected = profile.value === policyProfile
                 return (
-                  <button key={profile.value} type="button" className={`glass-card newrun-policy${selected ? ' is-selected' : ''}`} aria-pressed={selected} onClick={() => setChosenProfile(profile.value)}>
+                  <button key={profile.value} type="button" className={`glass-card newrun-policy${selected ? ' is-selected' : ''}`} aria-pressed={selected} title={profile.description} onClick={() => setChosenProfile(profile.value)}>
                     <GlossyIcon tone={CARD_TONES[index % CARD_TONES.length]} icon="shieldPlain" size="sm" />
                     <strong>{profile.display_name}</strong>
-                    <span>{profile.description}</span>
+                    <span className="newrun-policy-text">{profile.description}</span>
                     {selected && <span className="badge is-ok newrun-policy-mark"><Icon name="check" size={14} />선택됨</span>}
                   </button>
                 )
