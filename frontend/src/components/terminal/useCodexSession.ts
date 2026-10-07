@@ -42,6 +42,16 @@ function nextClientId(): string {
   return `c${Date.now().toString(36)}${clientCounter}`
 }
 
+/** Requests not yet resolved, one per id; a later copy (a newer event) replaces the snapshot's. */
+function stillOpen<T>(requests: T[], idOf: (request: T) => string, resolved: Set<string>): T[] {
+  const byId = new Map<string, T>()
+  for (const request of requests) {
+    const id = idOf(request)
+    if (!resolved.has(id)) byId.set(id, request)
+  }
+  return [...byId.values()]
+}
+
 export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boolean }) {
   const [conversation, setConversation] = useState<ConversationState>(EMPTY_CONVERSATION)
   const [status, setStatus] = useState<CodexStatus | null>(null)
@@ -262,43 +272,22 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const connected = connection.tone === 'ok'
   const ended = closed || runEnded || TERMINAL_STATUSES.has(statusName)
   // Pending = requested (by the server snapshot or a newer event) and not
-  // yet resolved by a later event.
+  // yet resolved by a later event. One pass over the conversation finds what
+  // was resolved.
   const resolved = new Set<string>()
-  for (const item of conversation.items) {
-    if (item.kind === 'approval' && item.decision) resolved.add(item.request.approval_id)
-  }
-  const pendingById = new Map<string, ApprovalRequest>()
-  for (const item of [...(status?.pending_approvals ?? []), ...conversation.pendingApprovals]) {
-    if (!resolved.has(item.approval_id)) pendingById.set(item.approval_id, item)
-  }
-  const pendingApprovals = [...pendingById.values()]
   const answered = new Set<string>()
-  for (const item of conversation.items) {
-    if (item.kind === 'question' && item.outcome) answered.add(item.request.question_id)
-  }
-  const questionsById = new Map<string, QuestionRequest>()
-  for (const item of [...(status?.pending_questions ?? []), ...conversation.pendingQuestions]) {
-    if (!answered.has(item.question_id)) questionsById.set(item.question_id, item)
-  }
-  const pendingQuestions = [...questionsById.values()]
   const settled = new Set<string>()
-  for (const item of conversation.items) {
-    if (item.kind === 'elicitation' && item.action) settled.add(item.request.elicitation_id)
-  }
-  const elicitationsById = new Map<string, ElicitationRequest>()
-  for (const item of [...(status?.pending_elicitations ?? []), ...conversation.pendingElicitations]) {
-    if (!settled.has(item.elicitation_id)) elicitationsById.set(item.elicitation_id, item)
-  }
-  const pendingElicitations = [...elicitationsById.values()]
   const decided = new Set<string>()
   for (const item of conversation.items) {
-    if (item.kind === 'permissions' && item.decision) decided.add(item.request.permissions_id)
+    if (item.kind === 'approval' && item.decision) resolved.add(item.request.approval_id)
+    else if (item.kind === 'question' && item.outcome) answered.add(item.request.question_id)
+    else if (item.kind === 'elicitation' && item.action) settled.add(item.request.elicitation_id)
+    else if (item.kind === 'permissions' && item.decision) decided.add(item.request.permissions_id)
   }
-  const permissionsById = new Map<string, PermissionsRequest>()
-  for (const item of [...(status?.pending_permissions ?? []), ...conversation.pendingPermissions]) {
-    if (!decided.has(item.permissions_id)) permissionsById.set(item.permissions_id, item)
-  }
-  const pendingPermissions = [...permissionsById.values()]
+  const pendingApprovals = stillOpen([...(status?.pending_approvals ?? []), ...conversation.pendingApprovals], item => item.approval_id, resolved)
+  const pendingQuestions = stillOpen([...(status?.pending_questions ?? []), ...conversation.pendingQuestions], item => item.question_id, answered)
+  const pendingElicitations = stillOpen([...(status?.pending_elicitations ?? []), ...conversation.pendingElicitations], item => item.elicitation_id, settled)
+  const pendingPermissions = stillOpen([...(status?.pending_permissions ?? []), ...conversation.pendingPermissions], item => item.permissions_id, decided)
   // Events carry the newest values; the snapshot covers a viewer that joined late.
   const turnSettings = conversation.turnSettings ?? status?.turn_settings ?? { model: null, effort: null }
   const plan = conversation.plan ?? status?.plan ?? null
