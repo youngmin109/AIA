@@ -68,10 +68,10 @@ export function BarList({ rows, max }: { rows: BarRow[]; max?: number }) {
 }
 
 /** Small vertical bars for recent activity, oldest first. */
-export function MiniBars({ values, label, hotIndexes = [] }: { values: number[]; label: string; hotIndexes?: number[] }) {
+export function MiniBars({ values, label, hotIndexes = [], showValues = false }: { values: number[]; label: string; hotIndexes?: number[]; showValues?: boolean }) {
   const top = Math.max(1, ...values)
   const width = values.length * 10
-  return (
+  const chart = (
     <svg className="mini-bars" viewBox={`0 0 ${width} 40`} preserveAspectRatio="none" role="img" aria-label={label}>
       {values.map((value, index) => {
         const height = value > 0 ? Math.max(4, (value / top) * 38) : 2
@@ -79,6 +79,16 @@ export function MiniBars({ values, label, hotIndexes = [] }: { values: number[];
         return <rect key={index} className={`bar${tone}`} x={index * 10 + 2} y={40 - height} width="6" height={height} rx="2" />
       })}
     </svg>
+  )
+  if (!showValues) return chart
+  // Heights are relative to the busiest bar, so the count sits under each bar.
+  return (
+    <div className="mini-bars-wrap">
+      {chart}
+      <ol className="mini-bars-values" aria-hidden="true">
+        {values.map((value, index) => <li key={index} className={index === values.length - 1 ? 'is-now' : undefined}>{value}</li>)}
+      </ol>
+    </div>
   )
 }
 

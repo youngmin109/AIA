@@ -7,7 +7,7 @@ import { MiniBars } from '../common/Charts'
 import { GuardianFigure } from '../common/GuardianAvatar'
 import { GUARDIAN_ALT } from '../common/guardianImages'
 import { displayStatus, isSessionRunning, readinessNextStep } from '../../api/display'
-import { bucketCounts } from '../../api/chartMath'
+import { TIMELINE_LIMIT, activityBuckets } from '../../api/chartMath'
 import { blockingPillar, recoveryPillar } from '../../api/homeStatus'
 import { readDefaultPolicyProfile } from '../policy/policyStorage'
 import { sessionCreatedLabel, workspaceShortName } from '../shell/sessionLabel'
@@ -126,7 +126,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
   const activity = status.activity
   const now = useNow(true)
   const elapsed = elapsedLabel(status.session?.created_at, now)
-  const buckets = useMemo(() => bucketCounts((status.evidence_timeline ?? []).map(item => item.captured_at), now), [status.evidence_timeline, now])
+  const recentActivity = useMemo(() => activityBuckets(status.evidence_timeline, now), [status.evidence_timeline, now])
   const waitingApproval = codexActivity?.runId === activeRunId && Boolean(codexActivity?.terminalAction)
   const recent = (status.events ?? []).filter(event => event.category !== 'SENSOR').slice(-6).reverse()
   const processes = activity?.current_alive_count ?? activity?.process_identity_count
@@ -192,8 +192,8 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
         <StatTile label="파일 변경" value={activity?.unique_file_count ?? 0} note="관찰된 경로 수" />
         <div className="glass-card stat-tile">
           <span className="stat-label">최근 5분 활동</span>
-          <MiniBars values={buckets} label={`최근 5분 관찰 이벤트 ${buckets.join(', ')}`} />
-          <span className="stat-note">관찰된 이벤트 기준</span>
+          <MiniBars values={recentActivity.counts} showValues label={`1분 단위 실행 요청·프로세스·파일 변화 ${recentActivity.counts.join(', ')}건`} />
+          <span className="stat-note">이번 1분 {recentActivity.current}건 · 실행 요청·프로세스·파일 변화{recentActivity.partial && ` · 최근 ${TIMELINE_LIMIT}건 기준`}</span>
         </div>
       </section>
 

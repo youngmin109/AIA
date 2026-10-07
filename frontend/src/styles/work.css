@@ -412,6 +412,18 @@ details.chat-output pre {
   font-weight: 700;
 }
 
+.work-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.work-panel-head span {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .process-tree,
 .work-files,
 .work-sensors {

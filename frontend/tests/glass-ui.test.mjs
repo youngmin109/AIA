@@ -125,3 +125,23 @@ test('guardian pet stays inside the window and remembers where it was dropped', 
   assert.deepEqual(petPixels(petPosition({ left: 600, top: 300 }, window), window), { left: 600, top: 300 })
   assert.deepEqual(petPixels({ x: 1, y: 1 }, { width: 60, height: 60 }), { left: 12, top: 12 })
 })
+
+test('recent activity counts only agent-side records and says when the list was cut', async () => {
+  const { activityBuckets } = await import('../src/api/chartMath.ts')
+  const now = Date.parse('2026-10-07T01:00:00Z')
+  const at = seconds => new Date(now - seconds * 1000).toISOString()
+  const timeline = [
+    { record_type: 'SENSOR_HEALTH', captured_at: at(30) },
+    { record_type: 'PROCESS_OBSERVED', captured_at: at(30) },
+    { record_type: 'PRETOOL_REQUEST', captured_at: at(10) },
+    { record_type: 'COMMAND_OBSERVED', captured_at: at(10) },
+    { record_type: 'POSTTOOL_OBSERVED', captured_at: at(9) },
+    { record_type: 'PROCESS_EXIT_OBSERVED', captured_at: at(5) },
+    { record_type: 'FILESYSTEM_EVENT', captured_at: at(200) },
+  ]
+  assert.deepEqual(activityBuckets(timeline, now), { counts: [0, 1, 0, 0, 3], current: 3, partial: false })
+  assert.deepEqual(activityBuckets(null, now), { counts: [0, 0, 0, 0, 0], current: 0, partial: false })
+  const full = Array.from({ length: 80 }, () => ({ record_type: 'FILESYSTEM_EVENT', captured_at: at(20) }))
+  assert.equal(activityBuckets(full, now).partial, true)
+  assert.equal(activityBuckets([{ record_type: 'SENSOR_HEALTH', captured_at: at(900) }, ...full.slice(1)], now).partial, false)
+})

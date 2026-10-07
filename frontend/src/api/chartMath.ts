@@ -60,6 +60,26 @@ export function bucketCounts(timestamps: Array<string | undefined | null>, now: 
   return counts
 }
 
+/** Records AIA turns into actions (aia.normalizer): execution requests, commands, new
+ *  processes, file changes. Sensor status, process exits and post-tool notes are left out. */
+const ACTION_RECORD_TYPES = new Set(['PRETOOL_REQUEST', 'COMMAND_OBSERVED', 'PROCESS_OBSERVED', 'FILESYSTEM_EVENT'])
+/** The run status carries only the latest timeline records (aia_app.presenters.evidence_timeline_views). */
+export const TIMELINE_LIMIT = 80
+
+export interface ActivityBuckets { counts: number[]; current: number; partial: boolean }
+
+/** Per-minute counts of agent-side records for the recent-activity bars, oldest first. */
+export function activityBuckets(
+  timeline: Array<{ record_type?: string; captured_at?: string }> | null | undefined, now: number, buckets = 5, bucketMs = 60_000,
+): ActivityBuckets {
+  const records = timeline ?? []
+  const counts = bucketCounts(records.filter(record => ACTION_RECORD_TYPES.has(record.record_type ?? '')).map(record => record.captured_at), now, buckets, bucketMs)
+  const times = records.map(record => Date.parse(record.captured_at ?? '')).filter(Number.isFinite)
+  // A full list that still starts inside the window means older minutes were cut off.
+  const partial = records.length >= TIMELINE_LIMIT && times.length > 0 && Math.min(...times) > now - buckets * bucketMs
+  return { counts, current: counts.at(-1) ?? 0, partial }
+}
+
 /** Seconds left before an AIA tool review times out; null when there is no deadline. */
 export function remainingSeconds(expiresAt: string | undefined | null, now: number): number | null {
   if (!expiresAt) return null

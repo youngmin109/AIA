@@ -949,6 +949,30 @@
 .mini-bars .bar.is-hot { fill: var(--danger); }
 .mini-bars .bar.is-now { fill: var(--accent); }
 
+.mini-bars-wrap {
+  display: grid;
+  gap: 4px;
+}
+
+.mini-bars-values {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.mini-bars-values .is-now {
+  color: var(--text);
+  font-weight: 800;
+}
+
 .ring-timer {
   position: relative;
   flex: 0 0 auto;
