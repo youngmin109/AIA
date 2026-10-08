@@ -1,6 +1,7 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
+import type { Usage } from '../../api/usageView'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type ConversationState } from './codexConversation'
+import { applyEvents, EMPTY_CONVERSATION, isInteractiveResponse, type ApprovalRequest, type CodexEvent, type CodexPlan, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
 
 // Talks to WS /api/runs/{id}/codex. The server pushes structured events as
 // Codex produces them; this hook only folds them into a transcript and sends
@@ -17,6 +18,12 @@ export interface CodexStatus {
   pid: number | null
   active_turn_id: string | null
   pending_approvals: ApprovalRequest[]
+  pending_questions?: QuestionRequest[]
+  pending_elicitations?: ElicitationRequest[]
+  pending_permissions?: PermissionsRequest[]
+  usage?: Usage
+  turn_settings?: { model: string | null; effort: string | null }
+  plan?: CodexPlan | null
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
   last_sequence: number
@@ -35,6 +42,16 @@ function nextClientId(): string {
   return `c${Date.now().toString(36)}${clientCounter}`
 }
 
+/** Requests not yet resolved, one per id; a later copy (a newer event) replaces the snapshot's. */
+function stillOpen<T>(requests: T[], idOf: (request: T) => string, resolved: Set<string>): T[] {
+  const byId = new Map<string, T>()
+  for (const request of requests) {
+    const id = idOf(request)
+    if (!resolved.has(id)) byId.set(id, request)
+  }
+  return [...byId.values()]
+}
+
 export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boolean }) {
   const [conversation, setConversation] = useState<ConversationState>(EMPTY_CONVERSATION)
   const [status, setStatus] = useState<CodexStatus | null>(null)
@@ -43,6 +60,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const [closed, setClosed] = useState(false)
   const [interruptPending, setInterruptPending] = useState(false)
   const [endPending, setEndPending] = useState(false)
+  const [responseRevision, setResponseRevision] = useState(0)
 
   const generationRef = useRef(0)
   const socketRef = useRef<WebSocket | null>(null)
@@ -116,6 +134,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
           if (draft !== undefined) restoreDraftRef.current?.(draft)
           if (message.action === 'interrupt') setInterruptPending(false)
           if (message.action === 'end_session') setEndPending(false)
+          if (isInteractiveResponse(message.action)) setResponseRevision((previous) => previous + 1)
           setErrorMessage(text)
           break
         }
@@ -134,6 +153,9 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
       for (const draft of pendingDraftsRef.current.values()) restoreDraftRef.current?.(draft)
       pendingDraftsRef.current.clear()
       if (closedRef.current || runEndedRef.current || generation !== generationRef.current) return
+      // Do not replay replies (especially secret values). Re-enable pending
+      // cards after reconnect so the user can decide again from fresh status.
+      setResponseRevision((previous) => previous + 1)
       if (event.code === 1008) {
         resetLocalSessionToken()
         setConnection({ label: '연결 재확인 필요', tone: 'bad' })
@@ -200,6 +222,49 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  /** Empty answers skip the question; secret answers are only sent, never stored. */
+  const answerQuestion = useCallback(
+    (questionId: string, answers: Record<string, string[]>) => {
+      setErrorMessage(null)
+      return send({ type: 'question_answer', question_id: questionId, answers, client_id: nextClientId() })
+    },
+    [send],
+  )
+
+  const respondElicitation = useCallback(
+    (elicitationId: string, action: 'accept' | 'decline' | 'cancel', content?: Record<string, unknown>) => {
+      setErrorMessage(null)
+      return send({ type: 'elicitation_response', elicitation_id: elicitationId, action, content, client_id: nextClientId() })
+    },
+    [send],
+  )
+
+  const decidePermissions = useCallback(
+    (permissionsId: string, decision: 'turn' | 'session' | 'decline') => {
+      setErrorMessage(null)
+      return send({ type: 'permissions_decision', permissions_id: permissionsId, decision, client_id: nextClientId() })
+    },
+    [send],
+  )
+
+  /** Slash commands that reach Codex: compact, review, goal. */
+  const runCommand = useCallback(
+    (command: 'compact' | 'review' | 'goal', argument?: string) => {
+      setErrorMessage(null)
+      return send({ type: 'command', command, argument, client_id: nextClientId() })
+    },
+    [send],
+  )
+
+  /** Model and effort for the next turns; the server forwards nothing else. */
+  const setTurnSettings = useCallback(
+    (model: string | null, effort: string | null) => {
+      setErrorMessage(null)
+      return send({ type: 'turn_settings', model, effort, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   const endSession = useCallback(() => {
     if (send({ type: 'end_session', client_id: nextClientId() })) setEndPending(true)
   }, [send])
@@ -212,16 +277,29 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const connected = connection.tone === 'ok'
   const ended = closed || runEnded || TERMINAL_STATUSES.has(statusName)
   // Pending = requested (by the server snapshot or a newer event) and not
-  // yet resolved by a later event.
+  // yet resolved by a later event. One pass over the conversation finds what
+  // was resolved.
   const resolved = new Set<string>()
+  const answered = new Set<string>()
+  const settled = new Set<string>()
+  const decided = new Set<string>()
   for (const item of conversation.items) {
     if (item.kind === 'approval' && item.decision) resolved.add(item.request.approval_id)
+    else if (item.kind === 'question' && item.outcome) answered.add(item.request.question_id)
+    else if (item.kind === 'elicitation' && item.action) settled.add(item.request.elicitation_id)
+    else if (item.kind === 'permissions' && item.decision) decided.add(item.request.permissions_id)
   }
-  const pendingById = new Map<string, ApprovalRequest>()
-  for (const item of [...(status?.pending_approvals ?? []), ...conversation.pendingApprovals]) {
-    if (!resolved.has(item.approval_id)) pendingById.set(item.approval_id, item)
+  const pendingApprovals = stillOpen([...(status?.pending_approvals ?? []), ...conversation.pendingApprovals], item => item.approval_id, resolved)
+  const pendingQuestions = stillOpen([...(status?.pending_questions ?? []), ...conversation.pendingQuestions], item => item.question_id, answered)
+  const pendingElicitations = stillOpen([...(status?.pending_elicitations ?? []), ...conversation.pendingElicitations], item => item.elicitation_id, settled)
+  const pendingPermissions = stillOpen([...(status?.pending_permissions ?? []), ...conversation.pendingPermissions], item => item.permissions_id, decided)
+  // Events carry the newest values; the snapshot covers a viewer that joined late.
+  const turnSettings = conversation.turnSettings ?? status?.turn_settings ?? { model: null, effort: null }
+  const plan = conversation.plan ?? status?.plan ?? null
+  const usage: Usage = {
+    limits: conversation.usage.limits ?? status?.usage?.limits ?? null,
+    tokens: conversation.usage.tokens ?? status?.usage?.tokens ?? null,
   }
-  const pendingApprovals = [...pendingById.values()]
 
   return {
     conversation,
@@ -236,12 +314,24 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     ownerPid: status?.owner_pid ?? null,
     endRequested: Boolean(status?.end_requested),
     pendingApprovals,
+    pendingQuestions,
+    pendingElicitations,
+    pendingPermissions,
+    responseRevision,
+    usage,
+    turnSettings,
+    plan,
     errorMessage,
     interruptPending,
     endPending,
     sendMessage,
     interrupt,
     decideApproval,
+    answerQuestion,
+    respondElicitation,
+    decidePermissions,
+    setTurnSettings,
+    runCommand,
     endSession,
     onRestoreDraft,
     dismissError: () => setErrorMessage(null),

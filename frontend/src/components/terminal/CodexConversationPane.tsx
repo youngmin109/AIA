@@ -3,6 +3,26 @@ import { Badge, type BadgeTone } from '../common/Badge'
 import { useDialog } from '../common/useDialog'
 import { Icon } from '../common/Icon'
 import { RingTimer } from '../common/Charts'
+import { StartupProgress } from '../common/StartupProgress'
+import { QuestionCard } from './QuestionCard'
+import { ElicitationCard } from './ElicitationCard'
+import { PermissionsCard } from './PermissionsCard'
+import { UsageChip } from './UsageChip'
+import { ModelChip } from './ModelChip'
+import { PlanBar } from './PlanBar'
+import { DiffCard } from './DiffCard'
+import { CommandPalette } from './CommandPalette'
+import { ConnectorsCard } from './ConnectorsCard'
+import { AiaNoteCard } from './AiaNoteCard'
+import { matchSlashCommands, parseSlashCommand, type SlashCommand } from './slashCommands'
+import { policyNote, reportNote, restoreNote, whyNote, type AiaNote } from '../../api/securityNotes'
+import { useRunStatus } from '../../hooks/useRunStatus'
+import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
+import { useProfiles } from '../../hooks/useProfiles'
+import { useCodexModels } from '../../hooks/useCodexModels'
+import { useNow } from '../../hooks/useElapsed'
+import { grantSummary } from '../../api/permissionGrants'
+import type { StartupView } from '../../api/startupStatus'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShellStore } from '../../state/shellStore'
@@ -54,8 +74,10 @@ function approvalTitle(request: ApprovalRequest): string {
   return request.kind === 'file_change' ? '파일 변경 승인 요청' : '명령 실행 승인 요청'
 }
 
-function TranscriptRow({ item }: { item: TranscriptItem }) {
+function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string }) {
   switch (item.kind) {
+    case 'diff':
+      return <DiffCard runId={runId} turnId={item.turnId} files={item.files} fileCount={item.fileCount} added={item.added} removed={item.removed} />
     case 'user':
       return (
         <div className="chat-row is-user">
@@ -115,9 +137,56 @@ function TranscriptRow({ item }: { item: TranscriptItem }) {
           {item.decision ? ` · ${DECISION_LABELS[item.decision] ?? item.decision}` : ' · 결정 대기 중'}
         </div>
       )
+    case 'question':
+      return <div className={`chat-hook ${item.outcome ? 'is-hook' : 'is-warn'}`}>{questionSummary(item)}</div>
+    case 'permissions':
+      return (
+        <div className={`chat-hook ${item.decision === 'turn' || item.decision === 'session' ? 'is-warn' : item.decision ? 'is-hook' : 'is-warn'}`}>
+          {`권한 요청 · ${grantSummary(item.request)} · ${item.decision ? PERMISSION_DECISION_LABELS[item.decision] ?? item.decision : '결정 대기 중'}`}
+        </div>
+      )
+    case 'elicitation':
+      return (
+        <div className={`chat-hook ${item.action ? 'is-hook' : 'is-warn'}`}>
+          {`외부 도구 입력 요청${item.request.server ? ` · ${item.request.server}` : ''} · ${item.action ? ELICITATION_ACTION_LABELS[item.action] ?? item.action : '응답 대기 중'}`}
+        </div>
+      )
     case 'notice':
       return <div className={`chat-notice is-${item.tone}`}>{item.text}</div>
   }
+}
+
+const PERMISSION_DECISION_LABELS: Record<string, string> = {
+  turn: '이번 요청만 허용했어요',
+  session: '실행 내내 허용했어요',
+  decline: '거절했어요',
+  cancel: '세션 종료로 취소됐어요',
+  resolved_by_codex: 'Codex가 요청을 거뒀어요',
+}
+
+const ELICITATION_ACTION_LABELS: Record<string, string> = {
+  accept: '응답을 보냈어요',
+  decline: '거절했어요',
+  cancel: '취소했어요',
+  resolved_by_codex: 'Codex가 요청을 거뒀어요',
+}
+
+const QUESTION_OUTCOME_LABELS: Record<string, string> = {
+  skipped: '건너뛰었어요',
+  resolved: 'Codex가 질문을 거뒀어요',
+  cancelled: '세션 종료로 취소됐어요',
+}
+
+function questionSummary(item: Extract<TranscriptItem, { kind: 'question' }>): string {
+  const headers = item.request.questions.map((question) => question.header || question.question).join(', ')
+  const title = `Codex 질문${headers ? ` · ${headers}` : ''}`
+  if (!item.outcome) return `${title} · 답을 기다리는 중`
+  if (item.outcome !== 'answered') return `${title} · ${QUESTION_OUTCOME_LABELS[item.outcome]}`
+  const replies = Object.entries(item.answers).map(([id, values]) => {
+    const question = item.request.questions.find((entry) => entry.id === id)
+    return `${question?.header || id}: ${values === null ? '비밀 답변을 보냈어요' : values.join(', ')}`
+  })
+  return `${title} · ${replies.join(' · ') || '답을 보냈어요'}`
 }
 
 function ApprovalDialog({
@@ -222,7 +291,7 @@ function EndSessionDialog({ external, onConfirm, onCancel }: { external: boolean
   )
 }
 
-function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: number, silent: number, ownerPid: number | null): string {
+function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: number, silent: number, ownerPid: number | null, startupLabel?: string): string {
   if (approvals > 0) return '승인 결정을 기다리는 중'
   switch (statusName) {
     case 'EXTERNAL':
@@ -238,11 +307,34 @@ function activityLabel(statusName: CodexStatusName, approvals: number, elapsed: 
     case 'FAILED':
       return 'Codex 연결 실패'
     default:
-      return 'Codex 연결을 준비하는 중'
+      return startupLabel ?? 'Codex 연결을 준비하는 중'
   }
 }
 
-export function CodexConversationPane({ runId, runEnded, context }: { runId: string; runEnded: boolean; context?: ReactNode }) {
+/** The status line. Only this ticks every second while Codex works, so a long conversation is not redrawn each second. */
+function ChatActivity({ statusName, approvals, working, lastEventAt, ownerPid, startupLabel }: {
+  statusName: CodexStatusName
+  approvals: number
+  working: boolean
+  lastEventAt: number
+  ownerPid: number | null
+  startupLabel?: string
+}) {
+  const [workingSince, setWorkingSince] = useState(0)
+  const now = useNow(working)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (working) setWorkingSince((since) => since || Date.now())
+      else setWorkingSince(0)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [working])
+  const elapsed = workingSince ? Math.max(0, Math.floor((now - workingSince) / 1000)) : 0
+  const silent = working && lastEventAt ? Math.max(0, Math.floor((now - lastEventAt) / 1000)) : 0
+  return <span className="chat-activity">{activityLabel(statusName, approvals, elapsed, silent, ownerPid, startupLabel)}</span>
+}
+
+export function CodexConversationPane({ runId, runEnded, context, startup }: { runId: string; runEnded: boolean; context?: ReactNode; startup?: StartupView | null }) {
   const session = useCodexSession(runId, { runEnded })
   const [draft, setDraft] = useState('')
   // The deferred submit after an IME composition runs from an older render;
@@ -252,27 +344,21 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
   const submitAfterCompositionRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
-  const [workingSince, setWorkingSince] = useState(0)
-  const [now, setNow] = useState(() => Date.now())
 
   const { onRestoreDraft } = session
+  const [paletteIndex, setPaletteIndex] = useState(0)
+  const [note, setNote] = useState<AiaNote | null>(null)
+  const [diffOpen, setDiffOpen] = useState(false)
+  const [connectorsOpen, setConnectorsOpen] = useState(false)
+  const [modelOpen, setModelOpen] = useState(false)
+  const [usageOpen, setUsageOpen] = useState(false)
+  const { data: runStatus } = useRunStatus(runId)
+  const { data: actions } = useRunActions(runId, !runEnded)
+  const { profiles } = useProfiles()
+  const policyProfile = profiles.find(profile => profile.value === runStatus?.policy?.profile)
   useEffect(() => {
     onRestoreDraft((text) => setDraft((current) => (current ? current : text)))
   }, [onRestoreDraft])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (session.working) setWorkingSince((since) => since || Date.now())
-      else setWorkingSince(0)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [session.working])
-
-  useEffect(() => {
-    if (!session.working) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [session.working])
 
   useLayoutEffect(() => {
     const node = scrollRef.current
@@ -280,7 +366,7 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
   }, [session.conversation.items])
 
   // The home view reflects live Codex activity through the shell store.
-  const { reportCodexActivity, clearCodexActivity, endRequest } = useShellStore()
+  const { reportCodexActivity, clearCodexActivity, endRequest, setView, openNewRunToResume } = useShellStore()
   const approvalWaiting = session.pendingApprovals.length > 0
   useEffect(() => {
     const mode = session.ended ? 'STOPPED' : approvalWaiting ? 'ACTION' : session.working ? 'WORKING' : session.statusName === 'READY' ? 'WAITING' : 'STARTING'
@@ -301,8 +387,64 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
     session.endSession()
   }
 
+  function clearDraft() {
+    draftRef.current = ''
+    setDraft('')
+    setPaletteIndex(0)
+  }
+
+  function runSlash(command: SlashCommand, argument: string) {
+    setNote(null)
+    setDiffOpen(false)
+    setConnectorsOpen(false)
+    switch (command.name) {
+      case 'model': setModelOpen(true); break
+      case 'status': setUsageOpen(true); break
+      case 'diff': setDiffOpen(true); break
+      case 'compact': session.runCommand('compact'); break
+      case 'review': session.runCommand('review'); break
+      case 'goal':
+        if (!argument) {
+          setNote({ title: '목표 정하기', lines: ['/goal 다음에 목표를 적어 주세요. 예: /goal 로그인 오류 고치기'] })
+          return
+        }
+        session.runCommand('goal', argument)
+        break
+      case 'resume': openNewRunToResume(); break
+      case 'mcp': setConnectorsOpen(true); break
+      case 'policy': setNote(policyNote(policyProfile?.display_name ?? runStatus?.policy?.profile, policyProfile?.description)); break
+      case 'why': setNote(whyNote(actions)); break
+      case 'restore': setNote(restoreNote(runEnded || session.ended)); break
+      case 'report':
+        setNote(reportNote({
+          pretool: runStatus?.evidence_summary?.pretool_events,
+          blocks: blockDecisionCount(actions),
+          files: runStatus?.activity?.unique_file_count,
+          grants: (runStatus?.permission_grants ?? []).length,
+          sensorsHealthy: runStatus?.sensor_health ? Object.values(runStatus.sensor_health).every(value => value === 'HEALTHY') : null,
+        }))
+        break
+    }
+    clearDraft()
+  }
+
+  function pickCommand(command: SlashCommand) {
+    if (command.takesArgument) {
+      const next = `/${command.name} `
+      draftRef.current = next
+      setDraft(next)
+      return
+    }
+    runSlash(command, '')
+  }
+
   function submit() {
     const value = draftRef.current
+    const slash = parseSlashCommand(value)
+    if (slash) {
+      runSlash(slash.command, slash.argument)
+      return
+    }
     if (!session.canSend || !value.trim()) return
     if (session.sendMessage(value)) {
       draftRef.current = ''
@@ -316,26 +458,49 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
       return
     }
     if (event.nativeEvent.isComposing || composingRef.current) return
+    if (palette.length > 0) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const step = event.key === 'ArrowDown' ? 1 : -1
+        setPaletteIndex(index => (index + step + palette.length) % palette.length)
+        return
+      }
+      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+        event.preventDefault()
+        pickCommand(palette[Math.min(paletteIndex, palette.length - 1)])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        clearDraft()
+        return
+      }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       submit()
     }
   }
 
-  const elapsed = workingSince ? Math.max(0, Math.floor((now - workingSince) / 1000)) : 0
-  const lastEventAt = session.conversation.lastEventAt
-  const silent = session.working && lastEventAt ? Math.max(0, Math.floor((now - lastEventAt) / 1000)) : 0
   const firstApproval = session.pendingApprovals[0]
+  const firstQuestion = session.pendingQuestions[0]
+  const firstElicitation = session.pendingElicitations[0]
+  const firstPermissions = session.pendingPermissions[0]
+  const models = useCodexModels(!session.ended)
+  const palette = session.ended ? [] : matchSlashCommands(draft)
+  const diffItems = session.conversation.items.filter((item): item is Extract<TranscriptItem, { kind: 'diff' }> => item.kind === 'diff')
+  const diffFiles = [...new Set(diffItems.flatMap(item => item.files))]
   const error = session.status?.error
   const dotTone = session.ended ? 'neutral' : approvalWaiting ? 'warn' : session.connection.tone === 'bad' ? 'bad' : 'ok'
 
   return (
     <div className="chat">
       <header className="chat-head">
+        <div className="chat-head-row">
         <span className={`status-dot is-${dotTone}`} aria-hidden="true" />
-        <span className="chat-activity">{activityLabel(session.statusName, session.pendingApprovals.length, elapsed, silent, session.ownerPid)}</span>
+        <ChatActivity statusName={session.statusName} approvals={session.pendingApprovals.length} working={session.working}
+          lastEventAt={session.conversation.lastEventAt} ownerPid={session.ownerPid} startupLabel={startup?.label} />
         <Badge tone={session.connection.tone}>{session.connection.label}</Badge>
-        {context}
         <span className="chat-head-spacer" />
         {session.status?.pid ? <span className="chat-pid">PID {session.status.pid}</span> : null}
         {session.working && (
@@ -348,7 +513,23 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
             {session.endRequested ? '종료 요청됨' : session.endPending ? '종료하는 중…' : '작업 종료'}
           </Button>
         )}
+        </div>
+        <div className="chat-head-row is-chips">
+        {context}
+        <ModelChip
+          models={models}
+          model={session.turnSettings.model}
+          effort={session.turnSettings.effort}
+          applied={session.status?.effective?.model ?? null}
+          disabled={!session.connected || session.ended}
+          onApply={session.setTurnSettings}
+          open={modelOpen}
+          onOpenChange={setModelOpen}
+        />
+        <UsageChip usage={session.usage} open={usageOpen} onOpenChange={setUsageOpen} />
+        </div>
       </header>
+      {session.plan && <PlanBar plan={session.plan} />}
 
       <div
         className="chat-transcript"
@@ -368,15 +549,17 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
               : '작업 표시줄에서 그 AIA 창을 열어 계속하거나, "작업 종료"로 종료를 요청할 수 있어요.'}
           </div>
         ) : (
-          session.conversation.items.length === 0 && (
+          session.conversation.items.length === 0 && (session.statusName !== 'READY' && startup ? (
+            <div className="chat-empty"><StartupProgress view={startup} /></div>
+          ) : (
             <div className="chat-empty">
               <strong>{session.statusName === 'READY' ? 'Codex가 준비됐어요' : 'Codex 세션을 준비하고 있어요…'}</strong>
               <span>{session.statusName === 'READY' ? '아래 입력창에 하고 싶은 작업을 적어 보세요.' : '잠시만 기다려 주세요.'}</span>
             </div>
-          )
+          ))
         )}
         {session.conversation.items.map((item) => (
-          <TranscriptRow key={item.key} item={item} />
+          <TranscriptRow key={item.key} item={item} runId={runId} />
         ))}
       </div>
 
@@ -387,6 +570,49 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
             <Button variant="icon" onClick={session.dismissError} aria-label="닫기">×</Button>
           )}
         </div>
+      )}
+
+      {note && (
+        <AiaNoteCard note={note} onClose={() => setNote(null)}>
+          {note.title === '복구 열기' && (runEnded || session.ended) && <Button variant="cta" className="is-compact" onClick={() => setView('history')}>결과와 복구 열기</Button>}
+        </AiaNoteCard>
+      )}
+      {diffOpen && (
+        <section className="glass-card question-card" aria-label="이번 대화에서 바뀐 내용">
+          <div className="question-head">
+            <strong>이번 대화에서 바뀐 내용</strong>
+            <Button variant="icon" className="aia-note-close" onClick={() => setDiffOpen(false)} aria-label="닫기"><Icon name="close" size={14} /></Button>
+          </div>
+          {diffItems.length === 0
+            ? <p className="muted">아직 바뀐 내용이 없어요.</p>
+            : <DiffCard runId={runId} turnId={null} files={diffFiles} fileCount={diffFiles.length} added={diffItems.reduce((sum, item) => sum + item.added, 0)} removed={diffItems.reduce((sum, item) => sum + item.removed, 0)} />}
+        </section>
+      )}
+      {connectorsOpen && !session.ended && <ConnectorsCard runId={runId} onClose={() => setConnectorsOpen(false)} />}
+      {palette.length > 0 && <CommandPalette commands={palette} active={Math.min(paletteIndex, palette.length - 1)} onPick={pickCommand} />}
+      {firstPermissions && !session.ended && (
+        <PermissionsCard
+          key={`${firstPermissions.permissions_id}:${session.responseRevision}`}
+          request={firstPermissions}
+          disabled={!session.connected}
+          onDecide={(decision) => session.decidePermissions(firstPermissions.permissions_id, decision)}
+        />
+      )}
+      {firstElicitation && !session.ended && (
+        <ElicitationCard
+          key={`${firstElicitation.elicitation_id}:${session.responseRevision}`}
+          request={firstElicitation}
+          disabled={!session.connected}
+          onRespond={(action, content) => session.respondElicitation(firstElicitation.elicitation_id, action, content)}
+        />
+      )}
+      {firstQuestion && !session.ended && (
+        <QuestionCard
+          key={`${firstQuestion.question_id}:${session.responseRevision}`}
+          request={firstQuestion}
+          disabled={!session.connected}
+          onSubmit={(answers) => session.answerQuestion(firstQuestion.question_id, answers)}
+        />
       )}
 
       <form
@@ -412,6 +638,7 @@ export function CodexConversationPane({ runId, runEnded, context }: { runId: str
           onChange={(event) => {
             draftRef.current = event.target.value
             setDraft(event.target.value)
+            setPaletteIndex(0)
           }}
           onKeyDown={handleKeyDown}
           onCompositionStart={() => {

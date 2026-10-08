@@ -154,6 +154,66 @@ class CodexWorkbench:
             }
         return {**codex_session.respond_approval(approval_id, decision), "session_id": session_id}
 
+    def respond_codex_question(self, session_id: str, question_id: str, answers: Any) -> dict[str, Any]:
+        codex_session = self._codex_session(session_id)
+        return {**codex_session.respond_question(question_id, answers), "session_id": session_id}
+
+    def respond_codex_elicitation(self, session_id: str, elicitation_id: str, action: str, content: Any) -> dict[str, Any]:
+        codex_session = self._codex_session(session_id)
+        return {**codex_session.respond_elicitation(elicitation_id, action, content), "session_id": session_id}
+
+    def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
+        """Slash commands that reach Codex: compact, review, goal."""
+
+        codex_session = self._codex_session(session_id)
+        if command == "compact":
+            result = codex_session.compact()
+        elif command == "review":
+            result = codex_session.start_review()
+        elif command == "goal":
+            result = codex_session.set_goal(argument)
+        else:
+            raise CodexAppServerError("지원하지 않는 명령이에요.")
+        return {**result, "command": command, "session_id": session_id}
+
+    def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
+        return {"connectors": self._codex_session(session_id).list_connectors(), "session_id": session_id}
+
+    def read_codex_diff(self, session_id: str, turn_id: str | None) -> dict[str, Any]:
+        return {**self._codex_session(session_id).read_diff(turn_id), "session_id": session_id}
+
+    def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
+        return {**self._codex_session(session_id).set_turn_settings(model, effort), "session_id": session_id}
+
+    def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
+        """Answer a sandbox-widening request and record a grant on the run."""
+
+        codex_session = self._codex_session(session_id)
+        service = self._service
+        record = service.registry.require(session_id)
+
+        def record_grant(result: dict[str, Any]) -> None:
+            previous = record.permission_grants
+            record.permission_grants = [
+                *previous,
+                {
+                    "granted_at": datetime.now(timezone.utc).isoformat(),
+                    "scope": decision,
+                    "network": result["network"],
+                    "filesystem": result["filesystem"],
+                    "reason": result["reason"],
+                },
+            ]
+            record.protection_state = "DEGRADED"
+            try:
+                service._persist_runtime_state(record, strict=True)
+            except (OSError, ValueError) as error:
+                record.permission_grants = previous
+                raise CodexAppServerError("권한 허용 결정을 기록하지 못해 허용하지 않았어요. 다시 시도해 주세요.") from error
+
+        result = codex_session.respond_permissions(permissions_id, decision, before_grant=record_grant)
+        return {**result, "session_id": session_id}
+
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         if decision not in {"accept", "acceptForSession", "decline"}:
             raise CodexAppServerError("approval decision is not supported")

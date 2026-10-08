@@ -8,6 +8,7 @@ import { useRunStatus } from '../../hooks/useRunStatus'
 import { useProfiles } from '../../hooks/useProfiles'
 import { elapsedLabel, useNow } from '../../hooks/useElapsed'
 import { isSessionRunning } from '../../api/display'
+import { startupView } from '../../api/startupStatus'
 import { workspaceShortName } from '../shell/sessionLabel'
 import { ProtectionPanel } from './ProtectionPanel'
 
@@ -52,6 +53,7 @@ export function WorkView() {
             key={activeRunId}
             runId={activeRunId}
             runEnded={isEnded}
+            startup={startupView(status?.startup)}
             context={<>
               {policyName && <span className="chip is-small"><Icon name="shieldPlain" size={14} />{policyName}</span>}
               {elapsed && <span className="chip is-small chat-elapsed">{elapsed}</span>}

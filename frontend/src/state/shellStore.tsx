@@ -24,6 +24,8 @@ export interface ShellState {
   activeView: ShellView
   /** New protected run sheet (④). */
   newRunOpen: boolean
+  /** The new-run sheet opens on "이전 대화 이어하기" (from /resume). */
+  newRunResume: boolean
   /** The single protected run the work and history views show. Persisted so
    * a reload re-attaches to the same run instead of losing context. */
   activeRunId: string | null
@@ -36,7 +38,7 @@ export interface ShellState {
 
 export type ShellAction =
   | { type: 'SET_VIEW'; view: ShellView }
-  | { type: 'OPEN_NEW_RUN' }
+  | { type: 'OPEN_NEW_RUN'; resume?: boolean }
   | { type: 'CLOSE_NEW_RUN' }
   | { type: 'SET_ACTIVE_RUN'; id: string }
   | { type: 'CLEAR_ACTIVE_RUN' }
@@ -50,6 +52,7 @@ export function initialState(): ShellState {
   return {
     activeView: 'home',
     newRunOpen: false,
+    newRunResume: false,
     activeRunId: readStoredActiveRunId(),
     codexActivity: null,
     historyRunId: null,
@@ -63,7 +66,7 @@ export function reducer(state: ShellState, action: ShellAction): ShellState {
       // Entering history from the rail always starts at the list.
       return { ...state, activeView: action.view, historyRunId: action.view === 'history' ? null : state.historyRunId }
     case 'OPEN_NEW_RUN':
-      return { ...state, newRunOpen: true }
+      return { ...state, newRunOpen: true, newRunResume: Boolean(action.resume) }
     case 'CLOSE_NEW_RUN':
       return { ...state, newRunOpen: false }
     case 'SET_ACTIVE_RUN':
@@ -88,6 +91,8 @@ export function reducer(state: ShellState, action: ShellAction): ShellState {
 export interface ShellContextValue extends ShellState {
   setView: (view: ShellView) => void
   openNewRun: () => void
+  /** Opens the new-run sheet on "이전 대화 이어하기" (from /resume). */
+  openNewRunToResume: () => void
   closeNewRun: () => void
   setActiveRun: (id: string) => void
   clearActiveRun: () => void

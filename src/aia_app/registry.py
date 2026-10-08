@@ -26,6 +26,7 @@ class RunRecord:
     task: str
     interactive: bool = False
     launch_mode: str = "inherit"
+    reasoning_effort: str | None = None
     created_at: datetime = field(default_factory=_now)
     status: str = "CREATED"
     phase: str = "CREATED"
@@ -38,6 +39,18 @@ class RunRecord:
     checkpoint: str = "NOT_READY"
     lease: str = "NOT_READY"
     sensor_health: dict[str, str] = field(default_factory=dict)
+    # Which preparation step is running, for display and slow-start diagnosis
+    # only.  Replaced as a whole so readers never see a half-updated value.
+    startup: dict[str, Any] = field(default_factory=dict)
+    # Sandbox widenings the user granted to Codex during the run.  Replaced
+    # as a whole, like ``startup``.
+    permission_grants: list[dict[str, Any]] = field(default_factory=list)
+    # Codex conversation id of a Workbench run, so a later run can resume only
+    # conversations AIA itself opened.  The conversation text is never stored.
+    codex_thread_id: str | None = None
+    # A Workbench run may resume a conversation an earlier AIA run opened.
+    resume_thread_id: str | None = None
+    resumed_from: str | None = None
     actions: list[dict[str, Any]] = field(default_factory=list)
     incidents: list[dict[str, Any]] = field(default_factory=list)
     result: dict[str, Any] | None = None
@@ -99,6 +112,7 @@ class RunRegistry:
             task=record.task,
             interactive=record.interactive,
             launch_mode=record.launch_mode,
+            reasoning_effort=record.reasoning_effort,
             created_at=record.created_at,
             status=record.status,
             phase=record.phase,
@@ -111,6 +125,11 @@ class RunRegistry:
             checkpoint=record.checkpoint,
             lease=record.lease,
             sensor_health=dict(record.sensor_health),
+            startup=record.startup,
+            permission_grants=record.permission_grants,
+            codex_thread_id=record.codex_thread_id,
+            resume_thread_id=record.resume_thread_id,
+            resumed_from=record.resumed_from,
             actions=[dict(item) for item in record.actions],
             incidents=[dict(item) for item in record.incidents],
             result=dict(record.result) if record.result is not None else None,

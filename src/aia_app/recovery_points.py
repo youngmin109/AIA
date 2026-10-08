@@ -147,8 +147,11 @@ class RecoveryPointsMixin:
         if record.status != 'RUNNING' or record.stop_requested or record.runtime.get('end_session_requested') or record.runtime.get('point_closing') or codex is None:
             raise ApplicationValidationError('작업창의 실행 중인 세션에서만 저장할 수 있어요.')
         state = codex.snapshot()
-        if state.get('status') != 'READY' or state.get('active_turn_id') or state.get('pending_approvals'):
+        if (state.get('status') != 'READY' or state.get('active_turn_id')
+                or any(state.get(key) for key in ('pending_approvals', 'pending_questions', 'pending_elicitations', 'pending_permissions'))):
             raise ApplicationValidationError('작업과 사용자 확인이 끝난 뒤 저장해 주세요.')
+        if record.permission_grants:
+            raise ApplicationValidationError('Codex 추가 권한을 허용한 세션은 추가 지점을 저장하지 않아요.')
         if not _sensors_runtime_healthy(record.runtime.get('sensors')) or not _hook_broker_runtime_healthy(record):
             raise ApplicationValidationError('센서 또는 Hook 상태를 확인할 수 없어 저장하지 않았어요.')
         for sensor in record.runtime.get('sensors', ()):

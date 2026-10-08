@@ -502,6 +502,32 @@ def _register_run_details_routes(app: FastAPI) -> None:
 
 
 def _register_codex_routes(app: FastAPI) -> None:
+    @app.get("/api/runs/{session_id}/codex/connectors")
+    async def codex_connectors(session_id: str) -> JSONResponse:
+        try:
+            return JSONResponse(await to_thread.run_sync(app.state.service.list_codex_connectors, session_id))
+        except KeyError:
+            return JSONResponse({"error": _CODEX_RUN_NOT_FOUND}, status_code=404)
+        except CodexAppServerError as error:
+            return JSONResponse({"error": str(error)}, status_code=409)
+
+    @app.get("/api/runs/{session_id}/codex/diff")
+    def codex_diff(session_id: str, turn_id: str | None = None) -> JSONResponse:
+        try:
+            return JSONResponse(app.state.service.read_codex_diff(session_id, turn_id))
+        except KeyError:
+            return JSONResponse({"error": _CODEX_RUN_NOT_FOUND}, status_code=404)
+        except CodexAppServerError as error:
+            return JSONResponse({"error": str(error)}, status_code=409)
+
+    @app.get("/api/codex/conversations")
+    async def codex_conversations() -> JSONResponse:
+        return JSONResponse(await to_thread.run_sync(app.state.service.list_resumable_conversations))
+
+    @app.get("/api/codex/models")
+    async def codex_models() -> JSONResponse:
+        return JSONResponse(await to_thread.run_sync(app.state.service.list_codex_models))
+
     @app.get("/api/runs/{session_id}/codex/status")
     def codex_status(session_id: str) -> JSONResponse:
         try:
@@ -580,6 +606,32 @@ def _register_codex_routes(app: FastAPI) -> None:
                     session_id,
                     str(message.get("approval_id", "")),
                     str(message.get("decision", "")),
+                ),
+                "question_answer": lambda message: service.respond_codex_question(
+                    session_id,
+                    str(message.get("question_id", "")),
+                    message.get("answers"),
+                ),
+                "command": lambda message: service.run_codex_command(
+                    session_id,
+                    str(message.get("command", "")),
+                    message.get("argument"),
+                ),
+                "turn_settings": lambda message: service.set_codex_turn_settings(
+                    session_id,
+                    message.get("model"),
+                    message.get("effort"),
+                ),
+                "permissions_decision": lambda message: service.respond_codex_permissions(
+                    session_id,
+                    str(message.get("permissions_id", "")),
+                    str(message.get("decision", "")),
+                ),
+                "elicitation_response": lambda message: service.respond_codex_elicitation(
+                    session_id,
+                    str(message.get("elicitation_id", "")),
+                    str(message.get("action", "")),
+                    message.get("content"),
                 ),
                 "end_session": lambda message: service.end_codex_session(session_id),
             }

@@ -3,6 +3,9 @@
 // actually reads; unknown additional fields pass through untyped rather
 // than being exhaustively modeled (no codegen from the Python side yet).
 
+import type { StartupInfo } from './startupStatus'
+import type { PermissionGrant } from './permissionGrants'
+
 export interface SecurityEvent {
   event_id?: string
   category?: string
@@ -67,6 +70,10 @@ export interface EvidenceSummary {
 }
 
 export interface RunStatus {
+  startup?: StartupInfo
+  permission_grants?: PermissionGrant[]
+  codex_thread_id?: string | null
+  resumed_from?: string | null
   activity?: {
     available?: boolean; live?: boolean; current_alive_count?: number | null; unique_file_count?: number;
     process_identity_count?: number; truncated?: boolean;

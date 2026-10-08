@@ -108,7 +108,8 @@ test('settings lights never call an unverified connection healthy', async () => 
   const missing = connectionLights({ checks: [{ name: 'pretool_hook', ok: false }] })
   assert.deepEqual(missing.map(light => light.state), ['warn', 'warn', 'warn'])
   assert.equal(normalizeGlassPreference('off'), 'off')
-  assert.equal(normalizeGlassPreference(null), 'on')
+  assert.equal(normalizeGlassPreference(null), 'off')
+  assert.equal(normalizeGlassPreference('on'), 'on')
 })
 
 test('refraction maps are neutral in the centre and only push inward at the rim', async () => {
@@ -155,4 +156,32 @@ test('recent activity counts only agent-side records and says when the list was 
   const full = Array.from({ length: 80 }, () => ({ record_type: 'FILESYSTEM_EVENT', captured_at: at(20) }))
   assert.equal(activityBuckets(full, now).partial, true)
   assert.equal(activityBuckets([{ record_type: 'SENSOR_HEALTH', captured_at: at(900) }, ...full.slice(1)], now).partial, false)
+})
+
+test('startup view names the running step and only shows a percent with a known total', async () => {
+  const { startupView } = await import('../src/api/startupStatus.ts')
+  assert.equal(startupView(null), null)
+  assert.equal(startupView({ current: null, steps: [] }), null)
+  assert.equal(startupView({ current: 'unknown-step' }), null)
+  const scan = startupView({ current: 'checkpoint', steps: [{ step: 'checkpoint', started_at: '2026-10-07T00:00:00Z', ended_at: null }], progress: { stage: 'scan', done: 1200, total: null } })
+  assert.equal(scan.label, '기준점 저장 중')
+  assert.equal(scan.index, 1)
+  assert.equal(scan.percent, null)
+  assert.equal(scan.largeFolder, true)
+  assert.equal(scan.startedAt, '2026-10-07T00:00:00Z')
+  const copy = startupView({ current: 'checkpoint', progress: { stage: 'copy', done: 30, total: 120 } })
+  assert.equal(copy.percent, 25)
+  assert.equal(copy.largeFolder, false)
+  assert.match(copy.detail, /파일 복사 30\/120/)
+  const launch = startupView({ current: 'launch', progress: { stage: 'copy', done: 1, total: 2 } })
+  assert.deepEqual([launch.label, launch.index, launch.total, launch.detail, launch.startedAt], ['Codex 시작 전 최종 확인 중', 4, 5, null, null])
+})
+
+test('new-run sheet only warns for folders that will start slowly', async () => {
+  const { largeFolderNotice } = await import('../src/api/startupStatus.ts')
+  assert.equal(largeFolderNotice(null), null)
+  assert.equal(largeFolderNotice({ files: 34, bytes: 600_000, complete: true }), null)
+  assert.match(largeFolderNotice({ files: 3211, bytes: 128_000_000, complete: true }), /파일 3,211개\(122MB\)인 큰 폴더/)
+  assert.match(largeFolderNotice({ files: 20, bytes: 80 * 1024 * 1024, complete: true }), /큰 폴더/)
+  assert.match(largeFolderNotice({ files: 5000, bytes: 1, complete: false }), /5,000개가 넘는 큰 폴더/)
 })

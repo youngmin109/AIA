@@ -49,7 +49,7 @@ class FakeCodexSession:
         self.calls.append(("close", force))
 
     def snapshot(self) -> dict:
-        return {"mode": "codex_app_server", "status": "READY", "error": None, "last_sequence": 3}
+        return {"mode": "codex_app_server", "status": "READY", "error": None, "last_sequence": 3, "thread_id": "thr-42"}
 
     def send_message(self, text: str) -> dict:
         self.calls.append(("send", text))
@@ -62,6 +62,18 @@ class FakeCodexSession:
     def respond_approval(self, approval_id: str, decision: str) -> dict:
         self.calls.append(("approval", approval_id, decision))
         return {"accepted": True, "approval_id": approval_id, "decision": decision}
+
+    def set_turn_settings(self, model=None, effort=None) -> dict:
+        self.calls.append(("settings", model, effort))
+        return {"accepted": True, "model": model, "effort": effort}
+
+    def respond_permissions(self, permissions_id: str, decision: str, *, before_grant=None) -> dict:
+        result = {"accepted": True, "permissions_id": permissions_id, "decision": decision, "network": True,
+                  "filesystem": [{"access": "write", "target": "C:\\shared", "scope": "outside"}], "reason": "sync"}
+        if decision != "decline" and before_grant is not None:
+            before_grant(result)
+        self.calls.append(("permissions", permissions_id, decision))
+        return result
 
     def post_event(self, event: dict) -> None:
         self.calls.append(("event", dict(event)))
@@ -180,6 +192,126 @@ def test_conversation_api_delegates_to_the_attached_session(service, tmp_path) -
         ("approval", "approval-1", "decline"),
         ("close", False),
     ]
+
+
+def test_granted_permissions_are_recorded_on_the_run_and_declines_are_not(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service.registry.add(record)
+
+    service.respond_codex_permissions(record.session_id, "permissions-1", "decline")
+    assert record.permission_grants == []
+    service.respond_codex_permissions(record.session_id, "permissions-2", "session")
+
+    assert session.calls[-1] == ("permissions", "permissions-2", "session")
+    [grant] = record.permission_grants
+    assert (grant["scope"], grant["network"], grant["reason"]) == ("session", True, "sync")
+    assert grant["filesystem"][0]["scope"] == "outside"
+    assert service.get_run_status(record.session_id)["permission_grants"] == [grant]
+    assert record.protection_state == "DEGRADED"
+    assert service._read_runtime_state(record.session_id)["permission_grants"] == [grant]
+
+
+def test_failed_permission_persistence_does_not_send_a_grant(service, tmp_path, monkeypatch) -> None:
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service.registry.add(record)
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(service, "_write_runtime_state_payload", fail)
+    with pytest.raises(CodexAppServerError, match="기록하지 못해"):
+        service.respond_codex_permissions(record.session_id, "permissions-1", "turn")
+    assert session.calls == []
+    assert record.permission_grants == []
+    assert record.protection_state == "DEGRADED"
+
+
+def test_the_codex_conversation_id_is_kept_for_resuming_but_no_text(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.runtime["codex_session"] = FakeCodexSession()
+    service.registry.add(record)
+    service._open_codex_conversation(record)
+    assert record.codex_thread_id == "thr-42"
+    state = service._read_runtime_state(record.session_id)
+    assert state["codex_thread_id"] == "thr-42"
+    assert service.get_run_status(record.session_id)["codex_thread_id"] == "thr-42"
+
+
+def test_only_conversations_aia_opened_in_the_same_folder_can_be_resumed(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.codex_thread_id = "thr-42"
+    service.registry.add(record)
+    service._persist_runtime_state(record)
+    assert service._resumable_threads() == [], "a conversation still open in a live run is not offered"
+    record.status = "COMPLETED"
+    threads = service._resumable_threads()
+    assert [(item["thread_id"], item["session_id"]) for item in threads] == [("thr-42", record.session_id)]
+
+    other = tmp_path / "other"
+    other.mkdir()
+    base = {"interactive": True, "launch_mode": "codex_app_server"}
+    monkey_service = service
+    monkey_service.require_hook_verification = False
+    with pytest.raises(service_module.ApplicationValidationError, match="같은 작업 폴더"):
+        service.create_protected_run({**base, "workspace": str(other), "resume_thread_id": "thr-42"})
+    with pytest.raises(service_module.ApplicationValidationError, match="같은 작업 폴더"):
+        service.create_protected_run({**base, "workspace": str(tmp_path), "resume_thread_id": "thr-unknown"})
+
+
+def test_resume_thread_id_must_look_like_a_conversation_id() -> None:
+    for bad in ("../x", "a b", "", "x" * 101, 5):
+        with pytest.raises(DTOValidationError):
+            CreateRunRequest.from_mapping({"workspace": ".", "resume_thread_id": bad})
+
+
+def test_chosen_reasoning_effort_is_applied_once_the_conversation_opens(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.reasoning_effort = "high"
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service._open_codex_conversation(record)
+    assert ("settings", "gpt-test", "high") in session.calls
+
+
+def test_reasoning_effort_in_a_new_run_request_is_a_lowercase_word() -> None:
+    request = CreateRunRequest.from_mapping({"workspace": ".", "interactive": True, "launch_mode": "codex_app_server",
+                                             "reasoning_effort": "xhigh"})
+    assert request.reasoning_effort == "xhigh"
+    for bad in ("High", "very high", "x" * 21, 3):
+        with pytest.raises(DTOValidationError):
+            CreateRunRequest.from_mapping({"workspace": ".", "reasoning_effort": bad})
+
+
+def test_model_list_is_cached_and_a_failure_hides_the_picker(service, monkeypatch) -> None:
+    created = []
+
+    class FakeModelSession:
+        def __init__(self, argv, **kwargs):
+            created.append(argv)
+
+        def start(self):
+            pass
+
+        def list_models(self):
+            return [{"model": "gpt-fast", "display_name": "GPT Fast", "efforts": []}]
+
+        def close(self, force=False):
+            pass
+
+    monkeypatch.setattr(service_module.CodexAdapter, "discover", lambda self: "codex.exe")
+    monkeypatch.setattr(service_module, "CodexAppServerSession", FakeModelSession)
+    assert service.list_codex_models()["models"][0]["model"] == "gpt-fast"
+    assert service.list_codex_models()["models"][0]["model"] == "gpt-fast"
+    assert created == [["codex.exe", "app-server"]]
+
+    service._models_cache = None
+    monkeypatch.setattr(service_module.CodexAdapter, "discover", lambda self: (_ for _ in ()).throw(RuntimeError("no codex")))
+    failed = service.list_codex_models()
+    assert failed["models"] == [] and "no codex" in failed["error"]
 
 
 def test_codex_status_reports_detached_state_and_open_errors(service, tmp_path) -> None:

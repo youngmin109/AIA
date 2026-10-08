@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -296,10 +296,38 @@ def _relative_path(prefix: str, name: str) -> str:
     return name if not prefix else f"{prefix}/{name}"
 
 
-def _scan_workspace(workspace: Path) -> tuple[ManifestEntry, ...]:
+# Display-only progress: (stage, files done, files total or None while scanning).
+CheckpointProgress = Callable[[str, int, int | None], None]
+
+
+def _progress_kwargs(
+    progress: CheckpointProgress | None,
+    stage: str,
+    total: int | None,
+) -> dict[str, Callable[[int], None]]:
+    """Wrap a caller's progress callback so it can never fail a Checkpoint."""
+
+    if progress is None:
+        return {}
+
+    def report(done: int) -> None:
+        try:
+            progress(stage, done, total)
+        except Exception:
+            return
+
+    return {"on_file": report}
+
+
+def _scan_workspace(
+    workspace: Path,
+    on_file: Callable[[int], None] | None = None,
+) -> tuple[ManifestEntry, ...]:
     entries: list[ManifestEntry] = []
+    files_seen = 0
 
     def visit(directory: Path, prefix: str) -> None:
+        nonlocal files_seen
         try:
             with os.scandir(directory) as iterator:
                 children = sorted(iterator, key=lambda item: item.name)
@@ -341,6 +369,9 @@ def _scan_workspace(workspace: Path) -> tuple[ManifestEntry, ...]:
                         sha256=digest,
                     )
                 )
+                files_seen += 1
+                if on_file is not None:
+                    on_file(files_seen)
 
     visit(workspace, "")
     return _sorted_entries(entries)
@@ -383,8 +414,10 @@ def _copy_workspace_snapshot(
     workspace: Path,
     entries: Iterable[ManifestEntry],
     destination: Path,
+    on_file: Callable[[int], None] | None = None,
 ) -> None:
     destination.mkdir(parents=True, exist_ok=False)
+    files_copied = 0
     for entry in _sorted_entries(entries):
         source = _safe_join(workspace, entry.relative_path)
         target = _safe_join(destination, entry.relative_path)
@@ -410,6 +443,9 @@ def _copy_workspace_snapshot(
             raise WorkspaceChangedDuringCheckpoint(
                 f"Workspace file changed during copy: {entry.relative_path}"
             )
+        files_copied += 1
+        if on_file is not None:
+            on_file(files_copied)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -753,6 +789,7 @@ class SafeCheckpointManager:
         checkpoint_id: str | None = None,
         created_at: datetime | None = None,
         runtime_snapshot: bool = False,
+        progress: CheckpointProgress | None = None,
     ) -> SafeCheckpoint:
         # Explicit opt-in for a supplemental point. The original preparation
         # contract and all ownership/content validation stay unchanged.
@@ -780,13 +817,24 @@ class SafeCheckpointManager:
             try:
                 staging_path.mkdir()
                 staging_workspace = staging_path / "workspace"
-                source_entries = _scan_workspace(session.workspace)
+                # Without a progress callback every call keeps its original shape.
+                source_entries = _scan_workspace(
+                    session.workspace,
+                    **_progress_kwargs(progress, "scan", None),
+                )
+                file_total = sum(
+                    1 for entry in source_entries if entry.entry_type is ManifestEntryType.FILE
+                )
                 _copy_workspace_snapshot(
                     session.workspace,
                     source_entries,
                     staging_workspace,
+                    **_progress_kwargs(progress, "copy", file_total),
                 )
-                source_after = _scan_workspace(session.workspace)
+                source_after = _scan_workspace(
+                    session.workspace,
+                    **_progress_kwargs(progress, "verify", file_total),
+                )
                 if source_after != source_entries:
                     raise WorkspaceChangedDuringCheckpoint(
                         "Workspace changed during Checkpoint creation"
@@ -859,6 +907,7 @@ def create_safe_checkpoint(
     lease_manager: WorkspaceLeaseManager | None = None,
     checkpoint_id: str | None = None,
     created_at: datetime | None = None,
+    progress: CheckpointProgress | None = None,
 ) -> SafeCheckpoint:
     return SafeCheckpointManager().create(
         session,
@@ -866,6 +915,7 @@ def create_safe_checkpoint(
         lease_manager=lease_manager,
         checkpoint_id=checkpoint_id,
         created_at=created_at,
+        progress=progress,
     )
 
 
@@ -878,6 +928,7 @@ __all__ = [
     "CheckpointManager",
     "CheckpointDescriptor",
     "CheckpointError",
+    "CheckpointProgress",
     "CheckpointRefusedError",
     "CheckpointSnapshot",
     "CheckpointValidity",

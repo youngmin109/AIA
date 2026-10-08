@@ -1,3 +1,5 @@
+import type { CodexModel } from './modelView'
+import type { CodexConnector } from './connectorView'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -29,7 +31,10 @@ export interface WorkspaceValidation {
   canonical_path?: string
   error?: string
   recovery?: WorkspaceRecovery | null
+  size_estimate?: WorkspaceSizeEstimate | null
 }
+
+export interface WorkspaceSizeEstimate { files: number; bytes: number; complete: boolean }
 
 export function validateWorkspace(path: string): Promise<WorkspaceValidation> {
   return apiGet<WorkspaceValidation>(`/api/workspaces/validate?path=${encodeURIComponent(path)}`)
@@ -69,6 +74,8 @@ export interface CreateRunPayload {
   mode?: string
   interactive?: boolean
   launch_mode?: 'inherit' | 'new_terminal' | 'codex_app_server'
+  reasoning_effort?: string | null
+  resume_thread_id?: string | null
 }
 
 export interface CreateRunResult {
@@ -124,4 +131,37 @@ export interface ConsoleInfo {
 
 export function consoleInfo(): Promise<ConsoleInfo> {
   return apiGet<ConsoleInfo>('/api/console-info')
+}
+
+/** Connectors (MCP servers) of an open conversation; view only. */
+export function codexConnectors(runId: string): Promise<{ connectors: CodexConnector[] }> {
+  return apiGet<{ connectors: CodexConnector[] }>(`/api/runs/${encodeURIComponent(runId)}/codex/connectors`)
+}
+
+/** One request's diff (or the whole conversation's when turnId is null); kept in memory only. */
+export function codexDiff(runId: string, turnId: string | null): Promise<{ diff: string; truncated: boolean }> {
+  const query = turnId ? `?turn_id=${encodeURIComponent(turnId)}` : ''
+  return apiGet<{ diff: string; truncated: boolean }>(`/api/runs/${encodeURIComponent(runId)}/codex/diff${query}`)
+}
+
+/** A Codex conversation an earlier AIA run opened; name and preview are read live from Codex. */
+export interface ResumableConversation {
+  session_id: string
+  thread_id: string
+  workspace: string
+  created_at?: string | null
+  status?: string | null
+  name?: string | null
+  preview?: string
+  updated_at?: string | null
+  missing?: boolean | null
+}
+
+export function codexConversations(): Promise<{ conversations: ResumableConversation[]; error?: string }> {
+  return apiGet<{ conversations: ResumableConversation[]; error?: string }>('/api/codex/conversations')
+}
+
+/** Visible Codex models from a short-lived app-server; an empty list hides the pickers. */
+export function codexModels(): Promise<{ models: CodexModel[]; error?: string }> {
+  return apiGet<{ models: CodexModel[]; error?: string }>('/api/codex/models')
 }

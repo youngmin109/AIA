@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
@@ -108,6 +108,45 @@ _RUNTIME_STATES_CACHE_LIMIT = 2_048
 
 # Human-in-the-loop review stays inside Codex's 30 s Hook timeout.
 _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
+_MODELS_CACHE_SECONDS = 600.0
+_WORKSPACE_SIZE_MAX_FILES = 5_000
+_WORKSPACE_SIZE_MAX_SECONDS = 1.5
+
+
+def _workspace_size_estimate(
+    workspace: Path,
+    *,
+    max_files: int = _WORKSPACE_SIZE_MAX_FILES,
+    max_seconds: float = _WORKSPACE_SIZE_MAX_SECONDS,
+) -> dict[str, Any]:
+    """Count files and bytes so a slow start can be announced before it begins.
+
+    Bounded by a file count and a time budget; ``complete`` is False when the
+    count stopped early.  Links are not followed, matching the checkpoint.
+    """
+
+    deadline = time.monotonic() + max_seconds
+    files = 0
+    total = 0
+    pending = [workspace]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            files += 1
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+                    if files >= max_files or time.monotonic() > deadline:
+                        return {"files": files, "bytes": total, "complete": False}
+        except OSError:
+            continue
+    return {"files": files, "bytes": total, "complete": True}
 
 
 # app-server reports sandbox modes in camelCase; the Result Bundle and the
@@ -173,6 +212,8 @@ class RunApplicationService(
         self._completed_runs_cache_lock = RLock()
         self._tool_review_lock = RLock()
         self._manual_restore_lock = RLock()
+        self._models_lock = RLock()
+        self._models_cache: tuple[float, dict[str, Any]] | None = None
         self._codex_workbench = CodexWorkbench(self, _runtime_coordinator_reconciliation)
         self._completed_runs_cache: tuple[float, list[dict[str, Any]]] | None = None
         self._executor = ThreadPoolExecutor(
@@ -403,25 +444,153 @@ class RunApplicationService(
             timeout=timeout,
         )
 
-    def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
+    def _after_point_capture(self, session_id: str, action: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        """Run ``action`` once no recovery point is being captured for the run.
+
+        A capture copies the workspace; nothing that lets Codex work may start
+        during it.
+        """
+
         record = self.registry.get(session_id)
         if record is None:
-            return self._codex_workbench.send_codex_message(session_id, text)
+            return action()
         lock = self._point_lock(record)
         # A recovery-point capture is short for the workspaces it runs on; wait
         # for it rather than rejecting the user's message outright.
         if not lock.acquire(timeout=_POINT_SEND_WAIT_SECONDS):
             raise CodexAppServerError('복구 지점을 저장 중이에요. 잠시 뒤 명령을 다시 보내 주세요.')
         try:
-            return self._codex_workbench.send_codex_message(session_id, text)
+            return action()
         finally:
             lock.release()
+
+    def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.send_codex_message(session_id, text)
+        )
 
     def interrupt_codex_turn(self, session_id: str) -> dict[str, Any]:
         return self._codex_workbench.interrupt_codex_turn(session_id)
 
     def respond_codex_approval(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         return self._codex_workbench.respond_codex_approval(session_id, approval_id, decision)
+
+    def respond_codex_question(self, session_id: str, question_id: str, answers: Any) -> dict[str, Any]:
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.respond_codex_question(session_id, question_id, answers)
+        )
+
+    def respond_codex_elicitation(self, session_id: str, elicitation_id: str, action: str, content: Any) -> dict[str, Any]:
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.respond_codex_elicitation(session_id, elicitation_id, action, content)
+        )
+
+    def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.respond_codex_permissions(session_id, permissions_id, decision)
+        )
+
+    def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
+        return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
+
+    def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.run_codex_command(session_id, command, argument)
+        )
+
+    def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
+        return self._codex_workbench.list_codex_connectors(session_id)
+
+    def read_codex_diff(self, session_id: str, turn_id: str | None = None) -> dict[str, Any]:
+        return self._codex_workbench.read_codex_diff(session_id, turn_id)
+
+    def _resumable_threads(self) -> list[dict[str, Any]]:
+        """Conversations AIA opened, newest run first, one entry per conversation."""
+
+        runs: dict[str, dict[str, Any]] = {}
+        for state in self._list_runtime_states():
+            thread_id = state.get("codex_thread_id")
+            session = state.get("session") if isinstance(state.get("session"), Mapping) else {}
+            if isinstance(thread_id, str) and thread_id and session.get("workspace"):
+                runs[str(state.get("session_id"))] = {
+                    "session_id": str(state.get("session_id")),
+                    "thread_id": thread_id,
+                    "workspace": str(session.get("workspace")),
+                    "created_at": session.get("created_at"),
+                    "status": session.get("status"),
+                }
+        # A conversation still open in a live run here cannot be resumed twice.
+        busy: set[str] = set()
+        for record in self.registry.snapshots():
+            if not record.codex_thread_id:
+                continue
+            if record.status not in {"COMPLETED", "ABORTED", "FAILED"}:
+                busy.add(record.codex_thread_id)
+                continue
+            runs[record.session_id] = {
+                "session_id": record.session_id,
+                "thread_id": record.codex_thread_id,
+                "workspace": str(record.workspace),
+                "created_at": record.created_at.isoformat(),
+                "status": record.status,
+            }
+        newest: dict[str, dict[str, Any]] = {}
+        for item in sorted(runs.values(), key=lambda value: str(value.get("created_at") or ""), reverse=True):
+            if item["thread_id"] not in busy:
+                newest.setdefault(item["thread_id"], item)
+        return list(newest.values())
+
+    def list_resumable_conversations(self, limit: int = 20) -> dict[str, Any]:
+        """AIA-opened conversations with their live Codex name and preview."""
+
+        items = self._resumable_threads()[:limit]
+        if not items:
+            return {"conversations": []}
+        try:
+            executable = CodexAdapter().discover()
+            session = CodexAppServerSession(
+                [str(executable), "app-server"], cwd=self.control_root, env=dict(os.environ), client_version=__version__
+            )
+            session.start()
+        except Exception as error:  # noqa: BLE001 - names are optional
+            return {"conversations": [{**item, "name": None, "preview": "", "missing": None} for item in items],
+                    "error": f"{type(error).__name__}: {error}"}
+        try:
+            session.handshake()
+            conversations = []
+            for item in items:
+                try:
+                    conversations.append({**item, **session.read_thread(item["thread_id"]), "missing": False})
+                except CodexAppServerError:
+                    conversations.append({**item, "name": None, "preview": "", "missing": True})
+        finally:
+            session.close(force=True)
+        return {"conversations": conversations}
+
+    def list_codex_models(self) -> dict[str, Any]:
+        """Visible Codex models, from a short-lived app-server that starts no thread."""
+
+        with self._models_lock:
+            cached = self._models_cache
+            if cached is not None and time.monotonic() - cached[0] < _MODELS_CACHE_SECONDS:
+                return cached[1]
+            try:
+                executable = CodexAdapter().discover()
+                session = CodexAppServerSession(
+                    [str(executable), "app-server"],
+                    cwd=self.control_root,
+                    env=dict(os.environ),
+                    client_version=__version__,
+                )
+                session.start()
+                try:
+                    payload: dict[str, Any] = {"models": session.list_models()}
+                finally:
+                    session.close(force=True)
+            except Exception as error:  # noqa: BLE001 - the picker is optional
+                return {"models": [], "error": f"{type(error).__name__}: {error}"}
+            self._models_cache = (time.monotonic(), payload)
+            return payload
 
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:
         return self._codex_workbench._resolve_unsupported_tool_review(session_id, approval_id, decision)
@@ -457,12 +626,22 @@ class RunApplicationService(
                 sandbox="workspace-write",
                 approval_policy="on-request",
                 model=record.model,
+                **({"resume_thread_id": record.resume_thread_id} if record.resume_thread_id else {}),
             )
         except CodexAppServerError as error:
             record.runtime["codex_app_server_error"] = f"CODEX_APP_SERVER_OPEN_FAILED: {error}"
             codex_session.close(force=True)
             return
         record.runtime["codex_effective_settings"] = effective
+        thread_id = codex_session.snapshot().get("thread_id")
+        if isinstance(thread_id, str) and thread_id:
+            record.codex_thread_id = thread_id
+            self._persist_runtime_state(record)
+        if record.reasoning_effort:
+            try:
+                codex_session.set_turn_settings(record.model, record.reasoning_effort)
+            except CodexAppServerError:
+                pass  # an unknown effort leaves Codex's default in place
         sandbox = str(effective.get("sandbox") or "")
         approval_policy = str(effective.get("approval_policy") or "")
         # Codex reports the applied settings itself in the thread/start
@@ -1013,6 +1192,7 @@ class RunApplicationService(
             "is_directory": workspace.is_dir(),
             "canonical_path": str(workspace),
             "recovery": recovery,
+            "size_estimate": _workspace_size_estimate(workspace) if workspace.is_dir() else None,
         }
 
     def _run(self, record: RunRecord) -> None:
@@ -1081,6 +1261,7 @@ class RunApplicationService(
             # the product phase must show that Codex creation is in progress.
             record.protection_state = "LAUNCHING"
             self._phase(record, "LAUNCHING", SessionStatus.READY)
+            self._startup_step(record, "launch")
             record.runtime.update(
                 {"launcher": launcher, "codex_controller": controller}
             )
@@ -1364,7 +1545,7 @@ class RunApplicationService(
         if record.phase == "RUNNING" and not _product_sensor_set_present(runtime_sensors):
             sensors_healthy = False
         hook_broker_healthy = _hook_broker_runtime_healthy(record)
-        if controller.errors or hook_broker_healthy is False:
+        if controller.errors or hook_broker_healthy is False or record.permission_grants:
             record.protection_state = "DEGRADED"
         elif events and sensors_healthy and hook_broker_healthy is not False:
             record.protection_state = "ACTIVE_VERIFIED"
@@ -1376,6 +1557,24 @@ class RunApplicationService(
         record.phase = phase
         record.status = status.value
         self._persist_runtime_state(record)
+
+    def _startup_step(self, record: RunRecord, step: str | None) -> None:
+        """Mark the preparation step now running; ``None`` ends the startup.
+
+        Display only: the steps name work that already happens, and never
+        stand in for the checkpoint, sensor or readiness results themselves.
+        """
+
+        now = _now().isoformat()
+        steps = [dict(item) for item in record.startup.get("steps", [])]
+        if steps and steps[-1].get("ended_at") is None:
+            steps[-1]["ended_at"] = now
+        if step is not None:
+            steps.append({"step": step, "started_at": now, "ended_at": None})
+        record.startup = {"current": step, "steps": steps}
+
+    def _startup_progress(self, record: RunRecord, stage: str, done: int, total: int | None) -> None:
+        record.startup = {**record.startup, "progress": {"stage": stage, "done": done, "total": total}}
 
     def _record_launch_context(
         self,
@@ -1403,6 +1602,8 @@ class RunApplicationService(
         record.protection_state = "FAILED"
         record.error = f"{type(error).__name__}: {error}"
         record.lease = "FAILED" if record.lease == "ACTIVE" else record.lease
+        if record.startup.get("current"):
+            self._startup_step(record, None)
         self._persist_runtime_state(record)
 
     def _runtime_state_path(self, session_id: str) -> Path:
@@ -1473,6 +1674,10 @@ class RunApplicationService(
             },
             "launch_mode": record.launch_mode,
             "phase": record.phase,
+            "startup": record.startup,
+            "permission_grants": record.permission_grants,
+            "codex_thread_id": record.codex_thread_id,
+            "resumed_from": record.resumed_from,
             "protection": {
                 "state": record.protection_state,
                 "hook_events": record.hook_event_count,

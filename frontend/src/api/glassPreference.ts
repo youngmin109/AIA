@@ -1,11 +1,12 @@
 export type GlassPreference = 'on' | 'off'
 
+/** Glass is off unless the viewer turned it on: the blur and refraction filters make slower PCs lag. */
 export function normalizeGlassPreference(value: string | null): GlassPreference {
-  return value === 'off' ? 'off' : 'on'
+  return value === 'on' ? 'on' : 'off'
 }
 
 export function readGlassPreference(): GlassPreference {
-  try { return normalizeGlassPreference(localStorage.getItem('aia.glass')) } catch { return 'on' }
+  try { return normalizeGlassPreference(localStorage.getItem('aia.glass')) } catch { return 'off' }
 }
 
 /** Turning glass off drops the blur and refraction filters for slower PCs; protection is unaffected. */

@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 
 from aia_desktop.webview_recovery import WebViewRecovery, desktop_log
 from aia_desktop.title_bar import apply_title_bar, window_handle
+from aia_desktop import guardian_window
 from aia_desktop.window_state import (
     MIN_SIZE,
     capture_window_state,
@@ -442,6 +443,8 @@ class DesktopBridge:
         self._guardian_url: str | None = None
         self._guardian_shutting_down = False
         self._guardian_size = 'medium'
+        self._guardian_visible = False
+        self._guardian_folded = False
 
     def attach(self, window: Any, on_heartbeat: Callable[[], None] | None = None) -> None:
         self._window = window
@@ -460,6 +463,7 @@ class DesktopBridge:
     def set_guardian_visible(self, visible: bool) -> bool:
         if type(visible) is not bool or self._guardian_shutting_down or not self._guardian_url:
             return False
+        self._guardian_visible = visible
         if not visible:
             if self._guardian is not None:
                 self._guardian.hide()
@@ -469,12 +473,51 @@ class DesktopBridge:
             width, height = self._guardian_dimensions(self._guardian_size)
             self._guardian = webview.create_window(
                 '아이아 가디언', self._guardian_url, width=width, height=height,
-                min_size=(240, 300), frameless=True, easy_drag=True, on_top=True,
+                min_size=(guardian_window.BUBBLE_SIZE, guardian_window.BUBBLE_SIZE),
+                frameless=True, easy_drag=True, on_top=True,
                 transparent=True, shadow=False, resizable=False, focus=False, js_api=self,
             )
             self._guardian.events.closing += self._guardian_closing
+            self._guardian.events.loaded += self._refresh_guardian_transparency
         else:
+            # A hidden pet is not resized (resizing shows it); it takes the size now.
+            if not self._guardian_folded:
+                self._guardian.resize(*self._guardian_dimensions(self._guardian_size))
             self._guardian.show()
+            self._refresh_guardian_transparency()
+        return True
+
+    def _refresh_guardian_transparency(self) -> None:
+        """Let the desktop show through the pet window again.
+
+        pywebview paints a transparent window's form grey after its first load
+        and after it grows, and black around the folded bubble. Hiding and
+        showing it once clears that; showing without activation keeps the
+        focus where the user is working.
+        """
+
+        handle = window_handle(self._guardian) if self._guardian is not None else None
+        if handle is None or not self._guardian_visible or self._guardian_shutting_down:
+            return
+        user32 = ctypes.windll.user32
+        user32.ShowWindow(handle, 0)  # SW_HIDE
+        user32.ShowWindow(handle, 4)  # SW_SHOWNOACTIVATE
+
+    def set_guardian_folded(self, folded: bool) -> bool:
+        """Fold the pet into a small bubble where it sits, or unfold it there."""
+
+        if type(folded) is not bool or self._guardian_shutting_down or not self._guardian_visible:
+            return False
+        handle = window_handle(self._guardian) if self._guardian is not None else None
+        if handle is None:
+            return False
+        if folded == self._guardian_folded:
+            return True
+        window, work_area, scale = guardian_window.window_screen(handle)
+        size = self._guardian_dimensions(self._guardian_size)
+        guardian_window.place_window(handle, guardian_window.fold_rect(window, work_area, scale, size, folded=folded))
+        self._guardian_folded = folded
+        self._refresh_guardian_transparency()
         return True
 
     @staticmethod
@@ -486,7 +529,10 @@ class DesktopBridge:
             return False
         self._guardian_size = size
         if self._guardian is not None:
-            self._guardian.resize(*self._guardian_dimensions(size))
+            # A folded pet takes the new size when it unfolds.
+            if self._guardian_visible and not self._guardian_folded:
+                self._guardian.resize(*self._guardian_dimensions(size))
+                self._refresh_guardian_transparency()
             # Enum validation above keeps this presentation-only JS assignment narrow.
             self._guardian.evaluate_js('document.documentElement.dataset.petSize = ' + json.dumps(size))
         return True
@@ -494,6 +540,7 @@ class DesktopBridge:
     def _guardian_closing(self) -> bool:
         if self._guardian_shutting_down:
             return True
+        self._guardian_visible = False
         if self._guardian is not None:
             self._guardian.hide()
         return False

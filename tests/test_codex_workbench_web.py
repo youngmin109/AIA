@@ -146,6 +146,44 @@ def test_socket_relays_an_approval_decision_to_codex(conversation) -> None:
         assert completed["status"] == "completed"
 
 
+def test_socket_relays_question_answers_to_codex(conversation) -> None:
+    client, _ = conversation
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
+        websocket.send_json({"type": "user_message", "text": "question please"})
+        messages = _receive_until(
+            websocket,
+            lambda m: m["type"] == "events" and any(e["type"] == "question.requested" for e in m["events"]),
+        )
+        request = next(e for e in _events(messages) if e["type"] == "question.requested")
+        websocket.send_json({"type": "question_answer", "question_id": request["question_id"],
+                             "answers": {"scope": ["Some"], "token": ["t0ken"]}})
+        messages = messages + _receive_until_all(websocket, _turn_completed, _accepted("question_answer"))
+        accepted = next(m for m in messages if m["type"] == "accepted")
+        assert "t0ken" not in str(accepted)
+        answered = next(e for e in _events(messages) if e["type"] == "question.answered")
+        assert answered["answers"] == {"scope": ["Some"], "token": None}
+
+
+def test_diff_text_is_served_on_demand(conversation) -> None:
+    client, _ = conversation
+    with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:
+        websocket.send_json({"type": "user_message", "text": "diff please"})
+        messages = _receive_until(websocket, _turn_completed)
+        update = [e for e in _events(messages) if e["type"] == "diff.updated"][-1]
+    response = client.get(f"/api/runs/run-1/codex/diff?turn_id={update['turn_id']}")
+    assert response.status_code == 200 and "+hello" in response.json()["diff"]
+    assert client.get("/api/runs/run-1/codex/diff?turn_id=nope").status_code == 409
+    assert client.get("/api/runs/missing/codex/diff").status_code == 404
+
+
+def test_connectors_are_served_for_an_open_conversation(conversation) -> None:
+    client, _ = conversation
+    response = client.get("/api/runs/run-1/codex/connectors")
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()["connectors"]] == ["github", "tracker"]
+    assert client.get("/api/runs/missing/codex/connectors").status_code == 404
+
+
 def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
     client, _ = conversation
     with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:

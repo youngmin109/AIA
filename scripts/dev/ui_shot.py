@@ -1,8 +1,9 @@
 """Screenshot the preview console at 1440x900 with headless Edge (EPIC-020).
 
 Steps run in order; each is ``click:<visible text>``, ``wait:<seconds>``,
-``eval:<javascript>``, ``type:<css selector>=<text>`` or ``drag:<x1>,<y1>,<x2>,<y2>``
-(a real mouse drag in page pixels). ``url:<address>`` and
+``eval:<javascript>``, ``type:<css selector>=<text>``, ``drag:<x1>,<y1>,<x2>,<y2>``
+(a real mouse drag in page pixels) or ``init:<javascript>`` (runs before the page's own
+scripts on every load, then reloads; use it to stub fetch or WebSocket). ``url:<address>`` and
 ``size:<w>x<h>`` change the page and viewport (defaults: preview server, 1440x900). A screenshot is saved
 after the last step.
 
@@ -87,6 +88,11 @@ async def run(out: Path, steps: list[str], width: int, height: int, port: int, u
                 selector, _, text = value.partition("=")
                 result = await call("Runtime.evaluate", expression=TYPE_JS % (json.dumps(selector), json.dumps(text)), returnByValue=True)
                 print(result.get("result", {}).get("value"))
+            elif kind == "init":
+                await call("Page.enable")
+                await call("Page.addScriptToEvaluateOnNewDocument", source=value)
+                await call("Page.reload")
+                await asyncio.sleep(3)
             elif kind == "drag":
                 x1, y1, x2, y2 = (float(part) for part in value.split(","))
                 await call("Input.dispatchMouseEvent", type="mouseMoved", x=x1, y=y1)

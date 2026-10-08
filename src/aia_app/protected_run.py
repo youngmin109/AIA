@@ -197,10 +197,17 @@ class ProtectedRunMixin:
         resources["lease"] = lease
         record.runtime.update({"preparation": preparation, "lease_manager": manager})
         record.lease = "ACTIVE"
-        checkpoint = create_safe_checkpoint(session, preparation, lease_manager=manager)
+        self._startup_step(record, "checkpoint")
+        checkpoint = create_safe_checkpoint(
+            session,
+            preparation,
+            lease_manager=manager,
+            progress=lambda stage, done, total: self._startup_progress(record, stage, done, total),
+        )
         record.runtime["checkpoint"] = checkpoint
         record.checkpoint = "READY"
 
+        self._startup_step(record, "sensors")
         filesystem = FilesystemSensor(session, preparation, checkpoint, lease_manager=manager)
         hook = HookSensor(session, preparation, checkpoint, lease_manager=manager)
         filesystem.start()
@@ -209,6 +216,7 @@ class ProtectedRunMixin:
         resources["sensors"] = sensors
         record.runtime["sensors"] = sensors
         self._refresh_sensors(record, sensors)
+        self._startup_step(record, "readiness")
         readiness = ProtectionReadinessBarrier(
             session,
             preparation,
@@ -294,7 +302,10 @@ class ProtectedRunMixin:
         self._refresh_sensors(record, sensors)
         self._phase(record, "RUNNING", SessionStatus.RUNNING)
         record.protection_state = "ACTIVE_UNVERIFIED"
+        if record.runtime.get("codex_session") is not None:
+            self._startup_step(record, "conversation")
         self._open_codex_conversation(record)
+        self._startup_step(record, None)
         process = launcher.process_handle
         exit_code = self._wait_for_agent(record, process, launcher)
         record.runtime['point_closing'] = True
@@ -650,6 +661,10 @@ class ProtectedRunMixin:
             # records that decision instead of claiming protection for it.
             limitations.append("UNSUPPORTED_TOOL_USER_APPROVED")
         limitations.extend(record.runtime.get("unsupported_tool_review_decisions", ()))
+        if record.permission_grants:
+            # The sealed result records the scope exception; detailed user
+            # decisions remain in the separate Workbench runtime snapshot.
+            limitations.append("CODEX_PERMISSIONS_USER_GRANTED")
         if record.runtime.get("codex_sandbox_downgraded"):
             limitations.append("CODEX_SANDBOX_DOWNGRADED")
         if record.runtime.get("codex_approval_policy_downgraded"):
@@ -721,6 +736,7 @@ class ProtectedRunMixin:
                 and hook_broker_healthy_before_stop is True
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
+                and not record.permission_grants
                 else "ABORTED_DEGRADED"
                 if final.result.session_status is SessionStatus.ABORTED
                 else "COMPLETED_VERIFIED"
@@ -729,6 +745,7 @@ class ProtectedRunMixin:
                 and hook_broker_healthy_before_stop is True
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
+                and not record.permission_grants
                 else "COMPLETED_DEGRADED"
             ),
             hook_event_count=len(controller.events),

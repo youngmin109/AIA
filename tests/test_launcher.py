@@ -635,6 +635,7 @@ def test_codex_adapter_prefers_path_selection_over_side_by_side_install(
     path_executable.write_bytes(b"path")
     side_by_side.write_bytes(b"installed")
     monkeypatch.delenv("CODEX_CLI_PATH", raising=False)
+    monkeypatch.setattr(CodexAdapter, "_executable_version", staticmethod(lambda _path: None))
     monkeypatch.setattr(codex_module.shutil, "which", lambda _name: str(path_executable))
     monkeypatch.setattr(
         CodexAdapter,
@@ -668,6 +669,7 @@ def test_codex_adapter_prefers_newer_codex_install_when_multiple_exist(
     new.parent.mkdir(parents=True)
     old.write_bytes(b"old")
     new.write_bytes(b"new")
+    monkeypatch.setattr(CodexAdapter, "_executable_version", staticmethod(lambda _path: None))
     monkeypatch.setattr(codex_module.shutil, "which", lambda _: None)
     monkeypatch.setattr(
         CodexAdapter,

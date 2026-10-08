@@ -15,11 +15,13 @@ import { useShellStore } from '../../state/shellStore'
 import { usePreflight } from '../../hooks/usePreflight'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { useRunList, isRunActive } from '../../hooks/useRunList'
+import { sessionStateLabel } from '../../api/sessionNavigation'
 import { useGuardianState } from '../../hooks/useGuardianState'
 import { useProfiles } from '../../hooks/useProfiles'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
 import { elapsedLabel, useNow } from '../../hooks/useElapsed'
 import type { RunStatus } from '../../api/types'
+import { startupView } from '../../api/startupStatus'
 
 /** ① before a run and ② while the selected run is live. */
 export function HomeView() {
@@ -102,7 +104,7 @@ function HomeIdle() {
         <button type="button" className="glass-card home-tile is-button" onClick={openLastRun} disabled={!lastRun}>
           <TileCorner tone="amber" icon="clock" />
           <span className="home-tile-label">최근 실행{lastRun ? ` · ${sessionCreatedLabel(lastRun.created_at)}` : ''}</span>
-          <strong className="home-tile-value">{!lastRun ? '없음' : (lastRun.incident_count ?? 0) > 0 ? `사건 ${lastRun.incident_count}건` : displayStatus(lastRun.status)}</strong>
+          <strong className="home-tile-value">{!lastRun ? '없음' : (lastRun.incident_count ?? 0) > 0 ? `사건 ${lastRun.incident_count}건` : sessionStateLabel(lastRun)}</strong>
           <span className="home-tile-note home-tile-link">{lastRun ? <>결과 보기 <Icon name="arrowRight" size={14} /></> : '보호 실행을 시작해 보세요'}</span>
         </button>
       </section>
@@ -128,6 +130,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
   const elapsed = elapsedLabel(status.session?.created_at, now)
   const recentActivity = useMemo(() => activityBuckets(status.evidence_timeline, now), [status.evidence_timeline, now])
   const waitingApproval = codexActivity?.runId === activeRunId && Boolean(codexActivity?.terminalAction)
+  const startup = startupView(status.startup)
   const recent = (status.events ?? []).filter(event => event.category !== 'SENSOR').slice(-6).reverse()
   const processes = activity?.current_alive_count ?? activity?.process_identity_count
 
@@ -175,7 +178,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
               <strong>Codex가 승인을 기다리고 있어요</strong><span>확인하기 →</span>
             </button>
           ) : (
-            <p className="home-codex-state">{codexActivity?.runId !== activeRunId ? '작업창에서 Codex에게 요청을 보낼 수 있어요' : codexActivity.mode === 'WORKING' ? 'Codex가 작업하고 있어요' : codexActivity.mode === 'WAITING' ? 'Codex가 다음 요청을 기다려요' : 'Codex 연결을 준비하고 있어요'}</p>
+            <p className="home-codex-state">{startup ? `${startup.label}${startup.detail ? ` · ${startup.detail}` : ''}` : codexActivity?.runId !== activeRunId ? '작업창에서 Codex에게 요청을 보낼 수 있어요' : codexActivity.mode === 'WORKING' ? 'Codex가 작업하고 있어요' : codexActivity.mode === 'WAITING' ? 'Codex가 다음 요청을 기다려요' : 'Codex 연결을 준비하고 있어요'}</p>
           )}
           <span className="muted home-codex-sub">최근 관찰</span>
           {recent.length === 0 ? <p className="faint-note">아직 관찰된 요청이 없어요.</p> : (

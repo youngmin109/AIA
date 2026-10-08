@@ -1156,6 +1156,7 @@ def test_live_state_degrades_when_hook_broker_is_not_running(tmp_path) -> None:
         "CODEX_APPROVAL_POLICY_DOWNGRADED",
         "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
         "PROTECTION_BOUNDARY_LOST",
+        "CODEX_PERMISSIONS_USER_GRANTED",
     ],
 )
 def test_completed_bundle_protection_status_requires_verified_evidence(
@@ -2179,6 +2180,7 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
     [
         ("COMPLETED", "AGENT_EXITED", True, [], "COMPLETED_VERIFIED"),
         ("COMPLETED", "AGENT_EXITED", False, [], "COMPLETED_DEGRADED"),
+        ("COMPLETED", "AGENT_EXITED", True, ["CODEX_PERMISSIONS_USER_GRANTED"], "COMPLETED_DEGRADED"),
         (
             "COMPLETED",
             "AGENT_EXITED",
@@ -2188,6 +2190,7 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
         ),
         ("ABORTED", "USER_ABORT", True, [], "ABORTED_VERIFIED"),
         ("ABORTED", "USER_ABORT", False, [], "ABORTED_DEGRADED"),
+        ("ABORTED", "USER_ABORT", True, ["CODEX_PERMISSIONS_USER_GRANTED"], "ABORTED_DEGRADED"),
         (
             "ABORTED",
             "USER_ABORT",
@@ -2658,6 +2661,25 @@ def test_protected_run_lifecycle_keeps_successful_phases_in_order(
             "cleanup",
         ]
         assert record.status == "COMPLETED"
+    finally:
+        service.shutdown()
+
+
+def test_startup_steps_close_in_order_and_end_with_no_current_step(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = service.registry.add(make_record(tmp_path))
+    try:
+        service._startup_step(record, "checkpoint")
+        service._startup_progress(record, "copy", 2, 5)
+        assert record.startup["progress"] == {"stage": "copy", "done": 2, "total": 5}
+        service._startup_step(record, "sensors")
+        assert "progress" not in record.startup
+        service._startup_step(record, None)
+
+        assert record.startup["current"] is None
+        assert [step["step"] for step in record.startup["steps"]] == ["checkpoint", "sensors"]
+        assert all(step["ended_at"] for step in record.startup["steps"])
+        assert service.get_run_status(record.session_id)["startup"] == record.startup
     finally:
         service.shutdown()
 
@@ -3461,6 +3483,22 @@ def test_validate_workspace_exposes_orphan_recovery_action(
             "action": "REVIEW_AND_RESTART",
             "agent_process_status": "PROCESS_GONE",
         }
+    finally:
+        service.shutdown()
+
+
+def test_workspace_size_estimate_counts_files_and_stops_at_its_budget(tmp_path) -> None:
+    (tmp_path / "nested" / "deeper").mkdir(parents=True)
+    for index, name in enumerate(("a.txt", "nested/b.txt", "nested/deeper/c.txt")):
+        (tmp_path / name).write_bytes(b"x" * (index + 1))
+
+    assert service_module._workspace_size_estimate(tmp_path) == {"files": 3, "bytes": 6, "complete": True}
+    partial = service_module._workspace_size_estimate(tmp_path, max_files=2)
+    assert partial["files"] == 2 and partial["complete"] is False
+
+    service = RunApplicationService(tmp_path / "control")
+    try:
+        assert service.validate_workspace(str(tmp_path))["size_estimate"]["files"] == 3
     finally:
         service.shutdown()
 

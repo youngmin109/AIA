@@ -5,6 +5,14 @@
 // folds those events into transcript items. It never inspects screen text:
 // every state change comes from a structured event.
 
+import type { PermissionEntry } from '../../api/permissionGrants'
+import type { TokenUsage, Usage, UsageLimits } from '../../api/usageView'
+
+/** These replies may fail before acceptance; the still-pending card must allow a fresh attempt. */
+export function isInteractiveResponse(action: unknown): boolean {
+  return action === 'question_answer' || action === 'elicitation_response' || action === 'permissions_decision'
+}
+
 export interface CodexEvent {
   sequence: number
   type: string
@@ -34,7 +42,70 @@ export interface CodexEvent {
   sandbox?: string | null
   approval_policy?: string | null
   unexpected?: boolean
+  question_id?: string
+  questions?: UserQuestion[]
+  auto_resolve_at?: string | null
+  answers?: Record<string, string[] | null>
+  skipped?: boolean
+  elicitation_id?: string
+  server?: string
+  mode?: string
+  fields?: ElicitationField[]
+  url?: string | null
+  url_host?: string | null
+  supported?: boolean
+  action?: string
+  permissions_id?: string
+  network?: boolean
+  filesystem?: PermissionEntry[]
+  limits?: UsageLimits | null
+  tokens?: TokenUsage | null
+  effort?: string | null
+  explanation?: string | null
+  steps?: CodexPlan['steps']
+  files?: string[]
+  file_count?: number
+  added?: number
+  removed?: number
 }
+
+// Codex's step plan for the current request (turn/plan/updated).
+export interface CodexPlan { turn_id?: string | null; explanation: string | null; steps: Array<{ step: string; status: 'pending' | 'inProgress' | 'completed' }> }
+
+// Codex asking to widen its sandbox (item/permissions/requestApproval).
+export interface PermissionsRequest { permissions_id: string; reason: string; network: boolean; filesystem: PermissionEntry[] }
+
+// An MCP server asking for input through Codex (mcpServer/elicitation/request).
+// Submitted values go to Codex only; the resolved event carries the action alone.
+export interface ElicitationField {
+  name: string
+  title: string
+  description: string
+  required: boolean
+  default?: unknown
+  kind: 'text' | 'number' | 'integer' | 'boolean' | 'select' | 'multi'
+  options?: Array<{ value: string; label: string }>
+  format?: string | null
+  minimum?: number | null
+  maximum?: number | null
+}
+export interface ElicitationRequest {
+  elicitation_id: string
+  server: string
+  mode: string
+  message: string
+  fields: ElicitationField[]
+  url: string | null
+  url_host: string | null
+  supported: boolean
+}
+
+// Codex asking the user directly (item/tool/requestUserInput). Secret answers
+// come back as null: AIA never keeps a copy of them.
+export interface QuestionOption { label: string; description: string }
+export interface UserQuestion { id: string; header: string; question: string; options: QuestionOption[]; allow_other: boolean; secret: boolean }
+export interface QuestionRequest { question_id: string; questions: UserQuestion[]; auto_resolve_at?: string | null }
+export type QuestionOutcome = 'answered' | 'skipped' | 'resolved' | 'cancelled'
 
 // 'command' / 'file_change' are Codex sandbox approvals. 'aia_tool' is AIA's
 // human-in-the-loop review of a tool AIA cannot interpret (auto-refused when
@@ -62,6 +133,10 @@ export type TranscriptItem =
   | { kind: 'tool'; key: string; tool: string; status: string | null }
   | { kind: 'hook'; key: string; eventName: string; status: string; phase: 'started' | 'completed' }
   | { kind: 'approval'; key: string; request: ApprovalRequest; decision: string | null }
+  | { kind: 'question'; key: string; request: QuestionRequest; outcome: QuestionOutcome | null; answers: Record<string, string[] | null> }
+  | { kind: 'elicitation'; key: string; request: ElicitationRequest; action: string | null }
+  | { kind: 'permissions'; key: string; request: PermissionsRequest; decision: string | null }
+  | { kind: 'diff'; key: string; turnId: string | null; files: string[]; fileCount: number; added: number; removed: number }
   | { kind: 'notice'; key: string; tone: 'info' | 'warn' | 'bad'; text: string }
 
 export interface ConversationState {
@@ -70,6 +145,12 @@ export interface ConversationState {
   lastSequence: number
   activeTurnId: string | null
   pendingApprovals: ApprovalRequest[]
+  pendingQuestions: QuestionRequest[]
+  pendingElicitations: ElicitationRequest[]
+  pendingPermissions: PermissionsRequest[]
+  usage: Usage
+  turnSettings: { model: string | null; effort: string | null } | null
+  plan: CodexPlan | null
   lastEventAt: number
 }
 
@@ -79,6 +160,12 @@ export const EMPTY_CONVERSATION: ConversationState = {
   lastSequence: 0,
   activeTurnId: null,
   pendingApprovals: [],
+  pendingQuestions: [],
+  pendingElicitations: [],
+  pendingPermissions: [],
+  usage: { limits: null, tokens: null },
+  turnSettings: null,
+  plan: null,
   lastEventAt: 0,
 }
 
@@ -253,6 +340,129 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       state.pendingApprovals = state.pendingApprovals.filter((item) => item.approval_id !== event.approval_id)
       break
     }
+    case 'question.requested': {
+      const request: QuestionRequest = {
+        question_id: event.question_id ?? '',
+        questions: event.questions ?? [],
+        auto_resolve_at: event.auto_resolve_at ?? null,
+      }
+      const key = `question:${request.question_id}`
+      upsert(state, key, () => ({ kind: 'question', key, request, outcome: null, answers: {} }), (item) => item)
+      state.pendingQuestions = [...state.pendingQuestions.filter((item) => item.question_id !== request.question_id), request]
+      break
+    }
+    case 'question.answered':
+    case 'question.resolved': {
+      const key = `question:${event.question_id}`
+      const outcome: QuestionOutcome = event.type === 'question.answered'
+        ? (event.skipped ? 'skipped' : 'answered')
+        : (event.reason === 'cancel' ? 'cancelled' : 'resolved')
+      const answers = event.answers ?? {}
+      upsert(
+        state,
+        key,
+        () => ({ kind: 'question', key, request: { question_id: event.question_id ?? '', questions: [] }, outcome, answers }),
+        (item) => (item.kind === 'question' ? { ...item, outcome, answers } : item),
+      )
+      state.pendingQuestions = state.pendingQuestions.filter((item) => item.question_id !== event.question_id)
+      break
+    }
+    case 'elicitation.requested': {
+      const request: ElicitationRequest = {
+        elicitation_id: event.elicitation_id ?? '',
+        server: event.server ?? '',
+        mode: event.mode ?? '',
+        message: event.message ?? '',
+        fields: event.fields ?? [],
+        url: event.url ?? null,
+        url_host: event.url_host ?? null,
+        supported: Boolean(event.supported),
+      }
+      const key = `elicitation:${request.elicitation_id}`
+      upsert(state, key, () => ({ kind: 'elicitation', key, request, action: null }), (item) => item)
+      state.pendingElicitations = [...state.pendingElicitations.filter((item) => item.elicitation_id !== request.elicitation_id), request]
+      break
+    }
+    case 'elicitation.resolved': {
+      const key = `elicitation:${event.elicitation_id}`
+      const action = event.action ?? 'cancel'
+      upsert(
+        state,
+        key,
+        () => ({ kind: 'elicitation', key, request: { elicitation_id: event.elicitation_id ?? '', server: '', mode: '', message: '', fields: [], url: null, url_host: null, supported: false }, action }),
+        (item) => (item.kind === 'elicitation' ? { ...item, action } : item),
+      )
+      state.pendingElicitations = state.pendingElicitations.filter((item) => item.elicitation_id !== event.elicitation_id)
+      break
+    }
+    case 'permissions.requested': {
+      const request: PermissionsRequest = {
+        permissions_id: event.permissions_id ?? '',
+        reason: event.reason ?? '',
+        network: Boolean(event.network),
+        filesystem: event.filesystem ?? [],
+      }
+      const key = `permissions:${request.permissions_id}`
+      upsert(state, key, () => ({ kind: 'permissions', key, request, decision: null }), (item) => item)
+      state.pendingPermissions = [...state.pendingPermissions.filter((item) => item.permissions_id !== request.permissions_id), request]
+      break
+    }
+    case 'permissions.resolved': {
+      const key = `permissions:${event.permissions_id}`
+      const decision = event.decision ?? 'cancel'
+      upsert(
+        state,
+        key,
+        () => ({ kind: 'permissions', key, request: { permissions_id: event.permissions_id ?? '', reason: '', network: false, filesystem: [] }, decision }),
+        (item) => (item.kind === 'permissions' ? { ...item, decision } : item),
+      )
+      state.pendingPermissions = state.pendingPermissions.filter((item) => item.permissions_id !== event.permissions_id)
+      break
+    }
+    case 'diff.updated': {
+      const key = `diff:${event.turn_id ?? event.sequence}`
+      const next: TranscriptItem = {
+        kind: 'diff',
+        key,
+        turnId: event.turn_id ?? null,
+        files: event.files ?? [],
+        fileCount: event.file_count ?? (event.files ?? []).length,
+        added: event.added ?? 0,
+        removed: event.removed ?? 0,
+      }
+      upsert(state, key, () => next, () => next)
+      break
+    }
+    case 'history.restored':
+      notice(state, event, 'info', '이전 대화를 이어서 시작했어요. 위 내용은 이전 대화이고, 그때 일어난 일은 이번 보호 기록 범위 밖이에요.')
+      break
+    case 'review.started':
+      notice(state, event, 'info', 'Codex가 작업 폴더의 바뀐 내용을 검토하고 있어요.')
+      break
+    case 'review.completed': {
+      const key = `review:${id}`
+      const text = `### 코드 검토 결과\n\n${event.text ?? ''}`
+      upsert(state, key, () => ({ kind: 'agent', key, text, streaming: false }), () => ({ kind: 'agent', key, text, streaming: false }))
+      break
+    }
+    case 'compaction.completed':
+      notice(state, event, 'info', '대화를 줄였어요. 앞의 내용은 요약으로 이어져요.')
+      break
+    case 'goal.set':
+      notice(state, event, 'info', `목표를 정했어요 · ${event.text ?? ''}`)
+      break
+    case 'plan.updated':
+      state.plan = { turn_id: event.turn_id ?? null, explanation: event.explanation ?? null, steps: event.steps ?? [] }
+      break
+    case 'settings.changed':
+      state.turnSettings = { model: event.model ?? null, effort: event.effort ?? null }
+      break
+    case 'usage.limits':
+      state.usage = { ...state.usage, limits: event.limits ?? null }
+      break
+    case 'usage.tokens':
+      state.usage = { ...state.usage, tokens: event.tokens ?? null }
+      break
     case 'warning':
       notice(state, event, 'warn', event.message ?? 'Codex 경고')
       break
@@ -262,6 +472,9 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
     case 'session.exited':
       state.activeTurnId = null
       state.pendingApprovals = []
+      state.pendingQuestions = []
+      state.pendingElicitations = []
+      state.pendingPermissions = []
       notice(state, event, event.unexpected ? 'bad' : 'info', event.unexpected ? 'Codex가 예기치 않게 종료되었습니다.' : 'Codex 세션이 종료되었습니다.')
       break
     default:
@@ -279,6 +492,9 @@ export function applyEvents(previous: ConversationState, events: CodexEvent[]): 
     items: [...previous.items],
     positions: { ...previous.positions },
     pendingApprovals: [...previous.pendingApprovals],
+    pendingQuestions: [...previous.pendingQuestions],
+    pendingElicitations: [...previous.pendingElicitations],
+    pendingPermissions: [...previous.pendingPermissions],
   }
   for (const event of fresh) {
     applyEvent(state, event)

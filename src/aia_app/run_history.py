@@ -355,6 +355,14 @@ class RunHistoryMixin:
                     **(status.get("session") or {}),
                     "launch_mode": runtime_launch_mode,
                 }
+            # Permission grants are Workbench decisions, not Core evidence; they
+            # live in the runtime snapshot and stay visible after the run ends.
+            grants = runtime_state.get("permission_grants") if isinstance(runtime_state, Mapping) else None
+            if isinstance(grants, list) and grants:
+                status = {**status, "permission_grants": grants}
+            thread_id = runtime_state.get("codex_thread_id") if isinstance(runtime_state, Mapping) else None
+            if isinstance(thread_id, str) and thread_id:
+                status = {**status, "codex_thread_id": thread_id}
             return status
         hook_broker_healthy = (
             live_hook_broker_healthy
@@ -391,6 +399,10 @@ class RunHistoryMixin:
             "mode": record.mode,
             "interactive": record.interactive,
             "phase": record.phase,
+            "startup": record.startup,
+            "permission_grants": record.permission_grants,
+            "codex_thread_id": record.codex_thread_id,
+            "resumed_from": record.resumed_from,
             "result_path": str(record.result_path) if record.result_path is not None else None,
             "protection": {
                 "state": record.protection_state,
@@ -465,6 +477,7 @@ class RunHistoryMixin:
                 "CODEX_APPROVAL_POLICY_DOWNGRADED",
                 "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
                 "PROTECTION_BOUNDARY_LOST",
+                "CODEX_PERMISSIONS_USER_GRANTED",
             }
             for item in result.get("limitations", [])
         )
@@ -674,6 +687,10 @@ class RunHistoryMixin:
             "lease": state.get("lease", "UNKNOWN"),
             "mode": state.get("mode"),
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
+            "startup": state.get("startup") if isinstance(state.get("startup"), dict) else {},
+            "permission_grants": state.get("permission_grants") if isinstance(state.get("permission_grants"), list) else [],
+            "codex_thread_id": state.get("codex_thread_id") if isinstance(state.get("codex_thread_id"), str) else None,
+            "resumed_from": state.get("resumed_from") if isinstance(state.get("resumed_from"), str) else None,
             "result_path": state.get("result_path"),
             "protection": protection,
             "stop": stop,

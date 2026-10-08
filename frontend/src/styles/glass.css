@@ -274,7 +274,8 @@
 /* ---- Guardian pet: floats over the app, drag to move, click for help ---- */
 
 .guardian-pet {
-  --pet-bubble-fill: color-mix(in srgb, var(--page-base) 84%, transparent);
+  --pet-bubble-color: color-mix(in srgb, var(--page-base) 84%, transparent);
+  --pet-bubble-fill: linear-gradient(var(--pet-bubble-color), var(--pet-bubble-color));
   --pet-x: calc(100vw - 116px);
   --pet-y: calc(100vh - 116px);
   position: fixed;
@@ -1427,6 +1428,12 @@ summary:focus-visible {
 :root[data-glass='off'] .lens-orb {
   display: none;
 }
+
+/* Glass off: no backdrop work behind surfaces at all (blur and colour boost),
+   the heaviest drawing on slower PCs. The dialog scrim keeps its light blur. */
+:root[data-glass='off'] :not(.glass-scrim) {
+  backdrop-filter: none;
+}
 html[data-native-guardian="on"] .guardian-pet { display: none; }
 html[data-surface="guardian"], html[data-surface="guardian"] body, html[data-surface="guardian"] #root {
   background: var(--surface-transparent); min-width: 0; min-height: 0; overflow: hidden;
@@ -1445,3 +1452,10 @@ html[data-pet-size="large"] { --desktop-pet-size: 250px; --browser-pet-size: 136
 .desktop-guardian.is-review .desktop-guardian-note { border-color: var(--warning); }
 .desktop-guardian-actions { display: flex; justify-content: center; gap: 12px; margin-top: 6px; border-top: 1px solid var(--line-3); padding-top: 5px; }
 .desktop-guardian-actions .text-action { min-height: 28px; padding: 3px 8px; font-size: 11px; line-height: 1.4; }
+/* Folded pet: a small bubble filling its little window; the ring keeps the status colour. */
+.desktop-guardian-bubble { position: fixed; inset: 4px; display: grid; place-items: center; padding: 0; border: 3px solid var(--line-4); border-radius: 50%; background: var(--page-base); cursor: grab; overflow: hidden; }
+.desktop-guardian-bubble .guardian-figure { width: 86%; height: 86%; object-fit: contain; pointer-events: none; }
+.desktop-guardian-bubble:focus-visible { outline: 2px solid var(--accent); outline-offset: -6px; }
+.desktop-guardian-bubble.is-review { border-color: var(--warning); }
+.desktop-guardian-bubble.is-blocked { border-color: var(--danger); animation: desktop-bubble-alert 1.6s ease-in-out infinite; }
+@keyframes desktop-bubble-alert { 0%, 100% { border-color: var(--danger); } 50% { border-color: var(--line-3); } }

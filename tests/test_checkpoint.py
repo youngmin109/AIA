@@ -539,3 +539,28 @@ def test_checkpoint_artifact_contains_manifest_and_metadata_only_at_root(
     metadata = json.loads(checkpoint.metadata_path.read_text(encoding="utf-8"))
     assert metadata["validity"] == "VALID"
     assert metadata["checkpoint_id"] == checkpoint.checkpoint_id
+
+
+def test_checkpoint_progress_reports_each_stage_and_cannot_fail_it(tmp_path: Path) -> None:
+    workspace, session, context, lease_manager = _prepared_workspace(tmp_path)
+    (workspace / "nested").mkdir()
+    for name in ("a.txt", "b.txt", "nested/c.txt"):
+        (workspace / name).write_text(name, encoding="utf-8")
+    reports: list[tuple[str, int, int | None]] = []
+
+    def record_then_fail(stage: str, done: int, total: int | None) -> None:
+        reports.append((stage, done, total))
+        raise RuntimeError("display failed")
+
+    checkpoint = create_safe_checkpoint(
+        session,
+        context,
+        lease_manager=lease_manager,
+        checkpoint_id="with-progress",
+        progress=record_then_fail,
+    )
+
+    assert checkpoint.checkpoint_id == "with-progress"
+    assert [item for item in reports if item[0] == "scan"][-1] == ("scan", 3, None)
+    assert [item for item in reports if item[0] == "copy"] == [("copy", n, 3) for n in (1, 2, 3)]
+    assert [item for item in reports if item[0] == "verify"][-1] == ("verify", 3, 3)

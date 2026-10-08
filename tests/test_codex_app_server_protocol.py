@@ -21,9 +21,16 @@ from aia.adapters.codex import AdapterUnavailableError, CodexAdapter
 
 
 REQUIRED_METHODS = {
-    "ClientRequest": {"initialize", "thread/start", "turn/start", "turn/steer", "turn/interrupt"},
+    "ClientRequest": {
+        "initialize", "thread/start", "thread/resume", "turn/start", "turn/steer", "turn/interrupt",
+        "thread/compact/start", "review/start", "thread/goal/set", "thread/goal/clear",
+        "account/rateLimits/read", "model/list", "mcpServerStatus/list", "thread/read",
+    },
     "ClientNotification": {"initialized"},
-    "ServerRequest": {"item/commandExecution/requestApproval", "item/fileChange/requestApproval"},
+    "ServerRequest": {
+        "item/commandExecution/requestApproval", "item/fileChange/requestApproval",
+        "item/tool/requestUserInput", "mcpServer/elicitation/request", "item/permissions/requestApproval",
+    },
     "ServerNotification": {
         "turn/started",
         "turn/completed",
@@ -36,6 +43,10 @@ REQUIRED_METHODS = {
         "hook/completed",
         "error",
         "serverRequest/resolved",
+        "turn/plan/updated",
+        "turn/diff/updated",
+        "account/rateLimits/updated",
+        "thread/tokenUsage/updated",
     },
 }
 
@@ -55,15 +66,35 @@ REQUIRED_PROPERTIES = {
     "v2/ServerRequestResolvedNotification.json": {"requestId"},
     "CommandExecutionRequestApprovalParams.json": {"itemId", "turnId", "command", "cwd", "reason"},
     "FileChangeRequestApprovalParams.json": {"itemId", "turnId", "reason"},
+    "ToolRequestUserInputParams.json": {"questions", "autoResolutionMs"},
+    "ToolRequestUserInputResponse.json": {"answers"},
+    "McpServerElicitationRequestParams.json": {"serverName"},
+    "McpServerElicitationRequestResponse.json": {"action", "content"},
+    "PermissionsRequestApprovalParams.json": {"permissions", "reason"},
+    "PermissionsRequestApprovalResponse.json": {"permissions", "scope"},
+    "v2/ThreadResumeParams.json": {"threadId", "cwd", "sandbox", "approvalPolicy"},
+    "v2/ThreadResumeResponse.json": {"thread", "sandbox", "approvalPolicy", "model"},
+    "v2/TurnPlanUpdatedNotification.json": {"plan", "turnId"},
+    "v2/TurnDiffUpdatedNotification.json": {"diff", "turnId"},
+    "v2/ThreadTokenUsageUpdatedNotification.json": {"tokenUsage"},
+    "v2/ThreadCompactStartParams.json": {"threadId"},
+    "v2/ReviewStartParams.json": {"threadId", "target", "delivery"},
+    "v2/ThreadGoalSetParams.json": {"threadId", "objective"},
+    "v2/ModelListResponse.json": {"data"},
+    "v2/GetAccountRateLimitsResponse.json": {"rateLimits", "rateLimitsByLimitId"},
+    "v2/ListMcpServerStatusResponse.json": {"data"},
 }
 
 REQUIRED_DEFINITION_PROPERTIES = {
     ("v2/HookStartedNotification.json", "HookRunSummary"): {"id", "eventName", "status", "durationMs"},
     ("v2/TurnCompletedNotification.json", "Turn"): {"id", "status", "error", "durationMs"},
     ("v2/ThreadStartResponse.json", "Thread"): {"id"},
+    ("ToolRequestUserInputParams.json", "ToolRequestUserInputQuestion"): {"id", "question", "options", "isSecret"},
+    ("ToolRequestUserInputResponse.json", "ToolRequestUserInputAnswer"): {"answers"},
 }
 
 REQUIRED_ENUM_VALUES = {
+    ("PermissionsRequestApprovalResponse.json", "PermissionGrantScope"): {"turn", "session"},
     ("v2/HookStartedNotification.json", "HookRunStatus"): {"running", "completed", "failed", "blocked", "stopped"},
     ("v2/HookStartedNotification.json", "HookEventName"): {"preToolUse", "postToolUse"},
     ("v2/TurnCompletedNotification.json", "TurnStatus"): {"completed", "interrupted", "failed"},
