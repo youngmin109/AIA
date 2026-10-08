@@ -404,6 +404,36 @@ def test_declining_permissions_grants_nothing(opened: CodexAppServerSession) -> 
     assert opened.snapshot()["pending_permissions"] == []
 
 
+def test_permission_grant_is_recorded_before_codex_receives_it(opened, monkeypatch) -> None:
+    request = _permissions(opened)
+    order = []
+    respond = opened._respond
+
+    def send(request_id, result):
+        assert order == ["recorded"]
+        order.append("sent")
+        respond(request_id, result)
+
+    monkeypatch.setattr(opened, "_respond", send)
+    opened.respond_permissions(request["permissions_id"], "turn", before_grant=lambda result: order.append("recorded"))
+    assert order == ["recorded", "sent"]
+    assert json.loads(_final_reply(opened)[0].removeprefix("permissions="))["scope"] == "turn"
+
+
+def test_permission_record_failure_keeps_the_request_open_without_granting(opened) -> None:
+    request = _permissions(opened)
+
+    def fail(result):
+        raise CodexAppServerError("record failed")
+
+    with pytest.raises(CodexAppServerError, match="record failed"):
+        opened.respond_permissions(request["permissions_id"], "session", before_grant=fail)
+    assert opened.snapshot()["pending_permissions"][0]["permissions_id"] == request["permissions_id"]
+    assert "permissions.resolved" not in _types(opened.read_events())
+    opened.respond_permissions(request["permissions_id"], "decline", before_grant=fail)
+    assert _final_reply(opened)[0] == 'permissions={"permissions": {}}'
+
+
 def test_usage_limits_are_read_after_open_and_follow_codex_updates(opened: CodexAppServerSession) -> None:
     events = _wait_for(opened, lambda items: "usage.limits" in _types(items))
     limits = next(e for e in events if e["type"] == "usage.limits")["limits"]

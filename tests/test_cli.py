@@ -626,6 +626,7 @@ def test_setup_reports_trusted_codex_pretool_status_without_manual_review_flag(
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli.CodexAdapter.executable_version", lambda _path: "test")
     monkeypatch.setattr(
         "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
@@ -661,6 +662,7 @@ def test_setup_reports_ready_only_after_current_live_hook_verification(
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr("aia.cli.CodexAdapter.executable_version", lambda _path: "test")
     monkeypatch.setattr(
         "aia.cli_hook.inspect_codex_hook_trust",
         lambda *args, **kwargs: type(
@@ -986,6 +988,12 @@ def test_hook_status_is_not_ready_when_only_the_definition_is_installed(
     executable = tmp_path / "codex.exe"
     executable.write_bytes(b"codex")
     monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    # This test covers missing live verification, not app-server execution.
+    from aia.codex_hook_trust import CodexHookTrustInspection
+    monkeypatch.setattr(
+        "aia.cli_hook.inspect_codex_hook_trust",
+        lambda *args, **kwargs: CodexHookTrustInspection(False, "APP_SERVER_UNAVAILABLE"),
+    )
 
     exit_code = main(
         [

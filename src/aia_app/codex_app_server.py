@@ -27,7 +27,7 @@ import subprocess
 import sys
 from threading import Condition, Event, Lock, Thread, current_thread
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 class CodexAppServerError(RuntimeError):
@@ -1123,7 +1123,10 @@ class CodexAppServerSession:
                 self._append_event_locked(message)
             self._append_event_locked({"type": "history.restored", "count": len(kept)})
 
-    def respond_permissions(self, permissions_id: str, decision: str) -> dict[str, Any]:
+    def respond_permissions(
+        self, permissions_id: str, decision: str,
+        *, before_grant: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
         """Grant what Codex asked for (this turn or the whole session) or decline.
 
         A grant widens the sandbox exactly as requested; the caller records it
@@ -1133,22 +1136,25 @@ class CodexAppServerSession:
         if decision not in PERMISSION_DECISIONS:
             raise CodexAppServerError("지원하지 않는 권한 결정이에요.")
         with self._lock:
-            request = self._pending_permissions.pop(permissions_id, None)
-        if request is None:
-            raise CodexAppServerError("이미 끝난 권한 요청이에요.")
+            request = self._pending_permissions.get(permissions_id)
+            if request is None:
+                raise CodexAppServerError("이미 끝난 권한 요청이에요.")
+            result = {
+                "accepted": True, "permissions_id": permissions_id, "decision": decision,
+                "network": request["network"], "filesystem": request["filesystem"],
+                "reason": request["reason"],
+            }
+            # Persist the user's decision before Codex can start using it.
+            # A failed audit write leaves the request pending and grants nothing.
+            if decision != "decline" and before_grant is not None:
+                before_grant(result)
+            del self._pending_permissions[permissions_id]
         if decision == "decline":
             self._respond(request["request_id"], {"permissions": {}})
         else:
             self._respond(request["request_id"], {"permissions": request["requested"], "scope": decision})
         self._append_event({"type": "permissions.resolved", "permissions_id": permissions_id, "decision": decision})
-        return {
-            "accepted": True,
-            "permissions_id": permissions_id,
-            "decision": decision,
-            "network": request["network"],
-            "filesystem": request["filesystem"],
-            "reason": request["reason"],
-        }
+        return result
 
     # -- event buffer ------------------------------------------------------
 

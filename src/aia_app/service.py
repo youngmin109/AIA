@@ -476,13 +476,19 @@ class RunApplicationService(
         return self._codex_workbench.respond_codex_approval(session_id, approval_id, decision)
 
     def respond_codex_question(self, session_id: str, question_id: str, answers: Any) -> dict[str, Any]:
-        return self._codex_workbench.respond_codex_question(session_id, question_id, answers)
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.respond_codex_question(session_id, question_id, answers)
+        )
 
     def respond_codex_elicitation(self, session_id: str, elicitation_id: str, action: str, content: Any) -> dict[str, Any]:
-        return self._codex_workbench.respond_codex_elicitation(session_id, elicitation_id, action, content)
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.respond_codex_elicitation(session_id, elicitation_id, action, content)
+        )
 
     def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
-        return self._codex_workbench.respond_codex_permissions(session_id, permissions_id, decision)
+        return self._after_point_capture(
+            session_id, lambda: self._codex_workbench.respond_codex_permissions(session_id, permissions_id, decision)
+        )
 
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
@@ -1539,7 +1545,7 @@ class RunApplicationService(
         if record.phase == "RUNNING" and not _product_sensor_set_present(runtime_sensors):
             sensors_healthy = False
         hook_broker_healthy = _hook_broker_runtime_healthy(record)
-        if controller.errors or hook_broker_healthy is False:
+        if controller.errors or hook_broker_healthy is False or record.permission_grants:
             record.protection_state = "DEGRADED"
         elif events and sensors_healthy and hook_broker_healthy is not False:
             record.protection_state = "ACTIVE_VERIFIED"

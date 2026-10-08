@@ -1,6 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { applyEvents, EMPTY_CONVERSATION } from '../src/components/terminal/codexConversation.ts'
+import { applyEvents, EMPTY_CONVERSATION, isInteractiveResponse } from '../src/components/terminal/codexConversation.ts'
+
+test('failed interactive replies may be retried without automatically replaying submitted values', () => {
+  for (const action of ['question_answer', 'elicitation_response', 'permissions_decision']) {
+    assert.equal(isInteractiveResponse(action), true)
+  }
+  for (const action of [undefined, null, {}, 'user_message', 'interrupt', 'accepted']) {
+    assert.equal(isInteractiveResponse(action), false)
+  }
+})
 
 const question = {
   sequence: 1,

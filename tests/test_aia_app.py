@@ -1156,6 +1156,7 @@ def test_live_state_degrades_when_hook_broker_is_not_running(tmp_path) -> None:
         "CODEX_APPROVAL_POLICY_DOWNGRADED",
         "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
         "PROTECTION_BOUNDARY_LOST",
+        "CODEX_PERMISSIONS_USER_GRANTED",
     ],
 )
 def test_completed_bundle_protection_status_requires_verified_evidence(
@@ -2179,6 +2180,7 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
     [
         ("COMPLETED", "AGENT_EXITED", True, [], "COMPLETED_VERIFIED"),
         ("COMPLETED", "AGENT_EXITED", False, [], "COMPLETED_DEGRADED"),
+        ("COMPLETED", "AGENT_EXITED", True, ["CODEX_PERMISSIONS_USER_GRANTED"], "COMPLETED_DEGRADED"),
         (
             "COMPLETED",
             "AGENT_EXITED",
@@ -2188,6 +2190,7 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
         ),
         ("ABORTED", "USER_ABORT", True, [], "ABORTED_VERIFIED"),
         ("ABORTED", "USER_ABORT", False, [], "ABORTED_DEGRADED"),
+        ("ABORTED", "USER_ABORT", True, ["CODEX_PERMISSIONS_USER_GRANTED"], "ABORTED_DEGRADED"),
         (
             "ABORTED",
             "USER_ABORT",

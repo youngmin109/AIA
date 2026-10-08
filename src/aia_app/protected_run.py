@@ -661,6 +661,10 @@ class ProtectedRunMixin:
             # records that decision instead of claiming protection for it.
             limitations.append("UNSUPPORTED_TOOL_USER_APPROVED")
         limitations.extend(record.runtime.get("unsupported_tool_review_decisions", ()))
+        if record.permission_grants:
+            # The sealed result records the scope exception; detailed user
+            # decisions remain in the separate Workbench runtime snapshot.
+            limitations.append("CODEX_PERMISSIONS_USER_GRANTED")
         if record.runtime.get("codex_sandbox_downgraded"):
             limitations.append("CODEX_SANDBOX_DOWNGRADED")
         if record.runtime.get("codex_approval_policy_downgraded"):
@@ -732,6 +736,7 @@ class ProtectedRunMixin:
                 and hook_broker_healthy_before_stop is True
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
+                and not record.permission_grants
                 else "ABORTED_DEGRADED"
                 if final.result.session_status is SessionStatus.ABORTED
                 else "COMPLETED_VERIFIED"
@@ -740,6 +745,7 @@ class ProtectedRunMixin:
                 and hook_broker_healthy_before_stop is True
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
+                and not record.permission_grants
                 else "COMPLETED_DEGRADED"
             ),
             hook_event_count=len(controller.events),

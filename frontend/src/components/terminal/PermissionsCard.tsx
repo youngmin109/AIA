@@ -41,7 +41,7 @@ export function PermissionsCard({ request, disabled, onDecide }: {
           </li>
         ))}
       </ul>
-      <p className="faint-note">허용하면 이번 실행의 보호 범위가 넓어지고, 그 사실이 결과에 남아요.</p>
+      <p className="faint-note">허용하면 Codex의 실행 권한이 늘어나요. AIA의 감시·복구 범위는 넓어지지 않으며, 결과에 보호 제한을 남기고 추가 복구 지점 저장은 중단해요.</p>
       <div className="dialog-actions">
         <Button variant="outline" disabled={busy} onClick={() => decide('decline')}>거절</Button>
         <Button variant="secondary" disabled={busy} onClick={() => decide('turn')}>이번 요청만 허용</Button>

@@ -67,12 +67,16 @@ def test_multiple_points_restore_and_repeat_without_changing_original_bundle(tmp
         service.shutdown()
 
 
-@pytest.mark.parametrize('condition', ['working', 'approval', 'violation', 'sensor', 'unsupported', 'closing'])
+@pytest.mark.parametrize('condition', ['working', 'approval', 'question', 'elicitation', 'permissions', 'granted', 'violation', 'sensor', 'unsupported', 'closing'])
 def test_points_refuse_uncertain_or_unsafe_capture(tmp_path, monkeypatch, condition):
     workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
     try:
         if condition == 'working': record.runtime['codex_session'].snapshot = lambda: {'status': 'WORKING'}
         if condition == 'approval': record.runtime['codex_session'].snapshot = lambda: {'status': 'READY', 'pending_approvals': [{}]}
+        if condition in {'question', 'elicitation', 'permissions'}:
+            key = {'question': 'pending_questions', 'elicitation': 'pending_elicitations', 'permissions': 'pending_permissions'}[condition]
+            record.runtime['codex_session'].snapshot = lambda: {'status': 'READY', key: [{}]}
+        if condition == 'granted': record.permission_grants = [{'scope': 'turn', 'network': True}]
         if condition == 'sensor': record.runtime['sensors'][0].health.status.value = 'FAILED'
         if condition == 'unsupported': record.runtime['codex_controller'].user_approved_unsupported_tools = ('search',)
         if condition == 'closing': record.runtime['point_closing'] = True
@@ -294,3 +298,75 @@ def test_containment_errors_are_rebuilt_not_appended():
     containments = (SimpleNamespace(termination_error='terminate failed'), SimpleNamespace(termination_error=None))
     assert _containment_errors(containments) == ['terminate failed']
     assert _containment_errors(containments) == ['terminate failed'], 'a second pass gives the same list'
+
+
+@pytest.mark.parametrize(('method', 'arguments'), [
+    ('respond_codex_question', ('question-1', {})),
+    ('respond_codex_elicitation', ('elicitation-1', 'decline', None)),
+    ('respond_codex_permissions', ('permissions-1', 'turn')),
+])
+def test_responses_cannot_resume_codex_during_checkpoint_capture(tmp_path, monkeypatch, method, arguments):
+    import threading
+    import aia_app.service as service_module
+    from aia_app.codex_app_server import CodexAppServerError
+
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    sent = []
+    monkeypatch.setattr(service._codex_workbench, method, lambda *args: sent.append(args) or {'accepted': True})
+    entered, release = threading.Event(), threading.Event()
+
+    def capture():
+        with service._point_lock(record):
+            entered.set()
+            release.wait(3)
+
+    worker = threading.Thread(target=capture)
+    worker.start()
+    try:
+        assert entered.wait(2)
+        monkeypatch.setattr(service_module, '_POINT_SEND_WAIT_SECONDS', 0.1)
+        with pytest.raises(CodexAppServerError, match='저장 중'):
+            getattr(service, method)(session.session_id, *arguments)
+        assert sent == []
+        release.set()
+        worker.join(2)
+        assert getattr(service, method)(session.session_id, *arguments)['accepted'] is True
+        assert sent == [(session.session_id, *arguments)]
+    finally:
+        release.set()
+        worker.join(3)
+        record.status = 'COMPLETED'
+        manager.release(context.workspace_lease)
+        service.shutdown()
+
+
+@pytest.mark.parametrize('aborted', [False, True])
+def test_user_grants_are_sealed_as_a_protection_limitation(tmp_path, monkeypatch, aborted):
+    from aia.sensors.base import SensorHealth, SensorStatus
+
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    record.permission_grants = [{'scope': 'turn', 'network': True}]
+    record.stop_requested = aborted
+    sensors = tuple(SimpleNamespace(
+        health=SensorHealth(source, SensorStatus.HEALTHY, datetime.now(timezone.utc)),
+        stop=lambda: SimpleNamespace(status=SensorStatus.STOPPED),
+    ) for source in ('AGENT_HOOK', 'FILESYSTEM_WATCHER', 'PROCESS_RUNTIME'))
+    controller = SimpleNamespace(events=(object(),), errors=())
+    try:
+        assert service._finalize_completed_protected_run(
+            record, session, context, baseline, sensors, manager, context.workspace_lease,
+            SimpleNamespace(context=SimpleNamespace(root_process_identity=None)), 0,
+            controller, True, None,
+        ) is True
+        assert record.bundle_status == 'VALID'
+        assert record.protection_state == ('ABORTED_DEGRADED' if aborted else 'COMPLETED_DEGRADED')
+        result = json.loads(service.reader.read_result_json(session.session_id))
+        assert 'CODEX_PERMISSIONS_USER_GRANTED' in result['limitations']
+        assert service.reader.verification(session.session_id).status.value == 'VALID'
+        # Sealed results do not claim the detailed runtime decision is sensor Evidence.
+        assert 'permission_grants' not in result
+    finally:
+        record.status = 'COMPLETED'
+        if context.workspace_lease.artifact_path.exists():
+            manager.release(context.workspace_lease)
+        service.shutdown()

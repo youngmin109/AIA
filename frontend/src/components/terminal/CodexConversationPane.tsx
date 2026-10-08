@@ -592,7 +592,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
       {palette.length > 0 && <CommandPalette commands={palette} active={Math.min(paletteIndex, palette.length - 1)} onPick={pickCommand} />}
       {firstPermissions && !session.ended && (
         <PermissionsCard
-          key={firstPermissions.permissions_id}
+          key={`${firstPermissions.permissions_id}:${session.responseRevision}`}
           request={firstPermissions}
           disabled={!session.connected}
           onDecide={(decision) => session.decidePermissions(firstPermissions.permissions_id, decision)}
@@ -600,7 +600,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
       )}
       {firstElicitation && !session.ended && (
         <ElicitationCard
-          key={firstElicitation.elicitation_id}
+          key={`${firstElicitation.elicitation_id}:${session.responseRevision}`}
           request={firstElicitation}
           disabled={!session.connected}
           onRespond={(action, content) => session.respondElicitation(firstElicitation.elicitation_id, action, content)}
@@ -608,7 +608,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
       )}
       {firstQuestion && !session.ended && (
         <QuestionCard
-          key={firstQuestion.question_id}
+          key={`${firstQuestion.question_id}:${session.responseRevision}`}
           request={firstQuestion}
           disabled={!session.connected}
           onSubmit={(answers) => session.answerQuestion(firstQuestion.question_id, answers)}

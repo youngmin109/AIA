@@ -1,7 +1,7 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import type { Usage } from '../../api/usageView'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyEvents, EMPTY_CONVERSATION, type ApprovalRequest, type CodexEvent, type CodexPlan, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
+import { applyEvents, EMPTY_CONVERSATION, isInteractiveResponse, type ApprovalRequest, type CodexEvent, type CodexPlan, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
 
 // Talks to WS /api/runs/{id}/codex. The server pushes structured events as
 // Codex produces them; this hook only folds them into a transcript and sends
@@ -60,6 +60,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   const [closed, setClosed] = useState(false)
   const [interruptPending, setInterruptPending] = useState(false)
   const [endPending, setEndPending] = useState(false)
+  const [responseRevision, setResponseRevision] = useState(0)
 
   const generationRef = useRef(0)
   const socketRef = useRef<WebSocket | null>(null)
@@ -133,6 +134,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
           if (draft !== undefined) restoreDraftRef.current?.(draft)
           if (message.action === 'interrupt') setInterruptPending(false)
           if (message.action === 'end_session') setEndPending(false)
+          if (isInteractiveResponse(message.action)) setResponseRevision((previous) => previous + 1)
           setErrorMessage(text)
           break
         }
@@ -151,6 +153,9 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
       for (const draft of pendingDraftsRef.current.values()) restoreDraftRef.current?.(draft)
       pendingDraftsRef.current.clear()
       if (closedRef.current || runEndedRef.current || generation !== generationRef.current) return
+      // Do not replay replies (especially secret values). Re-enable pending
+      // cards after reconnect so the user can decide again from fresh status.
+      setResponseRevision((previous) => previous + 1)
       if (event.code === 1008) {
         resetLocalSessionToken()
         setConnection({ label: '연결 재확인 필요', tone: 'bad' })
@@ -312,6 +317,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     pendingQuestions,
     pendingElicitations,
     pendingPermissions,
+    responseRevision,
     usage,
     turnSettings,
     plan,

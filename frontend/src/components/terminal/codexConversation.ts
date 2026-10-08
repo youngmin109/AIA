@@ -8,6 +8,11 @@
 import type { PermissionEntry } from '../../api/permissionGrants'
 import type { TokenUsage, Usage, UsageLimits } from '../../api/usageView'
 
+/** These replies may fail before acceptance; the still-pending card must allow a fresh attempt. */
+export function isInteractiveResponse(action: unknown): boolean {
+  return action === 'question_answer' || action === 'elicitation_response' || action === 'permissions_decision'
+}
+
 export interface CodexEvent {
   sequence: number
   type: string

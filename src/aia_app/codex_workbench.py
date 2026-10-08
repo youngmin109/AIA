@@ -189,22 +189,29 @@ class CodexWorkbench:
         """Answer a sandbox-widening request and record a grant on the run."""
 
         codex_session = self._codex_session(session_id)
-        result = codex_session.respond_permissions(permissions_id, decision)
-        if decision in {"turn", "session"}:
-            service = self._service
-            record = service.registry.get(session_id)
-            if record is not None:
-                record.permission_grants = [
-                    *record.permission_grants,
-                    {
-                        "granted_at": datetime.now(timezone.utc).isoformat(),
-                        "scope": decision,
-                        "network": result["network"],
-                        "filesystem": result["filesystem"],
-                        "reason": result["reason"],
-                    },
-                ]
-                service._persist_runtime_state(record)
+        service = self._service
+        record = service.registry.require(session_id)
+
+        def record_grant(result: dict[str, Any]) -> None:
+            previous = record.permission_grants
+            record.permission_grants = [
+                *previous,
+                {
+                    "granted_at": datetime.now(timezone.utc).isoformat(),
+                    "scope": decision,
+                    "network": result["network"],
+                    "filesystem": result["filesystem"],
+                    "reason": result["reason"],
+                },
+            ]
+            record.protection_state = "DEGRADED"
+            try:
+                service._persist_runtime_state(record, strict=True)
+            except (OSError, ValueError) as error:
+                record.permission_grants = previous
+                raise CodexAppServerError("권한 허용 결정을 기록하지 못해 허용하지 않았어요. 다시 시도해 주세요.") from error
+
+        result = codex_session.respond_permissions(permissions_id, decision, before_grant=record_grant)
         return {**result, "session_id": session_id}
 
     def _resolve_unsupported_tool_review(self, session_id: str, approval_id: str, decision: str) -> dict[str, Any]:

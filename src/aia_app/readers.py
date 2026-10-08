@@ -521,6 +521,7 @@ class ResultBundleReader:
                     "CODEX_APPROVAL_POLICY_DOWNGRADED",
                     "HOOK_BROKER_RUNTIME_NOT_VERIFIED",
                     "PROTECTION_BOUNDARY_LOST",
+                    "CODEX_PERMISSIONS_USER_GRANTED",
                 }
                 for item in result.get("limitations", ())
             )

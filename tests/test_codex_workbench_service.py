@@ -67,10 +67,13 @@ class FakeCodexSession:
         self.calls.append(("settings", model, effort))
         return {"accepted": True, "model": model, "effort": effort}
 
-    def respond_permissions(self, permissions_id: str, decision: str) -> dict:
+    def respond_permissions(self, permissions_id: str, decision: str, *, before_grant=None) -> dict:
+        result = {"accepted": True, "permissions_id": permissions_id, "decision": decision, "network": True,
+                  "filesystem": [{"access": "write", "target": "C:\\shared", "scope": "outside"}], "reason": "sync"}
+        if decision != "decline" and before_grant is not None:
+            before_grant(result)
         self.calls.append(("permissions", permissions_id, decision))
-        return {"accepted": True, "permissions_id": permissions_id, "decision": decision, "network": True,
-                "filesystem": [{"access": "write", "target": "C:\shared", "scope": "outside"}], "reason": "sync"}
+        return result
 
     def post_event(self, event: dict) -> None:
         self.calls.append(("event", dict(event)))
@@ -206,6 +209,25 @@ def test_granted_permissions_are_recorded_on_the_run_and_declines_are_not(servic
     assert (grant["scope"], grant["network"], grant["reason"]) == ("session", True, "sync")
     assert grant["filesystem"][0]["scope"] == "outside"
     assert service.get_run_status(record.session_id)["permission_grants"] == [grant]
+    assert record.protection_state == "DEGRADED"
+    assert service._read_runtime_state(record.session_id)["permission_grants"] == [grant]
+
+
+def test_failed_permission_persistence_does_not_send_a_grant(service, tmp_path, monkeypatch) -> None:
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service.registry.add(record)
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(service, "_write_runtime_state_payload", fail)
+    with pytest.raises(CodexAppServerError, match="기록하지 못해"):
+        service.respond_codex_permissions(record.session_id, "permissions-1", "turn")
+    assert session.calls == []
+    assert record.permission_grants == []
+    assert record.protection_state == "DEGRADED"
 
 
 def test_the_codex_conversation_id_is_kept_for_resuming_but_no_text(service, tmp_path) -> None:
