@@ -1,5 +1,7 @@
 import { Rail } from './Rail'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { GuardianGuide, type GuideTopic } from './GuardianGuide'
+import { useGuardianState } from '../../hooks/useGuardianState'
 import { GuardianPet } from './GuardianPet'
 import { WorkView } from '../work/WorkView'
 import { ConnectionBanner } from './ConnectionBanner'
@@ -16,6 +18,16 @@ import { useShellStore, type ShellView } from '../../state/shellStore'
 export function Shell() {
   useActiveRunReconciliation()
   const { activeView, setView, setActiveRun } = useShellStore()
+  const guardian = useGuardianState()
+  const [helpTopic, setHelpTopic] = useState<GuideTopic | null>(null)
+  useEffect(() => {
+    const help = (event: Event) => {
+      const topic = (event as CustomEvent<{ topic?: GuideTopic }>).detail?.topic
+      if (topic && ['start', 'hook', 'safety', 'recovery', 'report'].includes(topic)) setHelpTopic(topic)
+    }
+    window.addEventListener('aia:guardian-help', help)
+    return () => window.removeEventListener('aia:guardian-help', help)
+  }, [])
   useEffect(() => {
     const navigate = (event: Event) => {
       const detail = (event as CustomEvent<{ view: ShellView; sessionId?: string }>).detail
@@ -61,6 +73,7 @@ export function Shell() {
       <ProtectionSetupModal />
       <EvidenceReviewModal />
       <GuardianPet />
+      {helpTopic && <GuardianGuide key={helpTopic} guardian={guardian} initialTopic={helpTopic} onClose={() => setHelpTopic(null)} />}
     </div>
   )
 }

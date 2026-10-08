@@ -1439,19 +1439,19 @@ html[data-surface="guardian"], html[data-surface="guardian"] body, html[data-sur
   background: var(--surface-transparent); min-width: 0; min-height: 0; overflow: hidden;
 }
 html[data-surface="guardian"] body::before, html[data-surface="guardian"] body::after { display: none; }
-.desktop-guardian { padding: 8px 12px; text-align: center; height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; }
-.desktop-guardian-drag { cursor: grab; flex: 1; min-height: 0; position: relative; }
-.desktop-guardian-drag .guardian-figure { position: absolute; inset: 6px 0; margin: auto; width: var(--desktop-pet-size, 190px); max-width: 100%; height: var(--desktop-pet-size, 190px); max-height: calc(100% - 12px); object-fit: contain; animation: desktop-guardian-float 4s ease-in-out infinite; }
-html[data-pet-size="small"] { --desktop-pet-size: 140px; --browser-pet-size: 84px; }
-html[data-pet-size="medium"] { --desktop-pet-size: 190px; --browser-pet-size: 104px; }
-html[data-pet-size="large"] { --desktop-pet-size: 250px; --browser-pet-size: 136px; }
+:root { --browser-pet-size: 104px; }
+.desktop-guardian { position: relative; height: 100dvh; box-sizing: border-box; }
+.desktop-guardian-figure { position: absolute; inset: 8px 8px 28px; padding: 0; border: 0; background: var(--surface-transparent); cursor: grab; }
+.desktop-guardian-figure .guardian-figure { width: 100%; height: 100%; object-fit: contain; pointer-events: none; animation: desktop-guardian-float 4s ease-in-out infinite; }
+.desktop-guardian-figure:active { cursor: grabbing; }
+.desktop-guardian-figure:focus-visible, .desktop-guardian-help:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.desktop-guardian-help { position: absolute; bottom: 6px; right: 18%; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line-3); border-radius: 50%; background: var(--page-base); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; }
+.desktop-guardian-help:hover { border-color: var(--accent); }
+.desktop-guardian-indicator { position: absolute; bottom: 14px; left: 24%; width: 9px; height: 9px; border-radius: 50%; background: var(--line-4); }
+.desktop-guardian.is-review .desktop-guardian-indicator { background: var(--warning); }
+.desktop-guardian.is-blocked .desktop-guardian-indicator { background: var(--danger); animation: desktop-bubble-alert 1.6s ease-in-out infinite; }
+.desktop-guardian.is-recovery .desktop-guardian-indicator { background: var(--accent); }
 @keyframes desktop-guardian-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-.desktop-guardian-note { background: var(--page-base); border: 1px solid var(--line-3); border-radius: 18px; padding: 10px; font-size: 12px; flex-shrink: 0; }
-.desktop-guardian-note p { margin: 5px 0 0; line-height: 1.4; }
-.desktop-guardian.is-blocked .desktop-guardian-note { border-color: var(--danger); }
-.desktop-guardian.is-review .desktop-guardian-note { border-color: var(--warning); }
-.desktop-guardian-actions { display: flex; justify-content: center; gap: 12px; margin-top: 6px; border-top: 1px solid var(--line-3); padding-top: 5px; }
-.desktop-guardian-actions .text-action { min-height: 28px; padding: 3px 8px; font-size: 11px; line-height: 1.4; }
 /* Folded pet: a small bubble filling its little window; the ring keeps the status colour. */
 .desktop-guardian-bubble { position: fixed; inset: 4px; display: grid; place-items: center; padding: 0; border: 3px solid var(--line-4); border-radius: 50%; background: var(--page-base); cursor: grab; overflow: hidden; }
 .desktop-guardian-bubble .guardian-figure { width: 86%; height: 86%; object-fit: contain; pointer-events: none; }
@@ -1459,3 +1459,9 @@ html[data-pet-size="large"] { --desktop-pet-size: 250px; --browser-pet-size: 136
 .desktop-guardian-bubble.is-review { border-color: var(--warning); }
 .desktop-guardian-bubble.is-blocked { border-color: var(--danger); animation: desktop-bubble-alert 1.6s ease-in-out infinite; }
 @keyframes desktop-bubble-alert { 0%, 100% { border-color: var(--danger); } 50% { border-color: var(--line-3); } }
+html[data-motion="reduced"] .desktop-guardian .guardian-figure,
+html[data-motion="reduced"] .desktop-guardian-indicator { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"]) .desktop-guardian .guardian-figure,
+  html:not([data-motion="full"]) .desktop-guardian-indicator { animation: none; }
+}

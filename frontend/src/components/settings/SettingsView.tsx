@@ -18,7 +18,7 @@ import { applyPetPreference, readPetPreference, type PetPreference } from '../..
 import { connectionLights } from '../../api/settingsStatus'
 import { isConnectionLost } from '../../api/connectionState'
 import { syncDesktopGuardian } from '../../desktopBridge'
-import { applyPetSize, readPetSize, PET_SIZE_OPTIONS, type PetSizePreference } from '../../api/petSizePreference'
+import { applyPetSize, readPetSize, PET_SIZE_MIN, PET_SIZE_MAX, PET_SIZE_STEP, type PetSizePreference } from '../../api/petSizePreference'
 
 const MOTION_OPTIONS: Array<[MotionPreference, string]> = [['auto', '자동'], ['full', '켜기'], ['reduced', '줄이기']]
 
@@ -45,6 +45,15 @@ export function SettingsView() {
   const serverLost = isConnectionLost(connectionFailures)
 
   useEffect(() => { consoleInfo().then(setInfo).catch(() => setInfo(null)) }, [])
+  useEffect(() => {
+    // Avoid a burst of concurrent native window resizes while dragging the slider.
+    const timer = setTimeout(() => {
+      window.pywebview?.api?.set_guardian_size?.(petSize).then(ok => {
+        if (!ok) setNotice('펫 창의 크기를 바꾸지 못했어요. 다시 선택해 주세요.')
+      }).catch(() => setNotice('펫 창의 크기를 바꾸지 못했어요. 다시 선택해 주세요.'))
+    }, 120)
+    return () => clearTimeout(timer)
+  }, [petSize])
 
   function changeMotion(value: MotionPreference) {
     applyMotionPreference(value)
@@ -67,7 +76,6 @@ export function SettingsView() {
   function changePetSize(value: PetSizePreference) {
     applyPetSize(value)
     setPetSize(value)
-    window.pywebview?.api?.set_guardian_size?.(value).catch(() => setNotice('펫 창의 크기를 바꾸지 못했어요. 다시 선택해 주세요.'))
   }
 
   async function exportDiagnostics() {
@@ -138,13 +146,15 @@ export function SettingsView() {
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
           <button type="button" role="switch" aria-checked={pet === 'on'} className="glass-switch" onClick={togglePet}>
-            <span>가디언 펫<small>Windows 앱에서는 바탕화면에 떠 있고, 앱을 최소화해도 상태를 안내해요. 완전히 종료하면 함께 꺼져요. 펫의 ‘접기’로 작게 접어 둘 수 있어요.</small></span>
+            <span>가디언 펫<small>앱을 최소화해도 바탕화면에 남아요. 아이아를 누르면 AIA가 열리고, 작은 ? 버튼에서 도움말과 오류 신고를 볼 수 있어요. 앱을 종료하면 함께 꺼져요.</small></span>
             <span className="glass-switch-track" aria-hidden="true"><span className="glass-switch-thumb" /></span>
           </button>
           <div className="settings-motion">
             <span>펫 크기<small>바탕화면 아이아 크기 조절</small></span>
-            <div className="segmented" role="group" aria-label="펫 크기">
-              {PET_SIZE_OPTIONS.map(([value, label]) => <button key={value} type="button" aria-pressed={petSize === value} onClick={() => changePetSize(value)}>{label}</button>)}
+            <div className="settings-pet-size">
+              <label htmlFor="pet-size">작게</label>
+              <input id="pet-size" type="range" min={PET_SIZE_MIN} max={PET_SIZE_MAX} step={PET_SIZE_STEP} value={petSize} aria-label="아이아 펫 크기" aria-valuetext={`${petSize}퍼센트`} onChange={event => changePetSize(Number(event.target.value))} />
+              <span>크게</span><output htmlFor="pet-size">{petSize}%</output>
             </div>
           </div>
           <div className="settings-motion">
