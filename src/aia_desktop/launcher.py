@@ -571,12 +571,17 @@ class DesktopBridge:
             return False
         if session_id is not None and (not isinstance(session_id, str) or not session_id or any(not (ch.isascii() and (ch.isalnum() or ch == '-')) for ch in session_id)):
             return False
-        self._window.show()
-        self._window.restore()
-        self._focus_main()
+        self._bring_main_forward()
         self._window.evaluate_js('window.dispatchEvent(new CustomEvent("aia:navigate", {detail: '
                                  + json.dumps({'view': view, 'sessionId': session_id}) + '}))')
         return True
+
+    def _bring_main_forward(self) -> None:
+        """Open AIA from the pet maximized and in front, even when it was minimized."""
+
+        self._window.show()
+        self._window.maximize()
+        self._focus_main()
 
     def _focus_main(self) -> None:
         handle = window_handle(self._window)
@@ -587,9 +592,7 @@ class DesktopBridge:
         """Show existing help in AIA, never in a second help window."""
         if self._window is None or not isinstance(topic, str) or topic not in {'start', 'hook', 'safety', 'recovery', 'report'}:
             return False
-        self._window.show()
-        self._window.restore()
-        self._focus_main()
+        self._bring_main_forward()
         self._window.evaluate_js('window.dispatchEvent(new CustomEvent("aia:guardian-help", {detail: '
                                  + json.dumps({'topic': topic}) + '}))')
         return True

@@ -182,7 +182,12 @@
   padding: 22px;
   border: 1px solid transparent;
   border-radius: 26px;
-  background: var(--glass-fill-strong) padding-box, var(--glass-rim) border-box;
+  /* Long help text: a dark base under the glass sheen keeps the page behind from showing through. */
+  --guide-base: color-mix(in srgb, var(--page-base) 88%, transparent);
+  background:
+    var(--glass-fill-strong) padding-box,
+    linear-gradient(var(--guide-base), var(--guide-base)) padding-box,
+    var(--glass-rim) border-box;
   backdrop-filter: blur(var(--glass-blur)) saturate(190%);
   box-shadow: var(--dialog-shadow);
   animation: glass-arrive 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
@@ -1442,7 +1447,8 @@ html[data-surface="guardian"] body::before, html[data-surface="guardian"] body::
 :root { --browser-pet-size: 104px; }
 .desktop-guardian { position: relative; height: 100dvh; box-sizing: border-box; }
 .desktop-guardian-figure { position: absolute; inset: 8px 8px 28px; padding: 0; border: 0; background: var(--surface-transparent); cursor: grab; }
-.desktop-guardian-figure .guardian-figure { width: 100%; height: 100%; object-fit: contain; pointer-events: none; animation: desktop-guardian-float 4s ease-in-out infinite; }
+/* On the desktop the pet floats over any window; the in-app drop shadow would show as a dark smudge. */
+.desktop-guardian-figure .guardian-figure { width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: none; animation: desktop-guardian-float 4s ease-in-out infinite; }
 .desktop-guardian-figure:active { cursor: grabbing; }
 .desktop-guardian-figure:focus-visible, .desktop-guardian-help:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .desktop-guardian-help { position: absolute; bottom: 6px; right: 18%; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line-3); border-radius: 50%; background: var(--page-base); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; }

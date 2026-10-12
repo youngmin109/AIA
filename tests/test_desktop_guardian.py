@@ -37,9 +37,11 @@ def test_guardian_is_independent_on_top_and_survives_hide_main_but_closes_with_m
 def test_guardian_navigation_is_display_only_and_rejects_untrusted_values():
     calls = []
     bridge = DesktopBridge()
-    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), restore=lambda: calls.append('restore'),
+    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), maximize=lambda: calls.append('maximize'),
                                   evaluate_js=lambda script: calls.append(script)))
     assert bridge.open_main('work', 'session-123') is True
+    # Opened from the pet, AIA comes back maximized rather than as a small window.
+    assert calls[:2] == ['show', 'maximize']
     assert 'aia:navigate' in calls[-1]
     assert bridge.open_main('execute', None) is False
     assert bridge.open_main('work', '../secret') is False
@@ -181,10 +183,10 @@ def test_pet_help_opens_main_help_without_navigating_or_performing_security_acti
     calls = []
     bridge = DesktopBridge()
     assert bridge.open_guardian_help('report') is False
-    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), restore=lambda: calls.append('restore'),
+    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), maximize=lambda: calls.append('maximize'),
                                   evaluate_js=lambda script: calls.append(script)))
     assert bridge.open_guardian_help('report')
-    assert calls[:2] == ['show', 'restore']
+    assert calls[:2] == ['show', 'maximize']
     assert 'aia:guardian-help' in calls[-1] and '"report"' in calls[-1]
     assert 'aia:navigate' not in calls[-1]
     before = list(calls)
