@@ -83,6 +83,16 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
     }
   }
 
+  // Desktop only: the shell opens PowerShell with "codex" typed in, not run.
+  const canOpenTerminal = typeof window.pywebview?.api?.open_codex_terminal === 'function'
+  const [terminalError, setTerminalError] = useState<string | null>(null)
+  function handleOpenTerminal() {
+    setTerminalError(null)
+    window.pywebview?.api?.open_codex_terminal?.()
+      .then(ok => { if (!ok) setTerminalError('터미널을 열지 못했어요. 새 터미널에서 직접 codex를 실행해 주세요.') })
+      .catch(() => setTerminalError('터미널을 열지 못했어요. 새 터미널에서 직접 codex를 실행해 주세요.'))
+  }
+
   async function handleVerify() {
     setVerifying(true)
     setVerifyMessage(null)
@@ -149,8 +159,12 @@ export function HookStatusControl({ onReadyChange }: { onReadyChange?: (ready: b
         <div className="glass-notice is-warning hook-phase">
           <div>
             <strong>Codex에서 AIA Hook을 신뢰하세요</strong>
-            <p>새 터미널에서 <code className="mono">codex</code>를 실행하고 <code className="mono">/hooks</code>에서 AIA Hook을 검토한 뒤 Trust를 고르세요. 끝나면 몇 초 안에 자동으로 감지돼요.</p>
+            {canOpenTerminal
+              ? <p><b>터미널 열기</b>를 누르면 <code className="mono">codex</code>가 입력된 터미널이 열려요. Enter를 누르고 <code className="mono">/hooks</code>에서 AIA Hook을 검토한 뒤 Trust를 고르세요. 끝나면 몇 초 안에 자동으로 감지돼요.</p>
+              : <p>새 터미널에서 <code className="mono">codex</code>를 실행하고 <code className="mono">/hooks</code>에서 AIA Hook을 검토한 뒤 Trust를 고르세요. 끝나면 몇 초 안에 자동으로 감지돼요.</p>}
+            {terminalError && <p className="danger-text">{terminalError}</p>}
           </div>
+          {canOpenTerminal && <Button variant="cta" className="is-compact" onClick={handleOpenTerminal}><Icon name="terminal" size={16} />터미널 열기</Button>}
         </div>
       )}
 

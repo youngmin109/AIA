@@ -14,6 +14,8 @@ type WorkspacePicker = {
   set_guardian_size?: (size: number) => Promise<boolean>
   set_guardian_folded?: (folded: boolean) => Promise<boolean>
   open_main?: (view: string, sessionId: string | null) => Promise<boolean>
+  open_codex_terminal?: () => Promise<boolean>
+  open_records_folder?: () => Promise<boolean>
   open_guardian_help?: (topic: string) => Promise<boolean>
 }
 

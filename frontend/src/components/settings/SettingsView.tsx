@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '../common/Button'
 import { StatusPill } from '../common/Badge'
 import { Icon } from '../common/Icon'
-import { GlossyIcon, StatusDot } from '../common/Glass'
+import { StatusDot } from '../common/Glass'
 import { TintPicker } from '../common/TintPicker'
 import { HookStatusControl } from './HookStatusControl'
 import { GuardianGuide } from '../shell/GuardianGuide'
@@ -66,6 +66,12 @@ export function SettingsView() {
     setGlass(next)
   }
 
+  // Desktop only: opens the control root in File Explorer (the path comes from the shell, not the page).
+  const canOpenRecords = typeof window.pywebview?.api?.open_records_folder === 'function'
+  function openRecords() {
+    window.pywebview?.api?.open_records_folder?.().then(ok => { if (!ok) setNotice('기록 폴더를 열지 못했어요.') }).catch(() => setNotice('기록 폴더를 열지 못했어요.'))
+  }
+
   function togglePet() {
     const next: PetPreference = pet === 'on' ? 'off' : 'on'
     applyPetPreference(next)
@@ -118,17 +124,10 @@ export function SettingsView() {
           ))}
         </div>
         {mcpWarning && (
-          <div className="glass-notice is-warning" role="note">
-            <GlossyIcon tone="amber" icon="alert" size="sm" />
-            <div className="settings-mcp">
-              <strong>Hook 밖 MCP 도구가 켜져 있어요</strong>
-              <p>이 도구는 실행 전 검사를 거치지 않아요. 보호는 계속되지만 범위가 줄어요.</p>
-            </div>
-            <details className="settings-mcp-more">
-              <summary>자세히</summary>
-              <p>{mcp?.detail ?? '켜진 MCP 서버를 확인하세요.'} AIA는 Codex 설정을 바꾸지 않아요. Codex 설정에서 끄면 경고가 사라져요.</p>
-            </details>
-          </div>
+          <details className="settings-mcp-note">
+            <summary><Icon name="info" size={15} />Codex 외부 도구(MCP)가 켜져 있어요 · 아이아 보호 범위 밖</summary>
+            <p>{mcp?.detail ?? '켜진 MCP 서버를 확인하세요.'} 실행 전 검사를 거치는 외부 도구 요청은 작업창에서 허용 여부를 물어요. AIA는 Codex 설정을 바꾸지 않아요. Codex 설정에서 끄면 이 안내가 사라져요.</p>
+          </details>
         )}
         {!ready && preflight && <HookStatusControl />}
         {serverLost && <div className="glass-notice is-danger"><strong>AIA 로컬 서버와 연결이 끊겼어요</strong><p>자동으로 다시 연결을 시도해요.</p></div>}
@@ -171,6 +170,7 @@ export function SettingsView() {
             <li><span>지원 환경</span><b>{info?.supported_environment ?? 'Windows · Codex'}</b></li>
             <li><span>Codex</span><b>{codex ? (codex.ok ? '설치 확인됨' : '확인 필요') : '확인 중'}</b></li>
             <li><span>데이터 위치</span><b className="mono" title={controlRoot?.detail}>{controlRoot?.detail ?? '이 PC의 로컬 기록 폴더'}</b></li>
+            {canOpenRecords && <li className="settings-facts-action"><Button variant="text" onClick={openRecords}><Icon name="folder" size={14} />기록 폴더 열기</Button></li>}
           </ul>
           <div className="settings-actions">
             <Button variant="secondary" className="is-compact" disabled={exporting} onClick={exportDiagnostics}>{exporting ? '준비 중…' : '진단 정보 저장'}</Button>

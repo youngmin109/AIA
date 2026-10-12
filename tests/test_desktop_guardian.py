@@ -193,3 +193,32 @@ def test_pet_help_opens_main_help_without_navigating_or_performing_security_acti
     for invalid in ['execute', 'approve', '../secret', None, []]:
         assert bridge.open_guardian_help(invalid) is False
     assert calls == before
+
+
+def test_codex_trust_terminal_is_a_fixed_command_with_codex_typed_in_not_run(monkeypatch):
+    started = []
+    monkeypatch.setattr(launcher, '_is_windows', lambda: True)
+    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda args, **options: started.append((args, options)))
+    monkeypatch.setenv('CODEX_THREAD_ID', 'leak')
+    monkeypatch.setenv('CODEX_HOME', 'C:/codex-home')
+    assert DesktopBridge().open_codex_terminal() is True
+    args, options = started[0]
+    assert args[:4] == ['powershell.exe', '-NoExit', '-NoLogo', '-Command']
+    # "codex" is inserted into the prompt for the user to run; nothing is executed for them.
+    assert "Insert('codex')" in args[4] and '/hooks' in args[4]
+    assert 'CODEX_THREAD_ID' not in options['env'] and options['env']['CODEX_HOME'] == 'C:/codex-home'
+
+    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda args, **options: (_ for _ in ()).throw(OSError('no shell')))
+    assert DesktopBridge().open_codex_terminal() is False
+    monkeypatch.setattr(launcher, '_is_windows', lambda: False)
+    assert DesktopBridge().open_codex_terminal() is False
+
+
+def test_records_folder_opens_the_control_root_only(monkeypatch, tmp_path):
+    opened = []
+    root = tmp_path / 'control'
+    monkeypatch.setattr(launcher, '_is_windows', lambda: True)
+    monkeypatch.setenv('AIA_CONTROL_ROOT', str(root))
+    monkeypatch.setattr(launcher.os, 'startfile', lambda path: opened.append(path), raising=False)
+    assert DesktopBridge().open_records_folder() is True
+    assert opened == [str(root)] and root.is_dir()

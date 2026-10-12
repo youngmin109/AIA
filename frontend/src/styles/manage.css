@@ -82,7 +82,16 @@
 }
 
 .history-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
   margin: 4px 8px;
+}
+
+.history-foot p {
+  flex: 1 1 320px;
+  margin: 0;
 }
 
 .history-detail {
@@ -328,25 +337,18 @@
   font-size: 13px;
 }
 
-.settings-mcp {
-  flex: 1 1 260px;
-}
-
-.settings-mcp-more summary {
-  min-height: 40px;
-  display: flex;
+/* MCP tools outside AIA's scope: a quiet note, details on demand. */
+.settings-mcp-note summary {
+  display: inline-flex;
   align-items: center;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid var(--warning-line);
-  color: var(--warning-text);
-  font-size: 14px;
-  font-weight: 700;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
   cursor: pointer;
 }
 
-.settings-mcp-more p {
-  max-width: 340px;
+.settings-mcp-note p {
+  max-width: 72ch;
   margin: 8px 0 0;
   color: var(--text-muted);
   font-size: 13px;
@@ -424,6 +426,12 @@
 .settings-facts b.mono {
   direction: rtl;
   font-size: 12.5px;
+}
+
+/* "기록 폴더 열기" sits under the path it opens. */
+.settings-facts li.settings-facts-action {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .settings-actions {
