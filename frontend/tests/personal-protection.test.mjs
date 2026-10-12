@@ -11,10 +11,12 @@ test('policy explanations keep audit distinct from deny and expose every support
   assert.doesNotMatch(source('components/policy/PolicyView.tsx'), /PolicyDetails|선택한 정책 자세히 보기/)
 })
 
-test('policy cards stay on one five-column row and pet actions share its status box', () => {
+test('policy cards stay on one row and pet has no bottom status card', () => {
   assert.match(source('styles/manage.css'), /grid-template-columns: repeat\(5, minmax\(180px, 1fr\)\)/)
-  assert.match(source('components/shell/DesktopGuardian.tsx'), /desktop-guardian-note[\s\S]*desktop-guardian-actions/)
-  assert.match(source('styles/glass.css'), /desktop-guardian-actions \.text-action[^}]*font-size: 11px/)
+  assert.doesNotMatch(source('components/shell/DesktopGuardian.tsx'), /desktop-guardian-note|desktop-guardian-actions/)
+  assert.match(source('components/shell/DesktopGuardian.tsx'), /open_guardian_help/)
+  assert.match(source('components/settings/SettingsView.tsx'), /type="range"/)
+  assert.match(source('components/shell/Shell.tsx'), /aia:guardian-help/)
 })
 test('custom policy is selectable and its actual saved path reaches Core', () => {
   const setup = source('components/settings/ProtectionSetupModal.tsx')

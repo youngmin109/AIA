@@ -18,6 +18,36 @@ FIGURE_CENTRE = 0.36
 Rect = tuple[int, int, int, int]
 
 
+def hide_from_switcher(handle: int) -> None:
+    """Pet is a tool window, not another taskbar/Alt+Tab application.
+
+    Do not give it an owner: owned windows disappear when AIA is minimized.
+    Preserve transparency, topmost and no-activate flags set by pywebview.
+    """
+    user32 = ctypes.windll.user32
+    hwnd = ctypes.c_void_p(handle)
+    suffix = 'PtrW' if ctypes.sizeof(ctypes.c_void_p) == 8 else 'W'
+    getter = getattr(user32, 'GetWindowLong' + suffix)
+    setter = getattr(user32, 'SetWindowLong' + suffix)
+    getter.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    getter.restype = ctypes.c_ssize_t
+    setter.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+    setter.restype = ctypes.c_ssize_t
+    current = getter(hwnd, -20)  # GWL_EXSTYLE
+    setter(hwnd, -20, (current | 0x80) & ~0x40000)  # TOOLWINDOW, not APPWINDOW
+    # SWP_NOSIZE | NOMOVE | NOZORDER | NOACTIVATE | FRAMECHANGED
+    user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, 0x37)
+
+
+def resized_rect(window: Rect, work_area: Rect, scale: float, size: tuple[int, int]) -> Rect:
+    """Resize around the pet centre and clamp to the current monitor."""
+    left, top, right, bottom = window
+    width, height = round(size[0] * scale), round(size[1] * scale)
+    x, y = (left + right - width) // 2, (top + bottom - height) // 2
+    wl, wt, wr, wb = work_area
+    return max(wl, min(x, wr - width)), max(wt, min(y, wb - height)), width, height
+
+
 def fold_rect(window: Rect, work_area: Rect, scale: float, size: tuple[int, int], *, folded: bool) -> Rect:
     """New ``(x, y, width, height)`` of the pet window.
 

@@ -37,9 +37,11 @@ def test_guardian_is_independent_on_top_and_survives_hide_main_but_closes_with_m
 def test_guardian_navigation_is_display_only_and_rejects_untrusted_values():
     calls = []
     bridge = DesktopBridge()
-    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), restore=lambda: calls.append('restore'),
+    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), maximize=lambda: calls.append('maximize'),
                                   evaluate_js=lambda script: calls.append(script)))
     assert bridge.open_main('work', 'session-123') is True
+    # Opened from the pet, AIA comes back maximized rather than as a small window.
+    assert calls[:2] == ['show', 'maximize']
     assert 'aia:navigate' in calls[-1]
     assert bridge.open_main('execute', None) is False
     assert bridge.open_main('work', '../secret') is False
@@ -57,14 +59,18 @@ def test_guardian_size_is_validated_and_applies_before_and_after_creation(monkey
     bridge._configure_guardian('http://127.0.0.1:8787/')
     assert bridge.set_guardian_size('large')
     assert bridge.set_guardian_visible(True)
-    assert (calls[0]['width'], calls[0]['height']) == (340, 410)
+    assert (calls[0]['width'], calls[0]['height']) == (260, 286)
     assert bridge.set_guardian_size('small')
-    assert calls[-2] == (240, 300)
-    assert '"small"' in calls[-1]
+    assert calls[-2] == (160, 176)
+    assert '"80"' in calls[-1]
     before = list(calls)
     assert bridge.set_guardian_size(None) is False
     assert bridge.set_guardian_size('arbitrary-script') is False
+    for invalid in [True, False, 69, 141, 101, 100.0, float('nan'), float('inf'), [], {}]:
+        assert bridge.set_guardian_size(invalid) is False
     assert calls == before
+    assert bridge.set_guardian_size(70)
+    assert bridge.set_guardian_size(140)
 
 
 def test_pet_window_is_reshown_without_focus_so_the_desktop_shows_through(monkeypatch):
@@ -74,6 +80,9 @@ def test_pet_window_is_reshown_without_focus_so_the_desktop_shows_through(monkey
     monkeypatch.setattr(launcher.ctypes, 'windll', SimpleNamespace(user32=SimpleNamespace(
         ShowWindow=lambda handle, command: native.append((handle, command)))), raising=False)
     calls = []
+    monkeypatch.setattr(launcher.guardian_window, 'hide_from_switcher', lambda handle: None)
+    monkeypatch.setattr(launcher.guardian_window, 'window_screen', lambda handle: ((0, 0, 200, 220), (0, 0, 1920, 1080), 1.0))
+    monkeypatch.setattr(launcher.guardian_window, 'place_window', lambda handle, rect: calls.append(rect[2:]))
     child = SimpleNamespace(events=SimpleNamespace(closing=Event(), loaded=Event()),
                             native=SimpleNamespace(Handle=SimpleNamespace(ToInt64=lambda: 77)),
                             hide=lambda: calls.append('hide'), show=lambda: calls.append('show'),
@@ -85,7 +94,7 @@ def test_pet_window_is_reshown_without_focus_so_the_desktop_shows_through(monkey
     child.events.loaded.handlers[0]()
     assert native == [(77, 0), (77, 4)]
     assert bridge.set_guardian_size('large')
-    assert calls[-1] == (340, 410) and native[-2:] == [(77, 0), (77, 4)]
+    assert calls[-1] == (260, 286) and native[-2:] == [(77, 0), (77, 4)]
 
     # A hidden pet stays hidden: no resize (it would show the window) and no reshow.
     assert bridge.set_guardian_visible(False)
@@ -95,7 +104,7 @@ def test_pet_window_is_reshown_without_focus_so_the_desktop_shows_through(monkey
     assert calls == [] and native == []
     # Shown again, it takes the chosen size.
     assert bridge.set_guardian_visible(True)
-    assert calls == [(240, 300), 'show'] and native == [(77, 0), (77, 4)]
+    assert calls == [(160, 176), 'show'] and native == [(77, 0), (77, 4)]
 
 
 def test_folding_puts_a_bubble_on_the_pet_and_unfolding_grows_around_it_on_screen():
@@ -114,6 +123,7 @@ def test_folding_puts_a_bubble_on_the_pet_and_unfolding_grows_around_it_on_scree
 
 def test_folding_moves_the_window_and_a_folded_pet_keeps_its_bubble(monkeypatch):
     native, placed, calls = [], [], []
+    monkeypatch.setattr(launcher.guardian_window, 'hide_from_switcher', lambda handle: None)
     monkeypatch.setattr(launcher.ctypes, 'windll', SimpleNamespace(user32=SimpleNamespace(
         ShowWindow=lambda handle, command: native.append((handle, command)))), raising=False)
     monkeypatch.setattr(launcher.guardian_window, 'window_screen',
@@ -141,5 +151,45 @@ def test_folding_moves_the_window_and_a_folded_pet_keeps_its_bubble(monkeypatch)
 
     calls.clear(); native.clear()
     assert bridge.set_guardian_folded(False)
-    assert placed[-1] == (77, (970, 322, 340, 410))  # large size, around the (stubbed) window centre
+    assert placed[-1] == (77, (1010, 367, 260, 286))
     assert native == [(77, 0), (77, 4)]
+
+
+def test_pet_is_tool_window_not_app_window_without_changing_other_styles(monkeypatch):
+    from aia_desktop import guardian_window
+    writes, positions = [], []
+    # Existing APPWINDOW, TOPMOST, NOACTIVATE and LAYERED flags.
+    initial = 0x40000 | 0x8 | 0x08000000 | 0x80000
+    getter = lambda handle, index: initial
+    setter = lambda handle, index, style: writes.append((index, style))
+    api = SimpleNamespace(SetWindowPos=lambda *args: positions.append(args))
+    suffix = 'PtrW' if launcher.ctypes.sizeof(launcher.ctypes.c_void_p) == 8 else 'W'
+    setattr(api, 'GetWindowLong' + suffix, getter)
+    setattr(api, 'SetWindowLong' + suffix, setter)
+    monkeypatch.setattr(guardian_window.ctypes, 'windll', SimpleNamespace(user32=api), raising=False)
+    guardian_window.hide_from_switcher(77)
+    assert writes == [(-20, (initial | 0x80) & ~0x40000)]
+    assert positions[0][-1] == 0x37  # no focus, position, size or z-order changes
+
+
+def test_pet_resize_keeps_centre_and_stays_on_current_monitor():
+    from aia_desktop.guardian_window import resized_rect
+    assert resized_rect((400, 400, 600, 620), (0, 0, 1920, 1040), 1, (280, 308)) == (360, 356, 280, 308)
+    assert resized_rect((1820, 930, 1920, 1040), (0, 0, 1920, 1040), 1, (280, 308)) == (1640, 732, 280, 308)
+    assert resized_rect((-1920, 0, -1720, 220), (-1920, 0, 0, 1040), 1.5, (280, 308)) == (-1920, 0, 420, 462)
+
+
+def test_pet_help_opens_main_help_without_navigating_or_performing_security_actions():
+    calls = []
+    bridge = DesktopBridge()
+    assert bridge.open_guardian_help('report') is False
+    bridge.attach(SimpleNamespace(show=lambda: calls.append('show'), maximize=lambda: calls.append('maximize'),
+                                  evaluate_js=lambda script: calls.append(script)))
+    assert bridge.open_guardian_help('report')
+    assert calls[:2] == ['show', 'maximize']
+    assert 'aia:guardian-help' in calls[-1] and '"report"' in calls[-1]
+    assert 'aia:navigate' not in calls[-1]
+    before = list(calls)
+    for invalid in ['execute', 'approve', '../secret', None, []]:
+        assert bridge.open_guardian_help(invalid) is False
+    assert calls == before

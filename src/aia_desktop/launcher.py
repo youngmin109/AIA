@@ -442,7 +442,7 @@ class DesktopBridge:
         self._guardian: Any | None = None
         self._guardian_url: str | None = None
         self._guardian_shutting_down = False
-        self._guardian_size = 'medium'
+        self._guardian_size = 100
         self._guardian_visible = False
         self._guardian_folded = False
 
@@ -479,6 +479,9 @@ class DesktopBridge:
             )
             self._guardian.events.closing += self._guardian_closing
             self._guardian.events.loaded += self._refresh_guardian_transparency
+            shown = getattr(self._guardian.events, 'shown', None)
+            if shown is not None:
+                shown += self._refresh_guardian_transparency
         else:
             # A hidden pet is not resized (resizing shows it); it takes the size now.
             if not self._guardian_folded:
@@ -501,7 +504,12 @@ class DesktopBridge:
             return
         user32 = ctypes.windll.user32
         user32.ShowWindow(handle, 0)  # SW_HIDE
-        user32.ShowWindow(handle, 4)  # SW_SHOWNOACTIVATE
+        try:
+            guardian_window.hide_from_switcher(handle)
+        except Exception as exc:
+            desktop_log('guardian-window-style-failed', error=str(exc))
+        finally:
+            user32.ShowWindow(handle, 4)  # SW_SHOWNOACTIVATE
 
     def set_guardian_folded(self, folded: bool) -> bool:
         """Fold the pet into a small bubble where it sits, or unfold it there."""
@@ -521,20 +529,27 @@ class DesktopBridge:
         return True
 
     @staticmethod
-    def _guardian_dimensions(size: str) -> tuple[int, int]:
-        return {'small': (240, 300), 'medium': (280, 340), 'large': (340, 410)}[size]
+    def _guardian_dimensions(size: int) -> tuple[int, int]:
+        return round(200 * size / 100), round(220 * size / 100)
 
-    def set_guardian_size(self, size: str) -> bool:
-        if not isinstance(size, str) or size not in {'small', 'medium', 'large'} or self._guardian_shutting_down:
+    def set_guardian_size(self, size: int | str) -> bool:
+        # Migrate saved choices from older clients without accepting arbitrary JS.
+        if isinstance(size, str):
+            size = {'small': 80, 'medium': 100, 'large': 130}.get(size)
+        if type(size) is not int or not 70 <= size <= 140 or size % 5 or self._guardian_shutting_down:
             return False
         self._guardian_size = size
         if self._guardian is not None:
             # A folded pet takes the new size when it unfolds.
             if self._guardian_visible and not self._guardian_folded:
-                self._guardian.resize(*self._guardian_dimensions(size))
+                handle = window_handle(self._guardian)
+                if handle is not None:
+                    window, work_area, scale = guardian_window.window_screen(handle)
+                    guardian_window.place_window(handle, guardian_window.resized_rect(window, work_area, scale, self._guardian_dimensions(size)))
+                else:
+                    self._guardian.resize(*self._guardian_dimensions(size))
                 self._refresh_guardian_transparency()
-            # Enum validation above keeps this presentation-only JS assignment narrow.
-            self._guardian.evaluate_js('document.documentElement.dataset.petSize = ' + json.dumps(size))
+            self._guardian.evaluate_js('document.documentElement.dataset.petSize = ' + json.dumps(str(size)))
         return True
 
     def _guardian_closing(self) -> bool:
@@ -556,10 +571,30 @@ class DesktopBridge:
             return False
         if session_id is not None and (not isinstance(session_id, str) or not session_id or any(not (ch.isascii() and (ch.isalnum() or ch == '-')) for ch in session_id)):
             return False
-        self._window.show()
-        self._window.restore()
+        self._bring_main_forward()
         self._window.evaluate_js('window.dispatchEvent(new CustomEvent("aia:navigate", {detail: '
                                  + json.dumps({'view': view, 'sessionId': session_id}) + '}))')
+        return True
+
+    def _bring_main_forward(self) -> None:
+        """Open AIA from the pet maximized and in front, even when it was minimized."""
+
+        self._window.show()
+        self._window.maximize()
+        self._focus_main()
+
+    def _focus_main(self) -> None:
+        handle = window_handle(self._window)
+        if handle is not None:
+            ctypes.windll.user32.SetForegroundWindow(ctypes.c_void_p(handle))
+
+    def open_guardian_help(self, topic: str = 'start') -> bool:
+        """Show existing help in AIA, never in a second help window."""
+        if self._window is None or not isinstance(topic, str) or topic not in {'start', 'hook', 'safety', 'recovery', 'report'}:
+            return False
+        self._bring_main_forward()
+        self._window.evaluate_js('window.dispatchEvent(new CustomEvent("aia:guardian-help", {detail: '
+                                 + json.dumps({'topic': topic}) + '}))')
         return True
 
     def set_title_bar(self, tint: str) -> bool:

@@ -11,9 +11,10 @@ type WorkspacePicker = {
   heartbeat?: () => Promise<boolean>
   set_title_bar?: (tint: string) => Promise<boolean>
   set_guardian_visible?: (visible: boolean) => Promise<boolean>
-  set_guardian_size?: (size: string) => Promise<boolean>
+  set_guardian_size?: (size: number) => Promise<boolean>
   set_guardian_folded?: (folded: boolean) => Promise<boolean>
   open_main?: (view: string, sessionId: string | null) => Promise<boolean>
+  open_guardian_help?: (topic: string) => Promise<boolean>
 }
 
 declare global {

@@ -1,16 +1,26 @@
-export type PetSizePreference = 'small' | 'medium' | 'large'
-export const PET_SIZE_OPTIONS: Array<[PetSizePreference, string]> = [['small', '작게'], ['medium', '보통'], ['large', '크게']]
-export function normalizePetSize(value: string | null): PetSizePreference {
-  return value === 'small' || value === 'large' ? value : 'medium'
+export type PetSizePreference = number
+export const PET_SIZE_MIN = 70
+export const PET_SIZE_MAX = 140
+export const PET_SIZE_STEP = 5
+const LEGACY: Record<string, number> = { small: 80, medium: 100, large: 130 }
+export function normalizePetSize(value: string | number | null): PetSizePreference {
+  if (typeof value === 'string' && Object.hasOwn(LEGACY, value)) return LEGACY[value]
+  const size = value === null || value === '' ? NaN : Number(value)
+  return Number.isFinite(size) ? Math.max(PET_SIZE_MIN, Math.min(PET_SIZE_MAX, Math.round(size / PET_SIZE_STEP) * PET_SIZE_STEP)) : 100
 }
 export function readPetSize(): PetSizePreference {
-  try { return normalizePetSize(localStorage.getItem('aia.pet.size')) } catch { return 'medium' }
+  try { return normalizePetSize(localStorage.getItem('aia.pet.size')) } catch { return 100 }
+}
+export function displayPetSize(value: PetSizePreference): void {
+  document.documentElement.dataset.petSize = String(value)
+  document.documentElement.style.setProperty('--browser-pet-size', `${petPixelSize(value)}px`)
 }
 export function applyPetSize(value: PetSizePreference): void {
-  document.documentElement.dataset.petSize = value
-  try { localStorage.setItem('aia.pet.size', value) } catch { /* keep the in-memory choice */ }
+  const size = normalizePetSize(value)
+  displayPetSize(size)
+  try { localStorage.setItem('aia.pet.size', String(size)) } catch { /* keep the in-memory choice */ }
   window.dispatchEvent(new Event('aia:pet-size-changed'))
 }
 export function petPixelSize(value: PetSizePreference): number {
-  return { small: 84, medium: 104, large: 136 }[value]
+  return Math.round(104 * value / 100)
 }
