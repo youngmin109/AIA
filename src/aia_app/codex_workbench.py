@@ -199,24 +199,25 @@ class CodexWorkbench:
         return {**self._codex_session(session_id).set_turn_settings(model, effort), "session_id": session_id}
 
     def set_codex_permission_mode(self, session_id: str, mode: Any) -> dict[str, Any]:
-        """Switch full access (YOLO) or work-folder-only for the next requests.
+        """Switch between the Codex app's three permission choices for the next requests.
 
         Like a permission grant, the run records the choice before Codex hears
         of it, so a full-access request never runs unrecorded.
         """
 
         if mode not in TURN_PERMISSIONS:
-            raise CodexAppServerError("permission mode must be full_access or workspace")
+            raise CodexAppServerError("permission mode must be workspace, auto_review or full_access")
         codex_session = self._codex_session(session_id)
         service = self._service
         record = service.registry.require(session_id)
-        previous = (record.permission_mode, record.full_access_used)
+        previous = (record.permission_mode, record.full_access_used, record.auto_review_used)
         record.permission_mode = mode
         record.full_access_used = record.full_access_used or mode == "full_access"
+        record.auto_review_used = record.auto_review_used or mode == "auto_review"
         try:
             service._persist_runtime_state(record, strict=True)
         except (OSError, ValueError) as error:
-            record.permission_mode, record.full_access_used = previous
+            record.permission_mode, record.full_access_used, record.auto_review_used = previous
             raise CodexAppServerError("권한 변경을 기록하지 못해 바꾸지 않았어요. 다시 시도해 주세요.") from error
         return {**codex_session.set_permission_mode(mode), "session_id": session_id}
 

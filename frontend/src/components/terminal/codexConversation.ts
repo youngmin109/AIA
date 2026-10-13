@@ -7,7 +7,9 @@
 
 import type { PermissionEntry } from '../../api/permissionGrants'
 import type { TokenUsage, Usage, UsageLimits } from '../../api/usageView'
-import { PERMISSION_OPTIONS, permissionModeOf, sandboxLabel, type PermissionMode } from '../../api/permissionMode.ts'
+import { permissionModeFromCodex, permissionModeOf, permissionOption, type PermissionMode } from '../../api/permissionMode.ts'
+
+const RISK_LABEL: Record<string, string> = { low: '낮음', medium: '보통', high: '높음', critical: '매우 높음' }
 
 /** These replies may fail before acceptance; the still-pending card must allow a fresh attempt. */
 export function isInteractiveResponse(action: unknown): boolean {
@@ -42,6 +44,8 @@ export interface CodexEvent {
   model?: string | null
   sandbox?: string | null
   approval_policy?: string | null
+  approvals_reviewer?: string | null
+  risk?: string | null
   unexpected?: boolean
   question_id?: string
   questions?: UserQuestion[]
@@ -200,17 +204,24 @@ function notice(state: ConversationState, event: CodexEvent, tone: 'info' | 'war
 function applyEvent(state: ConversationState, event: CodexEvent) {
   const id = String(event.item_id ?? event.sequence)
   switch (event.type) {
-    case 'session.ready':
-      notice(state, event, 'info', `Codex 연결됨 · 모델 ${event.model ?? '기본값'} · AI 권한 ${sandboxLabel(event.sandbox)}`)
-      if (event.sandbox === 'dangerFullAccess') state.permissionMode = 'full_access'
-      else if (event.sandbox === 'workspaceWrite') state.permissionMode = 'workspace'
+    case 'session.ready': {
+      const mode = permissionModeFromCodex(event.sandbox, event.approvals_reviewer)
+      notice(state, event, 'info', `Codex 연결됨 · 모델 ${event.model ?? '기본값'} · 권한 ${permissionOption(mode)?.label ?? '확인 불가'}`)
+      if (mode) state.permissionMode = mode
       break
+    }
     case 'permission.changed': {
       const mode = permissionModeOf(event.mode)
       if (!mode) break
       state.permissionMode = mode
-      const label = PERMISSION_OPTIONS.find(option => option.mode === mode)?.label ?? mode
-      notice(state, event, mode === 'full_access' ? 'warn' : 'info', `AI 권한을 ${label}${mode === 'full_access' ? '(YOLO 모드)' : ''}으로 바꿨어요 · 다음 요청부터 적용돼요`)
+      notice(state, event, mode === 'full_access' ? 'warn' : 'info', `권한을 "${permissionOption(mode)?.label}"(으)로 바꿨어요 · 다음 요청부터 적용돼요`)
+      break
+    }
+    case 'auto_review.completed': {
+      const risk = event.risk ? ` · 위험도 ${RISK_LABEL[event.risk] ?? event.risk}` : ''
+      if (event.status === 'approved') notice(state, event, 'info', `Codex가 대신 검토하고 승인했어요${risk}`)
+      else if (event.status === 'denied') notice(state, event, 'warn', `Codex가 대신 검토하고 거절했어요${risk}`)
+      else notice(state, event, 'warn', 'Codex 자동 검토가 끝나지 않아 승인하지 않았어요')
       break
     }
     case 'turn.started':

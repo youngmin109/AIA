@@ -34,8 +34,9 @@ _ALLOWED_CREATE_KEYS = frozenset(
     }
 )
 
-# AI permission of a Workbench run (see RunRecord.permission_mode).
-PERMISSION_MODES = frozenset({"full_access", "workspace"})
+# AI permission of a Workbench run, the Codex app's three choices (see
+# RunRecord.permission_mode).
+PERMISSION_MODES = frozenset({"workspace", "auto_review", "full_access"})
 
 _ALLOWED_PREVIEW_KEYS = frozenset(
     {
@@ -133,9 +134,9 @@ class CreateRunRequest:
             raise DTOValidationError("resume_thread_id is not a Codex conversation id")
         permission_mode = value.get("permission_mode", "workspace")
         if permission_mode not in PERMISSION_MODES:
-            raise DTOValidationError("permission_mode must be full_access or workspace")
-        if permission_mode == "full_access" and launch_mode != "codex_app_server":
-            raise DTOValidationError("full_access is only available in the Codex conversation")
+            raise DTOValidationError("permission_mode must be workspace, auto_review or full_access")
+        if permission_mode != "workspace" and launch_mode != "codex_app_server":
+            raise DTOValidationError(f"{permission_mode} is only available in the Codex conversation")
         return cls(
             workspace=workspace,
             agent=agent,

@@ -605,7 +605,7 @@ class ProtectedRunMixin:
             if record.launch_mode == "codex_app_server":
                 adapter_options["app_server"] = True
                 if record.permission_mode == "full_access":
-                    # YOLO: the user chose no Codex sandbox and no Codex
+                    # Full access: the user chose no Codex sandbox and no Codex
                     # approval prompts; the AIA Hook still checks every call.
                     adapter_options.update({"approval_policy": "never", "sandbox": "danger-full-access"})
                 # External tools can run outside the Hook; only those the user
@@ -675,10 +675,13 @@ class ProtectedRunMixin:
             # decisions remain in the separate Workbench runtime snapshot.
             limitations.append("CODEX_PERMISSIONS_USER_GRANTED")
         if record.full_access_used:
-            # The user chose full access (YOLO) for some or all requests: the
-            # Codex sandbox did not limit writes outside the work folder or
-            # network use.  AIA's Hook, sensors and recovery still applied.
+            # The user chose full access for some or all requests: the Codex
+            # sandbox did not limit writes outside the work folder or network
+            # use.  AIA's Hook, sensors and recovery still applied.
             limitations.append("CODEX_FULL_ACCESS_USER_SELECTED")
+        if record.auto_review_used:
+            # Codex's auto-review, not the user, answered approval requests.
+            limitations.append("CODEX_AUTO_REVIEW_USER_SELECTED")
         if record.runtime.get("codex_sandbox_downgraded"):
             limitations.append("CODEX_SANDBOX_DOWNGRADED")
         if record.runtime.get("codex_approval_policy_downgraded"):

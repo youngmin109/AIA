@@ -10,6 +10,7 @@ import { PermissionsCard } from './PermissionsCard'
 import { UsageChip } from './UsageChip'
 import { ModelChip } from './ModelChip'
 import { PermissionChip } from './PermissionChip'
+import { usePermissionProfiles } from '../../hooks/usePermissionProfiles'
 import { PlanBar } from './PlanBar'
 import { DiffCard } from './DiffCard'
 import { CommandPalette } from './CommandPalette'
@@ -503,6 +504,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const firstElicitation = session.pendingElicitations[0]
   const firstPermissions = session.pendingPermissions[0]
   const models = useCodexModels(!session.ended)
+  const permissionProfiles = usePermissionProfiles(!session.ended)
   const palette = session.ended ? [] : matchSlashCommands(draft)
   const diffItems = session.conversation.items.filter((item): item is Extract<TranscriptItem, { kind: 'diff' }> => item.kind === 'diff')
   const diffFiles = [...new Set(diffItems.flatMap(item => item.files))]
@@ -534,6 +536,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         {context}
         <PermissionChip
           mode={session.permissionMode}
+          profiles={permissionProfiles}
           disabled={!session.connected || session.ended}
           onChoose={session.setPermissionMode}
           open={permissionOpen}

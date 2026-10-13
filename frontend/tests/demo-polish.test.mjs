@@ -98,27 +98,41 @@ test('connectors the run turned off read as off and sort after the ones still on
   assert.deepEqual(connectorsOnFirst([off, on]).map(item => item.name), ['context7', 'node_repl'])
 })
 
-test('AI permission: YOLO is the default and reads loudly, Codex sandbox names read plainly', async () => {
-  const { PERMISSION_DEFAULT, PERMISSION_OPTIONS, permissionChipText, permissionModeOf, sandboxLabel } = await import('../src/api/permissionMode.ts')
+test("permission: the Codex app's three choices, words and order, with full access by default", async () => {
+  const { PERMISSION_DEFAULT, PERMISSION_OPTIONS, PERMISSION_TITLE, permissionAllowed, permissionModeOf, permissionModeFromCodex } = await import('../src/api/permissionMode.ts')
   assert.equal(PERMISSION_DEFAULT, 'full_access')
-  assert.equal(PERMISSION_OPTIONS[0].badge, 'YOLO 모드')
-  assert.equal(permissionChipText('full_access'), 'YOLO · 전체 권한')
-  assert.equal(permissionChipText('workspace'), '작업 폴더만')
+  assert.equal(PERMISSION_TITLE, 'ChatGPT 액션은 어떻게 승인할까요?')
+  assert.deepEqual(PERMISSION_OPTIONS.map(option => option.label), ['승인 요청', '나 대신 승인', '전체 권한'])
+  assert.equal(PERMISSION_OPTIONS[2].chip, '전체 액세스')
+  // Codex's own profiles decide what can be picked; unknown profiles allow all.
+  const full = PERMISSION_OPTIONS[2]
+  assert.equal(permissionAllowed(full, []), true)
+  assert.equal(permissionAllowed(full, [{ id: ':workspace', allowed: true }, { id: ':danger-full-access', allowed: false }]), false)
+  assert.equal(permissionAllowed(PERMISSION_OPTIONS[1], [{ id: ':workspace', allowed: true }]), true)
   assert.equal(permissionModeOf('yolo'), null)
-  assert.equal(sandboxLabel('dangerFullAccess'), '전체 권한(YOLO)')
-  assert.equal(sandboxLabel('workspaceWrite'), '작업 폴더만')
-  assert.equal(sandboxLabel(null), '확인 불가')
+  assert.equal(permissionModeFromCodex('workspaceWrite', 'auto_review'), 'auto_review')
+  assert.equal(permissionModeFromCodex('workspaceWrite', 'user'), 'workspace')
+  assert.equal(permissionModeFromCodex('dangerFullAccess', 'user'), 'full_access')
+  assert.equal(permissionModeFromCodex('readOnly', 'user'), null)
 })
 
-test('the conversation follows the applied sandbox and each permission switch', async () => {
+test("the conversation follows the applied permission, each switch, and Codex's auto-review outcomes", async () => {
   const { applyEvents, EMPTY_CONVERSATION } = await import('../src/components/terminal/codexConversation.ts')
-  const ready = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'session.ready', model: 'm', sandbox: 'dangerFullAccess' }])
-  assert.equal(ready.permissionMode, 'full_access')
-  assert.match(ready.items.at(-1).text, /AI 권한 전체 권한\(YOLO\)/)
-  const switched = applyEvents(ready, [{ sequence: 2, type: 'permission.changed', mode: 'workspace' }])
-  assert.equal(switched.permissionMode, 'workspace')
-  assert.match(switched.items.at(-1).text, /작업 폴더만으로 바꿨어요/)
-  assert.equal(applyEvents(switched, [{ sequence: 3, type: 'permission.changed', mode: 'nope' }]).permissionMode, 'workspace')
+  const ready = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'session.ready', model: 'm', sandbox: 'workspaceWrite', approvals_reviewer: 'auto_review' }])
+  assert.equal(ready.permissionMode, 'auto_review')
+  assert.match(ready.items.at(-1).text, /권한 나 대신 승인/)
+  const switched = applyEvents(ready, [{ sequence: 2, type: 'permission.changed', mode: 'full_access' }])
+  assert.equal(switched.permissionMode, 'full_access')
+  assert.match(switched.items.at(-1).text, /"전체 권한"\(으\)로 바꿨어요/)
+  assert.equal(applyEvents(switched, [{ sequence: 3, type: 'permission.changed', mode: 'nope' }]).permissionMode, 'full_access')
+  const reviewed = applyEvents(switched, [
+    { sequence: 4, type: 'auto_review.completed', status: 'denied', risk: 'high' },
+    { sequence: 5, type: 'auto_review.completed', status: 'approved', risk: null },
+  ])
+  assert.deepEqual(reviewed.items.slice(-2).map(item => [item.tone, item.text]), [
+    ['warn', 'Codex가 대신 검토하고 거절했어요 · 위험도 높음'],
+    ['info', 'Codex가 대신 검토하고 승인했어요'],
+  ])
 })
 
 test('recent activity strip: one dot per record in its lane, blocks, and a heartbeat that rises with work', async () => {

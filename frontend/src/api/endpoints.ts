@@ -2,7 +2,7 @@ import type { CodexModel } from './modelView'
 import type { CodexConnector } from './connectorView'
 import type { StoragePruneResult, StorageSummary } from './storageView'
 import type { ExternalToolsState } from './externalToolsView'
-import type { PermissionMode } from './permissionMode'
+import type { PermissionMode, PermissionProfile } from './permissionMode'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -81,7 +81,7 @@ export interface CreateRunPayload {
   resume_thread_id?: string | null
   /** Files and folders inside the workspace to protect on top of the policy. */
   protected_paths?: string[]
-  /** AI permission: full access (YOLO) or the work folder only. */
+  /** Permission, the Codex app's three choices. */
   permission_mode?: PermissionMode
 }
 
@@ -186,6 +186,6 @@ export function codexConversations(): Promise<{ conversations: ResumableConversa
 }
 
 /** Visible Codex models from a short-lived app-server; an empty list hides the pickers. */
-export function codexModels(): Promise<{ models: CodexModel[]; error?: string }> {
-  return apiGet<{ models: CodexModel[]; error?: string }>('/api/codex/models')
+export function codexModels(): Promise<{ models: CodexModel[]; permission_profiles?: PermissionProfile[]; error?: string }> {
+  return apiGet<{ models: CodexModel[]; permission_profiles?: PermissionProfile[]; error?: string }>('/api/codex/models')
 }

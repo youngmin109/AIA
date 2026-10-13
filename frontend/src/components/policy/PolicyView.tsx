@@ -22,7 +22,7 @@ const CARD_LOOK: Array<{ tone: GlossTone; icon: IconName }> = [
 const ENGINE_FACTS: Array<{ title: string; items: Array<{ title: string; description: string; status: SupportStatus }> }> = [
   { title: '실행 범위', items: [
     { title: '작업공간 범위', description: '보호 실행 시작 시 지정한 작업공간을 관찰과 복구의 기준으로 사용합니다.', status: '지원' },
-    { title: '작업공간 밖 쓰기', description: 'AI 권한이 "작업 폴더만"이면 Codex 샌드박스가 제한합니다. 전체 권한(YOLO)에서는 제한하지 않고, AIA는 명령을 실행 전에 검사만 합니다. 작업 폴더 밖 변경은 되돌릴 수 없습니다.', status: '부분 지원' },
+    { title: '작업공간 밖 쓰기', description: '권한이 "승인 요청"·"나 대신 승인"이면 Codex 샌드박스가 제한합니다. "전체 권한"에서는 제한하지 않고, AIA는 명령을 실행 전에 검사만 합니다. 작업 폴더 밖 변경은 되돌릴 수 없습니다.', status: '부분 지원' },
     { title: '도구·명령 범위', description: '에이전트가 요청하는 도구와 위험 명령을 실행 전에 평가합니다.', status: '부분 지원' },
     { title: '사용자 확인', description: '지원 범위 밖 도구는 사용자에게 확인합니다. 정책상 금지된 동작은 허용할 수 없습니다.', status: '부분 지원' },
   ] },

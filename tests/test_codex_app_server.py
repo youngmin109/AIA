@@ -154,7 +154,7 @@ def test_open_reports_the_sandbox_and_approval_policy_codex_applied(tmp_path: Pa
     session = _session(tmp_path, FAKE_APP_SERVER_SANDBOX="readOnly")
     try:
         effective = session.open(sandbox="workspace-write", approval_policy="on-request")
-        assert effective == {"model": "fake-model", "approval_policy": "on-request", "sandbox": "readOnly"}
+        assert effective == {"model": "fake-model", "approval_policy": "on-request", "approvals_reviewer": "user", "sandbox": "readOnly"}
         assert session.snapshot()["status"] == "READY"
         assert session.read_events()[-1]["type"] == "session.ready"
     finally:
@@ -514,9 +514,32 @@ def test_permission_mode_goes_with_the_next_request_only(opened: CodexAppServerS
     replies = [e["text"] for e in events if e["type"] == "message.completed"]
     # Codex keeps the override for later turns, so AIA sends it once.
     assert replies[-2:] == [
-        'settings {"approvalPolicy": "never", "sandboxPolicy": {"type": "dangerFullAccess"}}',
+        'settings {"approvalPolicy": "never", "approvalsReviewer": "user", "sandboxPolicy": {"type": "dangerFullAccess"}}',
         "settings {}",
     ]
+
+
+def test_permission_profiles_come_from_codex(tmp_path) -> None:
+    session = CodexAppServerSession([sys.executable, "-u", str(FAKE_SERVER)], cwd=tmp_path, env=dict(os.environ))
+    session.start()
+    try:
+        session.handshake()
+        assert session.list_permission_profiles() == [
+            {"id": ":read-only", "allowed": True},
+            {"id": ":workspace", "allowed": True},
+            {"id": ":danger-full-access", "allowed": False},
+        ]
+    finally:
+        session.close(force=True)
+
+
+def test_auto_review_outcome_is_kept_without_its_unstable_details() -> None:
+    from aia_app.codex_app_server import normalize_notification
+
+    assert normalize_notification("item/autoApprovalReview/completed", {
+        "review": {"status": "denied", "riskLevel": "high", "rationale": "deletes files"}, "action": {"command": "rm -rf ."},
+    }) == {"type": "auto_review.completed", "status": "denied", "risk": "high"}
+    assert normalize_notification("item/autoApprovalReview/completed", {"review": {"status": "inProgress"}}) is None
 
 
 def test_full_access_opens_only_as_the_complete_pair(tmp_path) -> None:
@@ -525,6 +548,8 @@ def test_full_access_opens_only_as_the_complete_pair(tmp_path) -> None:
         session.open(sandbox="danger-full-access", approval_policy="on-request")
     with pytest.raises(CodexAppServerError):
         session.open(sandbox="workspace-write", approval_policy="never")
+    with pytest.raises(CodexAppServerError):
+        session.open(approvals_reviewer="guardian_subagent")
 
 
 def test_plan_updates_keep_the_latest_steps(opened: CodexAppServerSession) -> None:

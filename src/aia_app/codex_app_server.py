@@ -203,13 +203,17 @@ _SPECIAL_PATH_LABELS = {
 _UNSUPPORTED_REQUEST_CODE = -32601
 _PROTECTED_SANDBOXES = frozenset({"read-only", "workspace-write"})
 _PROTECTED_APPROVAL_POLICIES = frozenset({"on-request", "on-failure", "untrusted"})
-# Full access (YOLO) is the user's choice for a Workbench run, only as this pair.
+# Full access is the user's choice for a Workbench run, only as this pair.
 _FULL_ACCESS = ("danger-full-access", "never")
-# Permission overrides sent with the next turn/start when the user switches
-# mode during a conversation (Codex keeps them for later turns).
+# Who reviews Codex's approval requests: the user, or Codex's auto-review.
+_APPROVALS_REVIEWERS = frozenset({"user", "auto_review"})
+# The Codex app's three permission choices, as overrides sent with the next
+# turn/start when the user switches during a conversation (Codex keeps them
+# for later turns).
 TURN_PERMISSIONS: dict[str, dict[str, Any]] = {
-    "full_access": {"sandboxPolicy": {"type": "dangerFullAccess"}, "approvalPolicy": "never"},
-    "workspace": {"sandboxPolicy": {"type": "workspaceWrite"}, "approvalPolicy": "on-request"},
+    "workspace": {"sandboxPolicy": {"type": "workspaceWrite"}, "approvalPolicy": "on-request", "approvalsReviewer": "user"},
+    "auto_review": {"sandboxPolicy": {"type": "workspaceWrite"}, "approvalPolicy": "on-request", "approvalsReviewer": "auto_review"},
+    "full_access": {"sandboxPolicy": {"type": "dangerFullAccess"}, "approvalPolicy": "never", "approvalsReviewer": "user"},
 }
 
 
@@ -577,6 +581,15 @@ def normalize_notification(method: str, params: Mapping[str, Any]) -> dict[str, 
     if method == "thread/tokenUsage/updated":
         tokens = _token_usage(params)
         return {"type": "usage.tokens", "tokens": tokens} if tokens else None
+    if method == "item/autoApprovalReview/completed":
+        # Codex marks this payload unstable; only the outcome is kept.
+        review = params.get("review") if isinstance(params.get("review"), Mapping) else {}
+        status = review.get("status")
+        if status not in {"approved", "denied", "timedOut", "aborted"}:
+            return None
+        risk = review.get("riskLevel")
+        return {"type": "auto_review.completed", "status": status,
+                "risk": risk if risk in {"low", "medium", "high", "critical"} else None}
     if method in {"warning", "configWarning", "deprecationNotice", "guardianWarning"}:
         message = params.get("message") or params.get("summary") or params.get("details")
         return {"type": "warning", "message": _text_of(message) or method}
@@ -751,6 +764,7 @@ class CodexAppServerSession:
         *,
         sandbox: str = "workspace-write",
         approval_policy: str = "on-request",
+        approvals_reviewer: str = "user",
         model: str | None = None,
         timeout: float | None = None,
         resume_thread_id: str | None = None,
@@ -766,6 +780,8 @@ class CodexAppServerSession:
             raise CodexAppServerError("sandbox is not allowed for protected Workbench runs")
         if not full_access and approval_policy not in _PROTECTED_APPROVAL_POLICIES:
             raise CodexAppServerError("approval policy is not allowed for protected Workbench runs")
+        if approvals_reviewer not in _APPROVALS_REVIEWERS:
+            raise CodexAppServerError("approvals reviewer must be user or auto_review")
         timeout = self.REQUEST_TIMEOUT_SECONDS if timeout is None else timeout
         self._request(
             "initialize",
@@ -777,6 +793,7 @@ class CodexAppServerSession:
             "cwd": str(self.cwd),
             "sandbox": sandbox,
             "approvalPolicy": approval_policy,
+            "approvalsReviewer": approvals_reviewer,
         }
         if model:
             params["model"] = model
@@ -802,6 +819,7 @@ class CodexAppServerSession:
         effective = {
             "model": result.get("model"),
             "approval_policy": result.get("approvalPolicy"),
+            "approvals_reviewer": result.get("approvalsReviewer"),
             "sandbox": effective_sandbox,
         }
         with self._lock:
@@ -1068,10 +1086,10 @@ class CodexAppServerSession:
         return {"accepted": True, "model": model, "effort": effort}
 
     def set_permission_mode(self, mode: Any) -> dict[str, Any]:
-        """Switch full access (YOLO) or work-folder-only for the next requests."""
+        """Switch between the Codex app's three permission choices for the next requests."""
 
         if mode not in TURN_PERMISSIONS:
-            raise CodexAppServerError("permission mode must be full_access or workspace")
+            raise CodexAppServerError("permission mode must be workspace, auto_review or full_access")
         self._require_thread()
         with self._lock:
             self._pending_permission = mode
@@ -1087,6 +1105,16 @@ class CodexAppServerSession:
             timeout=timeout,
         )
         self._notify("initialized")
+
+    def list_permission_profiles(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
+        """Codex's permission profiles and whether its config allows each (after ``handshake``)."""
+
+        result = self._request("permissionProfile/list", {"cwd": str(self.cwd)}, timeout=timeout)
+        return [
+            {"id": item["id"], "allowed": item.get("allowed") is not False}
+            for item in result.get("data") or []
+            if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+        ]
 
     def list_models(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
         """Visible models; the session must not be opened (see ``handshake``)."""

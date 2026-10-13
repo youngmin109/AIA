@@ -425,7 +425,7 @@ class CodexAdapter:
         argv: list[str] = [str(executable), "app-server"]
         approval_policy = options.get("approval_policy", "on-request")
         sandbox = options.get("sandbox", "workspace-write")
-        # Full access (YOLO) is a user choice for the Workbench conversation
+        # Full access is a user choice for the Workbench conversation
         # and comes only as the complete pair; the installed, trusted Hook
         # required above still checks every tool call.
         full_access = (sandbox, approval_policy) == ("danger-full-access", "never")

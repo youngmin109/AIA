@@ -363,6 +363,7 @@ def test_full_access_is_sealed_as_the_users_choice_without_degrading_verified_pr
     workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
     record.permission_mode = 'full_access'
     record.full_access_used = True
+    record.auto_review_used = True
     sensors = tuple(SimpleNamespace(
         health=SensorHealth(source, SensorStatus.HEALTHY, datetime.now(timezone.utc)),
         stop=lambda: SimpleNamespace(status=SensorStatus.STOPPED),
@@ -377,6 +378,7 @@ def test_full_access_is_sealed_as_the_users_choice_without_degrading_verified_pr
         assert record.protection_state == 'COMPLETED_VERIFIED'
         result = json.loads(service.reader.read_result_json(session.session_id))
         assert 'CODEX_FULL_ACCESS_USER_SELECTED' in result['limitations']
+        assert 'CODEX_AUTO_REVIEW_USER_SELECTED' in result['limitations']
         assert service.reader.verification(session.session_id).status.value == 'VALID'
     finally:
         record.status = 'COMPLETED'

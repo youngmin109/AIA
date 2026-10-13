@@ -267,7 +267,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
-  /** Full access (YOLO) or the work folder only, from the next request; the run records it first. */
+  /** One of the Codex app's three permission choices, from the next request; the run records it first. */
   const setPermissionMode = useCallback(
     (mode: PermissionMode) => {
       setErrorMessage(null)

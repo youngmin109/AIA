@@ -2,10 +2,10 @@
 
 세션마다 5줄 이하. 최신이 위.
 
-## 2026-10-13 · AI 권한 선택(YOLO 기본)
-- 새 실행 "AI 권한"(기본 전체 권한 = `danger-full-access`+`never`, 짝으로만 허용)과 작업창 권한 칩. 대화 중 전환은 실행 기록에 먼저 남기고 다음 `turn/start`에 `sandboxPolicy`·`approvalPolicy`로 한 번 보냄.
-- 전체 권한을 쓴 실행은 Bundle 제한사항 `CODEX_FULL_ACCESS_USER_SELECTED`, 보호 상태는 낮추지 않음(사용자가 시작 전에 고른 범위). "작업 폴더만"에서 Codex가 전체 권한을 적용하면 기존처럼 보호 실패.
-- 펫 첫 위치를 화면 왼쪽 아래로. 영민 님 검토 필요: 보호 계약 변경, 자동 복구 지점은 YOLO에서도 유지.
+## 2026-10-13 · 권한 선택(Codex 앱 메뉴 그대로, 전체 권한 기본)
+- Codex 앱의 세 권한(승인 요청 / 나 대신 승인 = `approvalsReviewer=auto_review` / 전체 권한 = `danger-full-access`+`never`, 짝으로만 허용)을 같은 문구·순서로. 메뉴는 `permissionProfile/list`로 불러와 막힌 항목은 비활성. 대화 중 전환은 실행 기록에 먼저 남기고 다음 `turn/start`에 한 번 보냄. 자동 검토 결과(`item/autoApprovalReview/completed`)는 결과만 대화에 표시.
+- Bundle 제한사항 `CODEX_FULL_ACCESS_USER_SELECTED`·`CODEX_AUTO_REVIEW_USER_SELECTED`, 보호 상태는 낮추지 않음(사용자가 고른 범위). 앞의 두 권한에서 Codex가 전체 권한을 적용하면 기존처럼 보호 실패.
+- 펫 첫 위치를 화면 왼쪽 아래로. 영민 님 검토 필요: 보호 계약 변경, 자동 복구 지점은 전체 권한에서도 유지.
 - 보호 패널 "최근 5분 활동"을 가로 활동 띠로: 요청·프로세스·파일 줄에 기록마다 점, 차단 판정은 빨간 마름모, 아래 감시 심박선(쉴 때 잔잔, 활동 때 솟음, 실행 중 지금 쪽 점이 뜀).
 
 ## 2026-10-13 · 외부 도구 켜고 끄기

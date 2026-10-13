@@ -223,8 +223,13 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
           )}
 
           {data.limitations?.includes('CODEX_FULL_ACCESS_USER_SELECTED') && (
-            <p className="faint-note result-yolo-note">
-              <span className="yolo-badge">YOLO 모드</span> 전체 권한으로 실행했어요. 모든 명령은 AIA가 실행 전에 검사했고 작업 폴더는 되돌릴 수 있어요. 작업 폴더 밖 변경과 인터넷 사용은 Codex 샌드박스가 막지 않았고 되돌리기 범위 밖이에요.
+            <p className="faint-note">
+              전체 권한으로 실행했어요. 모든 명령은 AIA가 실행 전에 검사했고 작업 폴더는 되돌릴 수 있어요. 작업 폴더 밖 변경과 인터넷 사용은 Codex 샌드박스가 막지 않았고 되돌리기 범위 밖이에요.
+            </p>
+          )}
+          {data.limitations?.includes('CODEX_AUTO_REVIEW_USER_SELECTED') && (
+            <p className="faint-note">
+              "나 대신 승인"으로 실행해 Codex가 승인 요청을 대신 검토했어요. 그렇게 승인된 권한 확대는 AIA 기록에 따로 남지 않을 수 있어요.
             </p>
           )}
 

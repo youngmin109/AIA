@@ -591,6 +591,11 @@ class RunApplicationService(
                 session.start()
                 try:
                     payload: dict[str, Any] = {"models": session.list_models()}
+                    try:
+                        # The Codex app's permission menu comes from these profiles.
+                        payload["permission_profiles"] = session.list_permission_profiles()
+                    except CodexAppServerError:
+                        payload["permission_profiles"] = []
                 finally:
                     session.close(force=True)
             except Exception as error:  # noqa: BLE001 - the picker is optional
@@ -632,6 +637,7 @@ class RunApplicationService(
             effective = codex_session.open(
                 sandbox="danger-full-access" if full_access else "workspace-write",
                 approval_policy="never" if full_access else "on-request",
+                approvals_reviewer="auto_review" if record.permission_mode == "auto_review" else "user",
                 model=record.model,
                 **({"resume_thread_id": record.resume_thread_id} if record.resume_thread_id else {}),
             )
@@ -666,9 +672,13 @@ class RunApplicationService(
             effective_approval_policy=approval_policy or None,
             effective_sandbox=_APP_SERVER_SANDBOX_NAMES.get(sandbox, sandbox) or None,
         )
+        if record.permission_mode == "auto_review" and effective.get("approvals_reviewer") == "auto_review":
+            # Codex's auto-review, not the user, answers approval requests; the Bundle states it.
+            record.auto_review_used = True
+            self._persist_runtime_state(record)
         if full_access:
-            # The user chose YOLO; the Bundle states it.  The Hook, sensors
-            # and recovery stay in force.  A stricter mode Codex applied is fine.
+            # The user chose full access; the Bundle states it.  The Hook,
+            # sensors and recovery stay in force.  A stricter mode Codex applied is fine.
             record.full_access_used = sandbox == "dangerFullAccess"
             if sandbox == "readOnly":
                 record.runtime["codex_sandbox_downgraded"] = True
@@ -1694,6 +1704,7 @@ class RunApplicationService(
             "permission_grants": record.permission_grants,
             "permission_mode": record.permission_mode,
             "full_access_used": record.full_access_used,
+            "auto_review_used": record.auto_review_used,
             "codex_thread_id": record.codex_thread_id,
             "resumed_from": record.resumed_from,
             "protection": {

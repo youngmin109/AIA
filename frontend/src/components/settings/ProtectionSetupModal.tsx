@@ -20,7 +20,9 @@ import { HookStatusControl } from './HookStatusControl'
 import { readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 import { absoluteInWorkspace, addProtectedPaths, insideWorkspace, MAX_PROTECTED_PATHS } from '../../api/protectedPaths'
-import { PERMISSION_DEFAULT, PERMISSION_OPTIONS, type PermissionMode } from '../../api/permissionMode'
+import { PERMISSION_DEFAULT, permissionAllowed, permissionOption, type PermissionMode } from '../../api/permissionMode'
+import { PermissionMenu } from '../terminal/PermissionChip'
+import { usePermissionProfiles } from '../../hooks/usePermissionProfiles'
 import { useProfiles } from '../../hooks/useProfiles'
 import { usePreflight } from '../../hooks/usePreflight'
 import { workspaceShortName } from '../shell/sessionLabel'
@@ -78,7 +80,11 @@ function NewRunSheet() {
   const [protectedPaths, setProtectedPaths] = useState<string[]>([])
   const [protectEntry, setProtectEntry] = useState('')
   const [protectMessage, setProtectMessage] = useState<string | null>(null)
-  const [permission, setPermission] = useState<PermissionMode>(PERMISSION_DEFAULT)
+  const [chosenPermission, setPermission] = useState<PermissionMode>(PERMISSION_DEFAULT)
+  const permissionProfiles = usePermissionProfiles()
+  // A choice Codex's config forbids falls back to asking the user.
+  const chosenOption = permissionOption(chosenPermission)
+  const permission: PermissionMode = chosenOption && permissionAllowed(chosenOption, permissionProfiles) ? chosenPermission : 'workspace'
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
   const storedDefault = readDefaultPolicyProfile()
@@ -293,18 +299,11 @@ function NewRunSheet() {
           </section>
 
           <section className="newrun-section" aria-labelledby="newrun-permission">
-            <h3 id="newrun-permission"><span className="newrun-step">3</span>AI 권한</h3>
-            <div className="newrun-permissions">
-              {PERMISSION_OPTIONS.map(option => (
-                <button key={option.mode} type="button"
-                  className={`glass-card permission-option${option.mode === permission ? ' is-selected' : ''}${option.mode === 'full_access' ? ' is-yolo' : ''}`}
-                  aria-pressed={option.mode === permission} onClick={() => setPermission(option.mode)}>
-                  <strong>{option.label}{option.badge && <span className="yolo-badge">{option.badge}</span>}</strong>
-                  <small>{option.note}</small>
-                </button>
-              ))}
+            <h3 id="newrun-permission"><span className="newrun-step">3</span>권한</h3>
+            <div className="glass-card newrun-permissions">
+              <PermissionMenu mode={permission} profiles={permissionProfiles} disabled={false} onChoose={setPermission} />
             </div>
-            <p className="faint-note">작업창에서도 바꿀 수 있어요. 전체 권한에서는 작업 폴더 밖 변경과 인터넷 사용을 Codex가 막지 않고, 작업 폴더 밖 변경은 되돌리기 범위 밖이에요.</p>
+            <p className="faint-note">Codex 앱과 같은 권한 설정이에요. 작업창에서도 바꿀 수 있어요. 어떤 권한이든 AIA가 모든 명령을 실행 전에 검사해요. 전체 권한에서는 작업 폴더 밖 변경과 인터넷 사용을 Codex가 막지 않고, 작업 폴더 밖 변경은 되돌리기 범위 밖이에요.</p>
           </section>
 
           <section className="newrun-section" aria-labelledby="newrun-protect">

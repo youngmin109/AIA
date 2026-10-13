@@ -74,14 +74,13 @@
   --success-line: rgba(120, 240, 195, 0.45);
   --warning: #ffc860;
   --warning-text: #ffe2a6;
-  /* Full access (YOLO): the product's default AI permission, meant to stand out. */
   /* Recent-activity lanes, matching the panel's request/process/file tiles. */
   --lane-request: #8f9bff;
   --lane-process: #ff7aa8;
   --lane-file: #3fd8b0;
-  --yolo-from: #ff7a45;
-  --yolo-to: #ff3d77;
-  --on-yolo: #fff;
+  /* Full access permission, orange like the Codex app's own menu. */
+  --full-access: #ffa05c;
+  --full-access-line: rgba(255, 160, 92, 0.55);
   --warning-bg: rgba(255, 200, 96, 0.16);
   --warning-line: rgba(255, 210, 120, 0.5);
   --chart-allow: rgba(255, 255, 255, 0.78);

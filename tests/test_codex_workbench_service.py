@@ -115,7 +115,8 @@ def test_open_records_applied_settings_without_flags_when_protected(service, tmp
 
     service._open_codex_conversation(record)
 
-    assert session.calls == [("open", {"sandbox": "workspace-write", "approval_policy": "on-request", "model": "gpt-test"})]
+    # The user reviews approvals in this mode, even if the Codex config says otherwise.
+    assert session.calls == [("open", {"sandbox": "workspace-write", "approval_policy": "on-request", "approvals_reviewer": "user", "model": "gpt-test"})]
     assert record.runtime["codex_effective_settings"]["sandbox"] == "workspaceWrite"
     assert "codex_sandbox_downgraded" not in record.runtime
     assert "codex_approval_policy_downgraded" not in record.runtime
@@ -171,8 +172,11 @@ def test_permission_mode_is_a_codex_conversation_choice_and_defaults_to_work_fol
     base = {"workspace": ".", "interactive": True, "launch_mode": "codex_app_server"}
     assert CreateRunRequest.from_mapping(base).permission_mode == "workspace"
     assert CreateRunRequest.from_mapping({**base, "permission_mode": "full_access"}).permission_mode == "full_access"
+    assert CreateRunRequest.from_mapping({**base, "permission_mode": "auto_review"}).permission_mode == "auto_review"
     with pytest.raises(DTOValidationError, match="permission_mode"):
         CreateRunRequest.from_mapping({**base, "permission_mode": "yolo"})
+    with pytest.raises(DTOValidationError, match="auto_review"):
+        CreateRunRequest.from_mapping({"workspace": ".", "interactive": True, "permission_mode": "auto_review"})
     with pytest.raises(DTOValidationError, match="full_access"):
         CreateRunRequest.from_mapping({"workspace": ".", "interactive": True, "permission_mode": "full_access"})
 
@@ -185,11 +189,24 @@ def test_full_access_run_opens_without_codex_sandbox_and_is_not_a_protection_fai
 
     service._open_codex_conversation(record)
 
-    assert session.calls == [("open", {"sandbox": "danger-full-access", "approval_policy": "never", "model": "gpt-test"})]
+    assert session.calls == [("open", {"sandbox": "danger-full-access", "approval_policy": "never", "approvals_reviewer": "user", "model": "gpt-test"})]
     assert record.full_access_used is True
     assert "protection_failure_reason" not in record.runtime
     assert "codex_sandbox_downgraded" not in record.runtime
     assert "codex_approval_policy_downgraded" not in record.runtime
+
+
+def test_auto_review_run_lets_codex_review_approvals_inside_the_sandbox(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.permission_mode = "auto_review"
+    session = FakeCodexSession({"model": "m", "approval_policy": "on-request", "approvals_reviewer": "auto_review", "sandbox": "workspaceWrite"})
+    record.runtime["codex_session"] = session
+
+    service._open_codex_conversation(record)
+
+    assert session.calls == [("open", {"sandbox": "workspace-write", "approval_policy": "on-request", "approvals_reviewer": "auto_review", "model": "gpt-test"})]
+    assert record.auto_review_used is True and record.full_access_used is False
+    assert "protection_failure_reason" not in record.runtime
 
 
 def test_full_access_request_that_codex_applies_more_strictly_is_not_marked_used(service, tmp_path) -> None:
@@ -212,10 +229,13 @@ def test_switching_permission_mode_is_recorded_before_codex_hears_of_it(service,
     assert service.set_codex_permission_mode("session-1", "full_access")["mode"] == "full_access"
     assert record.permission_mode == "full_access" and record.full_access_used is True
     assert service.get_codex_status("session-1")["permission_mode"] == "full_access"
-    # Back to the work folder: the run still remembers full access was used.
+    # Back to asking the user: the run still remembers full access was used.
     service.set_codex_permission_mode("session-1", "workspace")
     assert record.permission_mode == "workspace" and record.full_access_used is True
-    assert session.calls == [("permission", "full_access"), ("permission", "workspace")]
+    service.set_codex_permission_mode("session-1", "auto_review")
+    assert record.auto_review_used is True
+    service.set_codex_permission_mode("session-1", "workspace")
+    assert session.calls == [("permission", "full_access"), ("permission", "workspace"), ("permission", "auto_review"), ("permission", "workspace")]
     with pytest.raises(CodexAppServerError):
         service.set_codex_permission_mode("session-1", "yolo")
 
@@ -365,13 +385,17 @@ def test_model_list_is_cached_and_a_failure_hides_the_picker(service, monkeypatc
         def list_models(self):
             return [{"model": "gpt-fast", "display_name": "GPT Fast", "efforts": []}]
 
+        def list_permission_profiles(self):
+            return [{"id": ":workspace", "allowed": True}, {"id": ":danger-full-access", "allowed": False}]
+
         def close(self, force=False):
             pass
 
     monkeypatch.setattr(service_module.CodexAdapter, "discover", lambda self: "codex.exe")
     monkeypatch.setattr(service_module, "CodexAppServerSession", FakeModelSession)
     assert service.list_codex_models()["models"][0]["model"] == "gpt-fast"
-    assert service.list_codex_models()["models"][0]["model"] == "gpt-fast"
+    # The Codex app's permission menu comes from Codex's own profiles.
+    assert service.list_codex_models()["permission_profiles"][1] == {"id": ":danger-full-access", "allowed": False}
     assert created == [["codex.exe", "app-server"]]
 
     service._models_cache = None
