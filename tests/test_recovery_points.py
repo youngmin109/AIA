@@ -357,7 +357,7 @@ def test_responses_cannot_resume_codex_during_checkpoint_capture(tmp_path, monke
         service.shutdown()
 
 
-def test_full_access_is_sealed_as_the_users_choice_without_degrading_verified_protection(tmp_path, monkeypatch):
+def test_full_access_is_sealed_as_a_scope_exception_with_degraded_protection(tmp_path, monkeypatch):
     from aia.sensors.base import SensorHealth, SensorStatus
 
     workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
@@ -375,7 +375,7 @@ def test_full_access_is_sealed_as_the_users_choice_without_degrading_verified_pr
             SimpleNamespace(context=SimpleNamespace(root_process_identity=None)), 0,
             controller, True, None,
         ) is True
-        assert record.protection_state == 'COMPLETED_VERIFIED'
+        assert record.protection_state == 'COMPLETED_DEGRADED'
         result = json.loads(service.reader.read_result_json(session.session_id))
         assert 'CODEX_FULL_ACCESS_USER_SELECTED' in result['limitations']
         assert 'CODEX_AUTO_REVIEW_USER_SELECTED' in result['limitations']
@@ -388,11 +388,14 @@ def test_full_access_is_sealed_as_the_users_choice_without_degrading_verified_pr
 
 
 @pytest.mark.parametrize('aborted', [False, True])
-def test_user_grants_are_sealed_as_a_protection_limitation(tmp_path, monkeypatch, aborted):
+@pytest.mark.parametrize('grant_scope', ['turn', 'mode_change_request'])
+def test_user_grants_are_sealed_as_a_protection_limitation(tmp_path, monkeypatch, aborted, grant_scope):
     from aia.sensors.base import SensorHealth, SensorStatus
 
     workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
-    record.permission_grants = [{'scope': 'turn', 'network': True}]
+    record.permission_grants = [{'scope': grant_scope, 'network': True}]
+    if grant_scope == 'mode_change_request':
+        record.permission_changes = [{'to_mode': 'full_access', 'status': 'UNCONFIRMED'}]
     record.stop_requested = aborted
     sensors = tuple(SimpleNamespace(
         health=SensorHealth(source, SensorStatus.HEALTHY, datetime.now(timezone.utc)),

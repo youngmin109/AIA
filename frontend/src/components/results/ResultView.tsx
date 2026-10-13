@@ -106,7 +106,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       {(snapshot?.permission_grants ?? []).length > 0 && (
         <div className="glass-notice is-warning" role="note">
           <div>
-            <strong>이번 실행에서 Codex에게 권한을 넓혀 줬어요</strong>
+            <strong>이번 실행에 권한 확대 또는 요청 기록이 있어요</strong>
             {(snapshot?.permission_grants ?? []).map((grant) => <p key={grant.granted_at}>{grantSummary(grant)}</p>)}
             {widensBeyondProtection(snapshot?.permission_grants) && <p>작업 폴더 밖 쓰기와 인터넷 사용은 AIA 기준점·복구와 감시 범위 밖이라, 이 결과가 그 부분까지 보장하지는 않아요.</p>}
           </div>

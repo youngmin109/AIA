@@ -38,6 +38,7 @@ test('storage sizes read naturally and the clean-up notice says what was freed',
   assert.equal(formatBytes(-1), '—')
   assert.match(pruneResultNotice({ pruned_runs: 2, freed_bytes: 2048, keep_recent_runs: 10 }), /2개.*2KB/)
   assert.equal(pruneResultNotice({ pruned_runs: 0, freed_bytes: 0, keep_recent_runs: 10 }), '지울 기준점 사본이 없어요.')
+  assert.match(pruneResultNotice({ pruned_runs: 0, freed_bytes: 0, keep_recent_runs: 10, failed_runs: 1 }), /1개 실행.*정리하지 못했어요/)
 })
 
 test('a command is one row: Hook check, command and Hook record fold together', async () => {
@@ -100,7 +101,7 @@ test('connectors the run turned off read as off and sort after the ones still on
 
 test("permission: the Codex app's three choices, words and order, with full access by default", async () => {
   const { PERMISSION_DEFAULT, PERMISSION_OPTIONS, PERMISSION_TITLE, permissionAllowed, permissionModeOf, permissionModeFromCodex } = await import('../src/api/permissionMode.ts')
-  assert.equal(PERMISSION_DEFAULT, 'full_access')
+  assert.equal(PERMISSION_DEFAULT, 'workspace')
   assert.equal(PERMISSION_TITLE, 'ChatGPT 액션은 어떻게 승인할까요?')
   assert.deepEqual(PERMISSION_OPTIONS.map(option => option.label), ['승인 요청', '나 대신 승인', '전체 권한'])
   assert.equal(PERMISSION_OPTIONS[2].chip, '전체 액세스')
@@ -123,7 +124,7 @@ test("the conversation follows the applied permission, each switch, and Codex's 
   assert.match(ready.items.at(-1).text, /권한 나 대신 승인/)
   const switched = applyEvents(ready, [{ sequence: 2, type: 'permission.changed', mode: 'full_access' }])
   assert.equal(switched.permissionMode, 'full_access')
-  assert.match(switched.items.at(-1).text, /"전체 권한"\(으\)로 바꿨어요/)
+  assert.match(switched.items.at(-1).text, /"전체 권한"\(으\)로 예약했어요/)
   assert.equal(applyEvents(switched, [{ sequence: 3, type: 'permission.changed', mode: 'nope' }]).permissionMode, 'full_access')
   const reviewed = applyEvents(switched, [
     { sequence: 4, type: 'auto_review.completed', status: 'denied', risk: 'high' },

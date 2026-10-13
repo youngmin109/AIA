@@ -51,9 +51,13 @@ class FakeCodexSession:
     def snapshot(self) -> dict:
         return {"mode": "codex_app_server", "status": "READY", "error": None, "last_sequence": 3, "thread_id": "thr-42"}
 
-    def send_message(self, text: str) -> dict:
+    def send_message(self, text: str, *, before_permission_send=None) -> dict:
+        mode = getattr(self, 'pending_permission', None)
+        if mode and before_permission_send:
+            before_permission_send(mode)
+        self.pending_permission = None
         self.calls.append(("send", text))
-        return {"accepted": True, "mode": "start", "turn_id": "turn-1"}
+        return {"accepted": True, "mode": "start", "turn_id": "turn-1", **({'permission_submitted': mode} if mode else {})}
 
     def interrupt(self) -> dict:
         self.calls.append(("interrupt",))
@@ -68,6 +72,7 @@ class FakeCodexSession:
         return {"accepted": True, "model": model, "effort": effort}
 
     def set_permission_mode(self, mode) -> dict:
+        self.pending_permission = mode
         self.calls.append(("permission", mode))
         return {"accepted": True, "mode": mode}
 
@@ -191,6 +196,7 @@ def test_full_access_run_opens_without_codex_sandbox_and_is_not_a_protection_fai
 
     assert session.calls == [("open", {"sandbox": "danger-full-access", "approval_policy": "never", "approvals_reviewer": "user", "model": "gpt-test"})]
     assert record.full_access_used is True
+    assert record.protection_state == 'DEGRADED'
     assert "protection_failure_reason" not in record.runtime
     assert "codex_sandbox_downgraded" not in record.runtime
     assert "codex_approval_policy_downgraded" not in record.runtime
@@ -206,6 +212,7 @@ def test_auto_review_run_lets_codex_review_approvals_inside_the_sandbox(service,
 
     assert session.calls == [("open", {"sandbox": "workspace-write", "approval_policy": "on-request", "approvals_reviewer": "auto_review", "model": "gpt-test"})]
     assert record.auto_review_used is True and record.full_access_used is False
+    assert record.protection_state == 'DEGRADED'
     assert "protection_failure_reason" not in record.runtime
 
 
@@ -227,13 +234,13 @@ def test_switching_permission_mode_is_recorded_before_codex_hears_of_it(service,
     service.registry.add(record)
 
     assert service.set_codex_permission_mode("session-1", "full_access")["mode"] == "full_access"
-    assert record.permission_mode == "full_access" and record.full_access_used is True
+    assert record.permission_mode == "full_access" and record.full_access_used is False
     assert service.get_codex_status("session-1")["permission_mode"] == "full_access"
-    # Back to asking the user: the run still remembers full access was used.
+    # Superseding a choice before a new turn does not claim it was used.
     service.set_codex_permission_mode("session-1", "workspace")
-    assert record.permission_mode == "workspace" and record.full_access_used is True
+    assert record.permission_mode == "workspace" and record.full_access_used is False
     service.set_codex_permission_mode("session-1", "auto_review")
-    assert record.auto_review_used is True
+    assert record.auto_review_used is False
     service.set_codex_permission_mode("session-1", "workspace")
     assert session.calls == [("permission", "full_access"), ("permission", "workspace"), ("permission", "auto_review"), ("permission", "workspace")]
     with pytest.raises(CodexAppServerError):
@@ -258,6 +265,85 @@ def test_open_failure_is_recorded_and_lets_codex_exit(service, tmp_path) -> None
 
     assert record.runtime["codex_app_server_error"] == "CODEX_APP_SERVER_OPEN_FAILED: no answer"
     assert session.calls[-1] == ("close", True)
+
+
+def test_mode_exception_is_durable_before_dispatch_and_remains_after_restriction(service, tmp_path):
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime['codex_session'] = session
+    record.protection_state = 'ACTIVE_VERIFIED'
+    service.registry.add(record)
+    service.set_codex_permission_mode(record.session_id, 'full_access')
+    assert not record.full_access_used and not record.permission_grants
+    original_send = session.send_message
+    def inspected_send(text, *, before_permission_send):
+        def before(mode):
+            before_permission_send(mode)
+            saved = service._read_runtime_state(record.session_id)
+            assert saved['permission_changes'][-1]['status'] == 'SUBMITTING'
+            assert saved['permission_grants'] and saved['protection']['state'] == 'DEGRADED'
+        return original_send(text, before_permission_send=before)
+    session.send_message = inspected_send
+    service.send_codex_message(record.session_id, 'hello')
+    assert record.full_access_used
+    assert record.permission_changes[-1]['status'] == 'ACKNOWLEDGED'
+    assert record.protection_state == 'DEGRADED'
+    service.set_codex_permission_mode(record.session_id, 'workspace')
+    service.send_codex_message(record.session_id, 'restricted')
+    assert record.full_access_used and record.permission_grants
+    assert record.protection_state == 'DEGRADED'
+
+
+def test_mode_submission_write_failure_prevents_dispatch(service, tmp_path, monkeypatch):
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime['codex_session'] = session
+    service.registry.add(record)
+    service.set_codex_permission_mode(record.session_id, 'full_access')
+    def fail(*args, **kwargs):
+        raise OSError('disk full')
+    monkeypatch.setattr(service, '_persist_runtime_state', fail)
+    with pytest.raises(CodexAppServerError, match='기록하지 못해'):
+        service.send_codex_message(record.session_id, 'never dispatched')
+    assert not any(call[0] == 'send' for call in session.calls)
+    assert record.permission_changes[-1]['status'] == 'PENDING'
+    assert not record.full_access_used and not record.permission_grants
+
+
+def test_mode_rpc_timeout_remains_unconfirmed_and_degraded(service, tmp_path):
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime['codex_session'] = session
+    service.registry.add(record)
+    service.set_codex_permission_mode(record.session_id, 'auto_review')
+    def timeout(text, *, before_permission_send):
+        before_permission_send('auto_review')
+        raise CodexAppServerError('timeout')
+    session.send_message = timeout
+    with pytest.raises(CodexAppServerError, match='timeout'):
+        service.send_codex_message(record.session_id, 'unknown result')
+    assert record.permission_changes[-1]['status'] == 'UNCONFIRMED'
+    assert not record.auto_review_used
+    assert record.permission_grants and record.protection_state == 'DEGRADED'
+    assert record.permission_changes[-1]['attempts'][0]['status'] == 'UNCONFIRMED'
+    service.set_codex_permission_mode(record.session_id, 'workspace')
+    assert record.permission_changes[-2]['status'] == 'UNCONFIRMED'
+
+
+def test_mode_queue_failure_restores_previous_pending_choice(service, tmp_path):
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime['codex_session'] = session
+    service.registry.add(record)
+    service.set_codex_permission_mode(record.session_id, 'workspace')
+    previous = record.permission_changes
+    def fail(mode):
+        raise CodexAppServerError('not attached')
+    session.set_permission_mode = fail
+    with pytest.raises(CodexAppServerError):
+        service.set_codex_permission_mode(record.session_id, 'full_access')
+    assert record.permission_mode == 'workspace'
+    assert record.permission_changes == previous
     assert "protection_failure_reason" not in record.runtime
 
 

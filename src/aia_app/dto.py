@@ -133,7 +133,7 @@ class CreateRunRequest:
         ):
             raise DTOValidationError("resume_thread_id is not a Codex conversation id")
         permission_mode = value.get("permission_mode", "workspace")
-        if permission_mode not in PERMISSION_MODES:
+        if not isinstance(permission_mode, str) or permission_mode not in PERMISSION_MODES:
             raise DTOValidationError("permission_mode must be workspace, auto_review or full_access")
         if permission_mode != "workspace" and launch_mode != "codex_app_server":
             raise DTOValidationError(f"{permission_mode} is only available in the Codex conversation")

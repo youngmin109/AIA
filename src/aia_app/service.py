@@ -675,16 +675,19 @@ class RunApplicationService(
         if record.permission_mode == "auto_review" and effective.get("approvals_reviewer") == "auto_review":
             # Codex's auto-review, not the user, answers approval requests; the Bundle states it.
             record.auto_review_used = True
+            record.protection_state = "DEGRADED"
             self._persist_runtime_state(record)
-        if full_access:
+        if full_access and sandbox in {"dangerFullAccess", "workspaceWrite", "readOnly"} and approval_policy in {"never", "on-request", "on-failure", "untrusted"}:
             # The user chose full access; the Bundle states it.  The Hook,
             # sensors and recovery stay in force.  A stricter mode Codex applied is fine.
-            record.full_access_used = sandbox == "dangerFullAccess"
+            record.full_access_used = sandbox == "dangerFullAccess" or approval_policy == "never"
+            if record.full_access_used:
+                record.protection_state = "DEGRADED"
             if sandbox == "readOnly":
                 record.runtime["codex_sandbox_downgraded"] = True
             self._persist_runtime_state(record)
             return
-        if sandbox == "dangerFullAccess" or approval_policy == "never":
+        if full_access or sandbox == "dangerFullAccess" or approval_policy == "never" or (record.permission_mode == "workspace" and effective.get("approvals_reviewer") == "auto_review"):
             # Codex applied a less protected mode than AIA requested (for
             # example from a managed config).  No task has been sent yet; end
             # the run through the same verified termination as a lost Hook
@@ -1571,13 +1574,16 @@ class RunApplicationService(
         if record.phase == "RUNNING" and not _product_sensor_set_present(runtime_sensors):
             sensors_healthy = False
         hook_broker_healthy = _hook_broker_runtime_healthy(record)
-        if controller.errors or hook_broker_healthy is False or record.permission_grants:
-            record.protection_state = "DEGRADED"
-        elif events and sensors_healthy and hook_broker_healthy is not False:
-            record.protection_state = "ACTIVE_VERIFIED"
-        elif events:
-            record.protection_state = "ACTIVE_DEGRADED"
-        self._persist_runtime_state(record)
+        with self._codex_workbench._permission_lock(record):
+            if record.status in {"COMPLETED", "FAILED", "ABORTED"}:
+                return
+            if controller.errors or hook_broker_healthy is False or record.permission_grants or record.full_access_used or record.auto_review_used:
+                record.protection_state = "DEGRADED"
+            elif events and sensors_healthy and hook_broker_healthy is not False:
+                record.protection_state = "ACTIVE_VERIFIED"
+            elif events:
+                record.protection_state = "ACTIVE_DEGRADED"
+            self._persist_runtime_state(record)
 
     def _phase(self, record: RunRecord, phase: str, status: SessionStatus) -> None:
         record.phase = phase
@@ -1703,6 +1709,7 @@ class RunApplicationService(
             "startup": record.startup,
             "permission_grants": record.permission_grants,
             "permission_mode": record.permission_mode,
+            "permission_changes": record.permission_changes,
             "full_access_used": record.full_access_used,
             "auto_review_used": record.auto_review_used,
             "codex_thread_id": record.codex_thread_id,

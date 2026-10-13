@@ -533,6 +533,33 @@ def test_permission_profiles_come_from_codex(tmp_path) -> None:
         session.close(force=True)
 
 
+def test_permission_dispatch_is_audited_before_rpc_and_invalidates_old_effective_settings(opened, monkeypatch):
+    calls = []
+    original = opened._request
+    def request(method, params, **kwargs):
+        if method == 'turn/start':
+            assert calls == ['recorded']
+        return original(method, params, **kwargs)
+    monkeypatch.setattr(opened, '_request', request)
+    opened.set_permission_mode('full_access')
+    result = opened.send_message('settings audit', before_permission_send=lambda mode: calls.append('recorded'))
+    assert result['permission_submitted'] == 'full_access'
+    assert opened.snapshot()['effective']['sandbox'] is None
+    assert opened.snapshot()['effective']['permission_verification'] == 'UNKNOWN_AFTER_CHANGE'
+
+
+def test_permission_record_failure_sends_no_turn_and_keeps_pending_choice(opened, monkeypatch):
+    calls = []
+    monkeypatch.setattr(opened, '_request', lambda *args, **kwargs: calls.append(args))
+    opened.set_permission_mode('full_access')
+    def fail(mode):
+        raise OSError('disk full')
+    with pytest.raises(OSError):
+        opened.send_message('not sent', before_permission_send=fail)
+    assert not calls
+    assert opened._pending_permission == 'full_access'
+
+
 def test_auto_review_outcome_is_kept_without_its_unstable_details() -> None:
     from aia_app.codex_app_server import normalize_notification
 

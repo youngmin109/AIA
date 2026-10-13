@@ -906,7 +906,7 @@ class CodexAppServerSession:
 
     # -- conversation ------------------------------------------------------
 
-    def send_message(self, text: str) -> dict[str, Any]:
+    def send_message(self, text: str, *, before_permission_send: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Start a turn, or steer the active turn with additional input."""
 
         if not isinstance(text, str) or not text.strip() or len(text) > self.MAX_INPUT_CHARS:
@@ -930,11 +930,19 @@ class CodexAppServerSession:
             params["effort"] = settings["effort"]
         if permission is not None:
             params.update(TURN_PERMISSIONS[permission])
+            if before_permission_send is not None:
+                before_permission_send(permission)
+            # turn/start does not echo the effective sandbox/reviewer. Never
+            # display thread/start's old observation as proof of a later setting.
+            with self._lock:
+                self._effective = {**self._effective, "sandbox": None, "approval_policy": None,
+                                   "approvals_reviewer": None, "permission_verification": "UNKNOWN_AFTER_CHANGE"}
         result = self._request("turn/start", params)
         if permission is not None:
             with self._lock:
                 if self._pending_permission == permission:
                     self._pending_permission = None
+            self._append_event({"type": "permission.submitted", "mode": permission})
         new_turn_id = (result.get("turn") or {}).get("id")
         with self._lock:
             # turn/started and even turn/completed can arrive before this
@@ -946,7 +954,8 @@ class CodexAppServerSession:
             ):
                 self._active_turn_id = new_turn_id
                 self._status = "WORKING"
-        return {"accepted": True, "mode": "start", "turn_id": new_turn_id}
+        return {"accepted": True, "mode": "start", "turn_id": new_turn_id,
+                **({"permission_submitted": permission} if permission is not None else {})}
 
     def interrupt(self, *, timeout: float | None = None) -> dict[str, Any]:
         thread_id, turn_id = self._require_thread()
@@ -1088,7 +1097,7 @@ class CodexAppServerSession:
     def set_permission_mode(self, mode: Any) -> dict[str, Any]:
         """Switch between the Codex app's three permission choices for the next requests."""
 
-        if mode not in TURN_PERMISSIONS:
+        if not isinstance(mode, str) or mode not in TURN_PERMISSIONS:
             raise CodexAppServerError("permission mode must be workspace, auto_review or full_access")
         self._require_thread()
         with self._lock:

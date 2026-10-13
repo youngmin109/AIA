@@ -214,7 +214,11 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
       const mode = permissionModeOf(event.mode)
       if (!mode) break
       state.permissionMode = mode
-      notice(state, event, mode === 'full_access' ? 'warn' : 'info', `권한을 "${permissionOption(mode)?.label}"(으)로 바꿨어요 · 다음 요청부터 적용돼요`)
+      notice(state, event, mode === 'full_access' ? 'warn' : 'info', `다음 새 요청 권한을 "${permissionOption(mode)?.label}"(으)로 예약했어요 · 진행 중인 작업은 그대로예요`)
+      break
+    }
+    case 'permission.submitted': {
+      notice(state, event, 'warn', 'Codex가 권한 변경 요청을 접수했어요 · 실제 적용 상태는 별도 확인이 필요해요')
       break
     }
     case 'auto_review.completed': {

@@ -64,7 +64,7 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
 
       {(status?.permission_grants ?? []).length > 0 && (
         <section className="work-panel-section">
-          <h3>이번 실행에서 넓힌 권한</h3>
+          <h3>권한 확대·요청 기록</h3>
           <ul className="work-grants">
             {(status?.permission_grants ?? []).map((grant) => <li key={grant.granted_at}>{grantSummary(grant)}</li>)}
           </ul>

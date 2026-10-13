@@ -679,6 +679,8 @@ class ProtectedRunMixin:
             # sandbox did not limit writes outside the work folder or network
             # use.  AIA's Hook, sensors and recovery still applied.
             limitations.append("CODEX_FULL_ACCESS_USER_SELECTED")
+        if any(change.get("status") in {"SUBMITTING", "ACKNOWLEDGED", "UNCONFIRMED"} for change in record.permission_changes):
+            limitations.append("CODEX_PERMISSION_MODE_CHANGED")
         if record.auto_review_used:
             # Codex's auto-review, not the user, answered approval requests.
             limitations.append("CODEX_AUTO_REVIEW_USER_SELECTED")
@@ -754,6 +756,7 @@ class ProtectedRunMixin:
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
                 and not record.permission_grants
+                and not record.full_access_used and not record.auto_review_used
                 else "ABORTED_DEGRADED"
                 if final.result.session_status is SessionStatus.ABORTED
                 else "COMPLETED_VERIFIED"
@@ -763,6 +766,7 @@ class ProtectedRunMixin:
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
                 and not record.permission_grants
+                and not record.full_access_used and not record.auto_review_used
                 else "COMPLETED_DEGRADED"
             ),
             hook_event_count=len(controller.events),

@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 from typing import Any
 
 KEEP_RECENT_RUNS = 10
@@ -26,11 +27,14 @@ def _tree_bytes(root: Path, seen: set[tuple[int, int]]) -> int:
     """Bytes under root, counting a hard-linked file once."""
 
     total = 0
-    for directory, _dirs, files in os.walk(root, followlinks=False):
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = [name for name in dirs if _is_plain_directory(Path(directory) / name)]
         for name in files:
             try:
                 info = os.stat(os.path.join(directory, name), follow_symlinks=False)
             except OSError:
+                continue
+            if not stat.S_ISREG(info.st_mode):
                 continue
             key = (info.st_dev, info.st_ino)
             if key in seen:
@@ -38,6 +42,25 @@ def _tree_bytes(root: Path, seen: set[tuple[int, int]]) -> int:
             seen.add(key)
             total += info.st_size
     return total
+
+
+def _snapshot_inventory(copies: list[Path]) -> dict[tuple[int, int], tuple[int, int, int]]:
+    """inode -> (bytes, total links, links inside these snapshot copies)."""
+    inventory: dict[tuple[int, int], tuple[int, int, int]] = {}
+    for root in copies:
+        for directory, dirs, files in os.walk(root, followlinks=False):
+            dirs[:] = [name for name in dirs if _is_plain_directory(Path(directory) / name)]
+            for name in files:
+                try:
+                    info = os.stat(os.path.join(directory, name), follow_symlinks=False)
+                except OSError:
+                    continue
+                if not stat.S_ISREG(info.st_mode):
+                    continue
+                key = (info.st_dev, info.st_ino)
+                count = inventory.get(key, (0, 0, 0))[2]
+                inventory[key] = (info.st_size, info.st_nlink, count + 1)
+    return inventory
 
 
 def _is_plain_directory(path: Path) -> bool:
@@ -99,23 +122,41 @@ class StorageMixin:
     def prune_old_snapshots(self) -> dict[str, Any]:
         """Remove snapshot copies of finished runs older than the newest KEEP_RECENT_RUNS."""
 
+        # The same lock guards restore_run's validation, copy and integrity check.
+        with self._manual_restore_lock:
+            return self._prune_old_snapshots_locked()
+
+    def _prune_old_snapshots_locked(self) -> dict[str, Any]:
+
         pruned_runs = 0
         freed_bytes = 0
+        failures = []
         for session_id in self._finished_runs_newest_first()[KEEP_RECENT_RUNS:]:
             checkpoints_root = self.reader.session_directory(session_id) / "checkpoints"
             copies = _snapshot_copies(checkpoints_root)
             if not copies:
                 continue
-            run_bytes = 0
+            before = _snapshot_inventory(copies)
+            failed = False
             for copy in copies:
-                run_bytes += _tree_bytes(copy, set())
-                shutil.rmtree(copy, ignore_errors=True)
+                try:
+                    shutil.rmtree(copy)
+                except OSError:
+                    failed = True
+            after = _snapshot_inventory(copies)
+            run_bytes = sum(size for key, (size, links, count) in before.items()
+                            if key not in after and links <= count)
+            freed_bytes += run_bytes
+            if failed or any(copy.exists() for copy in copies):
+                failures.append({"session_id": session_id, "reason": "SNAPSHOT_DELETE_FAILED"})
+                continue
             marker = {"pruned_at": datetime.now(timezone.utc).isoformat(), "freed_bytes": run_bytes,
                       "reason": f"저장 공간 정리: 최근 {KEEP_RECENT_RUNS}개 실행만 기준점 사본을 보관"}
             try:
                 (checkpoints_root / PRUNED_MARKER).write_text(json.dumps(marker, ensure_ascii=False), encoding="utf-8")
             except OSError:
-                pass
+                failures.append({"session_id": session_id, "reason": "PRUNED_MARKER_WRITE_FAILED"})
+                continue
             pruned_runs += 1
-            freed_bytes += run_bytes
-        return {"pruned_runs": pruned_runs, "freed_bytes": freed_bytes, "keep_recent_runs": KEEP_RECENT_RUNS}
+        return {"pruned_runs": pruned_runs, "freed_bytes": freed_bytes, "keep_recent_runs": KEEP_RECENT_RUNS,
+                "failed_runs": len(failures), "failures": failures}

@@ -221,7 +221,11 @@ def _result_execution_policy(
     if "CODEX_FULL_ACCESS_USER_SELECTED" in (result.get("limitations") or ()) and effective_sandbox == "danger-full-access":
         # The run started in full access, as the user chose.
         requested_sandbox, requested_approval_policy = "danger-full-access", "never"
-    if effective_sandbox is None and effective_approval_policy is None:
+    if "CODEX_PERMISSION_MODE_CHANGED" in (result.get("limitations") or ()):
+        # A startup observation cannot verify later turn/start overrides.
+        effective_sandbox = effective_approval_policy = None
+        execution_policy_status = "NOT_OBSERVED"
+    elif effective_sandbox is None and effective_approval_policy is None:
         execution_policy_status = "NOT_OBSERVED"
     elif (
         effective_sandbox == requested_sandbox

@@ -49,13 +49,13 @@ export function PermissionChip({ mode, profiles, disabled, onChoose, open, onOpe
   return (
     <span className="usage-chip">
       <button type="button" className={`chip is-small permission-chip${mode === 'full_access' ? ' is-full' : ''}`} aria-expanded={open} onClick={() => onOpenChange(!open)}>
-        {current && <Icon name={current.icon} size={13} />}{current?.chip ?? '권한 확인 중'}
+        {current && <Icon name={current.icon} size={13} />}다음 요청 · {current?.chip ?? '권한 확인 중'}
       </button>
       {open && (
         <span className="usage-pop glass-card permission-pop" role="dialog" aria-label="권한">
           <PermissionMenu mode={mode} profiles={profiles} disabled={disabled}
             onChoose={next => { if (next === mode || onChoose(next)) onOpenChange(false) }} />
-          <small className="faint-note">다음 요청부터 적용되고, 바꾼 기록은 이번 실행 결과에 남아요. AIA는 모든 명령을 실행 전에 검사해요.</small>
+          <small className="faint-note">다음 새 요청에 보낼 권한이에요. 진행 중인 작업은 바뀌지 않아요. 권한 확대는 보호 범위 예외로 남고, AIA는 지원되는 Hook 요청만 검사해요.</small>
         </span>
       )}
     </span>

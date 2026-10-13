@@ -757,10 +757,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        if service is None:
-            # The app's own record folder: drop snapshot copies of old finished
-            # runs in the background (records and audit stay; see aia_app.storage).
-            asyncio.get_running_loop().run_in_executor(None, active_service.prune_old_snapshots)
+        # Opening the app must not silently destroy older recovery sources.
+        # Cleanup is an explicit, confirmed action in Settings.
         yield
         active_service.shutdown(wait=False)
 

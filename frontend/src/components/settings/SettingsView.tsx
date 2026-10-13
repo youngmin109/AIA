@@ -49,6 +49,7 @@ export function SettingsView() {
   const [pruning, setPruning] = useState(false)
   useEffect(() => { storageSummary().then(setStorage).catch(() => setStorage(null)) }, [])
   async function prune() {
+    if (!window.confirm('최근 10개를 제외한 완료 실행의 복구용 사본을 삭제합니다. 삭제한 실행은 되돌릴 수 없으며 감사 기록만 남습니다. 정리할까요?')) return
     setPruning(true); setNotice('')
     try {
       setNotice(pruneResultNotice(await pruneStorage()))
@@ -182,7 +183,7 @@ export function SettingsView() {
           </ul>
           {storage && (
             <p className="faint-note settings-storage-note">
-              실행 기준점 사본은 최근 {storage.keep_recent_runs}개 실행만 보관하고, 앱을 켤 때 오래된 사본을 지워요. 감사 기록은 지우지 않아요.
+              정리하면 최근 {storage.keep_recent_runs}개 완료 실행의 사본만 남아요. 삭제한 실행은 복구할 수 없고 감사 기록만 남습니다. 앱을 켤 때 자동 삭제하지 않아요.
               {storage.prunable_runs > 0 && <Button variant="text" disabled={pruning} onClick={prune}>{pruning ? '정리하는 중…' : `지금 정리 (${storage.prunable_runs}개 실행 · ${formatBytes(storage.prunable_bytes)})`}</Button>}
             </p>
           )}
