@@ -75,6 +75,10 @@
   --warning: #ffc860;
   --warning-text: #ffe2a6;
   /* Full access (YOLO): the product's default AI permission, meant to stand out. */
+  /* Recent-activity lanes, matching the panel's request/process/file tiles. */
+  --lane-request: #8f9bff;
+  --lane-process: #ff7aa8;
+  --lane-file: #3fd8b0;
   --yolo-from: #ff7a45;
   --yolo-to: #ff3d77;
   --on-yolo: #fff;

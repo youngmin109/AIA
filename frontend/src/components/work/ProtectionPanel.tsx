@@ -1,8 +1,8 @@
 import { grantSummary, widensBeyondProtection } from '../../api/permissionGrants'
 import { useMemo } from 'react'
 import { GlossyIcon, StatusDot } from '../common/Glass'
-import { MiniBars } from '../common/Charts'
-import { TIMELINE_LIMIT, activityBuckets } from '../../api/chartMath'
+import { ActivityStrip } from './ActivityStrip'
+import { TIMELINE_LIMIT, activityStrip } from '../../api/chartMath'
 import { displayStatus, statusTone } from '../../api/display'
 import type { RunStatus } from '../../api/types'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
@@ -33,7 +33,7 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
   const summary = status?.evidence_summary
   const activity = status?.activity
   const now = useNow(live)
-  const recent = useMemo(() => activityBuckets(status?.evidence_timeline, now), [status?.evidence_timeline, now])
+  const recent = useMemo(() => activityStrip(status?.evidence_timeline, actions, now), [status?.evidence_timeline, actions, now])
   const processes = processDepths(activity?.processes ?? []).slice(0, 8)
   const files = (activity?.files ?? []).slice(-6).reverse()
   const checkpoint = typeof status?.checkpoint === 'string' ? status.checkpoint : null
@@ -84,8 +84,8 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
 
       <section className="work-panel-section">
         <h3 className="work-panel-head">최근 5분 활동<span>이번 1분 {recent.current}건</span></h3>
-        <MiniBars values={recent.counts} showValues label={`1분 단위 실행 요청·프로세스·파일 변화 ${recent.counts.join(', ')}건`} />
-        <p className="faint-note">실행 요청·프로세스·파일 변화만 세요.{recent.partial && ` 최근 기록 ${TIMELINE_LIMIT}건까지만 반영돼요.`}</p>
+        <ActivityStrip data={recent} live={live} />
+        <p className="faint-note">점 하나가 기록 하나예요. 빨간 마름모는 차단 판정, 아래 선은 AIA가 지켜보는 심박이에요.{recent.partial && ` 최근 기록 ${TIMELINE_LIMIT}건까지만 반영돼요.`}</p>
       </section>
 
       <section className="work-panel-section">

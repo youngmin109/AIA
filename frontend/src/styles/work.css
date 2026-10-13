@@ -1088,3 +1088,56 @@ details.chat-output pre {
   justify-content: space-between;
   gap: 6px;
 }
+
+/* Recent five minutes on its side: lanes of dots and AIA's heartbeat. */
+.activity-strip {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.activity-strip .strip-grid {
+  stroke: var(--line-1);
+  stroke-dasharray: 2 4;
+}
+
+.activity-strip .strip-lane {
+  stroke: var(--fill-3);
+  stroke-width: 1;
+}
+
+.activity-strip .strip-label,
+.activity-strip .strip-axis {
+  fill: var(--text-faint);
+  font-size: 11px;
+}
+
+.activity-strip .strip-dot { opacity: 0.92; }
+.activity-strip .strip-dot.is-request { fill: var(--lane-request); }
+.activity-strip .strip-dot.is-process { fill: var(--lane-process); }
+.activity-strip .strip-dot.is-file { fill: var(--lane-file); }
+.activity-strip .strip-block { fill: var(--danger); }
+
+.activity-strip .strip-pulse {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.activity-strip.is-live .strip-pulse { stroke: var(--accent); }
+
+.activity-strip .strip-now {
+  fill: var(--accent);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: strip-heartbeat 1.2s ease-in-out infinite;
+}
+
+@keyframes strip-heartbeat {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  15% { transform: scale(1.7); opacity: 1; }
+  30% { transform: scale(1); opacity: 0.8; }
+  45% { transform: scale(1.4); opacity: 1; }
+}

@@ -120,3 +120,33 @@ test('the conversation follows the applied sandbox and each permission switch', 
   assert.match(switched.items.at(-1).text, /작업 폴더만으로 바꿨어요/)
   assert.equal(applyEvents(switched, [{ sequence: 3, type: 'permission.changed', mode: 'nope' }]).permissionMode, 'workspace')
 })
+
+test('recent activity strip: one dot per record in its lane, blocks, and a heartbeat that rises with work', async () => {
+  const { activityStrip, heartbeatPoints, PULSE_BUCKETS } = await import('../src/api/chartMath.ts')
+  const now = Date.parse('2026-10-13T03:00:00Z')
+  const at = (secondsAgo) => new Date(now - secondsAgo * 1000).toISOString()
+  const timeline = [
+    { record_type: 'PRETOOL_REQUEST', captured_at: at(10) },
+    { record_type: 'PROCESS_OBSERVED', captured_at: at(12) },
+    { record_type: 'FILESYSTEM_EVENT', captured_at: at(200) },
+    { record_type: 'SENSOR_HEALTH', captured_at: at(5) },
+    { record_type: 'PRETOOL_REQUEST', captured_at: at(400) },
+  ]
+  const strip = activityStrip(timeline, [{ enforcement_decision: 'CONTAIN', observed_at: at(10) }, { enforcement_decision: 'CONTINUE', observed_at: at(9) }], now)
+  assert.deepEqual(strip.marks.map(mark => mark.lane), ['request', 'process', 'file'])
+  assert.equal(strip.blocks.length, 1)
+  assert.ok(strip.blocks[0].position > 0.96 && strip.blocks[0].position < 1)
+  assert.equal(strip.current, 2)
+  assert.equal(strip.pulse.length, PULSE_BUCKETS)
+  assert.equal(strip.pulse.at(-1), 2)
+  assert.equal(strip.pulse.reduce((sum, value) => sum + value, 0), 3)
+  assert.equal(strip.partial, false)
+
+  // Quiet beats stay small; a busy beat is taller but capped.
+  const quiet = heartbeatPoints([0], 0, 100, 50).split(' ')
+  assert.equal(quiet[0], '0,50')
+  assert.equal(quiet[2], '50,47.5')
+  assert.equal(quiet.at(-1), '100,50')
+  assert.equal(heartbeatPoints([2], 0, 100, 50).split(' ')[2], '50,41')
+  assert.equal(heartbeatPoints([40], 0, 100, 50).split(' ')[2], '50,38')
+})
