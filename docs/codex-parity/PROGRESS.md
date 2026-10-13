@@ -6,7 +6,7 @@
 - 원인: 시연에서 고객정보.db 삭제는 AIA가 아니라 Codex 자체 정책(`blocked by policy`)이 막았음. AIA는 명령이 패턴으로 "시작"할 때만 맞추고(`$target = ...; Remove-Item $target`는 통과), 파일 규칙은 셸 명령에 적용되지 않았음.
 - 정책 엔진: 명령 규칙을 문장 단위로(따옴표 밖 `;|&` 줄바꿈 괄호, powershell/cmd 껍데기 벗김). DENY 파일 규칙은 명령이 그 경로를 말하며 지우기·옮기기·이름 바꾸기·덮어쓰기 명령을 쓰면 실행 전 DENY(읽기·복사 제외, DENY만 파생해 약해지지 않음).
 - 실행 상태 파일 교체가 Windows 순간 잠금(PermissionError)이면 짧게 재시도. 지속 실패만 `RUNTIME_STATE_PERSIST_FAILED`.
-- 실제 Codex(임시 복사본, 전체 권한, 지킬 파일 지정)로 "고객정보.db 삭제" 요청 → Hook `blocked`, VIOLATION/CONTAIN `aia-user-protected-path-1`, 파일 유지, 실행 COMPLETED_VERIFIED.
+- 실제 Codex(임시 복사본, 전체 권한, 지킬 파일 지정)로 "고객정보.db 삭제" 요청 → Hook `blocked`, VIOLATION/CONTAIN `aia-user-protected-path-1`, 파일 유지(#27 리뷰 반영 전 확인이라 실행은 COMPLETED_VERIFIED였고, 지금은 전체 권한 사용으로 COMPLETED_DEGRADED가 맞음).
 
 ## 2026-10-13 · 여러 대화방
 - 서버: 작업 폴더만 다르면 보호 실행 여러 개를 동시에(최대 = 작업자 수 4). 같은 폴더·안팎 폴더는 시작 전에 거절(`_busy_workspace_run`), 한도·폴더 검사는 잠금 안에서 다시. 폴더 검사 응답에 `busy`.
