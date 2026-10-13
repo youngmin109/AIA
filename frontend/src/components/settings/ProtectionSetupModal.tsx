@@ -108,7 +108,9 @@ function NewRunSheet() {
       validateWorkspace(workspace.trim())
         .then((result) => {
           if (cancelled) return
-          if (result.valid) {
+          if (result.valid && result.busy) {
+            setWorkspaceState({ status: 'invalid', message: `이 폴더는 다른 대화(${workspaceShortName(result.busy.workspace)})에서 보호 중이에요. 같은 폴더나 그 안팎의 폴더는 한 대화에서만 보호할 수 있어요.` })
+          } else if (result.valid) {
             setWorkspaceState({ status: 'valid' })
             setRecovery(result.recovery?.required ? result.recovery : null)
             setSizeNotice(largeFolderNotice(result.size_estimate))
@@ -308,7 +310,7 @@ function NewRunSheet() {
 
           <section className="newrun-section" aria-labelledby="newrun-protect">
             <h3 id="newrun-protect"><span className="newrun-step">4</span>꼭 지킬 파일·폴더<small className="newrun-optional">선택</small></h3>
-            <p className="faint-note">고른 파일과 폴더는 정책에 더해 만들기·고치기·지우기·옮기기·이름 바꾸기를 실행 전에 막아요. 읽기는 막지 않아요.</p>
+            <p className="faint-note">고른 파일과 폴더는 정책에 더해 지우기·옮기기·이름 바꾸기·덮어쓰기를 실행 전에 막아요. 셸 명령은 그 파일 이름이 명령에 보일 때 막고, 그 밖의 변경은 감시해 되돌릴 수 있어요. 읽기와 복사는 막지 않아요.</p>
             <div className="protect-actions">
               {hasNativeWorkspacePicker() ? (
                 <>

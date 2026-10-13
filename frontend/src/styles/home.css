@@ -156,7 +156,10 @@
 
 .home-action {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  gap: 16px;
   padding: clamp(14px, 3vh, 36px) 0 8px;
 }
 

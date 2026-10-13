@@ -37,6 +37,8 @@ from .protected_run import ApplicationValidationError, _now
 from .registry import RunRecord
 from .run_history import _runtime_coordinator_reconciliation, _workspace_key
 
+_FINISHED_RUN_STATUSES = frozenset({"COMPLETED", "ABORTED", "FAILED"})
+
 
 class RunControlMixin:
 
@@ -210,6 +212,24 @@ class RunControlMixin:
             return canonicalize_workspace(value)
         except (WorkspaceValidationError, OSError, ValueError) as error:
             raise ApplicationValidationError(f"workspace validation failed: {error}") from error
+
+    def _busy_workspace_run(self, workspace: Path) -> RunRecord | None:
+        """A live run of this AIA in the same folder, or in one inside or around it.
+
+        Several conversations may run at once, each in its own folder.  Nested
+        folders are refused too: restoring one run would undo the other's work.
+        """
+
+        key = _workspace_key(workspace)
+        if key is None:
+            return None
+        for record in self.registry.snapshots():
+            other = _workspace_key(record.workspace)
+            if record.status in _FINISHED_RUN_STATUSES or other is None:
+                continue
+            if key == other or Path(key).is_relative_to(other) or Path(other).is_relative_to(key):
+                return record
+        return None
 
     def _unresolved_orphan_for_workspace(self, workspace: Path) -> dict[str, Any] | None:
         """Refuse reuse until a stale run's recorded Agent root is reconciled.
@@ -388,8 +408,21 @@ class RunControlMixin:
             coordinator_process_create_time=process_create_time(os.getpid()),
         )
         record.runtime.update({"request": request, "resolved_policy": resolved, "session": session})
-        self._persist_runtime_state(record, strict=True)
-        self.registry.add(record)
+        with self._create_run_lock:
+            # Checked again under the lock so two starts cannot both take the last slot or folder.
+            busy = self._busy_workspace_run(workspace)
+            if busy is not None:
+                raise ApplicationValidationError(
+                    f"이 작업 폴더는 다른 대화({Path(busy.workspace).name})에서 보호 중이에요. "
+                    "같은 폴더나 그 안팎의 폴더는 한 대화에서만 보호할 수 있어요."
+                )
+            live = sum(1 for item in self.registry.snapshots() if item.status not in _FINISHED_RUN_STATUSES)
+            if live >= self.max_concurrent_runs:
+                raise ApplicationValidationError(
+                    f"동시에 열 수 있는 대화는 최대 {self.max_concurrent_runs}개예요. 끝난 대화를 종료한 뒤 다시 시작하세요."
+                )
+            self._persist_runtime_state(record, strict=True)
+            self.registry.add(record)
         self._executor.submit(self._run, record)
         return {
             "redirect_url": (

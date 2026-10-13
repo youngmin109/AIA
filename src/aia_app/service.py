@@ -113,6 +113,25 @@ _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
 _MODELS_CACHE_SECONDS = 600.0
 _WORKSPACE_SIZE_MAX_FILES = 5_000
 _WORKSPACE_SIZE_MAX_SECONDS = 1.5
+_REPLACE_ATTEMPTS = 6
+
+
+def _replace_with_retry(source: Path, target: Path) -> None:
+    """Atomic replace that waits out a brief Windows lock on the target.
+
+    While a reader (the run list, another AIA window, antivirus) has the run
+    status file open, Windows refuses to replace it.  That lasts milliseconds;
+    failing at once used to mark a healthy run as degraded.
+    """
+
+    for attempt in range(_REPLACE_ATTEMPTS):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(0.02 * (attempt + 1))
 
 
 def _workspace_size_estimate(
@@ -223,6 +242,10 @@ class RunApplicationService(
             max_workers=max_workers,
             thread_name_prefix="aia-console-run",
         )
+        # Each live run holds one worker for its whole life, so the worker
+        # count is also how many conversations can run at once.
+        self.max_concurrent_runs = max_workers
+        self._create_run_lock = RLock()
 
     def _list_completed_runs(self) -> list[dict[str, Any]]:
         """Read verified history once per short UI polling window.
@@ -1215,12 +1238,14 @@ class RunApplicationService(
                 "action": reconciliation.get("action"),
                 "agent_process_status": reconciliation.get("agent_process_status"),
             }
+        busy = self._busy_workspace_run(workspace)
         return {
             "valid": True,
             "exists": workspace.exists(),
             "is_directory": workspace.is_dir(),
             "canonical_path": str(workspace),
             "recovery": recovery,
+            "busy": {"session_id": busy.session_id, "workspace": str(busy.workspace)} if busy is not None else None,
             "size_estimate": _workspace_size_estimate(workspace) if workspace.is_dir() else None,
         }
 
@@ -1772,7 +1797,7 @@ class RunApplicationService(
                     json.dumps(dict(payload), ensure_ascii=True, indent=2) + "\n",
                     encoding="utf-8",
                 )
-                os.replace(temporary, path)
+                _replace_with_retry(temporary, path)
             finally:
                 try:
                     temporary.unlink()

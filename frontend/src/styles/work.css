@@ -1154,3 +1154,91 @@ details.chat-output pre {
   30% { transform: scale(1); opacity: 0.8; }
   45% { transform: scale(1.4); opacity: 1; }
 }
+
+/* Conversation tabs: one per live run, each in its own folder. */
+.session-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.session-tab,
+.session-tab-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--fill-1);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.session-tab:hover,
+.session-tab-new:hover:not(:disabled) {
+  background: var(--fill-2);
+  color: var(--text);
+}
+
+.session-tab[aria-selected='true'] {
+  border-color: var(--accent);
+  background: var(--fill-2);
+  color: var(--text);
+}
+
+.session-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tab small {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.session-tab-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.session-tab.is-preparing .session-tab-dot { background: var(--warning); }
+.session-tab.is-ended .session-tab-dot { background: var(--text-faint); }
+.session-tab.is-attention { border-color: var(--warning-line); }
+.session-tab.is-attention .session-tab-dot {
+  background: var(--warning);
+  animation: session-attention 1.2s ease-in-out infinite;
+}
+
+.session-tab-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 11.5px;
+}
+
+.session-tab-new {
+  border-style: dashed;
+}
+
+.session-tab-new:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@keyframes session-attention {
+  50% { opacity: 0.35; }
+}
