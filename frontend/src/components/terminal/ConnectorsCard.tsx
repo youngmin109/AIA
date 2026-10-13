@@ -1,7 +1,7 @@
 import { Button } from '../common/Button'
 import { GlossyIcon, StatusDot } from '../common/Glass'
 import { Icon } from '../common/Icon'
-import { connectorSummary, connectorTone } from '../../api/connectorView'
+import { connectorsOnFirst, connectorSummary, connectorTone } from '../../api/connectorView'
 import { useCodexConnectors } from '../../hooks/useCodexConnectors'
 
 /** /mcp: the conversation's connectors, view only. Installing and signing in stay in the Codex app. */
@@ -21,7 +21,7 @@ export function ConnectorsCard({ runId, onClose }: { runId: string; onClose: () 
       {connectors?.length === 0 && <p className="muted">이 대화에 연결된 외부 도구가 없어요.</p>}
       {connectors && connectors.length > 0 && (
         <ul className="permission-list">
-          {connectors.map(connector => (
+          {connectorsOnFirst(connectors).map(connector => (
             <li key={connector.name}>
               <StatusDot tone={connectorTone(connector)} />
               <strong>{connector.name}</strong>
@@ -31,7 +31,7 @@ export function ConnectorsCard({ runId, onClose }: { runId: string; onClose: () 
           ))}
         </ul>
       )}
-      <p className="faint-note">이 도구들은 AIA 실행 전 검사를 거치지 않을 수 있어서 차단·기록되지 않을 수 있어요. 설치·로그인·켜고 끄기는 Codex 앱에서 하세요.</p>
+      <p className="faint-note">이 도구들은 AIA 실행 전 검사를 거치지 않을 수 있어서 차단·기록되지 않을 수 있어요. 보호 실행에서 켜고 끄기는 설정 › 외부 도구에서, 설치·로그인은 Codex 앱에서 하세요.</p>
     </section>
   )
 }

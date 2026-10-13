@@ -5,12 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import sys
-import tomllib
 from typing import Any
 
 from aia import CodexAdapter, CodexHookInstaller
 from aia.codex_hook_trust import inspect_codex_hook_trust
 from aia.hook_verification import HookVerificationStore
+
+from .external_tools import discover_external_tools, read_allowed, turn_off_plan
 
 
 def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
@@ -56,32 +57,6 @@ def _aia_cli_prefix(installer: CodexHookInstaller) -> str:
         ]
     )
 
-
-
-def _enabled_codex_mcp_servers() -> list[str] | None:
-    """Return the MCP servers the Codex config turns on, or None if unreadable.
-
-    Read-only: AIA never edits the Codex config.  MCP tools are outside AIA's
-    supported scope, and some of them (for example the Codex app's node_repl)
-    run without a PreToolUse Hook, so a protected run can neither block nor
-    record what they do.
-    """
-
-    path = HookVerificationStore._codex_config_path()
-    try:
-        document = tomllib.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return []
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
-        return None
-    servers = document.get("mcp_servers")
-    if not isinstance(servers, dict):
-        return []
-    return sorted(
-        str(name)
-        for name, settings in servers.items()
-        if isinstance(settings, dict) and settings.get("enabled", True) is not False
-    )
 
 
 class PreflightMixin:
@@ -241,27 +216,38 @@ class PreflightMixin:
         }
 
     def _append_mcp_tools_check(self, checks: list[dict[str, Any]]) -> None:
-        """Warn about MCP tools outside the Hook path; never blocks readiness."""
+        """Report external tools protected runs keep on; never blocks readiness.
 
-        servers = _enabled_codex_mcp_servers()
-        if servers is None:
-            detail = "Codex 설정을 읽지 못해 MCP 도구를 확인하지 못함"
-        elif not servers:
-            detail = "켜진 MCP 서버 없음"
+        Read-only: AIA never edits the Codex config.  MCP tools can run without
+        the PreToolUse Hook (for example the Codex app's node_repl), so a
+        protected run turns them off unless the user allowed them in Settings.
+        """
+
+        tools = discover_external_tools()
+        kept_on: list[str] = []
+        if tools is None:
+            detail = "Codex 설정을 읽지 못해 외부 도구를 확인하지 못함"
         else:
-            shown = ", ".join(servers[:3]) + (f" 외 {len(servers) - 3}개" if len(servers) > 3 else "")
-            detail = (
-                f"켜짐: {shown} · MCP 도구는 AIA 보호 범위 밖이며 일부는 Hook을 거치지 않아 "
-                "차단·기록되지 않을 수 있음. Codex 설정에서 끄면 보호 범위가 명확해짐"
-            )
+            _overrides, turned_off = turn_off_plan(tools, read_allowed(self.control_root))
+            kept_on = [tool["name"] for tool in tools if tool["name"] not in turned_off]
+            if not tools:
+                detail = "켜진 외부 도구 없음"
+            elif not kept_on:
+                detail = f"외부 도구 {len(tools)}개 · 보호 실행에서는 모두 꺼 둠"
+            else:
+                shown = ", ".join(kept_on[:3]) + (f" 외 {len(kept_on) - 3}개" if len(kept_on) > 3 else "")
+                detail = (
+                    f"보호 실행에서 켜 둠: {shown} · 외부 도구는 Hook을 거치지 않으면 "
+                    "차단·기록되지 않을 수 있음"
+                )
         checks.append(
             {
                 "name": "mcp_tools",
                 "label": "Hook 밖 MCP 도구",
-                "ok": servers == [],
+                "ok": tools is not None and not kept_on,
                 "optional": True,
-                "status": "UNKNOWN" if servers is None else ("CLEAR" if not servers else "ENABLED"),
-                "servers": servers or [],
+                "status": "UNKNOWN" if tools is None else ("ENABLED" if kept_on else "CLEAR"),
+                "servers": kept_on,
                 "detail": detail,
             }
         )

@@ -1,6 +1,7 @@
 import type { CodexModel } from './modelView'
 import type { CodexConnector } from './connectorView'
 import type { StoragePruneResult, StorageSummary } from './storageView'
+import type { ExternalToolsState } from './externalToolsView'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -93,6 +94,15 @@ export function storageSummary(): Promise<StorageSummary> {
 
 export function pruneStorage(): Promise<StoragePruneResult> {
   return apiPost<StoragePruneResult>('/api/storage/prune', {})
+}
+
+/** Codex external tools and which ones AIA's protected runs keep on. */
+export function externalTools(): Promise<ExternalToolsState> {
+  return apiGet<ExternalToolsState>('/api/external-tools')
+}
+
+export function setExternalTools(allowed: string[]): Promise<ExternalToolsState> {
+  return apiPost<ExternalToolsState>('/api/external-tools', { allowed })
 }
 
 export async function createProtectedRun(payload: CreateRunPayload): Promise<CreateRunResult> {

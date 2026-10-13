@@ -6,6 +6,8 @@ export interface CodexConnector {
   tool_count: number
   tools: string[]
   error: string | null
+  /** Turned off for this protected run (Settings > 외부 도구). */
+  turned_off_by_aia?: boolean
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -29,10 +31,17 @@ export function connectorStatusLabel(status: string): string {
   return STATUS_LABEL[status] ?? '상태 확인 불가'
 }
 
-/** "연결됨 · 로그인됨 · 도구 2개"; unknown login states are left out. */
+/** "연결됨 · 로그인됨 · 도구 2개"; unknown login states, and a status Codex did not report, are left out. */
 export function connectorSummary(connector: CodexConnector): string {
+  if (connector.turned_off_by_aia) return '보호 실행에서 꺼 둠'
   const auth = AUTH_LABEL[connector.auth]
-  return [connectorStatusLabel(connector.status), auth, `도구 ${connector.tool_count}개`].filter(Boolean).join(' · ')
+  const status = connector.status === 'unknown' ? null : connectorStatusLabel(connector.status)
+  return [status, auth, `도구 ${connector.tool_count}개`].filter(Boolean).join(' · ')
+}
+
+/** Tools still on first; the ones AIA turned off for this run after them. */
+export function connectorsOnFirst(connectors: CodexConnector[]): CodexConnector[] {
+  return [...connectors].sort((a, b) => Number(Boolean(a.turned_off_by_aia)) - Number(Boolean(b.turned_off_by_aia)))
 }
 
 export function connectorTone(connector: CodexConnector): 'ok' | 'warn' | 'neutral' {

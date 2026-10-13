@@ -337,21 +337,36 @@
   font-size: 13px;
 }
 
-/* MCP tools outside AIA's scope: a quiet note, details on demand. */
-.settings-mcp-note summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* Codex external tools: which ones protected runs keep on. */
+.settings-tools-lead {
+  max-width: 80ch;
+  margin: 0;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.settings-tool-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 4px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-tool-list .glass-switch {
+  width: 100%;
+  min-height: 44px;
   cursor: pointer;
 }
 
-.settings-mcp-note p {
-  max-width: 72ch;
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 13px;
+.settings-tool-list .glass-switch .mono {
+  font-size: 14px;
+}
+
+.settings-tool-list .glass-switch:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .settings-grid {

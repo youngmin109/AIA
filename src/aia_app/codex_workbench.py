@@ -177,7 +177,19 @@ class CodexWorkbench:
         return {**result, "command": command, "session_id": session_id}
 
     def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
-        return {"connectors": self._codex_session(session_id).list_connectors(), "session_id": session_id}
+        connectors = self._codex_session(session_id).list_connectors()
+        record = self._service.registry.get(session_id)
+        turned_off = list(record.runtime.get("external_tools_off") or ()) if record is not None else []
+        for connector in connectors:
+            connector["turned_off_by_aia"] = connector["name"] in turned_off
+        # Turned-off plugins and ChatGPT apps leave Codex's list; keep them visible as off.
+        listed = {connector["name"] for connector in connectors}
+        connectors.extend(
+            {"name": name, "status": "disabled", "auth": "unknown", "tool_count": 0, "tools": [], "error": None,
+             "turned_off_by_aia": True}
+            for name in turned_off if name not in listed
+        )
+        return {"connectors": connectors, "session_id": session_id}
 
     def read_codex_diff(self, session_id: str, turn_id: str | None) -> dict[str, Any]:
         return {**self._codex_session(session_id).read_diff(turn_id), "session_id": session_id}

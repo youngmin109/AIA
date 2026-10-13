@@ -70,3 +70,30 @@ test('a command is one row: Hook check, command and Hook record fold together', 
   assert.deepEqual(hookMark([{ ...pre, status: 'blocked' }]), { text: '실행 전 중단 요청', tone: 'bad' })
   assert.equal(hookMark([]), null)
 })
+
+test('external tools: plain notes, one switch at a time, and a short summary', async () => {
+  const { externalToolNote, withToolAllowed, externalToolsSummary } = await import('../src/api/externalToolsView.ts')
+  const nodeRepl = { name: 'node_repl', source: 'config', plugin: null, on_in_protected_runs: false, allowed: false, can_turn_off: true }
+  const cua = { name: 'cua_repl', source: 'plugin', plugin: 'unified-computer-use@openai-bundled', on_in_protected_runs: true, allowed: true, can_turn_off: true }
+  const other = { name: 'docs', source: 'config', plugin: null, on_in_protected_runs: false, allowed: false, can_turn_off: true }
+  assert.equal(externalToolNote(nodeRepl), 'JavaScript 실행·브라우저 조작 · Codex 설정')
+  assert.equal(externalToolNote(cua), '화면·마우스 조작(컴퓨터 사용) · 플러그인 unified-computer-use')
+  assert.equal(externalToolNote(other), 'Codex 설정')
+  assert.deepEqual(withToolAllowed(['b'], 'a', true), ['a', 'b'])
+  assert.deepEqual(withToolAllowed(['a', 'b'], 'a', false), ['b'])
+  assert.deepEqual(withToolAllowed(['a'], 'a', true), ['a'])
+  assert.equal(externalToolsSummary(null), '확인 중')
+  assert.equal(externalToolsSummary({ readable: false, tools: [] }), 'Codex 설정을 읽지 못했어요')
+  assert.equal(externalToolsSummary({ readable: true, tools: [nodeRepl, other] }), '2개 모두 보호 실행에서 꺼 둠')
+  assert.equal(externalToolsSummary({ readable: true, tools: [nodeRepl, cua] }), '2개 중 1개 켜 둠 · 나머지는 꺼 둠')
+})
+
+test('connectors the run turned off read as off and sort after the ones still on', async () => {
+  const { connectorSummary, connectorsOnFirst } = await import('../src/api/connectorView.ts')
+  const on = { name: 'context7', status: 'unknown', auth: 'notLoggedIn', tool_count: 2, tools: [], error: null, turned_off_by_aia: false }
+  const off = { ...on, name: 'node_repl', auth: 'unsupported', tool_count: 0, turned_off_by_aia: true }
+  assert.equal(connectorSummary(off), '보호 실행에서 꺼 둠')
+  // Codex 0.16x reports no runtime status; the row leaves it out instead of saying it is unknown.
+  assert.equal(connectorSummary(on), '로그인 안 됨 · 도구 2개')
+  assert.deepEqual(connectorsOnFirst([off, on]).map(item => item.name), ['context7', 'node_repl'])
+})

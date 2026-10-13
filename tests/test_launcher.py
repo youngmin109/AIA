@@ -559,6 +559,62 @@ def test_codex_adapter_builds_app_server_launch_with_protected_overrides(
     assert "gpt-test" not in spec.argv
 
 
+def test_codex_adapter_turns_external_tools_off_for_app_server(tmp_path: Path) -> None:
+    offs = [
+        "mcp_servers.node_repl.enabled=false",
+        "plugins.unified-computer-use@openai-bundled.enabled=false",
+        "features.apps=false",
+    ]
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        adapter_options={"interactive": True, "app_server": True, "disable_external_tools": offs},
+    )
+
+    spec = CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
+
+    assert spec.argv[-6:] == ("-c", offs[0], "-c", offs[1], "-c", offs[2])
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        'sandbox_mode="danger-full-access"',
+        'mcp_servers.node_repl.command="evil.exe"',
+        "mcp_servers.node_repl.enabled=true",
+        "mcp_servers.node_repl=false",
+        "mcp_servers.a.b.enabled=false",
+        "plugins.no-marketplace.enabled=false",
+        "features.hooks=false",
+        "features.apps=false\nsandbox_mode=x",
+    ],
+)
+def test_codex_adapter_accepts_only_overrides_that_turn_a_tool_off(tmp_path: Path, override: str) -> None:
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        adapter_options={"interactive": True, "app_server": True, "disable_external_tools": [override]},
+    )
+
+    with pytest.raises(AdapterError):
+        CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
+
+
+def test_codex_adapter_turns_external_tools_off_only_in_app_server_mode(tmp_path: Path) -> None:
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="safe",
+        adapter_options={"approve_for_me": True, "disable_external_tools": ["features.apps=false"]},
+    )
+
+    with pytest.raises(AdapterError):
+        CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
+
+
 @pytest.mark.parametrize(
     ("adapter", "options"),
     [

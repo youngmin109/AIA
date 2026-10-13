@@ -5,6 +5,7 @@ import { Icon } from '../common/Icon'
 import { StatusDot } from '../common/Glass'
 import { TintPicker } from '../common/TintPicker'
 import { HookStatusControl } from './HookStatusControl'
+import { ExternalToolsCard } from './ExternalToolsCard'
 import { GuardianGuide } from '../shell/GuardianGuide'
 import { useGuardianState } from '../../hooks/useGuardianState'
 import { usePreflight } from '../../hooks/usePreflight'
@@ -38,8 +39,6 @@ export function SettingsView() {
   const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState('')
   const lights = connectionLights(error ? null : preflight)
-  const mcp = preflight?.checks?.find(check => check.name === 'mcp_tools')
-  const mcpWarning = mcp && !mcp.ok
   const codex = preflight?.checks?.find(check => check.name === 'codex_executable')
   const controlRoot = preflight?.checks?.find(check => check.name === 'control_root')
   const ready = preflight?.readiness_code === 'READY'
@@ -135,15 +134,11 @@ export function SettingsView() {
             </div>
           ))}
         </div>
-        {mcpWarning && (
-          <details className="settings-mcp-note">
-            <summary><Icon name="info" size={15} />Codex 외부 도구(MCP)가 켜져 있어요 · 아이아 보호 범위 밖</summary>
-            <p>{mcp?.detail ?? '켜진 MCP 서버를 확인하세요.'} 실행 전 검사를 거치는 외부 도구 요청은 작업창에서 허용 여부를 물어요. AIA는 Codex 설정을 바꾸지 않아요. Codex 설정에서 끄면 이 안내가 사라져요.</p>
-          </details>
-        )}
         {!ready && preflight && <HookStatusControl />}
         {serverLost && <div className="glass-notice is-danger"><strong>AIA 로컬 서버와 연결이 끊겼어요</strong><p>자동으로 다시 연결을 시도해요.</p></div>}
       </section>
+
+      <ExternalToolsCard />
 
       <section className="settings-grid" aria-label="화면과 정보">
         <div className="glass-card settings-card">

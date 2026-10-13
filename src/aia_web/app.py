@@ -270,6 +270,19 @@ def _register_catalog_routes(app: FastAPI) -> None:
     def storage_prune() -> JSONResponse:
         return JSONResponse(app.state.service.prune_old_snapshots())
 
+    @app.get("/api/external-tools")
+    def external_tools() -> JSONResponse:
+        return JSONResponse(app.state.service.external_tools())
+
+    @app.post("/api/external-tools")
+    async def set_external_tools(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            allowed = payload.get("allowed") if isinstance(payload, dict) else None
+            return JSONResponse(app.state.service.set_external_tools(allowed))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
     @app.get("/api/profiles")
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())

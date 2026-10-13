@@ -2,6 +2,11 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-13 · 외부 도구 켜고 끄기
+- 보호 실행(app-server)은 외부 도구를 기본으로 끄고 시작: `[mcp_servers]`는 `mcp_servers.<이름>.enabled=false`, 플러그인 MCP는 `plugins.<id>.enabled=false`, ChatGPT 앱은 `features.apps=false`. Codex 설정 파일은 읽기만 함. 어댑터는 "끄는" `-c` 값만 받음.
+- 설정 › 외부 도구에서 도구마다 켜기(`control/external-tools.json`의 `allowed`). 사전 점검은 켜 둔 도구만 경고. 보호 패널·`/mcp`는 "보호 실행에서 꺼 둠" 표시.
+- 실제 Codex 0.162.1에서 8개(설정 4·플러그인 3·앱 1) 모두 꺼짐 확인. 단, Codex 앱 백그라운드 서버가 `node_repl`을 잡고 있으면 샌드박스 점검이 실패하는 문제는 AIA 밖이라 문서에 안내.
+
 ## 2026-10-08 · PR #25 병합 검토 보완
 - 권한 허용 전 런타임 기록을 먼저 저장하며, 저장 실패 시 Codex에 허용 응답을 보내지 않음.
 - 추가 권한 허용 실행은 보호 제한으로 표시하고 최종 Bundle에 `CODEX_PERMISSIONS_USER_GRANTED`를 남김. 세부 결정은 별도 런타임 기록.

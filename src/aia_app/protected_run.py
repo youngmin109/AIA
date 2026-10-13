@@ -604,6 +604,11 @@ class ProtectedRunMixin:
             adapter_options["interactive"] = True
             if record.launch_mode == "codex_app_server":
                 adapter_options["app_server"] = True
+                # External tools can run outside the Hook; only those the user
+                # allowed in Settings stay on for this run.
+                overrides, turned_off = self._external_tool_overrides()
+                adapter_options["disable_external_tools"] = overrides
+                record.runtime["external_tools_off"] = turned_off
         else:
             # Codex CLI's current exec contract applies the supported
             # workspace-write/on-request policy through --approve-for-me.

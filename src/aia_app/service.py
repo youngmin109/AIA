@@ -98,6 +98,7 @@ from .protected_run import (
 from .run_control import RunControlMixin
 from .recovery_points import RecoveryPointsMixin
 from .storage import StorageMixin, snapshots_pruned
+from .external_tools import ExternalToolsMixin
 
 
 # The dashboard refreshes active runs every five seconds. Keep the verified
@@ -184,7 +185,8 @@ _POINT_SEND_WAIT_SECONDS = 30.0
 
 
 class RunApplicationService(
-    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin, StorageMixin
+    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin, StorageMixin,
+    ExternalToolsMixin,
 ):
     """Connect UI requests to existing AIA Core APIs.
 
