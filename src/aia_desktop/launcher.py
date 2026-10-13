@@ -458,6 +458,7 @@ class DesktopBridge:
         self._guardian_size = 70
         self._guardian_visible = False
         self._guardian_folded = False
+        self._guardian_placed = False
 
     def attach(self, window: Any, on_heartbeat: Callable[[], None] | None = None) -> None:
         self._window = window
@@ -518,6 +519,10 @@ class DesktopBridge:
         user32 = ctypes.windll.user32
         user32.ShowWindow(handle, 0)  # SW_HIDE
         try:
+            if not self._guardian_placed:
+                # pywebview centres a new window; the pet starts in the bottom-left corner instead.
+                self._guardian_placed = True
+                guardian_window.place_window(handle, guardian_window.corner_rect(*guardian_window.window_screen(handle)))
             guardian_window.hide_from_switcher(handle)
         except Exception as exc:
             desktop_log('guardian-window-style-failed', error=str(exc))

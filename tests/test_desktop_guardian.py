@@ -107,6 +107,29 @@ def test_pet_window_is_reshown_without_focus_so_the_desktop_shows_through(monkey
     assert calls == [(160, 176), 'show'] and native == [(77, 0), (77, 4)]
 
 
+def test_pet_starts_in_the_bottom_left_corner_once_then_stays_where_the_user_put_it(monkeypatch):
+    from aia_desktop.guardian_window import corner_rect
+    assert corner_rect((800, 400, 1000, 620), (0, 0, 1920, 1040), 1.0) == (12, 808, 200, 220)
+    assert corner_rect((0, 0, 300, 330), (-1920, 0, 0, 1040), 1.5) == (-1902, 692, 300, 330)
+
+    monkeypatch.setattr(launcher.ctypes, 'windll', SimpleNamespace(user32=SimpleNamespace(
+        ShowWindow=lambda handle, command: None)), raising=False)
+    placed = []
+    monkeypatch.setattr(launcher.guardian_window, 'hide_from_switcher', lambda handle: None)
+    monkeypatch.setattr(launcher.guardian_window, 'window_screen', lambda handle: ((800, 400, 1000, 620), (0, 0, 1920, 1040), 1.0))
+    monkeypatch.setattr(launcher.guardian_window, 'place_window', lambda handle, rect: placed.append(rect))
+    child = SimpleNamespace(events=SimpleNamespace(closing=Event(), loaded=Event()),
+                            native=SimpleNamespace(Handle=SimpleNamespace(ToInt64=lambda: 77)),
+                            hide=lambda: None, show=lambda: None, resize=lambda *size: None, evaluate_js=lambda script: None)
+    monkeypatch.setitem(sys.modules, 'webview', SimpleNamespace(create_window=lambda title, url, **options: child))
+    bridge = DesktopBridge()
+    bridge._configure_guardian('http://127.0.0.1:8787/')
+    assert bridge.set_guardian_visible(True)
+    child.events.loaded.handlers[0]()
+    child.events.loaded.handlers[0]()
+    assert placed == [(12, 808, 200, 220)]
+
+
 def test_folding_puts_a_bubble_on_the_pet_and_unfolding_grows_around_it_on_screen():
     from aia_desktop.guardian_window import fold_rect
 
@@ -136,6 +159,7 @@ def test_folding_moves_the_window_and_a_folded_pet_keeps_its_bubble(monkeypatch)
     monkeypatch.setitem(sys.modules, 'webview', SimpleNamespace(create_window=lambda title, url, **options: child))
     bridge = DesktopBridge()
     bridge._configure_guardian('http://127.0.0.1:8787/')
+    bridge._guardian_placed = True  # the pet took its first corner place when it loaded
     assert bridge.set_guardian_folded(True) is False  # no pet window yet
     assert bridge.set_guardian_visible(True)
     assert bridge.set_guardian_folded('yes') is False
