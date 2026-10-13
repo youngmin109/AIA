@@ -1,6 +1,7 @@
 import { Icon, type IconName } from '../common/Icon'
 import { isRunActive, useRunList } from '../../hooks/useRunList'
 import { useShellStore, type ShellView } from '../../state/shellStore'
+import logo from '../../assets/aia-logo.png'
 
 const RAIL_ITEMS: Array<{ view: ShellView; icon: IconName; label: string }> = [
   { view: 'home', icon: 'home', label: '홈' },
@@ -18,7 +19,7 @@ export function Rail() {
 
   return (
     <nav className="rail" aria-label="주 메뉴">
-      <div className="rail-logo" aria-hidden="true">AIA</div>
+      <div className="rail-logo"><img src={logo} alt="AIA 로고" /></div>
       <div className="rail-nav">
         {RAIL_ITEMS.map(item => (
           <button

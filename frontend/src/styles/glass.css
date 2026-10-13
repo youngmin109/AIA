@@ -99,12 +99,14 @@
   display: grid;
   place-items: center;
   border-radius: 18px;
-  background: var(--accent-gradient);
+  background: var(--fill-2);
   box-shadow: var(--icon-shadow);
   font-weight: 800;
   font-size: 15px;
   letter-spacing: 0.04em;
 }
+
+.rail-logo img { width: 46px; height: 34px; object-fit: contain; }
 
 .rail-nav {
   display: grid;

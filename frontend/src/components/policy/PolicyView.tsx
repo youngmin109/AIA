@@ -7,6 +7,7 @@ import type { PolicyProfile } from '../../api/endpoints'
 import { useProfiles } from '../../hooks/useProfiles'
 import { readDefaultPolicyProfile, writeDefaultPolicyProfile } from './policyStorage'
 import { CustomPolicyEditor } from './CustomPolicyEditor'
+import { POLICY_ICONS } from './policyPresentation'
 
 type SupportStatus = '지원' | '부분 지원'
 
@@ -77,7 +78,7 @@ export function PolicyView() {
           const look = CARD_LOOK[index % CARD_LOOK.length]
           return (
             <button key={profile.value} type="button" className={`glass-card policy-card${on ? ' is-selected' : ''}`} aria-pressed={on} onClick={() => choose(profile)}>
-              <TileCorner tone={look.tone} icon={look.icon} />
+              <TileCorner tone={look.tone} icon={POLICY_ICONS[profile.value] ?? 'shieldPlain'} />
               <span className={`badge ${on ? 'is-ok' : 'is-neutral'}`}>{on ? <><Icon name="check" size={14} />사용 중</> : '선택하기'}</span>
               <strong>{profile.display_name}</strong>
               <span className="policy-card-text">{profile.description ?? '설명이 제공되지 않았어요.'}</span>
