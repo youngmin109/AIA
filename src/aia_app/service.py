@@ -223,6 +223,10 @@ class RunApplicationService(
             max_workers=max_workers,
             thread_name_prefix="aia-console-run",
         )
+        # Each live run holds one worker for its whole life, so the worker
+        # count is also how many conversations can run at once.
+        self.max_concurrent_runs = max_workers
+        self._create_run_lock = RLock()
 
     def _list_completed_runs(self) -> list[dict[str, Any]]:
         """Read verified history once per short UI polling window.
@@ -1215,12 +1219,14 @@ class RunApplicationService(
                 "action": reconciliation.get("action"),
                 "agent_process_status": reconciliation.get("agent_process_status"),
             }
+        busy = self._busy_workspace_run(workspace)
         return {
             "valid": True,
             "exists": workspace.exists(),
             "is_directory": workspace.is_dir(),
             "canonical_path": str(workspace),
             "recovery": recovery,
+            "busy": {"session_id": busy.session_id, "workspace": str(busy.workspace)} if busy is not None else None,
             "size_estimate": _workspace_size_estimate(workspace) if workspace.is_dir() else None,
         }
 

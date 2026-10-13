@@ -108,7 +108,9 @@ function NewRunSheet() {
       validateWorkspace(workspace.trim())
         .then((result) => {
           if (cancelled) return
-          if (result.valid) {
+          if (result.valid && result.busy) {
+            setWorkspaceState({ status: 'invalid', message: `이 폴더는 다른 대화(${workspaceShortName(result.busy.workspace)})에서 보호 중이에요. 같은 폴더나 그 안팎의 폴더는 한 대화에서만 보호할 수 있어요.` })
+          } else if (result.valid) {
             setWorkspaceState({ status: 'valid' })
             setRecovery(result.recovery?.required ? result.recovery : null)
             setSizeNotice(largeFolderNotice(result.size_estimate))

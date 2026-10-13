@@ -111,7 +111,10 @@ function HomeIdle() {
 
       <div className="home-action">
         {liveRun ? (
-          <RoundAction onClick={() => { setActiveRun(liveRun.session_id); setView('work') }}>작업 열기</RoundAction>
+          <>
+            <RoundAction onClick={() => { setActiveRun(liveRun.session_id); setView('work') }}>작업 열기</RoundAction>
+            <Button variant="text" onClick={openNewRun}><Icon name="plus" size={14} />다른 폴더에서 새 대화</Button>
+          </>
         ) : (
           <RoundAction onClick={openNewRun}>보호 시작</RoundAction>
         )}

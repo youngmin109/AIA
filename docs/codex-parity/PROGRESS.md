@@ -2,6 +2,10 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-13 · 여러 대화방
+- 서버: 작업 폴더만 다르면 보호 실행 여러 개를 동시에(최대 = 작업자 수 4). 같은 폴더·안팎 폴더는 시작 전에 거절(`_busy_workspace_run`), 한도·폴더 검사는 잠금 안에서 다시. 폴더 검사 응답에 `busy`.
+- 화면: 작업창 위 대화방 탭(실행 중은 시작 순, 보고 있던 끝난 실행도 유지, 같은 이름 폴더는 상위/이름), "+ 새 대화", 뒤 대화방이 승인·질문 대기면 "확인 필요"(3초마다 `/codex/status`). 홈에 "다른 폴더에서 새 대화".
+
 ## 2026-10-13 · 권한 선택(Codex 앱 메뉴 그대로, 전체 권한 기본)
 - Codex 앱의 세 권한(승인 요청 / 나 대신 승인 = `approvalsReviewer=auto_review` / 전체 권한 = `danger-full-access`+`never`, 짝으로만 허용)을 같은 문구·순서로. 메뉴는 `permissionProfile/list`로 불러와 막힌 항목은 비활성. 대화 중 전환은 실행 기록에 먼저 남기고 다음 `turn/start`에 한 번 보냄. 자동 검토 결과(`item/autoApprovalReview/completed`)는 결과만 대화에 표시.
 - Bundle 제한사항 `CODEX_FULL_ACCESS_USER_SELECTED`·`CODEX_AUTO_REVIEW_USER_SELECTED`, 보호 상태는 낮추지 않음(사용자가 고른 범위). 앞의 두 권한에서 Codex가 전체 권한을 적용하면 기존처럼 보호 실패.

@@ -11,6 +11,7 @@ import { isSessionRunning } from '../../api/display'
 import { startupView } from '../../api/startupStatus'
 import { workspaceShortName } from '../shell/sessionLabel'
 import { ProtectionPanel } from './ProtectionPanel'
+import { SessionTabs } from './SessionTabs'
 
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
 
@@ -40,11 +41,13 @@ export function WorkView() {
   }
 
   if (isEnded) {
-    return <div className="work-result"><ResultView runId={activeRunId} /></div>
+    return <><SessionTabs /><div className="work-result"><ResultView runId={activeRunId} /></div></>
   }
 
   return (
-    <div className="work-layout view-enter">
+    <>
+    <SessionTabs />
+    <div className="work-layout view-enter" key={activeRunId}>
       <section className="glass is-hero work-chat" aria-label={`Codex 대화 · ${workspaceShortName(status?.session?.workspace)}`}>
         {launchMode === null ? (
           <div className="chat-empty"><strong>보호 실행 정보를 불러오는 중이에요…</strong></div>
@@ -65,5 +68,6 @@ export function WorkView() {
       </section>
       <ProtectionPanel runId={activeRunId} status={status} live={live} />
     </div>
+    </>
   )
 }

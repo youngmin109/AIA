@@ -165,3 +165,21 @@ test('recent activity strip: one dot per record in its lane, blocks, and a heart
   assert.equal(heartbeatPoints([2], 0, 100, 50).split(' ')[2], '50,41')
   assert.equal(heartbeatPoints([40], 0, 100, 50).split(' ')[2], '50,38')
 })
+
+test('conversation tabs: live runs oldest first, the shown ended run kept, shared folder names told apart', async () => {
+  const { sessionTabs, needsAttention } = await import('../src/api/sessionTabs.ts')
+  const runs = [
+    { session_id: 'b', status: 'RUNNING', created_at: '2026-10-13T03:10:00Z', workspace: 'C:\\work\\blog' },
+    { session_id: 'a', status: 'RUNNING', created_at: '2026-10-13T03:00:00Z', workspace: 'C:\\work\\shop' },
+    { session_id: 'c', status: 'PREPARING', created_at: '2026-10-13T03:20:00Z', workspace: 'D:\\other\\shop' },
+    { session_id: 'old', status: 'COMPLETED', created_at: '2026-10-12T03:00:00Z', workspace: 'C:\\work\\old' },
+    { session_id: 'probe', status: 'RUNNING', created_at: '2026-10-13T03:30:00Z', workspace: 'C:\\Temp\\aia-hook-verify-1' },
+  ]
+  assert.deepEqual(sessionTabs(runs, 'a').map(tab => [tab.id, tab.name, tab.state]), [
+    ['a', 'work/shop', 'running'], ['b', 'blog', 'running'], ['c', 'other/shop', 'preparing'],
+  ])
+  assert.deepEqual(sessionTabs(runs, 'old').map(tab => [tab.id, tab.state]).at(-1), ['old', 'ended'])
+  assert.equal(needsAttention({ pending_approvals: [{}] }), true)
+  assert.equal(needsAttention({ pending_approvals: [], pending_questions: [] }), false)
+  assert.equal(needsAttention(null), false)
+})

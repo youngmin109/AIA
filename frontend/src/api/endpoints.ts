@@ -35,6 +35,8 @@ export interface WorkspaceValidation {
   error?: string
   recovery?: WorkspaceRecovery | null
   size_estimate?: WorkspaceSizeEstimate | null
+  /** A live conversation already protects this folder, or one inside or around it. */
+  busy?: { session_id: string; workspace: string } | null
 }
 
 export interface WorkspaceSizeEstimate { files: number; bytes: number; complete: boolean }
