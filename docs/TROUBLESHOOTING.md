@@ -95,7 +95,7 @@ uv run --isolated --project . python -m aia.cli status <SESSION_ID>
 저장소에서 실행할 때는 다음처럼 `uv run`을 붙인다.
 
 ```powershell
-cd "C:\workspace\01_projects\aia-mvp"
+cd <AIA 저장소 폴더>
 uv run --isolated --project . python -m aia.cli self-test
 ```
 
@@ -164,6 +164,31 @@ Get-AuthenticodeSignature .\\dist\\windows\\aia-cli\\aia-cli.exe
 .\\scripts\\verify-windows-package.ps1
 .\\scripts\\verify-windows-package.ps1 -RequireSignature -RequireNativeSignature
 ```
+
+## 명령이 `setup refresh had errors`로 실패하는 경우
+
+Codex Windows 샌드박스는 명령을 실행할 때마다 Codex 앱 런타임 파일의 권한을
+다시 맞춥니다. Codex 데스크톱 앱이나 그 백그라운드 서버가 `node_repl.exe`를 쓰고
+있으면 이 작업이 막혀 명령이 실패할 수 있습니다.
+
+1. Codex 데스크톱 앱을 완전히 종료합니다.
+2. 백그라운드 서버를 멈춥니다.
+
+   ```text
+   codex app-server daemon stop
+   ```
+
+3. AIA에서 같은 요청을 다시 보냅니다.
+
+## 보호 실행의 첫 명령이 1~2분 걸리는 경우
+
+Codex Windows 샌드박스는 처음 명령을 실행할 때 준비 작업을 합니다. 첫 명령만
+1~2분 걸리고 그다음부터는 몇 초면 끝납니다. 시연처럼 시간이 중요한 경우에는 미리
+보호 실행을 한 번 열어 아무 명령이나 실행해 두세요.
+
+`승인 요청` 권한에서는 일부 스크립트(예: Python)가 샌드박스 안에서 실패하면 Codex가
+샌드박스 밖 실행을 다시 요청해 승인 카드가 한 번 더 뜰 수 있습니다. 내용이 맞으면
+`이번만 허용`을 누릅니다. 정책으로 금지한 일은 이 카드로 풀리지 않습니다.
 
 ## 문제를 보고할 진단 파일
 

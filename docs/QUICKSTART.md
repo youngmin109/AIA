@@ -4,6 +4,33 @@ AIA는 Codex를 대신하는 프로그램이 아니다. AIA가 먼저 보호 실
 그 안에서 Codex를 자식 프로세스로 시작한다. 사용자는 Codex 화면이 열린 뒤
 평소처럼 작업을 입력한다.
 
+## 데스크톱 앱으로 시작하기
+
+설치 파일로 설치했다면 시작 메뉴나 바탕 화면의 `AIA`를 실행한다.
+
+1. **홈 확인.** 오른쪽 위에 보호 연결 상태가 나온다.
+2. **처음 한 번 연결.** 홈의 `보호 시작`을 누르면 새 보호 실행 창에 연결 점검
+   세 가지(`Hook 연결`, `Codex 신뢰`, `요청 전달 확인`)가 보인다. Hook이 없으면
+   설치하고, Codex에서 `/hooks`를 열어 AIA Hook을 직접 검토·신뢰한 뒤
+   `연결 검증`을 누른다(최대 4분). AIA는 Hook을 대신 신뢰하지 않는다.
+3. **보호 실행 준비.** 이미 있는 작업 폴더를 고르고(`폴더 바꾸기`), 정책(기본
+   `표준 보호`)과 권한(기본 `승인 요청`)을 고른다. 지우면 안 되는 파일이 있으면
+   꼭 지킬 파일로 추가한 뒤 `보호 시작`을 누른다. 시작할 때 작업 폴더의 기준점을
+   저장한다.
+4. **작업.** 작업창 아래 입력란에 요청을 쓴다. 인터넷 접속이나 작업 폴더 밖
+   쓰기처럼 사람의 판단이 필요하면 승인 카드가 뜬다. 정책으로 금지한 일은 실행
+   전에 막히며 카드에서 풀 수 없다. 오른쪽 보호 패널에서 검사, 차단, 프로세스,
+   파일 변경을 본다.
+5. **끝내기와 복구.** `작업 종료`를 누르면 결과 화면이 열린다. 되돌려야 하면
+   `작업 폴더 되돌리기`로 기준점 상태로 복원하고 무결성 검증 결과를 확인한다.
+
+다른 폴더에서 동시에 일하려면 작업창 위 `새 대화`를 누른다. 서로 다른 폴더라면
+최대 네 개까지 열 수 있다. 화면별 설명은 [사용자 가이드](USER-GUIDE.md)에 있다.
+
+## 명령줄로 시작하기
+
+아래 1~7은 명령줄(`aia`)로 같은 보호 실행을 다루는 방법이다.
+
 Windows에서 생성된 `aia.exe`가 애플리케이션 제어 정책으로 차단될 수 있으므로,
 이 빠른 시작의 저장소 실행 명령은 Python 모듈 방식으로 작성한다. 저장소 루트에서
 아래 형식으로 실행하면 현재 프로젝트와 연결된 AIA를 사용한다.
@@ -24,7 +51,7 @@ uv run --isolated --project . python -m aia.cli demo
 Evidence 봉인과 정리 흐름을 실행한다. 사용자의 Workspace나 Codex를 시작하지
 않는다.
 
-기본 정책은 `보호 우선 개발형(PROTECTED_DEVELOPMENT) v1.1`이다. `.env` 같은 비밀정보
+기본 정책은 `표준 보호`(PROTECTED_DEVELOPMENT, 정책 파일 `보호-우선-개발형`) v1.1이다. `.env` 같은 비밀정보
 읽기와 대표적인 파괴 명령은 기본 차단하고, Windows의 `Remove-Item`, `del`,
 `Stop-Process`, `taskkill /f`도 실행 전에 차단한다. 일반 소스 변경은 기록한다. 실행 시
 `--profile BASIC_DEVELOPMENT` 또는 `--profile FREE_DEVELOPMENT`를 명시하면 다른
@@ -81,8 +108,8 @@ uv run --isolated --project . python -m aia.cli hook explain
 uv run --isolated --project . python -m aia.cli hook verify
 ```
 
-로컬 콘솔을 사용하는 경우 `새 보호 실행` 화면의 `실제 Hook 연결 검증` 버튼으로
-같은 검증을 실행할 수 있습니다. Codex `/hooks` Trust는 먼저 사용자가 직접
+데스크톱 앱에서는 새 보호 실행 창의 `연결 검증` 버튼으로 같은 검증을 실행할 수
+있습니다. Codex `/hooks` Trust는 먼저 사용자가 직접
 완료해야 하며, 버튼은 Trust를 변경하지 않습니다.
 
 이 명령은 임시 Workspace에서 무해한 Probe를 한 번 실행한다. 성공하면
@@ -125,10 +152,9 @@ uv run --isolated --project . python -m aia.cli policy evaluate --operation READ
 uv run --isolated --project . python -m aia.cli policy evaluate --operation EXECUTE --command "python build.py"
 ```
 
-웹 콘솔을 사용하는 경우에도 `정책 미리보기`에서 행위 종류와 파일 경로 또는 명령을
-입력해 같은 확인을 할 수 있습니다. `차단 대상`, `허용·기록 대상`, `판정 불가` 중
-하나의 결과와 적용된 Rule을 보여주며, 이 단계에서는 Codex·파일·명령을 실행하지
-않습니다. 정책을 바꾼 뒤에는 실행 화면의 미리보기 결과도 다시 확인하세요.
+데스크톱 앱에서는 `정책` 화면의 `이 명령은 어떻게 판정될까?`에서 행위 종류와 파일
+경로 또는 명령을 넣고 `판정 보기`를 누르면 정책마다 차단·기록·허용 결과를
+보여줍니다. 이 단계에서는 Codex·파일·명령을 실행하지 않습니다.
 
 ## 4. 보호 실행 시작
 
@@ -141,7 +167,7 @@ uv run --isolated --project . python -m aia.cli protect "C:\workspace\my-project
 저장소 모듈 방식은 AIA 저장소 루트에서 실행하므로 Workspace 경로를 명시한다.
 
 ```powershell
-cd "C:\workspace\01_projects\aia-mvp"
+cd <AIA 저장소 폴더>
 uv run --isolated --project . python -m aia.cli start "C:\workspace\my-project"
 ```
 
@@ -186,10 +212,8 @@ Workspace 확인
 uv run --isolated --project . python -m aia.cli protect "C:\workspace\my-project" --task "README.md를 읽고 한 문장으로 요약해줘"
 ```
 
-웹 콘솔(`uv run --isolated --project . python -m aia.cli console --open`)에서도 작업 시작 방식을 선택할 수 있다. 기본값인
-`대화형 보호 세션`을 선택하면 AIA가 먼저 보호된 Codex 세션을 열고, 열린 Codex
-화면에서 사용자가 작업을 입력한다. `한 번의 작업 실행`을 선택하면 작업 요청을
-미리 입력해 보호 준비가 끝난 뒤 한 번 전달한다.
+데스크톱 앱과 웹 콘솔(`uv run --isolated --project . python -m aia.cli console --open`)에서는
+보호 준비가 끝나면 앱 안 작업창에서 Codex와 바로 대화한다.
 
 ## 5. 결과 확인
 
@@ -240,23 +264,18 @@ powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 사용자 수준 AIA 도구까지 제거하려면 `-RemoveTool`을 추가한다. 두 경우 모두
 Protected Run 결과와 AIA Control Root는 보존된다.
 
-## 7. 브라우저에서 체감하는 제품 흐름
+## 7. 브라우저에서 같은 화면 쓰기
 
 ```powershell
 uv run --isolated --project . python -m aia.cli console --open
 ```
 
-`새 보호 실행`에서 사용자가 만든 기존 Workspace를 입력하고 정책을 선택한다.
-`대화형 보호 세션`과 `별도 Windows 터미널에서 Codex 열기`를 선택하면 AIA가 보호
-준비를 마친 뒤 Codex를 별도 창의 자식 프로세스로 실행한다. 사용자는 Codex 창에서
-작업하고, 브라우저의 AIA 화면에서 Hook·File·Process Sensor 상태와 안전한 이벤트
-요약을 확인한다.
+데스크톱 앱과 같은 화면이 브라우저에서 열린다. 사용 순서는 위의
+[데스크톱 앱으로 시작하기](#데스크톱-앱으로-시작하기)와 같다. 결과 화면에서는
+센서 상태, 증거, 이벤트 흐름, 복구·무결성, 결과 묶음을 확인한다. `BLOCKED`는
+deny 응답 생성만으로 표시되지 않으며 실제 도구 미실행이 확인된 경우에만
+`BLOCKED / SUCCEEDED`가 된다.
 
-Codex를 종료하면 결과 화면에서 센서 종료 상태, Evidence 건수, 이벤트 타임라인,
-Recovery·Integrity, Result Bundle을 확인한다. `BLOCKED`는 deny 응답 생성만으로
-표시되지 않으며 실제 도구 미실행이 확인된 경우에만 `BLOCKED / SUCCEEDED`가 된다.
-
-정책을 직접 만들려면 같은 화면의 `정책 만들기`에서 Rule을 추가하고 `Strict
-Validation`을 누른다. 검증 통과 뒤 저장하면 정책은 기본적으로
-`%USERPROFILE%\.aia\policies`에 저장되고 실행 폼의 `CUSTOM` 프로필에 연결된다.
-파일 Rule과 명령 Rule은 별도의 Rule로 작성한다.
+정책을 직접 만들려면 `정책` 화면에서 `사용자 지정`을 고르고 규칙을 고친 뒤
+`규칙 검증하고 저장`을 누른다. 검증을 통과한 정책만 저장되며, 다음 보호 실행의
+정책에서 `사용자 지정`으로 고른다.

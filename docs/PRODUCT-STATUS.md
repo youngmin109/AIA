@@ -207,10 +207,10 @@ AIA ON 0%로 감소했고, 정상 작업 성공률은 양쪽 100%였다. AIA ON 
 Fixture의 근거이며 Actual Codex의 모델 지연시간이나 모든 도구 범위를 뜻하지 않는다.
 [평가 표와 대시보드](validation/PRODUCT-EVALUATION.md)에서 원본과 수치를 확인할 수 있다.
 
-현재 온보딩에는 `aia setup`, 읽기 전용 `aia hook explain`, `aia doctor`, 웹 콘솔의 대시보드와 실행 전 사전 점검이
-포함된다. 로컬 콘솔의 `/dashboard`에서는 실행 가능 여부, Codex Hook Trust, 지원 범위,
-최근 실행 기록을 먼저 확인할 수 있고, 실제 실행은 별도의 `새 보호 실행` 화면에서
-명시적으로 시작한다.
+현재 온보딩에는 `aia setup`, 읽기 전용 `aia hook explain`, `aia doctor`, 앱의 홈과
+새 보호 실행 창의 연결 점검(`Hook 연결`, `Codex 신뢰`, `요청 전달 확인`)이 포함된다.
+홈에서는 보호 연결 상태와 최근 실행을 먼저 확인할 수 있고, 실제 실행은 새 보호 실행
+창에서 `보호 시작`을 눌러 명시적으로 시작한다.
 이 점검은 Hook 설치 여부를 확인하지만 Codex의 Hook 신뢰는 자동으로 증명하지 않으며,
 사용자가 Codex `/hooks` 화면에서 직접 검토해야 한다.
 
