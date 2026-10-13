@@ -142,6 +142,9 @@ def _remove_webview_storage(path: Path) -> None:
 
 
 WINDOW_TITLE = "AIA"
+# Bundled beside this module by scripts/build-windows.ps1. The .ico carries a 16px
+# frame for the title bar; without it pywebview shrinks the exe's 32px icon.
+APP_ICON = Path(__file__).with_name("aia.ico")
 _ERROR_ALREADY_EXISTS = 183
 _SW_RESTORE = 9
 
@@ -759,6 +762,7 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
             debug=False,
             private_mode=False,
             storage_path=str(webview_storage_path),
+            icon=str(APP_ICON) if APP_ICON.is_file() else None,
         )
     except Exception as error:
         _show_message(

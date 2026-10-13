@@ -225,8 +225,12 @@ def test_run_desktop_opens_the_window_where_it_was_last_closed(tmp_path, monkeyp
 
     fake_webview = types.ModuleType("webview")
     fake_webview.create_window = create_window
-    fake_webview.start = lambda **kwargs: None
+    start_options = {}
+    fake_webview.start = lambda **kwargs: start_options.update(kwargs)
     monkeypatch.setitem(sys.modules, "webview", fake_webview)
+    icon = tmp_path / "aia.ico"
+    icon.write_bytes(b"icon")
+    monkeypatch.setattr(launcher, "APP_ICON", icon)
     monkeypatch.setattr(launcher, "_detach_desktop_console", lambda: False)
     monkeypatch.setattr(launcher, "_is_windows", lambda: True)
     monkeypatch.setattr(launcher, "_webview2_runtime_present", lambda: True)
@@ -242,6 +246,8 @@ def test_run_desktop_opens_the_window_where_it_was_last_closed(tmp_path, monkeyp
     assert created["url"] == "http://127.0.0.1:8799/"
     assert (created["x"], created["y"], created["width"], created["height"]) == (320, 240, 1600, 1000)
     assert created["maximized"] is True and created["min_size"] == MIN_SIZE
+    # The bundled .ico gives the title bar its own small frame.
+    assert start_options["icon"] == str(icon)
     assert len(started) == 1
     # The window state is saved before the live-run close confirmation runs.
     assert len(window.events.closing.handlers) == 2

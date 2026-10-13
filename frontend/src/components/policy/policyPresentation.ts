@@ -51,6 +51,17 @@ export function ruleEffects(rule: PolicyRule): Array<{ effect: string; operation
   })
 }
 
+// One color per effect, shared by the guide, badges, rule card edges and operation tiles.
+export const EFFECT_LOOK: Record<string, { tone: string; badge: string; icon: IconName }> = {
+  DENY: { tone: 'is-deny', badge: 'is-bad', icon: 'block' },
+  AUDIT: { tone: 'is-audit', badge: 'is-warn', icon: 'records' },
+  ALLOW: { tone: 'is-allow', badge: 'is-ok', icon: 'check' },
+}
+export function effectTone(effect: string | undefined) { return effect ? EFFECT_LOOK[effect]?.tone ?? '' : '' }
+export function effectBadge(effect: string | undefined) { return `badge ${effect ? EFFECT_LOOK[effect]?.badge ?? 'is-neutral' : 'is-neutral'}` }
+/** The strictest effect a rule applies colors its card edge. */
+export function ruleCardClass(rule: PolicyRule) { return `custom-rule ${effectTone(ruleEffects(rule)[0]?.effect)}`.trim() }
+
 export const RULE_STARTERS: Array<{ key: string; label: string; path_patterns?: string[]; command_patterns?: string[]; asset_type: string; operation_effects: Record<string, string> }> = [
   { key: 'folder', label: '내 파일·폴더 보호', path_patterns: ['protected/**'], asset_type: 'WORKSPACE', operation_effects: { DELETE: 'DENY', MODIFY: 'AUDIT' } },
   { key: 'secret', label: '비밀 설정 파일 보호', path_patterns: ['.env', '.env.*', '**/.env', '**/.env.*'], asset_type: 'SECRET', operation_effects: { READ: 'DENY', CREATE: 'DENY', MODIFY: 'DENY', DELETE: 'DENY', MOVE: 'DENY', RENAME: 'DENY' } },

@@ -1,4 +1,5 @@
 from pathlib import Path
+import struct
 import tomllib
 
 
@@ -39,3 +40,15 @@ def test_packages_ship_the_gitignored_react_console() -> None:
 
     assert "src/aia_web/static/app/" in gitignore
     assert "src/aia_web/static/app/**" in artifacts
+
+
+def test_desktop_build_bundles_a_multi_size_icon_for_the_title_bar() -> None:
+    # The title bar draws a 16px frame. The desktop window loads it from the
+    # .ico bundled beside aia_desktop/launcher.py instead of shrinking the exe icon.
+    build = (ROOT / "scripts" / "build-windows.ps1").read_text(encoding="utf-8")
+    assert '--add-data "${iconPath};aia_desktop"' in build
+    ico = (ROOT / "packaging" / "windows" / "aia.ico").read_bytes()
+    reserved, kind, count = struct.unpack_from("<HHH", ico)
+    sizes = {ico[6 + 16 * index] or 256 for index in range(count)}
+    assert (reserved, kind) == (0, 1)
+    assert {16, 24, 32, 48, 256} <= sizes
