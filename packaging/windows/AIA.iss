@@ -30,8 +30,10 @@ SignedUninstaller=yes
 Source: "..\..\dist\windows\AIA\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "..\..\dist\windows\aia-cli\*"; DestDir: "{app}\aia-cli"; Flags: recursesubdirs ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\..\README.ko.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\INSTALL.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\SECURITY.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\CONTRIBUTING.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\CHANGELOG.md"; DestDir: "{app}\docs"; Flags: ignoreversion

@@ -27,14 +27,18 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
 
 $rootFiles = @(
     ".gitignore",
+    "AGENTS.md",
     "ARCHITECTURE.md",
     "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "INSTALL.md",
     "LICENSE",
     "PROJECT.md",
     "README.md",
+    "README.ko.md",
     "SECURITY.md",
+    "THIRD-PARTY-NOTICES.md",
     "install.ps1",
     "pyproject.toml",
     "uninstall.ps1",
@@ -43,6 +47,7 @@ $rootFiles = @(
 
 $rootDirectories = @(
     ".github",
+    "frontend",
     "packaging",
     "policies",
     "scripts",
@@ -66,6 +71,9 @@ function Copy-PublicItem {
             $normalized = $childRelative.Replace('\', '/')
             if ($normalized -match '(^|/)(\.env($|\.)|\.aia($|/)|\.codex($|/)|\.venv($|/)|__pycache__($|/)|dist($|/)|build($|/)|tmp($|/)|output($|/))' -or
                 $normalized -match '\.(jsonl|log|db|sqlite|sqlite3|pem|key|pfx)$' -or
+                $normalized -match '(^|/)node_modules/' -or
+                $normalized -match '^src/aia_web/static/app/' -or
+                $normalized -match '\.tsbuildinfo$' -or
                 $normalized -match '^docs/generated/' -or
                 $normalized -match '^docs/validation/evidence/') {
                 return
