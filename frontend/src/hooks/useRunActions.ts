@@ -12,12 +12,12 @@ export interface RunAction {
 }
 
 /** Live actions of a run (latest_actions in the status is capped at 20). */
-export function useRunActions(runId: string | null, enabled: boolean) {
+export function useRunActions(runId: string | null, enabled: boolean, intervalMs = 2_000) {
   const fetchFn = useCallback(
     (signal: AbortSignal) => apiGet<{ actions?: RunAction[] }>(`/api/runs/${encodeURIComponent(runId ?? '')}/actions`, signal).then(body => body.actions ?? []),
     [runId],
   )
-  return usePolling<RunAction[]>(fetchFn, { intervalMs: 2_000, enabled: Boolean(runId) && enabled, resetKey: runId })
+  return usePolling<RunAction[]>(fetchFn, { intervalMs, enabled: Boolean(runId) && enabled, resetKey: runId })
 }
 
 /** A CONTAIN decision is a block decision; it is not proof that execution was blocked. */

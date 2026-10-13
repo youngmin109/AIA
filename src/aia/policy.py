@@ -286,7 +286,8 @@ def _command_pattern_matches(command: str, pattern: str) -> bool:
 
 
 # Shell verbs that visibly delete, move, rename or overwrite a path the same
-# command names.  Reading and copying from a path are not on the list.
+# command names.  Reading needs no verb: any command that names a read-denied
+# path can print, copy or send it (see command_path_denials).
 _COMMAND_FILE_VERBS: Mapping[Operation, re.Pattern[str]] = MappingProxyType(
     {
         Operation.DELETE: re.compile(
@@ -335,16 +336,28 @@ def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[
 
     Lexical, like command patterns: the command must name a path the rule
     protects and use a verb for an operation the rule denies (a redirect
-    counts as modifying its own target only).  Only DENY effects are derived,
-    so this can block more but never allows anything a rule would not.
+    counts as modifying its own target only).  A rule that denies READ needs
+    no verb: naming the path is enough, because ``gc``, ``rg``, ``Copy-Item``,
+    ``python -c "open(...)"`` or ``curl -d @.env`` all read it.  Only DENY
+    effects are derived, so this can block more but never allows anything a
+    rule would not.
     """
 
     text = normalize_command(raw_command)
     tokens = _command_path_tokens(raw_command)
+    # curl and similar tools read a file given as @path.
+    read_tokens = tokens + tuple(
+        token[1:] for token in _PATH_TOKEN_SPLIT.split(raw_command) if token.startswith("@") and len(token) > 2
+    )
     redirected = tuple(match.group(1) for match in _REDIRECT_TARGET.finditer(raw_command))
     denied: list[PolicyRule] = []
     for rule in rules:
         if not rule.path_patterns:
+            continue
+        if rule.operation_effects.get(Operation.READ) is PolicyEffect.DENY and any(
+            _token_names_path(token, pattern) for token in read_tokens for pattern in rule.path_patterns
+        ):
+            denied.append(rule)
             continue
         for operation, verb in _COMMAND_FILE_VERBS.items():
             if rule.operation_effects.get(operation) is not PolicyEffect.DENY:

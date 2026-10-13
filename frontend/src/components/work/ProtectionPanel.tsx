@@ -5,7 +5,8 @@ import { ActivityStrip } from './ActivityStrip'
 import { TIMELINE_LIMIT, activityStrip } from '../../api/chartMath'
 import { displayStatus, statusTone } from '../../api/display'
 import type { RunStatus } from '../../api/types'
-import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
+import { blockDecisionCount, type RunAction } from '../../hooks/useRunActions'
+import type { Threat } from '../../api/threats'
 import { useNow } from '../../hooks/useElapsed'
 import { useCodexConnectors } from '../../hooks/useCodexConnectors'
 import { connectorsOnFirst, connectorSummary } from '../../api/connectorView'
@@ -27,8 +28,7 @@ function processDepths(processes: Process[]): Array<{ process: Process; depth: n
 }
 
 /** ⑤ Right-hand protection panel of the work view. Observation only; never an authority. */
-export function ProtectionPanel({ runId, status, live }: { runId: string; status: RunStatus | null; live: boolean }) {
-  const { data: actions } = useRunActions(runId, live)
+export function ProtectionPanel({ runId, status, live, actions, threats }: { runId: string; status: RunStatus | null; live: boolean; actions: RunAction[] | null; threats: Threat[] }) {
   const blocks = blockDecisionCount(actions)
   const summary = status?.evidence_summary
   const activity = status?.activity
@@ -61,6 +61,21 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
           </li>
         ))}
       </ul>
+
+      {threats.length > 0 && (
+        <section className="work-panel-section">
+          <h3>위협 차단 판정 {threats.length}건</h3>
+          <ul className="work-threats">
+            {threats.slice(-4).reverse().map(threat => (
+              <li key={threat.id}>
+                <span className="badge is-bad">{threat.tactic}</span>
+                <strong>{threat.title}</strong>
+                {threat.target && <small className="mono">{threat.target}</small>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {(status?.permission_grants ?? []).length > 0 && (
         <section className="work-panel-section">

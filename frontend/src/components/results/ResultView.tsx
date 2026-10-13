@@ -19,6 +19,8 @@ import { useShellStore } from '../../state/shellStore'
 import { sessionCreatedLabel, workspaceShortName } from '../shell/sessionLabel'
 import { EvidenceLogView } from './EvidenceLogView'
 import { RestoreComplete, RestoreDialog, type RestoreOutcome } from './WorkspaceRestoreControl'
+import { useRunActions } from '../../hooks/useRunActions'
+import { threatCounts, threatsOf } from '../../api/threats'
 
 function toneFor(value: string | undefined): 'ok' | 'warn' | 'bad' {
   const upper = String(value || '').toUpperCase()
@@ -60,6 +62,8 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   const { data, error, isLoading } = useResult(runId)
   const { data: recovery, error: recoveryError, reload: reloadRecovery } = useRecoveryStatus(runId)
   const snapshot = useRunSnapshot(runId)
+  // A finished run's actions do not change; one fetch a minute is plenty.
+  const { data: actions } = useRunActions(runId, true, 60_000)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [outcome, setOutcome] = useState<RestoreOutcome | null>(null)
   const [evidenceOpen, setEvidenceOpen] = useState(false)
@@ -90,6 +94,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   // STOPPED at the end of a run is a normal finish; only warn/bad states count as problems.
   const sensorIssues = (data.sensor_summary ?? []).filter(sensor => ['warn', 'bad'].includes(statusTone(sensor.final_sensor_state))).length
   const blockedConfirmed = data.codex_block_confirmation === 'BLOCK_CONFIRMED' ? summary?.blocked ?? 0 : 0
+  const threats = threatsOf(actions)
 
   function showEvidence() {
     setEvidenceOpen(true)
@@ -102,6 +107,16 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         <span className="home-head-title">보호 실행 결과</span>
         <span className="muted">{[workspaceShortName(data.workspace), sessionCreatedLabel(data.started_at as string | undefined), duration].filter(Boolean).join(' · ')}</span>
       </header>
+
+      {threats.length > 0 && (
+        <div className="glass-notice is-danger threat-summary" role="note">
+          <Icon name="block" size={22} />
+          <div>
+            <strong>이번 실행에서 위협 {threats.length}건을 실행 전에 차단 판정했어요</strong>
+            <p>{threatCounts(threats)}</p>
+          </div>
+        </div>
+      )}
 
       {(snapshot?.permission_grants ?? []).length > 0 && (
         <div className="glass-notice is-warning" role="note">
