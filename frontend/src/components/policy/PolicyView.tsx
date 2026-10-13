@@ -8,6 +8,7 @@ import { useProfiles } from '../../hooks/useProfiles'
 import { readDefaultPolicyProfile, writeDefaultPolicyProfile } from './policyStorage'
 import { CustomPolicyEditor } from './CustomPolicyEditor'
 import { POLICY_ICONS } from './policyPresentation'
+import { PolicyTemplateRules } from './PolicyTemplateRules'
 
 type SupportStatus = '지원' | '부분 지원'
 
@@ -54,6 +55,7 @@ export function PolicyView() {
   const [chosen, setChosen] = useState<string | null>(readDefaultPolicyProfile)
   const [notice, setNotice] = useState('')
   const selected = profiles.some(profile => profile.value === chosen) ? chosen : profiles[0]?.value ?? null
+  const selectedProfile = profiles.find(profile => profile.value === selected)
 
   function choose(profile: PolicyProfile) {
     setChosen(profile.value)
@@ -90,7 +92,8 @@ export function PolicyView() {
       </section>
 
       {selected === 'CUSTOM' ? <CustomPolicyEditor onSaved={() => setNotice('사용자 지정 규칙을 저장했어요. 다음 보호 실행에 적용할 수 있어요.')} /> : <>
-        <PolicyPreview key={selected} profile={selected} profiles={profiles.filter(profile => profile.value !== 'CUSTOM')} />
+        {selectedProfile && <PolicyTemplateRules key={`rules-${selectedProfile.value}`} profile={selectedProfile} />}
+        <PolicyPreview key={`preview-${selected}`} profile={selected} profiles={profiles.filter(profile => profile.value !== 'CUSTOM')} />
       </>}
 
       <section className="glass-card policy-facts" aria-label="AIA가 실제로 하는 일">

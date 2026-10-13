@@ -98,8 +98,8 @@
   margin-bottom: 8px;
   display: grid;
   place-items: center;
-  border-radius: 18px;
-  background: var(--fill-2);
+  border-radius: 50%;
+  background: var(--brand-surface);
   box-shadow: var(--icon-shadow);
   font-weight: 800;
   font-size: 15px;

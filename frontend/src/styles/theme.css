@@ -10,6 +10,7 @@
    (violet by default, indigo, teal); everything else is shared. */
 :root {
   --surface-transparent: transparent;
+  --brand-surface: #ffffff;
   color-scheme: dark;
   --font-ui: 'Pretendard', 'Malgun Gothic', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Cascadia Code', Consolas, ui-monospace, monospace;

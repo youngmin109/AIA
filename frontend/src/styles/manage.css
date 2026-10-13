@@ -508,6 +508,13 @@
 .custom-rule-heading > span { font-size: 13px; line-height: 1.6; color: var(--text-muted); font-weight: 400; }
 .custom-rule-effects { display: flex; flex: 0 1 340px; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .custom-rule-effects .badge { white-space: normal; line-height: 1.6; }
+.policy-template-default { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 18px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--inset-bg); }
+.policy-template-default span { font-size: 14px; color: var(--text-muted); }
+.policy-operation-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; }
+.policy-operation-list > div { padding: 14px; border: 1px solid var(--line-1); border-radius: 12px; background: var(--fill-1); }
+.policy-operation-list dt { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+.policy-operation-list dd { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.policy-target-patterns { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.8; }
 .custom-rule > summary > svg { flex-shrink: 0; transition: transform 180ms ease; }
 .custom-rule[open] > summary > svg { transform: rotate(90deg); }
 .custom-rule[open] > summary { border-bottom: 1px solid var(--line-2); }

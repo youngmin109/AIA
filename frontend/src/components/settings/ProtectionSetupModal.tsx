@@ -18,6 +18,7 @@ import {
 } from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
 import { readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
+import { POLICY_ICONS } from '../policy/policyPresentation'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 import { absoluteInWorkspace, addProtectedPaths, insideWorkspace, MAX_PROTECTED_PATHS } from '../../api/protectedPaths'
 import { PERMISSION_DEFAULT, permissionAllowed, permissionOption, type PermissionMode } from '../../api/permissionMode'
@@ -288,7 +289,7 @@ function NewRunSheet() {
                 const selected = profile.value === policyProfile
                 return (
                   <button key={profile.value} type="button" className={`glass-card newrun-policy${selected ? ' is-selected' : ''}`} aria-pressed={selected} title={profile.description} onClick={() => setChosenProfile(profile.value)}>
-                    <GlossyIcon tone={CARD_TONES[index % CARD_TONES.length]} icon="shieldPlain" size="sm" />
+                    <GlossyIcon tone={CARD_TONES[index % CARD_TONES.length]} icon={POLICY_ICONS[profile.value] ?? 'shieldPlain'} size="sm" />
                     <strong>{profile.display_name}</strong>
                     <span className="newrun-policy-text">{profile.description}</span>
                     {selected && <span className="badge is-ok newrun-policy-mark"><Icon name="check" size={14} />선택됨</span>}
