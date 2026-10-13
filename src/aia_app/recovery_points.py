@@ -17,16 +17,23 @@ from .protected_run import ApplicationValidationError, _sensors_runtime_healthy
 from .run_history import _hook_broker_runtime_healthy
 
 
-# Automatic points copy the whole workspace; keep the newest few and skip
-# workspaces whose copies would be slow or large.  Manual points are the
-# user's explicit choice and keep the existing per-session limit of 50.
+# Automatic points keep the newest few.  Unchanged files are shared with the
+# run's earlier checkpoints (hard links), so space grows with what changed,
+# but every point still reads each file to verify it.  Small workspaces get a
+# point after every finished request, large ones at most every
+# LARGE_AUTO_INTERVAL_SECONDS, and beyond the upper limit automatic points
+# stop.  Manual points are the user's explicit choice and keep the existing
+# per-session limit of 50.
 AUTO_POINTS_KEPT = 5
 AUTO_MAX_FILES = 1_000
 AUTO_MAX_BYTES = 50 * 1024 * 1024
+LARGE_AUTO_MAX_FILES = 20_000
+LARGE_AUTO_MAX_BYTES = 2 * 1024 * 1024 * 1024
+LARGE_AUTO_INTERVAL_SECONDS = 600
 
 
-def _too_large_for_auto(workspace: Path) -> bool:
-    """Bounded walk: stops as soon as the workspace passes either limit."""
+def _auto_size_class(workspace: Path) -> str:
+    """'small', 'large' or 'too_large'; the walk stops at the upper limit."""
 
     files = 0
     total = 0
@@ -44,11 +51,11 @@ def _too_large_for_auto(workspace: Path) -> bool:
                             total += entry.stat(follow_symlinks=False).st_size
                     except OSError:
                         continue
-                    if files >= AUTO_MAX_FILES or total >= AUTO_MAX_BYTES:
-                        return True
+                    if files >= LARGE_AUTO_MAX_FILES or total >= LARGE_AUTO_MAX_BYTES:
+                        return 'too_large'
         except OSError:
             continue
-    return False
+    return 'small' if files < AUTO_MAX_FILES and total < AUTO_MAX_BYTES else 'large'
 
 
 def seal(body):
@@ -179,8 +186,13 @@ class RecoveryPointsMixin:
         if not isinstance(name, str) or not name.strip() or len(name) > 80:
             raise ApplicationValidationError('복구 지점 이름은 1~80자로 입력해 주세요.')
         record = self.registry.require(session_id)
-        if kind == 'AUTO' and _too_large_for_auto(record.workspace):
-            raise ApplicationValidationError('작업 폴더가 커서(파일 1,000개 또는 50MB 이상) 자동 저장을 하지 않았어요. 필요하면 직접 저장해 주세요.')
+        size_class = _auto_size_class(record.workspace) if kind == 'AUTO' else None
+        if size_class == 'too_large':
+            raise ApplicationValidationError('작업 폴더가 너무 커서(파일 2만 개 또는 2GB 이상) 자동 저장을 하지 않았어요. 필요하면 직접 저장해 주세요.')
+        if size_class == 'large':
+            last = record.runtime.get('last_large_auto_point')
+            if last is not None and time.monotonic() - last < LARGE_AUTO_INTERVAL_SECONDS:
+                return {'saved': False, 'reason': 'LARGE_WORKSPACE_INTERVAL'}
         lock = self._point_lock(record)
         if not lock.acquire(blocking=False):
             raise ApplicationValidationError('복구 지점을 저장 중이에요. 잠시 뒤 다시 시도해 주세요.')
@@ -213,6 +225,8 @@ class RecoveryPointsMixin:
                 json.dump(note, stream, ensure_ascii=False, indent=2)
             if kind == 'AUTO':
                 self._prune_auto_points(session_id)
+            if size_class == 'large':
+                record.runtime['last_large_auto_point'] = time.monotonic()
             record.runtime.pop('point_error', None)
             return {'saved': True, 'checkpoint_id': point.checkpoint_id, 'created_at': point.created_at.isoformat()}
         finally:

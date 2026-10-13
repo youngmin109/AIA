@@ -206,13 +206,30 @@ def test_auto_points_keep_the_newest_five_and_never_remove_manual_or_baseline(tm
     assert not any((checkpoints / checkpoint_id).exists() for checkpoint_id in saved[:2])
 
 
-def test_large_workspaces_skip_automatic_points_but_allow_manual_ones(tmp_path, monkeypatch):
+def test_very_large_workspaces_skip_automatic_points_but_allow_manual_ones(tmp_path, monkeypatch):
     workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
-    monkeypatch.setattr('aia_app.recovery_points.AUTO_MAX_FILES', 1)
+    monkeypatch.setattr('aia_app.recovery_points.LARGE_AUTO_MAX_FILES', 1)
     (workspace / 'note.txt').write_text('changed', encoding='utf-8')
     with pytest.raises(ApplicationValidationError, match='자동 저장'):
         service.save_recovery_point(session.session_id, name='작업 완료', kind='AUTO')
     assert service.save_recovery_point(session.session_id, name='직접 저장')['saved'] is True
+
+
+def test_large_workspaces_save_automatic_points_at_most_once_per_interval(tmp_path, monkeypatch):
+    import aia_app.recovery_points as points_module
+
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    monkeypatch.setattr(points_module, 'AUTO_MAX_FILES', 1)  # counts as large, below the upper limit
+    clock = [1000.0]
+    monkeypatch.setattr(points_module, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+
+    (workspace / 'note.txt').write_text('first change', encoding='utf-8')
+    assert service.save_recovery_point(session.session_id, name='작업 완료', kind='AUTO')['saved'] is True
+    (workspace / 'note.txt').write_text('second change', encoding='utf-8')
+    assert service.save_recovery_point(session.session_id, name='작업 완료', kind='AUTO') == {
+        'saved': False, 'reason': 'LARGE_WORKSPACE_INTERVAL'}
+    clock[0] += points_module.LARGE_AUTO_INTERVAL_SECONDS
+    assert service.save_recovery_point(session.session_id, name='작업 완료', kind='AUTO')['saved'] is True
 
 
 def test_a_message_waits_for_a_running_capture_instead_of_failing(tmp_path, monkeypatch):
