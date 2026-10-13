@@ -4,7 +4,8 @@ import { Button } from '../common/Button'
 import { EFFECTS, OPS, type PolicyDocument, type PolicyRule } from './policyModel'
 import { readCustomPolicy, writeCustomPolicy } from './policyStorage'
 import { Icon } from '../common/Icon'
-import { makeRule, RULE_STARTERS, ruleEffects, rulePresentation } from './policyPresentation'
+import { makeRule, RULE_STARTERS, rulePresentation } from './policyPresentation'
+import { PolicyEffectGuide, PolicyRuleSummary } from './PolicyRuleDisplay'
 
 export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
   const stored = readCustomPolicy()
@@ -63,8 +64,7 @@ export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
     <header className="custom-policy-head"><div><h2>나에게 맞는 보호 규칙</h2>
       <p>보호할 대상과 처리 방식을 골라요. 처음에는 표준 보호의 규칙으로 시작하며, 저장한 설정은 다음 실행부터 적용돼요.</p></div>
       <span className="badge is-neutral">{draft.rules.length}개 규칙 · {saved ? '저장됨' : '저장 전'}</span></header>
-    <div className="custom-policy-guide"><span><strong>허용</strong> 작업을 진행해요</span><span><strong>허용하고 기록</strong> 진행하면서 정책 기록을 남겨요</span><span><strong>금지</strong> 정책 위반으로 판단해요</span></div>
-    <p className="faint-note">명령 사전 차단은 지원되는 Hook에서만 가능해요. 파일 규칙이 모든 파일 접근을 운영체제 수준에서 차단하는 것은 아니에요.</p>
+    <PolicyEffectGuide />
     <fieldset className="custom-policy-form" disabled={busy}>
     <legend className="sr-only">보호 규칙 설정</legend>
     <label className="custom-default">목록에 없는 작업은 어떻게 할까요? <select className="glass-input" value={draft.default_effect} onChange={event => change({ ...draft, default_effect: event.target.value })}>
@@ -74,11 +74,7 @@ export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
     {draft.rules.map((rule, index) => {
       const info = rulePresentation(rule)
       return <details className="custom-rule" key={rule.rule_id}>
-      <summary><span className="custom-rule-icon"><Icon name={info.icon} size={22} /></span>
-        <span className="custom-rule-heading"><strong>{info.title}</strong><span>{info.description}</span></span>
-        <span className="custom-rule-effects">{ruleEffects(rule).map(({ effect, operations }) => <span key={effect} className={`badge ${effect === 'DENY' ? 'is-danger' : effect === 'AUDIT' ? 'is-warning' : 'is-neutral'}`}>{operations.map(op => OPS[op] ?? op).join('·')} {effect === 'AUDIT' ? '허용·기록' : EFFECTS[effect]}</span>)}</span>
-        <Icon name="arrowRight" size={16} />
-      </summary>
+      <PolicyRuleSummary rule={rule} />
       <div className="custom-rule-fields">
         <h3>이 대상에 어떤 작업을 허용할까요?</h3>
         {rule.path_patterns?.length === 1 && info.title === '직접 지정한 파일·폴더' && <label>보호할 파일·폴더 경로<input className="glass-input" value={rule.path_patterns[0]} onChange={event => changeRule(index, { ...rule, path_patterns: [event.target.value] })} /><span className="faint-note">예: notes.txt는 파일 하나, documents/**는 폴더 안 파일에 적용해요.</span></label>}
