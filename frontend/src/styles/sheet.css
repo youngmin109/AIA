@@ -129,6 +129,64 @@
   background: var(--glass-fill-selected);
 }
 
+/* Files and folders to protect on top of the policy. */
+.newrun-optional {
+  margin-left: 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.protect-actions,
+.protect-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.protect-entry {
+  flex: 1 1 100%;
+}
+
+.protect-entry .glass-input {
+  flex: 1 1 280px;
+  min-height: 40px;
+}
+
+.protect-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.protect-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--fill-1);
+  font-size: 13px;
+}
+
+.protect-list .mono {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.protect-list .protect-remove {
+  width: 26px;
+  height: 26px;
+}
+
 .newrun-policy-mark {
   grid-column: 1 / -1;
   justify-self: start;

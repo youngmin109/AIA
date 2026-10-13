@@ -76,6 +76,8 @@ export interface CreateRunPayload {
   launch_mode?: 'inherit' | 'new_terminal' | 'codex_app_server'
   reasoning_effort?: string | null
   resume_thread_id?: string | null
+  /** Files and folders inside the workspace to protect on top of the policy. */
+  protected_paths?: string[]
 }
 
 export interface CreateRunResult {
