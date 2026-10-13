@@ -113,6 +113,25 @@ _UNSUPPORTED_TOOL_REVIEW_SECONDS = 25.0
 _MODELS_CACHE_SECONDS = 600.0
 _WORKSPACE_SIZE_MAX_FILES = 5_000
 _WORKSPACE_SIZE_MAX_SECONDS = 1.5
+_REPLACE_ATTEMPTS = 6
+
+
+def _replace_with_retry(source: Path, target: Path) -> None:
+    """Atomic replace that waits out a brief Windows lock on the target.
+
+    While a reader (the run list, another AIA window, antivirus) has the run
+    status file open, Windows refuses to replace it.  That lasts milliseconds;
+    failing at once used to mark a healthy run as degraded.
+    """
+
+    for attempt in range(_REPLACE_ATTEMPTS):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(0.02 * (attempt + 1))
 
 
 def _workspace_size_estimate(
@@ -1778,7 +1797,7 @@ class RunApplicationService(
                     json.dumps(dict(payload), ensure_ascii=True, indent=2) + "\n",
                     encoding="utf-8",
                 )
-                os.replace(temporary, path)
+                _replace_with_retry(temporary, path)
             finally:
                 try:
                     temporary.unlink()

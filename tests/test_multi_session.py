@@ -44,3 +44,29 @@ def test_a_finished_run_frees_its_folder_and_its_slot(service, tmp_path) -> None
 
     service.registry.get(first).status = "COMPLETED"
     assert _start(service, _folder(tmp_path, "shop"))
+
+
+def test_a_brief_windows_lock_on_the_status_file_does_not_degrade_the_run(service, tmp_path, monkeypatch) -> None:
+    import aia_app.service as service_module
+
+    session_id = _start(service, _folder(tmp_path, "shop"))
+    record = service.registry.get(session_id)
+    real_replace = service_module.os.replace
+    calls = []
+
+    def locked_twice(source, target):
+        calls.append(target)
+        if len(calls) <= 2:
+            raise PermissionError("the file is being used by another process")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(service_module.os, "replace", locked_twice)
+    monkeypatch.setattr(service_module.time, "sleep", lambda seconds: None)
+    service._persist_runtime_state(record)
+    assert len(calls) == 3
+    assert record.error is None and record.protection_state != "DEGRADED"
+
+    calls.clear()
+    monkeypatch.setattr(service_module.os, "replace", lambda source, target: (_ for _ in ()).throw(PermissionError("locked")))
+    service._persist_runtime_state(record)
+    assert record.error == "RUNTIME_STATE_PERSIST_FAILED"  # a lasting lock is still reported

@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from fnmatch import fnmatchcase
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -209,14 +210,155 @@ def _path_pattern_matches(path: str, pattern: str) -> bool:
     return fnmatchcase(normalize_path(path), normalize_path(pattern))
 
 
+# A shell wrapper around a script: powershell/pwsh/cmd [flags] -Command|/c <script>.
+_SHELL_WRAPPER = re.compile(
+    r'^\s*(?:"[^"]*?(?:powershell|pwsh|cmd)(?:\.exe)?"|[^\s"\']*?(?:powershell|pwsh|cmd)(?:\.exe)?)'
+    r'(?:\s+-(?:noprofile|nologo|noninteractive|executionpolicy\s+\S+))*'
+    r'\s+(?:-command|-c|/c|/k)\s+(.+)$',
+    re.IGNORECASE | re.DOTALL,
+)
+_STATEMENT_SEPARATORS = frozenset(";|&\n\r{}()")
+
+
+def _split_statements(text: str) -> list[str]:
+    """Split a script on statement separators that are outside quotes."""
+
+    parts: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    for char in text:
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                quote = None
+        elif char in "\'\"":
+            quote = char
+            current.append(char)
+        elif char in _STATEMENT_SEPARATORS:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return [part.strip() for part in parts if part.strip()]
+
+
+@lru_cache(maxsize=512)
+def command_segments(raw_command: str) -> tuple[str, ...]:
+    """The whole command and each statement in it, normalized.
+
+    Lexical only.  A powershell/cmd wrapper is opened and the script is split
+    on ``;``, ``|``, ``&``, newlines, braces and parentheses outside quotes, so
+    a command pattern also matches a statement in the middle of a script
+    (``$t = 'x'; Remove-Item $t``), not only the start of the whole command.
+    """
+
+    segments = [normalize_command(raw_command)]
+    pending = [raw_command]
+    while pending and len(segments) < 200:
+        text = pending.pop()
+        wrapped = _SHELL_WRAPPER.match(text)
+        if wrapped is not None:
+            inner = wrapped.group(1).strip()
+            if len(inner) > 1 and inner[0] == inner[-1] and inner[0] in "\'\"":
+                inner = inner[1:-1]
+            pending.append(inner)
+            continue
+        statements = _split_statements(text)
+        if len(statements) == 1 and statements[0] == text.strip():
+            segments.append(normalize_command(text))
+            continue
+        pending.extend(reversed(statements))
+    return tuple(dict.fromkeys(segments))
+
+
 def _command_pattern_matches(command: str, pattern: str) -> bool:
-    normalized_command = normalize_command(command)
     normalized_pattern = normalize_command(pattern)
-    if any(char in normalized_pattern for char in "*?["):
-        return fnmatchcase(normalized_command, normalized_pattern)
-    return normalized_command == normalized_pattern or normalized_command.startswith(
-        f"{normalized_pattern} "
-    )
+    for normalized_command in command_segments(command):
+        if any(char in normalized_pattern for char in "*?["):
+            if fnmatchcase(normalized_command, normalized_pattern):
+                return True
+        elif normalized_command == normalized_pattern or normalized_command.startswith(
+            f"{normalized_pattern} "
+        ):
+            return True
+    return False
+
+
+# Shell verbs that visibly delete, move, rename or overwrite a path the same
+# command names.  Reading and copying from a path are not on the list.
+_COMMAND_FILE_VERBS: Mapping[Operation, re.Pattern[str]] = MappingProxyType(
+    {
+        Operation.DELETE: re.compile(
+            r"(?<![\w-])(?:remove-item|ri|rm|del|erase|rd|rmdir|unlink|shred)(?![\w-])"
+            r"|::delete\(|\.delete\("
+        ),
+        Operation.MOVE: re.compile(r"(?<![\w-])(?:move-item|mi|mv|move)(?![\w-])|::move\("),
+        Operation.RENAME: re.compile(r"(?<![\w-])(?:rename-item|rni|ren|rename)(?![\w-])"),
+        Operation.MODIFY: re.compile(
+            r"(?<![\w-])(?:set-content|add-content|clear-content|clc|out-file|tee-object|truncate)(?![\w-])"
+            r"|::(?:write|append)\w*\("
+        ),
+    }
+)
+_REDIRECT_TARGET = re.compile(r"(?<![\w>=-])>{1,2}\s*['\"]?([^\s'\";|&<>]+)")
+_PATH_TOKEN_SPLIT = re.compile(r"[\s'\";|&(){}=,]+")
+
+
+def _command_path_tokens(raw_command: str) -> tuple[str, ...]:
+    tokens = (token for token in _PATH_TOKEN_SPLIT.split(raw_command) if len(token) > 1)
+    return tuple(token for token in tokens if not token.startswith(("-", "$", "@")))
+
+
+def _token_names_path(token: str, pattern: str) -> bool:
+    """A command token names the pattern's path: absolute, deeper, or its tail.
+
+    ``C:/w/shop/data/a.db`` and ``data/a.db`` both name ``shop/data/a.db``
+    (the command may run in a sub-folder); a same-named file elsewhere is
+    named too, which errs on the side of blocking.
+    """
+
+    try:
+        normalized_token = normalize_path(token)
+        normalized_pattern = normalize_path(pattern)
+    except PolicyEvaluationError:
+        return False
+    parts = normalized_token.lstrip("/").split("/")
+    if any(fnmatchcase("/".join(parts[index:]), normalized_pattern) for index in range(len(parts))):
+        return True
+    literal = not any(char in normalized_pattern for char in "*?[")
+    return literal and (normalized_pattern == normalized_token or normalized_pattern.endswith("/" + normalized_token))
+
+
+def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[PolicyRule]:
+    """File rules that DENY what a shell command visibly does to a path it names.
+
+    Lexical, like command patterns: the command must name a path the rule
+    protects and use a verb for an operation the rule denies (a redirect
+    counts as modifying its own target only).  Only DENY effects are derived,
+    so this can block more but never allows anything a rule would not.
+    """
+
+    text = normalize_command(raw_command)
+    tokens = _command_path_tokens(raw_command)
+    redirected = tuple(match.group(1) for match in _REDIRECT_TARGET.finditer(raw_command))
+    denied: list[PolicyRule] = []
+    for rule in rules:
+        if not rule.path_patterns:
+            continue
+        for operation, verb in _COMMAND_FILE_VERBS.items():
+            if rule.operation_effects.get(operation) is not PolicyEffect.DENY:
+                continue
+            named = verb.search(text) is not None and any(
+                _token_names_path(token, pattern) for token in tokens for pattern in rule.path_patterns
+            )
+            overwritten = operation is Operation.MODIFY and any(
+                _token_names_path(token, pattern) for token in redirected for pattern in rule.path_patterns
+            )
+            if named or overwritten:
+                denied.append(rule)
+                break
+    return denied
 
 
 @dataclass(frozen=True, slots=True)
@@ -580,14 +722,24 @@ class PolicyEngine:
                 normalized_command=normalized_command,
             )
 
-        matches = [rule for rule in self.policy.rules if rule.matches(subject)]
-        if matches:
-            highest_priority = max(rule.priority for rule in matches)
-            highest = [
-                rule for rule in matches if rule.priority == highest_priority
+        matches = [
+            (rule, rule.operation_effects[subject.operation])
+            for rule in self.policy.rules
+            if rule.matches(subject)
+        ]
+        if subject.operation is Operation.EXECUTE:
+            matches += [
+                (rule, PolicyEffect.DENY)
+                for rule in command_path_denials(self.policy.rules, subject.raw_command)
+                if rule.asset_type is subject.asset_type
             ]
-            effects = {rule.operation_effects[subject.operation] for rule in highest}
-            matched_rule_ids = tuple(rule.rule_id for rule in highest)
+        if matches:
+            highest_priority = max(rule.priority for rule, _effect in matches)
+            highest = [
+                (rule, effect) for rule, effect in matches if rule.priority == highest_priority
+            ]
+            effects = {effect for _rule, effect in highest}
+            matched_rule_ids = tuple(dict.fromkeys(rule.rule_id for rule, _effect in highest))
             if len(effects) > 1:
                 return PolicyEvaluation(
                     policy_decision=PolicyDecision.INDETERMINATE,
@@ -682,7 +834,7 @@ class PolicyEngine:
             )
 
         matches = [
-            rule
+            (rule, rule.operation_effects[normalized_operation])
             for rule in self.policy.rules
             if rule.matches(
                 PolicySubject(
@@ -693,19 +845,23 @@ class PolicyEngine:
                 )
             )
         ]
-        if matches:
-            highest_priority = max(rule.priority for rule in matches)
-            highest = [
-                rule for rule in matches if rule.priority == highest_priority
+        if normalized_operation is Operation.EXECUTE:
+            # A command that visibly deletes, moves, renames or overwrites a
+            # protected path is judged by that path's DENY rule as well.
+            matches += [
+                (rule, PolicyEffect.DENY)
+                for rule in command_path_denials(self.policy.rules, raw_command)
             ]
-            matched_rule_ids = tuple(rule.rule_id for rule in highest)
-            effects = {
-                rule.operation_effects[normalized_operation]
-                for rule in highest
-            }
+        if matches:
+            highest_priority = max(rule.priority for rule, _effect in matches)
+            highest = [
+                (rule, effect) for rule, effect in matches if rule.priority == highest_priority
+            ]
+            matched_rule_ids = tuple(dict.fromkeys(rule.rule_id for rule, _effect in highest))
+            effects = {effect for _rule, effect in highest}
             winning_asset_types = {
                 rule.asset_type
-                for rule in highest
+                for rule, _effect in highest
             }
             asset_type = (
                 next(iter(winning_asset_types))
