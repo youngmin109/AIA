@@ -487,35 +487,55 @@
 .custom-policy textarea { min-height: 80px; resize: vertical; }
 .custom-policy > .button { margin-block: 12px; }
 
-.custom-policy { gap: 18px; background: linear-gradient(var(--inset-bg), var(--inset-bg)) padding-box, var(--glass-rim-soft) border-box; }
+.custom-policy { gap: 18px; }
 .custom-policy-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.custom-policy-head > div { flex: 1 1 280px; }
-.custom-policy-head p { color: var(--text-muted); line-height: 1.7; margin: 10px 0 0; }
-.custom-policy-guide { display: flex; gap: 12px 24px; flex-wrap: wrap; padding: 14px 18px; background: var(--inset-bg); border: 1px solid var(--line-2); border-radius: 16px; }
-.custom-policy-guide span { font-size: 13px; color: var(--text-muted); }
-.custom-policy-guide strong { display: block; color: var(--text); margin-bottom: 4px; }
+.custom-policy-head > div { flex: 1 1 280px; min-width: 0; }
+.custom-policy-head h2 { font-size: 19px; }
+.custom-policy-head p { color: var(--text-muted); line-height: 1.7; margin: 8px 0 0; }
+/* Allow, audit and deny keep one color each: guide, badges, card edges and operation tiles. */
+.custom-policy-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
+.custom-policy-guide span { display: grid; gap: 4px; padding: 12px 16px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--fill-1); font-size: 13px; color: var(--text-muted); }
+.custom-policy-guide strong { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); }
+.custom-policy-guide .is-allow { border-color: var(--success-line); background: var(--success-bg); }
+.custom-policy-guide .is-allow strong { color: var(--success-text); }
+.custom-policy-guide .is-audit { border-color: var(--warning-line); background: var(--warning-bg); }
+.custom-policy-guide .is-audit strong { color: var(--warning-text); }
+.custom-policy-guide .is-deny { border-color: var(--danger-line); background: var(--danger-bg); }
+.custom-policy-guide .is-deny strong { color: var(--danger-text); }
+.policy-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 16px; border-radius: 14px; background: var(--fill-1); color: var(--text-muted); font-size: 13px; line-height: 1.7; }
+.policy-note > svg { flex-shrink: 0; margin-top: 3px; color: var(--link); }
 .custom-policy-form { display: grid; gap: 18px; padding: 0; margin: 0; border: 0; min-width: 0; }
 .custom-policy-form > legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .custom-policy-form:disabled { opacity: 0.65; }
 .custom-policy-form > label, .custom-add-rule label { display: grid; gap: 8px; }
 .custom-default { max-width: 480px; }
 .custom-rule-list { display: grid; gap: 10px; }
-.custom-policy .custom-rule { border: 1px solid var(--line-2); border-radius: 18px; padding: 0 18px; background: var(--inset-bg); min-width: 0; }
-.custom-policy .custom-rule > summary { padding: 18px 0; gap: 14px; }
-.custom-rule-icon { flex-shrink: 0; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--fill-2); }
-.custom-rule-heading { display: grid; gap: 6px; flex: 1 1 240px; min-width: 0; }
-.custom-rule-heading strong { font-size: 15px; }
+.custom-policy .custom-rule { border: 1px solid var(--line-2); border-radius: 18px; padding: 0 18px 0 22px; background: var(--fill-1); box-shadow: inset 4px 0 0 var(--line-3); min-width: 0; transition: border-color 160ms ease; }
+.custom-policy .custom-rule:hover, .custom-policy .custom-rule[open] { border-color: var(--line-3); }
+.custom-policy .custom-rule.is-deny { background: linear-gradient(90deg, var(--danger-bg), transparent 45%), var(--fill-1); box-shadow: inset 4px 0 0 var(--danger); }
+.custom-policy .custom-rule.is-audit { background: linear-gradient(90deg, var(--warning-bg), transparent 45%), var(--fill-1); box-shadow: inset 4px 0 0 var(--warning); }
+.custom-policy .custom-rule.is-allow { background: linear-gradient(90deg, var(--success-bg), transparent 45%), var(--fill-1); box-shadow: inset 4px 0 0 var(--success); }
+.custom-policy .custom-rule > summary { padding: 16px 0; gap: 14px; }
+.custom-rule-heading { display: grid; gap: 4px; flex: 1 1 240px; min-width: 0; }
+.custom-rule-heading strong { font-size: 16px; font-weight: 800; }
 .custom-rule-heading > span { font-size: 13px; line-height: 1.6; color: var(--text-muted); font-weight: 400; }
 .custom-rule-effects { display: flex; flex: 0 1 340px; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .custom-rule-effects .badge { white-space: normal; line-height: 1.6; }
-.policy-template-default { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 18px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--inset-bg); }
-.policy-template-default span { font-size: 14px; color: var(--text-muted); }
+.policy-template-default { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border: 1px dashed var(--line-3); border-radius: 14px; background: var(--fill-1); }
+.policy-template-default .badge { font-size: 13px; }
 .policy-operation-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; }
-.policy-operation-list > div { padding: 14px; border: 1px solid var(--line-1); border-radius: 12px; background: var(--fill-1); }
-.policy-operation-list dt { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+.policy-operation-list > div { padding: 12px 14px; border: 1px solid var(--line-1); border-radius: 12px; background: var(--fill-1); }
+.policy-operation-list dt { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
 .policy-operation-list dd { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
-.policy-target-patterns { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.8; }
-.custom-rule > summary > svg { flex-shrink: 0; transition: transform 180ms ease; }
+.policy-operation-list > div:not(.is-deny, .is-audit, .is-allow) dd { color: var(--text-faint); font-weight: 500; }
+.policy-operation-list > .is-deny { border-color: var(--danger-line); background: var(--danger-bg); }
+.policy-operation-list > .is-deny dd { color: var(--danger-text); }
+.policy-operation-list > .is-audit { border-color: var(--warning-line); background: var(--warning-bg); }
+.policy-operation-list > .is-audit dd { color: var(--warning-text); }
+.policy-operation-list > .is-allow { border-color: var(--success-line); background: var(--success-bg); }
+.policy-operation-list > .is-allow dd { color: var(--success-text); }
+.policy-target-patterns { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 12px 14px; border: 1px solid var(--line-1); border-radius: 10px; background: var(--inset-bg); font-family: var(--font-mono); font-size: 13px; line-height: 1.8; }
+.custom-rule > summary > svg { flex-shrink: 0; color: var(--text-faint); transition: transform 180ms ease; }
 .custom-rule[open] > summary > svg { transform: rotate(90deg); }
 .custom-rule[open] > summary { border-bottom: 1px solid var(--line-2); }
 .custom-rule-fields h3, .custom-policy-form h3 { margin: 0; font-size: 15px; }
@@ -528,7 +548,7 @@
 .custom-policy textarea { overflow-wrap: anywhere; }
 @media (max-width: 760px) {
   .custom-policy .custom-rule > summary { flex-wrap: wrap; }
-  .custom-rule-effects { flex-basis: 100%; justify-content: flex-start; padding-left: 56px; }
+  .custom-rule-effects { flex-basis: 100%; justify-content: flex-start; padding-left: 58px; }
 }
 .point-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-block: 14px; padding: 18px; }
 .point-row p { margin: 8px 0; }

@@ -4,7 +4,8 @@ import { Button } from '../common/Button'
 import { EFFECTS, OPS, type PolicyDocument, type PolicyRule } from './policyModel'
 import { readCustomPolicy, writeCustomPolicy } from './policyStorage'
 import { Icon } from '../common/Icon'
-import { makeRule, RULE_STARTERS, rulePresentation } from './policyPresentation'
+import { GlossyIcon } from '../common/Glass'
+import { makeRule, RULE_STARTERS, ruleCardClass, rulePresentation } from './policyPresentation'
 import { PolicyEffectGuide, PolicyRuleSummary } from './PolicyRuleDisplay'
 
 export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
@@ -61,9 +62,9 @@ export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
   }
   if (!draft) return <p role="status">{notice || '사용자 지정 규칙을 준비하는 중…'}</p>
   return <section className="glass policy-facts custom-policy" aria-label="사용자 지정 정책 편집">
-    <header className="custom-policy-head"><div><h2>나에게 맞는 보호 규칙</h2>
+    <header className="custom-policy-head"><GlossyIcon tone="accent" icon="settings" /><div><h2>나에게 맞는 보호 규칙</h2>
       <p>보호할 대상과 처리 방식을 골라요. 처음에는 표준 보호의 규칙으로 시작하며, 저장한 설정은 다음 실행부터 적용돼요.</p></div>
-      <span className="badge is-neutral">{draft.rules.length}개 규칙 · {saved ? '저장됨' : '저장 전'}</span></header>
+      <span className={`badge ${saved ? 'is-ok' : 'is-warn'}`}>{draft.rules.length}개 규칙 · {saved ? '저장됨' : '저장 전'}</span></header>
     <PolicyEffectGuide />
     <fieldset className="custom-policy-form" disabled={busy}>
     <legend className="sr-only">보호 규칙 설정</legend>
@@ -73,7 +74,7 @@ export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
     <div className="custom-rule-list">
     {draft.rules.map((rule, index) => {
       const info = rulePresentation(rule)
-      return <details className="custom-rule" key={rule.rule_id}>
+      return <details className={ruleCardClass(rule)} key={rule.rule_id}>
       <PolicyRuleSummary rule={rule} />
       <div className="custom-rule-fields">
         <h3>이 대상에 어떤 작업을 허용할까요?</h3>

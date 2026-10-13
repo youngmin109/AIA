@@ -60,6 +60,7 @@ try {
         --hide-console hide-early `
         --name AIA `
         --icon $iconPath `
+        --add-data "${iconPath};aia_desktop" `
         --distpath $outputPath `
         --workpath (Join-Path $buildPath "AIA") `
         --specpath (Join-Path $buildPath "spec") `
