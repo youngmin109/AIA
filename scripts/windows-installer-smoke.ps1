@@ -111,11 +111,20 @@ try {
             throw "설치 후 서명 검증에 실패했습니다: $($invalidInstalledSignatures -join ', ')"
         }
     }
-    $uninstallProcess = Start-Process -FilePath $uninstaller.FullName -ArgumentList @(
-        "/VERYSILENT",
-        "/SUPPRESSMSGBOXES",
-        "/NORESTART"
-    ) -Wait -PassThru
+    # The uninstaller removes AIA's handlers from Codex hooks.json. Point it at a
+    # throwaway Codex home so this smoke never edits the real user's hooks.
+    $previousCodexHome = $env:CODEX_HOME
+    $env:CODEX_HOME = Join-Path $installRoot "codex-home"
+    try {
+        $uninstallProcess = Start-Process -FilePath $uninstaller.FullName -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART"
+        ) -Wait -PassThru
+    }
+    finally {
+        $env:CODEX_HOME = $previousCodexHome
+    }
     if ($uninstallProcess.ExitCode -ne 0) {
         throw "Uninstaller failed with exit code $($uninstallProcess.ExitCode)"
     }
