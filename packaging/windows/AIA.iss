@@ -55,3 +55,8 @@ Name: "desktopicon"; Description: "바탕 화면에 AIA 바로가기 만들기";
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "AIA 실행"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Remove only AIA's handlers from Codex hooks.json before the files go away, so
+; Codex is not left calling a deleted aia-cli.exe. User hooks are kept.
+Filename: "{app}\aia-cli\aia-cli.exe"; Parameters: "hook uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveAiaCodexHook"

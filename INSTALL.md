@@ -1,7 +1,7 @@
 # AIA 설치 및 첫 실행
 
-AIA 0.1은 Windows 11과 Python 3.13 환경을 지원한다. Codex CLI와 `uv`를 먼저
-설치해야 한다.
+AIA는 Windows 11을 지원한다. 설치 프로그램을 쓰면 Codex CLI만 먼저 설치하면
+된다. 저장소에서 직접 실행하려면 Python 3.13과 `uv`도 필요하다.
 
 ## Windows 제품 실행
 
@@ -15,6 +15,10 @@ AIA 0.1은 Windows 11과 Python 3.13 환경을 지원한다. Codex CLI와 `uv`�
 Workspace 복구와 `RESTORED`·`VERIFIED` 상태를 확인할 수 있다. 상세한 개발 빌드와
 설치 프로그램 생성 방법은 [Windows Desktop 가이드](docs/WINDOWS-DESKTOP.md)를
 참조한다.
+
+Codex Hook은 그것을 설치한 AIA의 `aia-cli.exe` 경로를 가리킨다. 개발 빌드를 쓰다가
+설치 프로그램으로 설치한 AIA로 바꾸면(또는 그 반대), 새 보호 실행 창의 연결 점검에서
+Hook을 다시 설치하고 Codex `/hooks`에서 다시 신뢰한 뒤 `연결 검증`을 해야 한다.
 
 ## 소스 저장소에서 설치
 
@@ -176,6 +180,10 @@ uv run --isolated --project . python -m aia.cli console --open
 ```
 
 ## Hook 제거
+
+설치 프로그램으로 설치한 AIA를 Windows `설치된 앱`에서 제거하면, 파일을 지우기 전에
+Codex `hooks.json`에서 AIA Hook만 함께 제거한다. 사용자의 다른 Hook과 보호 실행
+기록은 남는다.
 
 AIA가 추가한 Hook만 제거하려면 저장소 또는 릴리스 폴더의 제거 스크립트를 실행한다.
 다른 사용자의 Hook, Protected Run 결과, AIA Control Root는 보존한다.
