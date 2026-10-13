@@ -12,7 +12,7 @@ AIA는 Codex를 대신하는 프로그램이 아니다. AIA가 먼저 보호 실
 저장소 폴더에서 PowerShell을 연다.
 
 ```powershell
-cd C:\workspace\01_projects\aia-mvp
+cd <AIA 저장소 폴더>
 uv sync
 uv run --isolated --project . python -m aia.cli self-test
 uv run --isolated --project . python -m aia.cli setup
@@ -93,10 +93,10 @@ Codex `/hooks`에서 AIA PreToolUse Hook을 검토·신뢰해야 한다.
 `aia hook verify`를 실행해야 한다는 뜻이다. `READY`가 아닌 상태는 보호 실행을
 시작할 수 있는 상태로 해석하지 않는다.
 
-콘솔을 열면 기본 대시보드에서 실행 전에 현재 준비 상태, Codex Hook Trust, 보호
-범위, 최근 실행 기록을 한 번에 확인할 수 있다. 대시보드의 상태가 `READY`가
-아니면 `새 보호 실행`(`/new`)에서 시작 버튼을 누르기 전에 표시된 다음 조치를
-먼저 완료한다.
+앱을 열면 홈에서 보호 연결 상태와 최근 실행을 확인할 수 있다. 홈의 `보호 시작`을
+누르면 새 보호 실행 창에 연결 점검 세 가지(`Hook 연결`, `Codex 신뢰`,
+`요청 전달 확인`)가 나온다. 준비되지 않은 항목이 있으면 `보호 시작`을 누르기 전에
+표시된 다음 조치(설치, Codex `/hooks`에서 신뢰, `연결 검증`)를 먼저 완료한다.
 
 `aia hook status`에서 `CURRENT_BUT_UNTRUSTED`가 나오면 과거 검증 지문은 남아
 있지만 현재 Codex가 Hook을 신뢰하지 않는 상태다. Codex `/hooks`에서 다시 검토·신뢰한
@@ -104,29 +104,15 @@ Codex `/hooks`에서 AIA PreToolUse Hook을 검토·신뢰해야 한다.
 
 ## 정책을 먼저 확인하는 방법
 
-웹 콘솔을 열면 `정책 미리보기`에서 파일 경로 또는 명령을 넣어 정책 결과를
-확인할 수 있다.
+앱의 `정책` 화면에서 정책을 고르면 그 정책의 규칙을 읽기 전용으로 볼 수 있다.
+처리 방식은 색으로 구분한다: 허용은 초록, 허용하고 기록은 노랑, 금지는 빨강.
 
-```powershell
-uv run --isolated --project . python -m aia.cli console --open
-```
+같은 화면 아래 `이 명령은 어떻게 판정될까?`에서 파일 경로나 명령을 넣고
+`판정 보기`를 누르면 정책마다 결과를 보여준다. 예를 들어 행위 `읽기`, 경로 `.env`를
+넣으면 기본 `표준 보호` 정책은 `차단`으로 나온다.
 
-브라우저에서 다음처럼 입력한다.
-
-```text
-행위 종류: READ
-확인할 대상: .env
-```
-
-기본 `보호 우선 개발형` 정책에서는 다음 결과가 나온다.
-
-```text
-차단 대상
-정책 효과: DENY
-보안 자산: SECRET
-```
-
-이 미리보기는 Codex를 시작하지 않고 파일도 읽지 않는다.
+이 미리보기는 Codex를 시작하지 않고 파일도 읽지 않는다. 명령줄에서는
+`aia policy evaluate --operation READ --path .env`로 같은 결과를 볼 수 있다.
 
 ## 보호 실행 시작
 
@@ -139,7 +125,7 @@ uv run --isolated --project . python -m aia.cli protect C:\workspace\my-project
 저장소 모듈 방식은 AIA 저장소 루트에서 실행하므로 Workspace 경로를 명시한다.
 
 ```powershell
-cd C:\workspace\01_projects\aia-mvp
+cd <AIA 저장소 폴더>
 uv run --isolated --project . python -m aia.cli start C:\workspace\my-project
 ```
 
@@ -299,16 +285,12 @@ uv run --isolated --project . python -m aia.cli reconcile <SESSION_ID>
 
 ## 제품 화면에서 확인하는 것
 
-`uv run --isolated --project . python -m aia.cli console --open`을 실행하면 브라우저에서 `새 보호 실행`을 선택할 수
-있다. 사용자가 만든 기존 Workspace와 정책을 선택한 뒤 기본값인 `AIA Workbench에서
-Codex 작업창 열기`로 시작하면, 같은 화면에서 Codex 작업창과 AIA 보안 패널을 함께
-사용할 수 있다. Workbench는 Windows ConPTY를 통해 Codex 입출력을 전달하고,
-Hook·File·Process Sensor 상태를 기존 API polling으로 갱신한다.
-작업창 아래 입력란에 질문을 입력한 뒤 Enter 또는 `전송`을 누르면 Codex에 요청이
-제출된다. 응답을 기다리는 동안 작업창의 처리 중 표시로 진행 상태를 확인할 수 있다.
-
-기존 방식이 필요하면 `별도 Windows 터미널에서 Codex 열기`를 선택한다. 이 경우
-Codex는 별도 창에서 실행되고 AIA 웹 화면에서 보호 상태를 확인한다.
+데스크톱 앱(또는 `uv run --isolated --project . python -m aia.cli console --open`으로
+연 브라우저)에서 `보호 시작`을 누르고 기존 작업 폴더, 정책, 권한을 고르면, 같은
+화면에서 Codex 작업창과 AIA 보호 패널을 함께 사용할 수 있다. 작업창은 Codex
+app-server와 대화를 주고받고, Hook·File·Process Sensor 상태는 API polling으로
+갱신한다. 작업창 아래 입력란에 요청을 입력한 뒤 Enter를 누르면 Codex에 요청이
+제출되며, 응답을 기다리는 동안 처리 중 표시가 나온다.
 
 실행 중 화면에는 Hook·File·Process Sensor 카드, 최근 안전 이벤트, 차단 사건이
 표시된다. 이벤트 요약에는 명령 원문, 비밀값, 파일 내용이 들어가지 않는다.
