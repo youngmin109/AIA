@@ -785,6 +785,79 @@ details.chat-output pre {
   color: var(--warning-text);
 }
 
+/* AI permission: full access (YOLO) is the product's default and stands out. */
+.permission-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.usage-chip > .chip.permission-chip.is-yolo {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--yolo-from), var(--yolo-to));
+  color: var(--on-yolo);
+  font-weight: 700;
+}
+
+.permission-pop {
+  width: 320px;
+}
+
+.newrun-permissions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 10px;
+}
+
+.permission-option {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--fill-1);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.permission-option strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.permission-option small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.permission-option.is-selected {
+  border-color: var(--accent);
+  background: var(--fill-2);
+}
+
+.permission-option.is-yolo.is-selected {
+  border-color: var(--yolo-to);
+}
+
+.permission-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.yolo-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--yolo-from), var(--yolo-to));
+  color: var(--on-yolo);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .usage-pop {
   position: absolute;
   top: calc(100% + 8px);

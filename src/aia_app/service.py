@@ -496,6 +496,9 @@ class RunApplicationService(
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
 
+    def set_codex_permission_mode(self, session_id: str, mode: Any) -> dict[str, Any]:
+        return self._codex_workbench.set_codex_permission_mode(session_id, mode)
+
     def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
         return self._after_point_capture(
             session_id, lambda: self._codex_workbench.run_codex_command(session_id, command, argument)
@@ -624,10 +627,11 @@ class RunApplicationService(
         codex_session = record.runtime.get("codex_session")
         if codex_session is None:
             return
+        full_access = record.permission_mode == "full_access"
         try:
             effective = codex_session.open(
-                sandbox="workspace-write",
-                approval_policy="on-request",
+                sandbox="danger-full-access" if full_access else "workspace-write",
+                approval_policy="never" if full_access else "on-request",
                 model=record.model,
                 **({"resume_thread_id": record.resume_thread_id} if record.resume_thread_id else {}),
             )
@@ -662,6 +666,14 @@ class RunApplicationService(
             effective_approval_policy=approval_policy or None,
             effective_sandbox=_APP_SERVER_SANDBOX_NAMES.get(sandbox, sandbox) or None,
         )
+        if full_access:
+            # The user chose YOLO; the Bundle states it.  The Hook, sensors
+            # and recovery stay in force.  A stricter mode Codex applied is fine.
+            record.full_access_used = sandbox == "dangerFullAccess"
+            if sandbox == "readOnly":
+                record.runtime["codex_sandbox_downgraded"] = True
+            self._persist_runtime_state(record)
+            return
         if sandbox == "dangerFullAccess" or approval_policy == "never":
             # Codex applied a less protected mode than AIA requested (for
             # example from a managed config).  No task has been sent yet; end
@@ -1680,6 +1692,8 @@ class RunApplicationService(
             "phase": record.phase,
             "startup": record.startup,
             "permission_grants": record.permission_grants,
+            "permission_mode": record.permission_mode,
+            "full_access_used": record.full_access_used,
             "codex_thread_id": record.codex_thread_id,
             "resumed_from": record.resumed_from,
             "protection": {

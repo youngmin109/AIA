@@ -74,6 +74,10 @@
   --success-line: rgba(120, 240, 195, 0.45);
   --warning: #ffc860;
   --warning-text: #ffe2a6;
+  /* Full access (YOLO): the product's default AI permission, meant to stand out. */
+  --yolo-from: #ff7a45;
+  --yolo-to: #ff3d77;
+  --on-yolo: #fff;
   --warning-bg: rgba(255, 200, 96, 0.16);
   --warning-line: rgba(255, 210, 120, 0.5);
   --chart-allow: rgba(255, 255, 255, 0.78);

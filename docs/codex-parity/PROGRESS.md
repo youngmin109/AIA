@@ -2,6 +2,11 @@
 
 세션마다 5줄 이하. 최신이 위.
 
+## 2026-10-13 · AI 권한 선택(YOLO 기본)
+- 새 실행 "AI 권한"(기본 전체 권한 = `danger-full-access`+`never`, 짝으로만 허용)과 작업창 권한 칩. 대화 중 전환은 실행 기록에 먼저 남기고 다음 `turn/start`에 `sandboxPolicy`·`approvalPolicy`로 한 번 보냄.
+- 전체 권한을 쓴 실행은 Bundle 제한사항 `CODEX_FULL_ACCESS_USER_SELECTED`, 보호 상태는 낮추지 않음(사용자가 시작 전에 고른 범위). "작업 폴더만"에서 Codex가 전체 권한을 적용하면 기존처럼 보호 실패.
+- 펫 첫 위치를 화면 왼쪽 아래로. 영민 님 검토 필요: 보호 계약 변경, 자동 복구 지점은 YOLO에서도 유지.
+
 ## 2026-10-13 · 외부 도구 켜고 끄기
 - 보호 실행(app-server)은 외부 도구를 기본으로 끄고 시작: `[mcp_servers]`는 `mcp_servers.<이름>.enabled=false`, 플러그인 MCP는 `plugins.<id>.enabled=false`, ChatGPT 앱은 `features.apps=false`. Codex 설정 파일은 읽기만 함. 어댑터는 "끄는" `-c` 값만 받음.
 - 설정 › 외부 도구에서 도구마다 켜기(`control/external-tools.json`의 `allowed`). 사전 점검은 켜 둔 도구만 경고. 보호 패널·`/mcp`는 "보호 실행에서 꺼 둠" 표시.

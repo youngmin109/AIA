@@ -357,6 +357,34 @@ def test_responses_cannot_resume_codex_during_checkpoint_capture(tmp_path, monke
         service.shutdown()
 
 
+def test_full_access_is_sealed_as_the_users_choice_without_degrading_verified_protection(tmp_path, monkeypatch):
+    from aia.sensors.base import SensorHealth, SensorStatus
+
+    workspace, session, context, manager, baseline, record, service = live_run(tmp_path, monkeypatch)
+    record.permission_mode = 'full_access'
+    record.full_access_used = True
+    sensors = tuple(SimpleNamespace(
+        health=SensorHealth(source, SensorStatus.HEALTHY, datetime.now(timezone.utc)),
+        stop=lambda: SimpleNamespace(status=SensorStatus.STOPPED),
+    ) for source in ('AGENT_HOOK', 'FILESYSTEM_WATCHER', 'PROCESS_RUNTIME'))
+    controller = SimpleNamespace(events=(object(),), errors=())
+    try:
+        assert service._finalize_completed_protected_run(
+            record, session, context, baseline, sensors, manager, context.workspace_lease,
+            SimpleNamespace(context=SimpleNamespace(root_process_identity=None)), 0,
+            controller, True, None,
+        ) is True
+        assert record.protection_state == 'COMPLETED_VERIFIED'
+        result = json.loads(service.reader.read_result_json(session.session_id))
+        assert 'CODEX_FULL_ACCESS_USER_SELECTED' in result['limitations']
+        assert service.reader.verification(session.session_id).status.value == 'VALID'
+    finally:
+        record.status = 'COMPLETED'
+        if context.workspace_lease.artifact_path.exists():
+            manager.release(context.workspace_lease)
+        service.shutdown()
+
+
 @pytest.mark.parametrize('aborted', [False, True])
 def test_user_grants_are_sealed_as_a_protection_limitation(tmp_path, monkeypatch, aborted):
     from aia.sensors.base import SensorHealth, SensorStatus

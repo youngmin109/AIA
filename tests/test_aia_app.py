@@ -2181,6 +2181,9 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
         ("COMPLETED", "AGENT_EXITED", True, [], "COMPLETED_VERIFIED"),
         ("COMPLETED", "AGENT_EXITED", False, [], "COMPLETED_DEGRADED"),
         ("COMPLETED", "AGENT_EXITED", True, ["CODEX_PERMISSIONS_USER_GRANTED"], "COMPLETED_DEGRADED"),
+        # Full access (YOLO) is the user's starting choice, sealed as a limitation;
+        # AIA's own protection was still verified.
+        ("COMPLETED", "AGENT_EXITED", True, ["CODEX_FULL_ACCESS_USER_SELECTED"], "COMPLETED_VERIFIED"),
         (
             "COMPLETED",
             "AGENT_EXITED",

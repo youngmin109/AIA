@@ -67,6 +67,10 @@ class FakeCodexSession:
         self.calls.append(("settings", model, effort))
         return {"accepted": True, "model": model, "effort": effort}
 
+    def set_permission_mode(self, mode) -> dict:
+        self.calls.append(("permission", mode))
+        return {"accepted": True, "mode": mode}
+
     def respond_permissions(self, permissions_id: str, decision: str, *, before_grant=None) -> dict:
         result = {"accepted": True, "permissions_id": permissions_id, "decision": decision, "network": True,
                   "filesystem": [{"access": "write", "target": "C:\\shared", "scope": "outside"}], "reason": "sync"}
@@ -161,6 +165,68 @@ def test_open_ends_run_through_verified_termination_when_codex_applies_unprotect
     assert record.runtime["protection_failure_termination_result"]["status"] == "SUCCEEDED"
     assert record.protection_state == "DEGRADED"
     assert ("close", True) not in session.calls
+
+
+def test_permission_mode_is_a_codex_conversation_choice_and_defaults_to_work_folder_only() -> None:
+    base = {"workspace": ".", "interactive": True, "launch_mode": "codex_app_server"}
+    assert CreateRunRequest.from_mapping(base).permission_mode == "workspace"
+    assert CreateRunRequest.from_mapping({**base, "permission_mode": "full_access"}).permission_mode == "full_access"
+    with pytest.raises(DTOValidationError, match="permission_mode"):
+        CreateRunRequest.from_mapping({**base, "permission_mode": "yolo"})
+    with pytest.raises(DTOValidationError, match="full_access"):
+        CreateRunRequest.from_mapping({"workspace": ".", "interactive": True, "permission_mode": "full_access"})
+
+
+def test_full_access_run_opens_without_codex_sandbox_and_is_not_a_protection_failure(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.permission_mode = "full_access"
+    session = FakeCodexSession({"model": "m", "approval_policy": "never", "sandbox": "dangerFullAccess"})
+    record.runtime["codex_session"] = session
+
+    service._open_codex_conversation(record)
+
+    assert session.calls == [("open", {"sandbox": "danger-full-access", "approval_policy": "never", "model": "gpt-test"})]
+    assert record.full_access_used is True
+    assert "protection_failure_reason" not in record.runtime
+    assert "codex_sandbox_downgraded" not in record.runtime
+    assert "codex_approval_policy_downgraded" not in record.runtime
+
+
+def test_full_access_request_that_codex_applies_more_strictly_is_not_marked_used(service, tmp_path) -> None:
+    record = make_record(tmp_path)
+    record.permission_mode = "full_access"
+    record.runtime["codex_session"] = FakeCodexSession({"model": "m", "approval_policy": "on-request", "sandbox": "workspaceWrite"})
+
+    service._open_codex_conversation(record)
+
+    assert record.full_access_used is False
+    assert "protection_failure_reason" not in record.runtime
+
+
+def test_switching_permission_mode_is_recorded_before_codex_hears_of_it(service, tmp_path, monkeypatch) -> None:
+    record = make_record(tmp_path)
+    session = FakeCodexSession()
+    record.runtime["codex_session"] = session
+    service.registry.add(record)
+
+    assert service.set_codex_permission_mode("session-1", "full_access")["mode"] == "full_access"
+    assert record.permission_mode == "full_access" and record.full_access_used is True
+    assert service.get_codex_status("session-1")["permission_mode"] == "full_access"
+    # Back to the work folder: the run still remembers full access was used.
+    service.set_codex_permission_mode("session-1", "workspace")
+    assert record.permission_mode == "workspace" and record.full_access_used is True
+    assert session.calls == [("permission", "full_access"), ("permission", "workspace")]
+    with pytest.raises(CodexAppServerError):
+        service.set_codex_permission_mode("session-1", "yolo")
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(service, "_persist_runtime_state", fail)
+    with pytest.raises(CodexAppServerError, match="기록하지 못해"):
+        service.set_codex_permission_mode("session-1", "full_access")
+    assert record.permission_mode == "workspace"
+    assert session.calls[-1] == ("permission", "workspace")
 
 
 def test_open_failure_is_recorded_and_lets_codex_exit(service, tmp_path) -> None:

@@ -7,6 +7,7 @@
 
 import type { PermissionEntry } from '../../api/permissionGrants'
 import type { TokenUsage, Usage, UsageLimits } from '../../api/usageView'
+import { PERMISSION_OPTIONS, permissionModeOf, sandboxLabel, type PermissionMode } from '../../api/permissionMode.ts'
 
 /** These replies may fail before acceptance; the still-pending card must allow a fresh attempt. */
 export function isInteractiveResponse(action: unknown): boolean {
@@ -150,6 +151,8 @@ export interface ConversationState {
   pendingPermissions: PermissionsRequest[]
   usage: Usage
   turnSettings: { model: string | null; effort: string | null } | null
+  /** AI permission in force: from Codex's applied sandbox, then each switch. */
+  permissionMode: PermissionMode | null
   plan: CodexPlan | null
   lastEventAt: number
 }
@@ -165,6 +168,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   pendingPermissions: [],
   usage: { limits: null, tokens: null },
   turnSettings: null,
+  permissionMode: null,
   plan: null,
   lastEventAt: 0,
 }
@@ -197,8 +201,18 @@ function applyEvent(state: ConversationState, event: CodexEvent) {
   const id = String(event.item_id ?? event.sequence)
   switch (event.type) {
     case 'session.ready':
-      notice(state, event, 'info', `Codex 연결됨 · 모델 ${event.model ?? '기본값'} · 샌드박스 ${event.sandbox ?? '확인 불가'}`)
+      notice(state, event, 'info', `Codex 연결됨 · 모델 ${event.model ?? '기본값'} · AI 권한 ${sandboxLabel(event.sandbox)}`)
+      if (event.sandbox === 'dangerFullAccess') state.permissionMode = 'full_access'
+      else if (event.sandbox === 'workspaceWrite') state.permissionMode = 'workspace'
       break
+    case 'permission.changed': {
+      const mode = permissionModeOf(event.mode)
+      if (!mode) break
+      state.permissionMode = mode
+      const label = PERMISSION_OPTIONS.find(option => option.mode === mode)?.label ?? mode
+      notice(state, event, mode === 'full_access' ? 'warn' : 'info', `AI 권한을 ${label}${mode === 'full_access' ? '(YOLO 모드)' : ''}으로 바꿨어요 · 다음 요청부터 적용돼요`)
+      break
+    }
     case 'turn.started':
       state.activeTurnId = event.turn_id ?? null
       break

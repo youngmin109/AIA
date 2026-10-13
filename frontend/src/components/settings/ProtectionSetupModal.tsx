@@ -20,6 +20,7 @@ import { HookStatusControl } from './HookStatusControl'
 import { readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 import { absoluteInWorkspace, addProtectedPaths, insideWorkspace, MAX_PROTECTED_PATHS } from '../../api/protectedPaths'
+import { PERMISSION_DEFAULT, PERMISSION_OPTIONS, type PermissionMode } from '../../api/permissionMode'
 import { useProfiles } from '../../hooks/useProfiles'
 import { usePreflight } from '../../hooks/usePreflight'
 import { workspaceShortName } from '../shell/sessionLabel'
@@ -77,6 +78,7 @@ function NewRunSheet() {
   const [protectedPaths, setProtectedPaths] = useState<string[]>([])
   const [protectEntry, setProtectEntry] = useState('')
   const [protectMessage, setProtectMessage] = useState<string | null>(null)
+  const [permission, setPermission] = useState<PermissionMode>(PERMISSION_DEFAULT)
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
   const storedDefault = readDefaultPolicyProfile()
@@ -155,6 +157,7 @@ function NewRunSheet() {
         reasoning_effort: effort || undefined,
         resume_thread_id: resumeMode && resumeThread ? resumeThread.thread_id : undefined,
         protected_paths: protectedPaths.length > 0 ? protectedPaths : undefined,
+        permission_mode: permission,
       })
       setActiveRun(result.session_id)
       setView('work')
@@ -289,8 +292,23 @@ function NewRunSheet() {
             {policyProfile === 'CUSTOM' && <p className="faint-note">{customPolicy ? '저장한 사용자 지정 규칙을 실행 시작 시 다시 검증해요.' : '정책 화면에서 사용자 지정 규칙을 먼저 검증하고 저장해 주세요.'}</p>}
           </section>
 
+          <section className="newrun-section" aria-labelledby="newrun-permission">
+            <h3 id="newrun-permission"><span className="newrun-step">3</span>AI 권한</h3>
+            <div className="newrun-permissions">
+              {PERMISSION_OPTIONS.map(option => (
+                <button key={option.mode} type="button"
+                  className={`glass-card permission-option${option.mode === permission ? ' is-selected' : ''}${option.mode === 'full_access' ? ' is-yolo' : ''}`}
+                  aria-pressed={option.mode === permission} onClick={() => setPermission(option.mode)}>
+                  <strong>{option.label}{option.badge && <span className="yolo-badge">{option.badge}</span>}</strong>
+                  <small>{option.note}</small>
+                </button>
+              ))}
+            </div>
+            <p className="faint-note">작업창에서도 바꿀 수 있어요. 전체 권한에서는 작업 폴더 밖 변경과 인터넷 사용을 Codex가 막지 않고, 작업 폴더 밖 변경은 되돌리기 범위 밖이에요.</p>
+          </section>
+
           <section className="newrun-section" aria-labelledby="newrun-protect">
-            <h3 id="newrun-protect"><span className="newrun-step">3</span>꼭 지킬 파일·폴더<small className="newrun-optional">선택</small></h3>
+            <h3 id="newrun-protect"><span className="newrun-step">4</span>꼭 지킬 파일·폴더<small className="newrun-optional">선택</small></h3>
             <p className="faint-note">고른 파일과 폴더는 정책에 더해 만들기·고치기·지우기·옮기기·이름 바꾸기를 실행 전에 막아요. 읽기는 막지 않아요.</p>
             <div className="protect-actions">
               {hasNativeWorkspacePicker() ? (
@@ -322,7 +340,7 @@ function NewRunSheet() {
 
           {models.length > 0 && (
             <section className="newrun-section" aria-labelledby="newrun-model">
-              <h3 id="newrun-model"><span className="newrun-step">4</span>모델과 생각 깊이</h3>
+              <h3 id="newrun-model"><span className="newrun-step">5</span>모델과 생각 깊이</h3>
               <div className="newrun-model">
                 <label className="model-field">
                   <span>모델</span>
@@ -344,7 +362,7 @@ function NewRunSheet() {
           )}
 
           <section className="newrun-section" aria-labelledby="newrun-connection">
-            <h3 id="newrun-connection"><span className="newrun-step">{models.length > 0 ? 5 : 4}</span>연결 상태</h3>
+            <h3 id="newrun-connection"><span className="newrun-step">{models.length > 0 ? 6 : 5}</span>연결 상태</h3>
             <div className="newrun-pills">
               {CONNECTION_CHECKS.map(([name, label]) => {
                 const check = preflight?.checks?.find(item => item.name === name)

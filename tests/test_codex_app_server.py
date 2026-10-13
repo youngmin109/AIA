@@ -502,6 +502,31 @@ def test_turn_settings_reach_turn_start_and_nothing_else_does(opened: CodexAppSe
     assert replies[-1] == 'settings {"effort": "low", "model": "gpt-fast"}'
 
 
+def test_permission_mode_goes_with_the_next_request_only(opened: CodexAppServerSession) -> None:
+    with pytest.raises(CodexAppServerError):
+        opened.set_permission_mode("yolo")
+    opened.set_permission_mode("full_access")
+    assert any(e["type"] == "permission.changed" and e["mode"] == "full_access" for e in opened.read_events())
+    opened.send_message("settings yolo")
+    _wait_for(opened, lambda items: [e["type"] for e in items].count("turn.completed") >= 1)
+    opened.send_message("settings later")
+    events = _wait_for(opened, lambda items: [e["type"] for e in items].count("turn.completed") >= 2)
+    replies = [e["text"] for e in events if e["type"] == "message.completed"]
+    # Codex keeps the override for later turns, so AIA sends it once.
+    assert replies[-2:] == [
+        'settings {"approvalPolicy": "never", "sandboxPolicy": {"type": "dangerFullAccess"}}',
+        "settings {}",
+    ]
+
+
+def test_full_access_opens_only_as_the_complete_pair(tmp_path) -> None:
+    session = CodexAppServerSession([sys.executable, "-u", str(FAKE_SERVER)], cwd=tmp_path, env=dict(os.environ))
+    with pytest.raises(CodexAppServerError):
+        session.open(sandbox="danger-full-access", approval_policy="on-request")
+    with pytest.raises(CodexAppServerError):
+        session.open(sandbox="workspace-write", approval_policy="never")
+
+
 def test_plan_updates_keep_the_latest_steps(opened: CodexAppServerSession) -> None:
     opened.send_message("plan please")
     events = _wait_for(opened, lambda items: "turn.completed" in _types(items))

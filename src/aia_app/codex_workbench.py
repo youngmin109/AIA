@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from aia.codex_runtime import UnsupportedToolReview
 
-from .codex_app_server import CodexAppServerError, CodexAppServerSession
+from .codex_app_server import TURN_PERMISSIONS, CodexAppServerError, CodexAppServerSession
 from .registry import RunRecord
 
 
@@ -103,6 +103,7 @@ class CodexWorkbench:
                 if not item["event"].is_set()
             ]
         snapshot["pending_approvals"] = [*snapshot.get("pending_approvals", []), *reviews]
+        snapshot["permission_mode"] = record.permission_mode
         return snapshot
 
     def read_codex_events(self, session_id: str, *, after_sequence: int = 0) -> list[dict[str, Any]]:
@@ -196,6 +197,28 @@ class CodexWorkbench:
 
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return {**self._codex_session(session_id).set_turn_settings(model, effort), "session_id": session_id}
+
+    def set_codex_permission_mode(self, session_id: str, mode: Any) -> dict[str, Any]:
+        """Switch full access (YOLO) or work-folder-only for the next requests.
+
+        Like a permission grant, the run records the choice before Codex hears
+        of it, so a full-access request never runs unrecorded.
+        """
+
+        if mode not in TURN_PERMISSIONS:
+            raise CodexAppServerError("permission mode must be full_access or workspace")
+        codex_session = self._codex_session(session_id)
+        service = self._service
+        record = service.registry.require(session_id)
+        previous = (record.permission_mode, record.full_access_used)
+        record.permission_mode = mode
+        record.full_access_used = record.full_access_used or mode == "full_access"
+        try:
+            service._persist_runtime_state(record, strict=True)
+        except (OSError, ValueError) as error:
+            record.permission_mode, record.full_access_used = previous
+            raise CodexAppServerError("권한 변경을 기록하지 못해 바꾸지 않았어요. 다시 시도해 주세요.") from error
+        return {**codex_session.set_permission_mode(mode), "session_id": session_id}
 
     def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
         """Answer a sandbox-widening request and record a grant on the run."""

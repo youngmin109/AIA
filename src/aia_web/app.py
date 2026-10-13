@@ -643,6 +643,7 @@ def _register_codex_routes(app: FastAPI) -> None:
                     message.get("model"),
                     message.get("effort"),
                 ),
+                "permission_mode": lambda message: service.set_codex_permission_mode(session_id, message.get("mode")),
                 "permissions_decision": lambda message: service.respond_codex_permissions(
                     session_id,
                     str(message.get("permissions_id", "")),

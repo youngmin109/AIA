@@ -424,10 +424,14 @@ class CodexAdapter:
             raise AdapterError("interactive Codex launch cannot receive an initial prompt")
         argv: list[str] = [str(executable), "app-server"]
         approval_policy = options.get("approval_policy", "on-request")
-        if approval_policy not in {"on-request", "on-failure", "untrusted"}:
-            raise AdapterError("Codex approval policy is not allowed for protected launches")
         sandbox = options.get("sandbox", "workspace-write")
-        if sandbox not in {"read-only", "workspace-write"}:
+        # Full access (YOLO) is a user choice for the Workbench conversation
+        # and comes only as the complete pair; the installed, trusted Hook
+        # required above still checks every tool call.
+        full_access = (sandbox, approval_policy) == ("danger-full-access", "never")
+        if not full_access and approval_policy not in {"on-request", "on-failure", "untrusted"}:
+            raise AdapterError("Codex approval policy is not allowed for protected launches")
+        if not full_access and sandbox not in {"read-only", "workspace-write"}:
             raise AdapterError("Codex sandbox is not allowed for protected launches")
         import json
 

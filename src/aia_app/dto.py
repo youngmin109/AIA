@@ -30,8 +30,12 @@ _ALLOWED_CREATE_KEYS = frozenset(
         "launch_mode",
         "reasoning_effort",
         "resume_thread_id",
+        "permission_mode",
     }
 )
+
+# AI permission of a Workbench run (see RunRecord.permission_mode).
+PERMISSION_MODES = frozenset({"full_access", "workspace"})
 
 _ALLOWED_PREVIEW_KEYS = frozenset(
     {
@@ -64,6 +68,7 @@ class CreateRunRequest:
     launch_mode: str = "inherit"
     reasoning_effort: str | None = None
     resume_thread_id: str | None = None
+    permission_mode: str = "workspace"
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "CreateRunRequest":
@@ -126,6 +131,11 @@ class CreateRunRequest:
             or any(not (character.isalnum() or character in "-_") for character in resume_thread_id)
         ):
             raise DTOValidationError("resume_thread_id is not a Codex conversation id")
+        permission_mode = value.get("permission_mode", "workspace")
+        if permission_mode not in PERMISSION_MODES:
+            raise DTOValidationError("permission_mode must be full_access or workspace")
+        if permission_mode == "full_access" and launch_mode != "codex_app_server":
+            raise DTOValidationError("full_access is only available in the Codex conversation")
         return cls(
             workspace=workspace,
             agent=agent,
@@ -139,6 +149,7 @@ class CreateRunRequest:
             launch_mode=launch_mode,
             reasoning_effort=reasoning_effort,
             resume_thread_id=resume_thread_id,
+            permission_mode=permission_mode,
         )
 
     def to_mapping(self) -> dict[str, Any]:
@@ -153,6 +164,7 @@ class CreateRunRequest:
             "interactive": self.interactive,
             "workspace": self.workspace,
             "launch_mode": self.launch_mode,
+            "permission_mode": self.permission_mode,
         }
 
 

@@ -2,6 +2,7 @@ import type { CodexModel } from './modelView'
 import type { CodexConnector } from './connectorView'
 import type { StoragePruneResult, StorageSummary } from './storageView'
 import type { ExternalToolsState } from './externalToolsView'
+import type { PermissionMode } from './permissionMode'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -80,6 +81,8 @@ export interface CreateRunPayload {
   resume_thread_id?: string | null
   /** Files and folders inside the workspace to protect on top of the policy. */
   protected_paths?: string[]
+  /** AI permission: full access (YOLO) or the work folder only. */
+  permission_mode?: PermissionMode
 }
 
 export interface CreateRunResult {

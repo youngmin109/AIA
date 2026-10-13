@@ -222,6 +222,12 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
             </details>
           )}
 
+          {data.limitations?.includes('CODEX_FULL_ACCESS_USER_SELECTED') && (
+            <p className="faint-note result-yolo-note">
+              <span className="yolo-badge">YOLO 모드</span> 전체 권한으로 실행했어요. 모든 명령은 AIA가 실행 전에 검사했고 작업 폴더는 되돌릴 수 있어요. 작업 폴더 밖 변경과 인터넷 사용은 Codex 샌드박스가 막지 않았고 되돌리기 범위 밖이에요.
+            </p>
+          )}
+
           <details>
             <summary>이 결과를 읽는 법 · 제한 사항</summary>
             <ol className="result-guide">

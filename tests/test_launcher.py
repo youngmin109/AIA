@@ -559,6 +559,22 @@ def test_codex_adapter_builds_app_server_launch_with_protected_overrides(
     assert "gpt-test" not in spec.argv
 
 
+def test_codex_adapter_launches_full_access_app_server_only_as_the_complete_pair(tmp_path: Path) -> None:
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        adapter_options={
+            "interactive": True, "app_server": True, "approval_policy": "never", "sandbox": "danger-full-access",
+        },
+    )
+
+    spec = CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
+
+    assert spec.argv[2:6] == ("-c", 'approval_policy="never"', "-c", 'sandbox_mode="danger-full-access"')
+    assert "features.hooks=true" in spec.argv
+
+
 def test_codex_adapter_turns_external_tools_off_for_app_server(tmp_path: Path) -> None:
     offs = [
         "mcp_servers.node_repl.enabled=false",

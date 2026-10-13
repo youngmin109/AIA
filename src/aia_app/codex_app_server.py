@@ -203,6 +203,14 @@ _SPECIAL_PATH_LABELS = {
 _UNSUPPORTED_REQUEST_CODE = -32601
 _PROTECTED_SANDBOXES = frozenset({"read-only", "workspace-write"})
 _PROTECTED_APPROVAL_POLICIES = frozenset({"on-request", "on-failure", "untrusted"})
+# Full access (YOLO) is the user's choice for a Workbench run, only as this pair.
+_FULL_ACCESS = ("danger-full-access", "never")
+# Permission overrides sent with the next turn/start when the user switches
+# mode during a conversation (Codex keeps them for later turns).
+TURN_PERMISSIONS: dict[str, dict[str, Any]] = {
+    "full_access": {"sandboxPolicy": {"type": "dangerFullAccess"}, "approvalPolicy": "never"},
+    "workspace": {"sandboxPolicy": {"type": "workspaceWrite"}, "approvalPolicy": "on-request"},
+}
 
 
 def _text_of(value: Any) -> str:
@@ -671,6 +679,8 @@ class CodexAppServerSession:
         self._usage_limits: dict[str, Any] | None = None
         self._token_usage: dict[str, Any] | None = None
         self._turn_settings: dict[str, str | None] = {"model": None, "effort": None}
+        # Permission mode chosen during the conversation, sent with the next turn.
+        self._pending_permission: str | None = None
         self._plan: dict[str, Any] | None = None
         # Latest unified diff per turn, in memory only and fetched on demand.
         self._diffs: dict[str, str] = {}
@@ -751,9 +761,10 @@ class CodexAppServerSession:
         caller can record a downgrade instead of inferring it from output.
         """
 
-        if sandbox not in _PROTECTED_SANDBOXES:
+        full_access = (sandbox, approval_policy) == _FULL_ACCESS
+        if not full_access and sandbox not in _PROTECTED_SANDBOXES:
             raise CodexAppServerError("sandbox is not allowed for protected Workbench runs")
-        if approval_policy not in _PROTECTED_APPROVAL_POLICIES:
+        if not full_access and approval_policy not in _PROTECTED_APPROVAL_POLICIES:
             raise CodexAppServerError("approval policy is not allowed for protected Workbench runs")
         timeout = self.REQUEST_TIMEOUT_SECONDS if timeout is None else timeout
         self._request(
@@ -893,12 +904,19 @@ class CodexAppServerSession:
         params: dict[str, Any] = {"threadId": thread_id, "input": user_input}
         with self._lock:
             settings = dict(self._turn_settings)
-        # Built from the two allowed keys only; nothing else can reach turn/start.
+            permission = self._pending_permission
+        # Built from the allowed keys only; nothing else can reach turn/start.
         if settings["model"]:
             params["model"] = settings["model"]
         if settings["effort"]:
             params["effort"] = settings["effort"]
+        if permission is not None:
+            params.update(TURN_PERMISSIONS[permission])
         result = self._request("turn/start", params)
+        if permission is not None:
+            with self._lock:
+                if self._pending_permission == permission:
+                    self._pending_permission = None
         new_turn_id = (result.get("turn") or {}).get("id")
         with self._lock:
             # turn/started and even turn/completed can arrive before this
@@ -1048,6 +1066,17 @@ class CodexAppServerSession:
             self._turn_settings = {"model": model, "effort": effort}
             self._append_event_locked({"type": "settings.changed", "model": model, "effort": effort})
         return {"accepted": True, "model": model, "effort": effort}
+
+    def set_permission_mode(self, mode: Any) -> dict[str, Any]:
+        """Switch full access (YOLO) or work-folder-only for the next requests."""
+
+        if mode not in TURN_PERMISSIONS:
+            raise CodexAppServerError("permission mode must be full_access or workspace")
+        self._require_thread()
+        with self._lock:
+            self._pending_permission = mode
+            self._append_event_locked({"type": "permission.changed", "mode": mode})
+        return {"accepted": True, "mode": mode}
 
     def handshake(self, *, timeout: float = 15.0) -> None:
         """Initialize a not-yet-opened app-server for read-only questions (no thread is started)."""

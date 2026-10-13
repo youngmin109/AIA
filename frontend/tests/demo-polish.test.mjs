@@ -97,3 +97,26 @@ test('connectors the run turned off read as off and sort after the ones still on
   assert.equal(connectorSummary(on), '로그인 안 됨 · 도구 2개')
   assert.deepEqual(connectorsOnFirst([off, on]).map(item => item.name), ['context7', 'node_repl'])
 })
+
+test('AI permission: YOLO is the default and reads loudly, Codex sandbox names read plainly', async () => {
+  const { PERMISSION_DEFAULT, PERMISSION_OPTIONS, permissionChipText, permissionModeOf, sandboxLabel } = await import('../src/api/permissionMode.ts')
+  assert.equal(PERMISSION_DEFAULT, 'full_access')
+  assert.equal(PERMISSION_OPTIONS[0].badge, 'YOLO 모드')
+  assert.equal(permissionChipText('full_access'), 'YOLO · 전체 권한')
+  assert.equal(permissionChipText('workspace'), '작업 폴더만')
+  assert.equal(permissionModeOf('yolo'), null)
+  assert.equal(sandboxLabel('dangerFullAccess'), '전체 권한(YOLO)')
+  assert.equal(sandboxLabel('workspaceWrite'), '작업 폴더만')
+  assert.equal(sandboxLabel(null), '확인 불가')
+})
+
+test('the conversation follows the applied sandbox and each permission switch', async () => {
+  const { applyEvents, EMPTY_CONVERSATION } = await import('../src/components/terminal/codexConversation.ts')
+  const ready = applyEvents(EMPTY_CONVERSATION, [{ sequence: 1, type: 'session.ready', model: 'm', sandbox: 'dangerFullAccess' }])
+  assert.equal(ready.permissionMode, 'full_access')
+  assert.match(ready.items.at(-1).text, /AI 권한 전체 권한\(YOLO\)/)
+  const switched = applyEvents(ready, [{ sequence: 2, type: 'permission.changed', mode: 'workspace' }])
+  assert.equal(switched.permissionMode, 'workspace')
+  assert.match(switched.items.at(-1).text, /작업 폴더만으로 바꿨어요/)
+  assert.equal(applyEvents(switched, [{ sequence: 3, type: 'permission.changed', mode: 'nope' }]).permissionMode, 'workspace')
+})

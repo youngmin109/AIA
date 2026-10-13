@@ -229,3 +229,13 @@ Approval Policy를 요청하고, 바깥 Codex의 일시적인 세션·권한 환
 Sandbox와 Approval Policy는 Result Bundle에 제한된 메타데이터로 남긴다. 실행 환경이
 `read-only`로 강등되거나 보호 설정이 제품 요청과 다르게 적용되면 실행은 성공으로 포장하지 않고
 `COMPLETED_DEGRADED`와 제한사항을 남긴다.
+
+Workbench 대화 실행에서는 사용자가 AI 권한을 고른다. 기본값은 **전체 권한(YOLO 모드)**으로,
+Codex에 `danger-full-access` Sandbox와 `never` Approval Policy를 함께 요청한다(둘 중 하나만은
+허용하지 않는다). 이때도 설치·신뢰된 AIA Hook이 모든 도구 호출을 실행 전에 검사하고, 작업 폴더
+기준점·복구, 프로세스 감시와 감사 기록은 그대로 적용된다. 대신 작업 폴더 밖 쓰기와 인터넷 사용을
+Codex Sandbox가 막지 않고, 작업 폴더 밖 변경은 복구 범위 밖이다. 이 선택은 Result Bundle에
+`CODEX_FULL_ACCESS_USER_SELECTED` 제한사항으로 남지만, 사용자가 시작 전에 고른 범위이므로 그것만으로
+보호 상태를 `DEGRADED`로 낮추지 않는다. "작업 폴더만"을 고르면 위의 `workspace-write`·`on-request`
+계약을 그대로 쓰며, 이 모드에서 Codex가 전체 권한을 적용하면 지금처럼 보호 실패로 실행을 끝낸다.
+대화 중 권한을 바꾸면 실행 기록에 먼저 남긴 뒤 다음 요청부터 적용한다.

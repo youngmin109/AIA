@@ -218,6 +218,9 @@ def _result_execution_policy(
     )
     requested_sandbox = "workspace-write"
     requested_approval_policy = "on-request"
+    if "CODEX_FULL_ACCESS_USER_SELECTED" in (result.get("limitations") or ()) and effective_sandbox == "danger-full-access":
+        # The run started in full access (YOLO), as the user chose.
+        requested_sandbox, requested_approval_policy = "danger-full-access", "never"
     if effective_sandbox is None and effective_approval_policy is None:
         execution_policy_status = "NOT_OBSERVED"
     elif (

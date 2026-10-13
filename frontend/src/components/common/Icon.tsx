@@ -30,6 +30,7 @@ const PATHS = {
   stop: 'M7 7h10v10H7z',
   tree: 'M6 4v6M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM6 14v6M8 12h6M14 12v4h6M14 12V8h6',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z',
+  bolt: 'M13 2 4 14h7l-1 8 9-12h-7l1-8z',
 } as const
 
 export type IconName = keyof typeof PATHS

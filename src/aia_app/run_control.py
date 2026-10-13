@@ -381,6 +381,7 @@ class RunControlMixin:
             reasoning_effort=request.reasoning_effort,
             resume_thread_id=request.resume_thread_id,
             resumed_from=resumed_from,
+            permission_mode=request.permission_mode,
             created_at=session.created_at,
             protection_state="STARTING",
             coordinator_pid=os.getpid(),

@@ -9,6 +9,7 @@ import { ElicitationCard } from './ElicitationCard'
 import { PermissionsCard } from './PermissionsCard'
 import { UsageChip } from './UsageChip'
 import { ModelChip } from './ModelChip'
+import { PermissionChip } from './PermissionChip'
 import { PlanBar } from './PlanBar'
 import { DiffCard } from './DiffCard'
 import { CommandPalette } from './CommandPalette'
@@ -366,6 +367,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const [connectorsOpen, setConnectorsOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
+  const [permissionOpen, setPermissionOpen] = useState(false)
   const { data: runStatus } = useRunStatus(runId)
   const { data: actions } = useRunActions(runId, !runEnded)
   const { profiles } = useProfiles()
@@ -530,6 +532,13 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         </div>
         <div className="chat-head-row is-chips">
         {context}
+        <PermissionChip
+          mode={session.permissionMode}
+          disabled={!session.connected || session.ended}
+          onChoose={session.setPermissionMode}
+          open={permissionOpen}
+          onOpenChange={setPermissionOpen}
+        />
         <ModelChip
           models={models}
           model={session.turnSettings.model}
