@@ -20,6 +20,7 @@ def test_contributor_docs_exist_and_list_local_validation_commands() -> None:
     commands = {line.strip() for line in blocks[0].splitlines() if line.strip()}
     assert commands == {
         ".venv\\Scripts\\python.exe -m pytest -q",
+        "uvx ruff@0.15.0 check",
         "npm --prefix frontend run build",
         "npm --prefix frontend run lint",
     }

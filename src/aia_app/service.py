@@ -4,95 +4,67 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime
 import hashlib
 from pathlib import Path
 import os
 import json
-import subprocess
-import sys
-import tempfile
+import subprocess  # noqa: F401 - reached through this module
+import sys  # noqa: F401 - reached through this module
 import time
 from concurrent.futures import ThreadPoolExecutor
-from threading import RLock, Thread
+from threading import RLock
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from aia import (
     CodexAdapter,
     CodexExecutionObservation,
-    CodexHookBroker,
-    CodexHookInstaller,
-    CodexPreToolController,
-    FilesystemSensor,
-    HookSensor,
-    HookEnforcementBridge,
+    CodexHookInstaller,  # noqa: F401 - reached through this module
     Operation,
     PolicyProfile,
     ProcessIdentityStatus,
-    ProcessManager,
-    ProcessObserverCapability,
-    ProtectedLaunchRequest,
-    ProtectedLauncher,
     ProtectedRunSession,
     ProcessIdentity,
     RawEvidenceStore,
     RecoveryCoordinator,
-    SessionFinalizer,
-    SessionMode,
     SessionStatus,
     WorkspaceLeaseManager,
-    create_safe_checkpoint,
-    load_policy_document,
-    prepare_protection,
     process_create_time,
     resolve_profile,
-    verify_process_identity,
     __version__,
 )
 from aia.codex_runtime import UnsupportedToolReview
-from aia.session import SessionEndReason, WorkspaceValidationError
-from aia.readiness import ProtectionReadinessBarrier
-from aia.hook_verification import HookVerificationStore
-from aia.codex_hook_trust import inspect_codex_hook_trust
+from aia.hook_verification import HookVerificationStore  # noqa: F401 - reached through this module
 
-from .dto import CreateRunRequest, DTOValidationError, PolicyPreviewRequest
+from .dto import DTOValidationError, PolicyPreviewRequest
 from .presenters import (
     action_view,
-    evidence_chain_views,
     evidence_summary,
-    evidence_timeline_views,
     incident_view,
     incident_views_for_result,
-    result_action_chain_views,
     result_view,
-    safe_event_views,
-    safe_tool_name,
 )
 from .readers import ResultBundleReader
 from .registry import RunRecord, RunRegistry
 from .codex_app_server import CodexAppServerError, CodexAppServerSession
-from .codex_workbench import CodexWorkbench, _END_SESSION_REQUEST
+from .codex_workbench import CodexWorkbench
 from .run_history import (
     RunHistoryMixin,
     _runtime_coordinator_reconciliation,
-    _workspace_key,
     _PRODUCT_SENSOR_NAMES,
     _annotate_execution_observations,
-    _execution_observation_metadata,
     _hook_broker_runtime_healthy,
-    _sensor_summary_is_verified,
+    _sensor_summary_is_verified,  # noqa: F401 - reached through this module
 )
-from .preflight import PreflightMixin, _aia_cli_prefix
+from .preflight import PreflightMixin, _aia_cli_prefix  # noqa: F401 - reached through this module
 from .protected_run import (
     ApplicationValidationError,
     ProtectedRunMixin,
     _event_tool_name,
     _now,
-    _posttool_use_ids,
-    _popen_kwargs_for_launch_mode,
+    _popen_kwargs_for_launch_mode,  # noqa: F401 - reached through this module
     _runtime_action_view,
-    _sensor_status,
     _sensors_runtime_healthy,
 )
 from .run_control import RunControlMixin

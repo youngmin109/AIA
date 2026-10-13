@@ -5,6 +5,7 @@
 ## 검증
 
 - [ ] `.venv\Scripts\python.exe -m pytest -q`
+- [ ] `uvx ruff@0.15.0 check`
 - [ ] 프론트엔드를 변경했다면 `npm --prefix frontend run build`
 - [ ] 프론트엔드를 변경했다면 `npm --prefix frontend run lint`
 - [ ] 실행하지 않은 검증과 그 이유를 적었습니다.

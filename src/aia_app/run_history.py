@@ -20,7 +20,6 @@ from .presenters import (
     result_action_chain_views,
     result_view,
     safe_event_views,
-    safe_tool_name,
 )
 from .registry import RunRecord
 

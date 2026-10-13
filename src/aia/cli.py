@@ -3,41 +3,21 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 from typing import Sequence
 import webbrowser
-from uuid import uuid4
 
 from aia import (
     BundleVerificationStatus,
     CodexAdapter,
     CodexHookInstallationError,
     CodexHookInstaller,
-    CheckpointValidity,
-    EvidenceRecordType,
-    EvidenceSource,
-    ObservationStage,
     Operation,
-    PolicyProfile,
-    ProtectedRunSession,
-    RawEvidenceRecord,
-    RawEvidenceStore,
-    SafeCheckpointManager,
-    SessionEndReason,
-    SessionMode,
-    SessionStatus,
-    WorkspaceLeaseManager,
-    prepare_protection,
-    resolve_profile,
     verify_evidence_bundle,
 )
 from aia import cli_policy
@@ -46,8 +26,8 @@ from aia.codex_hook_trust import inspect_codex_hook_trust
 from aia.capabilities import product_capabilities
 from aia.diagnostics import build_support_bundle, write_support_bundle
 from aia._version import __version__
-from aia_app import ApplicationValidationError, RunApplicationService
-from aia_app.readers import ResultBundleReader
+from aia_app import ApplicationValidationError, RunApplicationService  # noqa: F401 - reached through this module
+from aia_app.readers import ResultBundleReader  # noqa: F401 - reached through this module
 
 
 _HOOK_VERIFICATION_PROBE_TOKEN_ENV = "AIA_HOOK_VERIFICATION_PROBE_TOKEN"
@@ -412,7 +392,7 @@ def _add_hook_commands(commands: argparse._SubParsersAction) -> None:
         default=180.0,
         help="maximum wait in seconds",
     )
-    hook_runtime = hook_commands.add_parser(
+    hook_commands.add_parser(
         "runtime",
         help=argparse.SUPPRESS,
     )
@@ -551,18 +531,10 @@ def _control_root_write_check(control_root: Path) -> tuple[bool, str]:
 
 
 from aia.cli_diagnostics import (
-    _DoctorPrerequisites,
     _demo,
     _self_test,
     _doctor,
-    _doctor_codex_executable_check,
-    _doctor_final_checks,
-    _doctor_hook_installation_check,
-    _doctor_hook_trust_check,
-    _doctor_prerequisite_checks,
-    _doctor_python_check,
-    _doctor_readiness_summary,
-    _recent_run_diagnostic,
+    _recent_run_diagnostic,  # noqa: F401 - reached through this module
 )
 
 

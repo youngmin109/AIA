@@ -343,7 +343,6 @@ class ProtectedRunMixin:
     def _process_evidence(self, record: RunRecord) -> None:
         session: ProtectedRunSession = record.runtime["session"]
         preparation = record.runtime["preparation"]
-        launcher = record.runtime["launcher"]
         raw_store = RawEvidenceStore.for_session(self.control_root, session.session_id)
         records = raw_store.records()
         normalized = Normalizer(session.session_id, session.workspace).normalize(records)
@@ -729,7 +728,6 @@ class ProtectedRunMixin:
             ),
             limitations=tuple(limitations),
         )
-        finalization_done = True
         result_mapping = final.result.to_mapping()
         verification = final.bundle_verification
         record.runtime["final"] = final

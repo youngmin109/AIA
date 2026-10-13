@@ -34,7 +34,6 @@ from aia import (
     FilesystemSensor,
     HookEnforcementBridge,
     HookSensor,
-    ManagedProcessRegistry,
     Operation,
     PolicyEffect,
     PolicyProfile,

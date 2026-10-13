@@ -11,7 +11,7 @@ from typing import Any, Callable
 from uuid import NAMESPACE_URL, uuid5
 
 from .audit import AuditEventType, AuditRecord, audit_jsonl, order_audit_records
-from .attribution import AttributionGrade, AttributionResult
+from .attribution import AttributionResult
 from .evidence import EvidenceSeal, RawEvidenceStore
 from .evidence_bundle import (
     BundleCommitResult,
@@ -22,7 +22,6 @@ from .evidence_bundle import (
 )
 from .enforcement import (
     EnforcementAction,
-    EnforcementDecision,
     EnforcementExecutionResult,
     EnforcementGateResult,
 )

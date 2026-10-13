@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import hashlib
 import os
 from pathlib import Path, PurePosixPath
-import shutil
 import tempfile
 from typing import Any, TYPE_CHECKING
 from uuid import uuid4
 
 from . import checkpoint as checkpoint_module
 from .checkpoint import (
-    CheckpointArtifactError,
     CheckpointValidity,
     ManifestEntry,
     ManifestEntryType,
@@ -816,7 +813,7 @@ class RecoveryCoordinator:
         for operation in plan.operations:
             try:
                 self.lease_manager.validate_ownership(workspace_lease)
-            except ProtectionError as error:
+            except ProtectionError:
                 security_failure = "WORKSPACE_LEASE_INVALID"
                 failed_paths.append(operation.relative_path)
                 operation_results.append(

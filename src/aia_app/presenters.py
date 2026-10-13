@@ -7,31 +7,17 @@ from heapq import nlargest
 from typing import Any, Mapping
 
 from .presenters_evidence_chain import (
-    _SAFE_TOOL_NAMES,
-    _evidence_chain_action_view,
-    _evidence_chain_indexes,
-    _evidence_chain_run_status,
-    _evidence_chain_sensor_links,
-    _evidence_chain_stages,
     action_view,
     evidence_chain_views,
     result_action_chain_views,
-    safe_target,
-    safe_tool_name,
+    safe_tool_name,  # noqa: F401 - reached through this module
 )
 
 
 from .presenters_result_events import (
-    _INCIDENT_DECISION_LABELS,
-    _INCIDENT_OPERATION_LABELS,
-    _INCIDENT_REASON_LABELS,
-    _INCIDENT_RESULT_LABELS,
-    _SAFE_EVENT_OPERATION_LABELS,
-    _incident_reason_label,
-    _incident_summary,
     action_summary,
     evidence_summary,
-    incident_view,
+    incident_view,  # noqa: F401 - reached through this module
     incident_views_for_result,
     safe_event_views,
 )
@@ -363,7 +349,6 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "execution_state": first_action.get("execution_result") or "—",
         "evidence_ids": first_action.get("evidence_ids") or [],
         "sensor_summary": list(result.get("sensor_summary") or []),
-        "session_end_reason": result.get("session_end_reason"),
         "session_status": result.get("session_status"),
         "session_id": result.get("aia_session_id"),
         "started_at": result.get("started_at"),

@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .checkpoint import (
-    CheckpointArtifactError,
     CheckpointValidity,
     ManifestEntry,
     SafeCheckpoint,
