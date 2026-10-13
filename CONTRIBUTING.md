@@ -15,6 +15,7 @@
 
 ```powershell
 .venv\Scripts\python.exe -m pytest -q
+uvx ruff@0.15.0 check
 npm --prefix frontend run build
 npm --prefix frontend run lint
 ```

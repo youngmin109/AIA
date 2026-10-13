@@ -504,12 +504,6 @@
   background: var(--fill-1);
 }
 
-.inset-block {
-  border-radius: 16px;
-  border: 1px solid var(--line-2);
-  background: var(--inset-bg);
-}
-
 .code-line {
   display: block;
   padding: 14px 16px;
@@ -1013,8 +1007,7 @@
 
 /* ---- Forms ---- */
 
-.glass-input,
-.glass-select {
+.glass-input {
   min-height: 48px;
   min-width: 0;
   padding: 0 16px;
@@ -1025,8 +1018,7 @@
   font-size: 15px;
 }
 
-.glass-input:focus-visible,
-.glass-select:focus-visible {
+.glass-input:focus-visible {
   outline: none;
   border-color: var(--line-4);
   box-shadow: var(--focus-ring);
@@ -1460,12 +1452,6 @@ html[data-surface="guardian"] body::before, html[data-surface="guardian"] body::
 .desktop-guardian.is-blocked .desktop-guardian-indicator { background: var(--danger); animation: desktop-bubble-alert 1.6s ease-in-out infinite; }
 .desktop-guardian.is-recovery .desktop-guardian-indicator { background: var(--accent); }
 @keyframes desktop-guardian-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-/* Folded pet: a small bubble filling its little window; the ring keeps the status colour. */
-.desktop-guardian-bubble { position: fixed; inset: 4px; display: grid; place-items: center; padding: 0; border: 3px solid var(--line-4); border-radius: 50%; background: var(--page-base); cursor: grab; overflow: hidden; }
-.desktop-guardian-bubble .guardian-figure { width: 86%; height: 86%; object-fit: contain; pointer-events: none; }
-.desktop-guardian-bubble:focus-visible { outline: 2px solid var(--accent); outline-offset: -6px; }
-.desktop-guardian-bubble.is-review { border-color: var(--warning); }
-.desktop-guardian-bubble.is-blocked { border-color: var(--danger); animation: desktop-bubble-alert 1.6s ease-in-out infinite; }
 @keyframes desktop-bubble-alert { 0%, 100% { border-color: var(--danger); } 50% { border-color: var(--line-3); } }
 html[data-motion="reduced"] .desktop-guardian .guardian-figure,
 html[data-motion="reduced"] .desktop-guardian-indicator { animation: none; }

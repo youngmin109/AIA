@@ -480,7 +480,6 @@
   font-size: 13.5px;
   line-height: 1.6;
 }
-.point-tags { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; }
 .custom-rule-fields { display: grid; gap: 14px; padding: 16px 0; }
 .custom-rule-fields label, .custom-policy > label { display: grid; gap: 8px; }
 .custom-effects { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }

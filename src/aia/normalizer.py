@@ -23,7 +23,6 @@ from .action import (
 from .evidence import (
     EvidenceRecordType,
     EvidenceSource,
-    ObservationStage,
     RawEvidenceRecord,
 )
 from .policy import Operation, normalize_command

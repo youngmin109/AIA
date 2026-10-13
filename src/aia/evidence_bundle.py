@@ -136,7 +136,7 @@ class EvidenceBundleVerifier:
             commit = json.loads(commit_path.read_text(encoding="utf-8"))
             manifest_bytes = manifest_path.read_bytes()
             manifest = json.loads(manifest_bytes)
-        except (OSError, json.JSONDecodeError) as error:
+        except (OSError, json.JSONDecodeError):
             return BundleVerificationResult(
                 BundleVerificationStatus.INVALID,
                 session_id,

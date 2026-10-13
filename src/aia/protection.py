@@ -11,17 +11,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import time
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 from .policy import (
-    Operation,
     PolicyProfile,
     PolicyRule,
-    PolicyValidationError,
     ResolvedPolicy,
     SecurityAssetPolicy,
 )

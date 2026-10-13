@@ -55,3 +55,19 @@ exclude = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+# Run without installing anything: uvx ruff@0.15.0 check
+[tool.ruff]
+target-version = "py313"
+extend-exclude = ["evaluation", "frontend", "dist", ".tmp-build", "tmp"]
+
+[tool.ruff.lint]
+# Only checks that find real mistakes (unused names, undefined names, syntax
+# errors). Formatting follows the surrounding code instead of a style rule.
+select = ["F", "E9"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests import pytest fixtures and then name them as parameters.
+"tests/**" = ["F401", "F811"]
+# Smoke, benchmark and evaluation scripts keep intermediate results for reading.
+"scripts/**" = ["F841"]
