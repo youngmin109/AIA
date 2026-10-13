@@ -50,7 +50,8 @@ function restoreTile(recovery: RecoveryStatusView | null, data: ResultData): { v
   if (!recovery) return { value: '확인 중', note: '기준점 확인 중' }
   if (recovery.workspace_matches) return { value: '변경 없음', note: '기준점과 같아요' }
   if (recovery.available) return { value: '가능', note: `바뀐 항목 ${recovery.change_count ?? 0}개` }
-  return { value: '불가', note: recovery.reason === 'RUN_IS_ACTIVE' ? '실행이 끝나면 가능' : '기준점이 없어요', tone: 'warning' }
+  const note = recovery.reason === 'RUN_IS_ACTIVE' ? '실행이 끝나면 가능' : recovery.reason === 'SNAPSHOT_PRUNED' ? '저장 공간 정리로 사본을 지웠어요' : '기준점이 없어요'
+  return { value: '불가', note, tone: 'warning' }
 }
 
 /** ③ Result: one glance summary on top, every detailed section folded below. */
@@ -105,7 +106,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       {(snapshot?.permission_grants ?? []).length > 0 && (
         <div className="glass-notice is-warning" role="note">
           <div>
-            <strong>이번 실행에서 Codex에게 권한을 넓혀 줬어요</strong>
+            <strong>이번 실행에 권한 확대 또는 요청 기록이 있어요</strong>
             {(snapshot?.permission_grants ?? []).map((grant) => <p key={grant.granted_at}>{grantSummary(grant)}</p>)}
             {widensBeyondProtection(snapshot?.permission_grants) && <p>작업 폴더 밖 쓰기와 인터넷 사용은 AIA 기준점·복구와 감시 범위 밖이라, 이 결과가 그 부분까지 보장하지는 않아요.</p>}
           </div>
@@ -219,6 +220,17 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
               <ul className="result-list">{data.unsupported_tool_review_decisions?.map(decision => <li key={decision}>{unsupportedToolReviewDecisionLabel(decision)}</li>)}</ul>
               {data.limitations?.includes('UNSUPPORTED_TOOL_USER_APPROVED') && <p className="faint-note">승인된 도구는 AIA가 의미를 해석하지 못해 정책 판정과 보호 대상에서 빠져요.</p>}
             </details>
+          )}
+
+          {data.limitations?.includes('CODEX_FULL_ACCESS_USER_SELECTED') && (
+            <p className="faint-note">
+              전체 권한으로 실행했어요. 모든 명령은 AIA가 실행 전에 검사했고 작업 폴더는 되돌릴 수 있어요. 작업 폴더 밖 변경과 인터넷 사용은 Codex 샌드박스가 막지 않았고 되돌리기 범위 밖이에요.
+            </p>
+          )}
+          {data.limitations?.includes('CODEX_AUTO_REVIEW_USER_SELECTED') && (
+            <p className="faint-note">
+              "나 대신 승인"으로 실행해 Codex가 승인 요청을 대신 검토했어요. 그렇게 승인된 권한 확대는 AIA 기록에 따로 남지 않을 수 있어요.
+            </p>
           )}
 
           <details>

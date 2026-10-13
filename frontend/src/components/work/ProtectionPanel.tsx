@@ -1,14 +1,14 @@
 import { grantSummary, widensBeyondProtection } from '../../api/permissionGrants'
 import { useMemo } from 'react'
 import { GlossyIcon, StatusDot } from '../common/Glass'
-import { MiniBars } from '../common/Charts'
-import { TIMELINE_LIMIT, activityBuckets } from '../../api/chartMath'
+import { ActivityStrip } from './ActivityStrip'
+import { TIMELINE_LIMIT, activityStrip } from '../../api/chartMath'
 import { displayStatus, statusTone } from '../../api/display'
 import type { RunStatus } from '../../api/types'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
 import { useNow } from '../../hooks/useElapsed'
 import { useCodexConnectors } from '../../hooks/useCodexConnectors'
-import { connectorSummary } from '../../api/connectorView'
+import { connectorsOnFirst, connectorSummary } from '../../api/connectorView'
 
 const FILE_LABELS: Record<string, string> = { created: '생성', modified: '수정', deleted: '삭제', moved: '이동' }
 const SENSORS: Array<[string, string]> = [['AGENT_HOOK', '실행 요청'], ['FILESYSTEM_WATCHER', '파일 변화'], ['PROCESS_RUNTIME', '프로세스']]
@@ -33,12 +33,14 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
   const summary = status?.evidence_summary
   const activity = status?.activity
   const now = useNow(live)
-  const recent = useMemo(() => activityBuckets(status?.evidence_timeline, now), [status?.evidence_timeline, now])
+  const recent = useMemo(() => activityStrip(status?.evidence_timeline, actions, now), [status?.evidence_timeline, actions, now])
   const processes = processDepths(activity?.processes ?? []).slice(0, 8)
   const files = (activity?.files ?? []).slice(-6).reverse()
   const checkpoint = typeof status?.checkpoint === 'string' ? status.checkpoint : null
   // The conversation id appears once Codex's conversation is open; connectors exist from then on.
   const { connectors } = useCodexConnectors(runId, live && Boolean(status?.codex_thread_id))
+  const connectorsOff = connectors?.filter(connector => connector.turned_off_by_aia).length ?? 0
+  const connectorsUsable = connectors?.filter(connector => !connector.turned_off_by_aia && connector.tool_count > 0).length ?? 0
 
   const rows: Array<{ key: string; tone: Parameters<typeof GlossyIcon>[0]['tone']; icon: Parameters<typeof GlossyIcon>[0]['icon']; label: string; value: string; alert?: boolean }> = [
     { key: 'pretool', tone: 'hook', icon: 'shieldPlain', label: '실행 전 검사', value: `${summary?.pretool_events ?? 0}건` },
@@ -62,7 +64,7 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
 
       {(status?.permission_grants ?? []).length > 0 && (
         <section className="work-panel-section">
-          <h3>이번 실행에서 넓힌 권한</h3>
+          <h3>권한 확대·요청 기록</h3>
           <ul className="work-grants">
             {(status?.permission_grants ?? []).map((grant) => <li key={grant.granted_at}>{grantSummary(grant)}</li>)}
           </ul>
@@ -72,18 +74,18 @@ export function ProtectionPanel({ runId, status, live }: { runId: string; status
 
       {connectors && connectors.length > 0 && (
         <section className="work-panel-section">
-          <h3>외부 도구 {connectors.length}개</h3>
+          <h3>외부 도구 {connectors.length}개{connectorsOff > 0 && ` · ${connectorsOff}개 꺼 둠`}</h3>
           <ul className="work-connectors">
-            {connectors.map(connector => <li key={connector.name}><span className="mono">{connector.name}</span><small className="muted">{connectorSummary(connector)}</small></li>)}
+            {connectorsOnFirst(connectors).map(connector => <li key={connector.name}><span className="mono">{connector.name}</span><small className="muted">{connectorSummary(connector)}</small></li>)}
           </ul>
-          <p className="faint-note">AIA 보호 범위 밖이에요. 작업창에서 /mcp로 자세히 볼 수 있어요.</p>
+          <p className="faint-note">{connectorsUsable === 0 ? 'Hook 밖에서 움직일 수 있는 도구를 이번 실행에서 껐어요.' : '켜진 도구는 AIA 보호 범위 밖이에요.'} 설정 › 외부 도구에서 바꿀 수 있어요.</p>
         </section>
       )}
 
       <section className="work-panel-section">
         <h3 className="work-panel-head">최근 5분 활동<span>이번 1분 {recent.current}건</span></h3>
-        <MiniBars values={recent.counts} showValues label={`1분 단위 실행 요청·프로세스·파일 변화 ${recent.counts.join(', ')}건`} />
-        <p className="faint-note">실행 요청·프로세스·파일 변화만 세요.{recent.partial && ` 최근 기록 ${TIMELINE_LIMIT}건까지만 반영돼요.`}</p>
+        <ActivityStrip data={recent} live={live} />
+        <p className="faint-note">점 하나가 기록 하나예요. 빨간 마름모는 차단 판정, 아래 선은 AIA가 지켜보는 심박이에요.{recent.partial && ` 최근 기록 ${TIMELINE_LIMIT}건까지만 반영돼요.`}</p>
       </section>
 
       <section className="work-panel-section">

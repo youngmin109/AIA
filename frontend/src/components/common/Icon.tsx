@@ -30,6 +30,8 @@ const PATHS = {
   stop: 'M7 7h10v10H7z',
   tree: 'M6 4v6M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM6 14v6M8 12h6M14 12v4h6M14 12V8h6',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z',
+  hand: 'M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-6.5a1.5 1.5 0 0 1 3 0V11m0-5a1.5 1.5 0 0 1 3 0v6m0-3a1.5 1.5 0 0 1 3 0v4.5a7 7 0 0 1-7 7h-1a7 7 0 0 1-5.6-2.8L4 14.5a1.6 1.6 0 0 1 2.5-2L8 14',
+  alertCircle: 'M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18zM12 7.5v6M12 16.5v.5',
 } as const
 
 export type IconName = keyof typeof PATHS

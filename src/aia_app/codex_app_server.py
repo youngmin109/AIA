@@ -203,6 +203,18 @@ _SPECIAL_PATH_LABELS = {
 _UNSUPPORTED_REQUEST_CODE = -32601
 _PROTECTED_SANDBOXES = frozenset({"read-only", "workspace-write"})
 _PROTECTED_APPROVAL_POLICIES = frozenset({"on-request", "on-failure", "untrusted"})
+# Full access is the user's choice for a Workbench run, only as this pair.
+_FULL_ACCESS = ("danger-full-access", "never")
+# Who reviews Codex's approval requests: the user, or Codex's auto-review.
+_APPROVALS_REVIEWERS = frozenset({"user", "auto_review"})
+# The Codex app's three permission choices, as overrides sent with the next
+# turn/start when the user switches during a conversation (Codex keeps them
+# for later turns).
+TURN_PERMISSIONS: dict[str, dict[str, Any]] = {
+    "workspace": {"sandboxPolicy": {"type": "workspaceWrite"}, "approvalPolicy": "on-request", "approvalsReviewer": "user"},
+    "auto_review": {"sandboxPolicy": {"type": "workspaceWrite"}, "approvalPolicy": "on-request", "approvalsReviewer": "auto_review"},
+    "full_access": {"sandboxPolicy": {"type": "dangerFullAccess"}, "approvalPolicy": "never", "approvalsReviewer": "user"},
+}
 
 
 def _text_of(value: Any) -> str:
@@ -569,6 +581,15 @@ def normalize_notification(method: str, params: Mapping[str, Any]) -> dict[str, 
     if method == "thread/tokenUsage/updated":
         tokens = _token_usage(params)
         return {"type": "usage.tokens", "tokens": tokens} if tokens else None
+    if method == "item/autoApprovalReview/completed":
+        # Codex marks this payload unstable; only the outcome is kept.
+        review = params.get("review") if isinstance(params.get("review"), Mapping) else {}
+        status = review.get("status")
+        if status not in {"approved", "denied", "timedOut", "aborted"}:
+            return None
+        risk = review.get("riskLevel")
+        return {"type": "auto_review.completed", "status": status,
+                "risk": risk if risk in {"low", "medium", "high", "critical"} else None}
     if method in {"warning", "configWarning", "deprecationNotice", "guardianWarning"}:
         message = params.get("message") or params.get("summary") or params.get("details")
         return {"type": "warning", "message": _text_of(message) or method}
@@ -671,6 +692,8 @@ class CodexAppServerSession:
         self._usage_limits: dict[str, Any] | None = None
         self._token_usage: dict[str, Any] | None = None
         self._turn_settings: dict[str, str | None] = {"model": None, "effort": None}
+        # Permission mode chosen during the conversation, sent with the next turn.
+        self._pending_permission: str | None = None
         self._plan: dict[str, Any] | None = None
         # Latest unified diff per turn, in memory only and fetched on demand.
         self._diffs: dict[str, str] = {}
@@ -741,6 +764,7 @@ class CodexAppServerSession:
         *,
         sandbox: str = "workspace-write",
         approval_policy: str = "on-request",
+        approvals_reviewer: str = "user",
         model: str | None = None,
         timeout: float | None = None,
         resume_thread_id: str | None = None,
@@ -751,10 +775,13 @@ class CodexAppServerSession:
         caller can record a downgrade instead of inferring it from output.
         """
 
-        if sandbox not in _PROTECTED_SANDBOXES:
+        full_access = (sandbox, approval_policy) == _FULL_ACCESS
+        if not full_access and sandbox not in _PROTECTED_SANDBOXES:
             raise CodexAppServerError("sandbox is not allowed for protected Workbench runs")
-        if approval_policy not in _PROTECTED_APPROVAL_POLICIES:
+        if not full_access and approval_policy not in _PROTECTED_APPROVAL_POLICIES:
             raise CodexAppServerError("approval policy is not allowed for protected Workbench runs")
+        if approvals_reviewer not in _APPROVALS_REVIEWERS:
+            raise CodexAppServerError("approvals reviewer must be user or auto_review")
         timeout = self.REQUEST_TIMEOUT_SECONDS if timeout is None else timeout
         self._request(
             "initialize",
@@ -766,6 +793,7 @@ class CodexAppServerSession:
             "cwd": str(self.cwd),
             "sandbox": sandbox,
             "approvalPolicy": approval_policy,
+            "approvalsReviewer": approvals_reviewer,
         }
         if model:
             params["model"] = model
@@ -791,6 +819,7 @@ class CodexAppServerSession:
         effective = {
             "model": result.get("model"),
             "approval_policy": result.get("approvalPolicy"),
+            "approvals_reviewer": result.get("approvalsReviewer"),
             "sandbox": effective_sandbox,
         }
         with self._lock:
@@ -877,7 +906,7 @@ class CodexAppServerSession:
 
     # -- conversation ------------------------------------------------------
 
-    def send_message(self, text: str) -> dict[str, Any]:
+    def send_message(self, text: str, *, before_permission_send: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Start a turn, or steer the active turn with additional input."""
 
         if not isinstance(text, str) or not text.strip() or len(text) > self.MAX_INPUT_CHARS:
@@ -893,12 +922,27 @@ class CodexAppServerSession:
         params: dict[str, Any] = {"threadId": thread_id, "input": user_input}
         with self._lock:
             settings = dict(self._turn_settings)
-        # Built from the two allowed keys only; nothing else can reach turn/start.
+            permission = self._pending_permission
+        # Built from the allowed keys only; nothing else can reach turn/start.
         if settings["model"]:
             params["model"] = settings["model"]
         if settings["effort"]:
             params["effort"] = settings["effort"]
+        if permission is not None:
+            params.update(TURN_PERMISSIONS[permission])
+            if before_permission_send is not None:
+                before_permission_send(permission)
+            # turn/start does not echo the effective sandbox/reviewer. Never
+            # display thread/start's old observation as proof of a later setting.
+            with self._lock:
+                self._effective = {**self._effective, "sandbox": None, "approval_policy": None,
+                                   "approvals_reviewer": None, "permission_verification": "UNKNOWN_AFTER_CHANGE"}
         result = self._request("turn/start", params)
+        if permission is not None:
+            with self._lock:
+                if self._pending_permission == permission:
+                    self._pending_permission = None
+            self._append_event({"type": "permission.submitted", "mode": permission})
         new_turn_id = (result.get("turn") or {}).get("id")
         with self._lock:
             # turn/started and even turn/completed can arrive before this
@@ -910,7 +954,8 @@ class CodexAppServerSession:
             ):
                 self._active_turn_id = new_turn_id
                 self._status = "WORKING"
-        return {"accepted": True, "mode": "start", "turn_id": new_turn_id}
+        return {"accepted": True, "mode": "start", "turn_id": new_turn_id,
+                **({"permission_submitted": permission} if permission is not None else {})}
 
     def interrupt(self, *, timeout: float | None = None) -> dict[str, Any]:
         thread_id, turn_id = self._require_thread()
@@ -1049,6 +1094,17 @@ class CodexAppServerSession:
             self._append_event_locked({"type": "settings.changed", "model": model, "effort": effort})
         return {"accepted": True, "model": model, "effort": effort}
 
+    def set_permission_mode(self, mode: Any) -> dict[str, Any]:
+        """Switch between the Codex app's three permission choices for the next requests."""
+
+        if not isinstance(mode, str) or mode not in TURN_PERMISSIONS:
+            raise CodexAppServerError("permission mode must be workspace, auto_review or full_access")
+        self._require_thread()
+        with self._lock:
+            self._pending_permission = mode
+            self._append_event_locked({"type": "permission.changed", "mode": mode})
+        return {"accepted": True, "mode": mode}
+
     def handshake(self, *, timeout: float = 15.0) -> None:
         """Initialize a not-yet-opened app-server for read-only questions (no thread is started)."""
 
@@ -1058,6 +1114,16 @@ class CodexAppServerSession:
             timeout=timeout,
         )
         self._notify("initialized")
+
+    def list_permission_profiles(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
+        """Codex's permission profiles and whether its config allows each (after ``handshake``)."""
+
+        result = self._request("permissionProfile/list", {"cwd": str(self.cwd)}, timeout=timeout)
+        return [
+            {"id": item["id"], "allowed": item.get("allowed") is not False}
+            for item in result.get("data") or []
+            if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+        ]
 
     def list_models(self, *, timeout: float = 15.0) -> list[dict[str, Any]]:
         """Visible models; the session must not be opened (see ``handshake``)."""

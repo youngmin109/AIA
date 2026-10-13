@@ -7,6 +7,9 @@
 
 import type { PermissionEntry } from '../../api/permissionGrants'
 import type { TokenUsage, Usage, UsageLimits } from '../../api/usageView'
+import { permissionModeFromCodex, permissionModeOf, permissionOption, type PermissionMode } from '../../api/permissionMode.ts'
+
+const RISK_LABEL: Record<string, string> = { low: '낮음', medium: '보통', high: '높음', critical: '매우 높음' }
 
 /** These replies may fail before acceptance; the still-pending card must allow a fresh attempt. */
 export function isInteractiveResponse(action: unknown): boolean {
@@ -41,6 +44,8 @@ export interface CodexEvent {
   model?: string | null
   sandbox?: string | null
   approval_policy?: string | null
+  approvals_reviewer?: string | null
+  risk?: string | null
   unexpected?: boolean
   question_id?: string
   questions?: UserQuestion[]
@@ -150,6 +155,8 @@ export interface ConversationState {
   pendingPermissions: PermissionsRequest[]
   usage: Usage
   turnSettings: { model: string | null; effort: string | null } | null
+  /** AI permission in force: from Codex's applied sandbox, then each switch. */
+  permissionMode: PermissionMode | null
   plan: CodexPlan | null
   lastEventAt: number
 }
@@ -165,6 +172,7 @@ export const EMPTY_CONVERSATION: ConversationState = {
   pendingPermissions: [],
   usage: { limits: null, tokens: null },
   turnSettings: null,
+  permissionMode: null,
   plan: null,
   lastEventAt: 0,
 }
@@ -196,9 +204,30 @@ function notice(state: ConversationState, event: CodexEvent, tone: 'info' | 'war
 function applyEvent(state: ConversationState, event: CodexEvent) {
   const id = String(event.item_id ?? event.sequence)
   switch (event.type) {
-    case 'session.ready':
-      notice(state, event, 'info', `Codex 연결됨 · 모델 ${event.model ?? '기본값'} · 샌드박스 ${event.sandbox ?? '확인 불가'}`)
+    case 'session.ready': {
+      const mode = permissionModeFromCodex(event.sandbox, event.approvals_reviewer)
+      notice(state, event, 'info', `Codex 연결됨 · 모델 ${event.model ?? '기본값'} · 권한 ${permissionOption(mode)?.label ?? '확인 불가'}`)
+      if (mode) state.permissionMode = mode
       break
+    }
+    case 'permission.changed': {
+      const mode = permissionModeOf(event.mode)
+      if (!mode) break
+      state.permissionMode = mode
+      notice(state, event, mode === 'full_access' ? 'warn' : 'info', `다음 새 요청 권한을 "${permissionOption(mode)?.label}"(으)로 예약했어요 · 진행 중인 작업은 그대로예요`)
+      break
+    }
+    case 'permission.submitted': {
+      notice(state, event, 'warn', 'Codex가 권한 변경 요청을 접수했어요 · 실제 적용 상태는 별도 확인이 필요해요')
+      break
+    }
+    case 'auto_review.completed': {
+      const risk = event.risk ? ` · 위험도 ${RISK_LABEL[event.risk] ?? event.risk}` : ''
+      if (event.status === 'approved') notice(state, event, 'info', `Codex가 대신 검토하고 승인했어요${risk}`)
+      else if (event.status === 'denied') notice(state, event, 'warn', `Codex가 대신 검토하고 거절했어요${risk}`)
+      else notice(state, event, 'warn', 'Codex 자동 검토가 끝나지 않아 승인하지 않았어요')
+      break
+    }
     case 'turn.started':
       state.activeTurnId = event.turn_id ?? null
       break

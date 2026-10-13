@@ -108,6 +108,12 @@ Probe 파일이 생성됐지만 Hook Event가 0건이면 Probe가 실행된 것�
 증명된 것이 아니다. 이 경우 AIA는 `PROTECTION_NOT_PROVEN`으로 표시하고 보호 실행을
 성공으로 인정하지 않는다.
 
+Workbench 대화 실행은 Codex 앱과 같은 세 가지 권한을 쓴다: 승인 요청(`workspace-write` +
+`on-request`, 사용자가 승인), 나 대신 승인(같은 설정에 Codex 자동 검토가 승인), 전체 권한
+(`danger-full-access` + `never`, 명시적 선택). 기본값은 승인 요청이며, 전체 권한·자동 검토는 DEGRADED로 표시한다. 지원되는 AIA Hook 검사와 작업 폴더 복구는 유지되지만,
+전체 권한에서는 작업 폴더 밖 변경과 인터넷 사용을 Codex Sandbox가 막지 않고 복구 범위 밖이다
+(Result Bundle 제한사항 `CODEX_FULL_ACCESS_USER_SELECTED`, 자동 검토는 `CODEX_AUTO_REVIEW_USER_SELECTED`).
+
 비대화형 Protected Run은 현재 Codex CLI가 제공하는 `--approve-for-me` 경로를 통해
 `workspace-write`와 `on-request` 실행 정책을 요청한다. Result Bundle의 실제 실행
 정책이 이 요청과 다르면 AIA는 실행을 성공한 보호 실행으로 포장하지 않고

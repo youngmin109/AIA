@@ -360,6 +360,14 @@ class RunHistoryMixin:
             grants = runtime_state.get("permission_grants") if isinstance(runtime_state, Mapping) else None
             if isinstance(grants, list) and grants:
                 status = {**status, "permission_grants": grants}
+            if isinstance(runtime_state, Mapping) and runtime_state.get("permission_mode") in {"workspace", "auto_review", "full_access"}:
+                status = {
+                    **status,
+                    "permission_mode": runtime_state["permission_mode"],
+                    "permission_changes": runtime_state.get("permission_changes", []),
+                    "full_access_used": runtime_state.get("full_access_used") is True,
+                    "auto_review_used": runtime_state.get("auto_review_used") is True,
+                }
             thread_id = runtime_state.get("codex_thread_id") if isinstance(runtime_state, Mapping) else None
             if isinstance(thread_id, str) and thread_id:
                 status = {**status, "codex_thread_id": thread_id}
@@ -401,6 +409,10 @@ class RunHistoryMixin:
             "phase": record.phase,
             "startup": record.startup,
             "permission_grants": record.permission_grants,
+            "permission_mode": record.permission_mode,
+            "permission_changes": record.permission_changes,
+            "full_access_used": record.full_access_used,
+            "auto_review_used": record.auto_review_used,
             "codex_thread_id": record.codex_thread_id,
             "resumed_from": record.resumed_from,
             "result_path": str(record.result_path) if record.result_path is not None else None,
@@ -689,6 +701,10 @@ class RunHistoryMixin:
             "phase": state.get("phase", session.get("status", "UNKNOWN")),
             "startup": state.get("startup") if isinstance(state.get("startup"), dict) else {},
             "permission_grants": state.get("permission_grants") if isinstance(state.get("permission_grants"), list) else [],
+            "permission_mode": state.get("permission_mode") if state.get("permission_mode") in {"workspace", "auto_review", "full_access"} else "workspace",
+            "permission_changes": state.get("permission_changes") if isinstance(state.get("permission_changes"), list) else [],
+            "full_access_used": state.get("full_access_used") is True,
+            "auto_review_used": state.get("auto_review_used") is True,
             "codex_thread_id": state.get("codex_thread_id") if isinstance(state.get("codex_thread_id"), str) else None,
             "resumed_from": state.get("resumed_from") if isinstance(state.get("resumed_from"), str) else None,
             "result_path": state.get("result_path"),

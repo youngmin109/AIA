@@ -23,6 +23,13 @@ from ..launcher import (
 )
 
 
+# The only extra config a protected app-server accepts: each value turns one
+# Codex external tool (MCP server, plugin, or ChatGPT apps) off, nothing else.
+_EXTERNAL_TOOL_OFF = re.compile(
+    r"(?:mcp_servers\.[A-Za-z0-9_-]{1,100}|plugins\.[A-Za-z0-9_-]{1,100}@[A-Za-z0-9_-]{1,100})\.enabled=false"
+    r"|features\.apps=false"
+)
+
 _VERSION_CACHE_LOCK = RLock()
 _VERSION_CACHE: dict[tuple[str, int], tuple[int, int, int] | None] = {}
 
@@ -73,6 +80,7 @@ class CodexAdapter:
             "approve_for_me",
             "approval_policy",
             "color",
+            "disable_external_tools",
             "ignore_rules",
             "ignore_user_config",
             "json",
@@ -295,6 +303,8 @@ class CodexAdapter:
             if not interactive:
                 raise AdapterError("app_server requires interactive mode")
             return self._build_app_server_launch(request, executable, options)
+        if "disable_external_tools" in options:
+            raise AdapterError("turning off external tools is only supported by app-server")
         if interactive and any(
             key in options for key in ("ignore_rules", "json", "skip_git_repo_check")
         ):
@@ -399,9 +409,11 @@ class CodexAdapter:
         policy are applied as inline config overrides.  The Workbench passes
         them again when it starts the thread and records what Codex reports as
         applied.  The workspace and model are thread parameters, not argv.
+        External tools that may run outside the Hook are turned off with
+        validated ``-c`` overrides that can only disable them.
         """
 
-        unsupported = set(options) - {"approval_policy", "sandbox"}
+        unsupported = set(options) - {"approval_policy", "sandbox", "disable_external_tools"}
         if unsupported:
             raise AdapterError("the requested Codex option is not supported by app-server")
         if self.hook_command is not None or not self.enable_hooks:
@@ -412,16 +424,27 @@ class CodexAdapter:
             raise AdapterError("interactive Codex launch cannot receive an initial prompt")
         argv: list[str] = [str(executable), "app-server"]
         approval_policy = options.get("approval_policy", "on-request")
-        if approval_policy not in {"on-request", "on-failure", "untrusted"}:
-            raise AdapterError("Codex approval policy is not allowed for protected launches")
         sandbox = options.get("sandbox", "workspace-write")
-        if sandbox not in {"read-only", "workspace-write"}:
+        # Full access is a user choice for the Workbench conversation
+        # and comes only as the complete pair; the installed, trusted Hook
+        # required above still checks every tool call.
+        full_access = (sandbox, approval_policy) == ("danger-full-access", "never")
+        if not full_access and approval_policy not in {"on-request", "on-failure", "untrusted"}:
+            raise AdapterError("Codex approval policy is not allowed for protected launches")
+        if not full_access and sandbox not in {"read-only", "workspace-write"}:
             raise AdapterError("Codex sandbox is not allowed for protected launches")
         import json
 
         argv.extend(("-c", f"approval_policy={json.dumps(approval_policy)}"))
         argv.extend(("-c", f"sandbox_mode={json.dumps(sandbox)}"))
         argv.extend(("-c", "features.hooks=true"))
+        external_tools_off = options.get("disable_external_tools", ())
+        if not isinstance(external_tools_off, (list, tuple)) or len(external_tools_off) > 200:
+            raise AdapterError("disable_external_tools must be a list")
+        for item in external_tools_off:
+            if not isinstance(item, str) or not _EXTERNAL_TOOL_OFF.fullmatch(item):
+                raise AdapterError("only turning off Codex external tools is allowed")
+            argv.extend(("-c", item))
         return AgentLaunchSpec(
             adapter=self.name,
             executable=executable,

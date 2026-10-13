@@ -564,3 +564,46 @@ def test_checkpoint_progress_reports_each_stage_and_cannot_fail_it(tmp_path: Pat
     assert [item for item in reports if item[0] == "scan"][-1] == ("scan", 3, None)
     assert [item for item in reports if item[0] == "copy"] == [("copy", n, 3) for n in (1, 2, 3)]
     assert [item for item in reports if item[0] == "verify"][-1] == ("verify", 3, 3)
+
+
+def test_later_checkpoint_shares_unchanged_files_and_copies_changed_ones(tmp_path: Path) -> None:
+    workspace, session, context, lease_manager = _prepared_workspace(tmp_path)
+    (workspace / "same.txt").write_text("unchanged", encoding="utf-8")
+    (workspace / "edit.txt").write_text("before", encoding="utf-8")
+    first = create_safe_checkpoint(session, context, lease_manager=lease_manager, checkpoint_id="first")
+    (workspace / "edit.txt").write_text("after!", encoding="utf-8")
+    second = create_safe_checkpoint(session, context, lease_manager=lease_manager, checkpoint_id="second")
+
+    first_same = os.stat(first.checkpoint_path / "workspace" / "same.txt")
+    second_same = os.stat(second.checkpoint_path / "workspace" / "same.txt")
+    # Unchanged: one file on disk shared by both checkpoints (a hard link).
+    assert (first_same.st_dev, first_same.st_ino) == (second_same.st_dev, second_same.st_ino)
+    assert second_same.st_nlink == 2
+    # Changed: a fresh copy with the new bytes.
+    assert (second.checkpoint_path / "workspace" / "edit.txt").read_text(encoding="utf-8") == "after!"
+    assert (first.checkpoint_path / "workspace" / "edit.txt").read_text(encoding="utf-8") == "before"
+    assert validate_checkpoint(first).validity is CheckpointValidity.VALID
+    assert validate_checkpoint(second).validity is CheckpointValidity.VALID
+
+    # Removing the earlier checkpoint leaves the later one complete.
+    import shutil
+
+    shutil.rmtree(first.checkpoint_path)
+    assert validate_checkpoint(second).validity is CheckpointValidity.VALID
+    assert (second.checkpoint_path / "workspace" / "same.txt").read_text(encoding="utf-8") == "unchanged"
+
+
+def test_checkpoint_copies_when_a_hard_link_is_not_possible(tmp_path: Path, monkeypatch) -> None:
+    workspace, session, context, lease_manager = _prepared_workspace(tmp_path)
+    (workspace / "same.txt").write_text("unchanged", encoding="utf-8")
+    first = create_safe_checkpoint(session, context, lease_manager=lease_manager, checkpoint_id="first")
+
+    def refuse(*_args, **_kwargs):
+        raise OSError("hard links are not supported here")
+
+    monkeypatch.setattr(checkpoint_module.os, "link", refuse)
+    second = create_safe_checkpoint(session, context, lease_manager=lease_manager, checkpoint_id="second")
+
+    assert os.stat(second.checkpoint_path / "workspace" / "same.txt").st_nlink == 1
+    assert validate_checkpoint(first).validity is CheckpointValidity.VALID
+    assert validate_checkpoint(second).validity is CheckpointValidity.VALID

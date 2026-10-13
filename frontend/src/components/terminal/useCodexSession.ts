@@ -1,5 +1,6 @@
 import { localSessionToken, resetLocalSessionToken } from '../../api/localSession'
 import type { Usage } from '../../api/usageView'
+import { permissionModeOf, type PermissionMode } from '../../api/permissionMode'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyEvents, EMPTY_CONVERSATION, isInteractiveResponse, type ApprovalRequest, type CodexEvent, type CodexPlan, type ConversationState, type ElicitationRequest, type PermissionsRequest, type QuestionRequest } from './codexConversation'
 
@@ -23,6 +24,7 @@ export interface CodexStatus {
   pending_permissions?: PermissionsRequest[]
   usage?: Usage
   turn_settings?: { model: string | null; effort: string | null }
+  permission_mode?: string | null
   plan?: CodexPlan | null
   effective: { model?: string | null; sandbox?: string | null; approval_policy?: string | null }
   error: string | null
@@ -265,6 +267,15 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     [send],
   )
 
+  /** One of the Codex app's three permission choices, from the next request; the run records it first. */
+  const setPermissionMode = useCallback(
+    (mode: PermissionMode) => {
+      setErrorMessage(null)
+      return send({ type: 'permission_mode', mode, client_id: nextClientId() })
+    },
+    [send],
+  )
+
   const endSession = useCallback(() => {
     if (send({ type: 'end_session', client_id: nextClientId() })) setEndPending(true)
   }, [send])
@@ -296,6 +307,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
   // Events carry the newest values; the snapshot covers a viewer that joined late.
   const turnSettings = conversation.turnSettings ?? status?.turn_settings ?? { model: null, effort: null }
   const plan = conversation.plan ?? status?.plan ?? null
+  const permissionMode = conversation.permissionMode ?? permissionModeOf(status?.permission_mode)
   const usage: Usage = {
     limits: conversation.usage.limits ?? status?.usage?.limits ?? null,
     tokens: conversation.usage.tokens ?? status?.usage?.tokens ?? null,
@@ -320,6 +332,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     responseRevision,
     usage,
     turnSettings,
+    permissionMode,
     plan,
     errorMessage,
     interruptPending,
@@ -331,6 +344,7 @@ export function useCodexSession(sessionId: string, { runEnded }: { runEnded: boo
     respondElicitation,
     decidePermissions,
     setTurnSettings,
+    setPermissionMode,
     runCommand,
     endSession,
     onRestoreDraft,

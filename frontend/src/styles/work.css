@@ -236,6 +236,82 @@
   flex: 1;
 }
 
+/* A command: one quiet row; open it for the Hook lines, the full command and its output. */
+details.chat-card.is-command {
+  gap: 0;
+  padding: 0;
+}
+
+details.chat-card.is-command > summary {
+  padding: 8px 12px;
+  border-radius: 18px;
+  list-style: none;
+  cursor: pointer;
+}
+
+details.chat-card.is-command > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.chat-card.is-command > summary:hover {
+  background: var(--fill-1);
+}
+
+details.chat-card.is-command > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.chat-command-line {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.chat-hook-mark {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fill-1);
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.chat-hook-mark.is-warn { background: var(--warning-bg); color: var(--warning-text); }
+.chat-hook-mark.is-bad { background: var(--danger-bg); color: var(--danger-text); }
+
+.chat-command-toggle {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+details.chat-card.is-command[open] .chat-command-toggle {
+  transform: rotate(90deg);
+}
+
+.chat-command-detail {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+pre.chat-command {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--inset-bg);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+}
+
 .chat-output,
 .chat-output pre {
   margin: 0;
@@ -709,6 +785,92 @@ details.chat-output pre {
   color: var(--warning-text);
 }
 
+/* Permission: the Codex app's menu (three choices, a check on the current one, full access in orange). */
+.permission-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.usage-chip > .chip.permission-chip.is-full {
+  border-color: var(--full-access-line);
+  color: var(--full-access);
+}
+
+.usage-pop.permission-pop {
+  width: min(400px, 86vw);
+}
+
+.permission-menu {
+  display: grid;
+  gap: 2px;
+}
+
+.permission-menu-title {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.permission-option {
+  display: grid;
+  grid-template-columns: 18px 1fr 18px;
+  align-items: start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.permission-option > svg {
+  margin-top: 2px;
+}
+
+.permission-option:hover:not(:disabled) {
+  background: var(--fill-1);
+}
+
+.permission-option strong {
+  display: block;
+  font-size: 14px;
+}
+
+.permission-option small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.permission-option.is-full,
+.permission-option.is-full small {
+  color: var(--full-access);
+}
+
+.permission-check {
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--full-access);
+}
+
+.permission-option:not(.is-full) .permission-check {
+  color: var(--accent);
+}
+
+.permission-option:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.newrun-permissions {
+  max-width: 460px;
+  padding: 12px;
+}
+
 .usage-pop {
   position: absolute;
   top: calc(100% + 8px);
@@ -938,4 +1100,57 @@ details.chat-output pre {
   align-items: baseline;
   justify-content: space-between;
   gap: 6px;
+}
+
+/* Recent five minutes on its side: lanes of dots and AIA's heartbeat. */
+.activity-strip {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.activity-strip .strip-grid {
+  stroke: var(--line-1);
+  stroke-dasharray: 2 4;
+}
+
+.activity-strip .strip-lane {
+  stroke: var(--fill-3);
+  stroke-width: 1;
+}
+
+.activity-strip .strip-label,
+.activity-strip .strip-axis {
+  fill: var(--text-faint);
+  font-size: 11px;
+}
+
+.activity-strip .strip-dot { opacity: 0.92; }
+.activity-strip .strip-dot.is-request { fill: var(--lane-request); }
+.activity-strip .strip-dot.is-process { fill: var(--lane-process); }
+.activity-strip .strip-dot.is-file { fill: var(--lane-file); }
+.activity-strip .strip-block { fill: var(--danger); }
+
+.activity-strip .strip-pulse {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.activity-strip.is-live .strip-pulse { stroke: var(--accent); }
+
+.activity-strip .strip-now {
+  fill: var(--accent);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: strip-heartbeat 1.2s ease-in-out infinite;
+}
+
+@keyframes strip-heartbeat {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  15% { transform: scale(1.7); opacity: 1; }
+  30% { transform: scale(1); opacity: 0.8; }
+  45% { transform: scale(1.4); opacity: 1; }
 }

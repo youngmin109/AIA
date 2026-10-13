@@ -6,13 +6,13 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timezone, timedelta
 import os
 import time
-from threading import Event
+from threading import Event, RLock
 from typing import Any
 from uuid import uuid4
 
 from aia.codex_runtime import UnsupportedToolReview
 
-from .codex_app_server import CodexAppServerError, CodexAppServerSession
+from .codex_app_server import TURN_PERMISSIONS, CodexAppServerError, CodexAppServerSession
 from .registry import RunRecord
 
 
@@ -103,6 +103,8 @@ class CodexWorkbench:
                 if not item["event"].is_set()
             ]
         snapshot["pending_approvals"] = [*snapshot.get("pending_approvals", []), *reviews]
+        snapshot["permission_mode"] = record.permission_mode
+        snapshot["permission_changes"] = record.permission_changes
         return snapshot
 
     def read_codex_events(self, session_id: str, *, after_sequence: int = 0) -> list[dict[str, Any]]:
@@ -140,7 +142,67 @@ class CodexWorkbench:
         return codex_session.wait_events(after_sequence, timeout=timeout)
 
     def send_codex_message(self, session_id: str, text: str) -> dict[str, Any]:
-        return {**self._codex_session(session_id).send_message(text), "session_id": session_id}
+        service = self._service
+        session = self._codex_session(session_id)
+        record = service.registry.require(session_id)
+        with self._permission_lock(record):
+            def before_send(mode):
+                self._record_permission_submission(record, mode)
+            try:
+                result = session.send_message(text, before_permission_send=before_send)
+            except Exception:
+                self._finish_permission_submission(record, "UNCONFIRMED")
+                raise
+            if result.get("permission_submitted"):
+                self._finish_permission_submission(record, "ACKNOWLEDGED")
+            return {**result, "session_id": session_id}
+
+    def _permission_lock(self, record):
+        with self._service._tool_review_lock:
+            return record.runtime.setdefault("permission_mode_lock", RLock())
+
+    def _record_permission_submission(self, record, mode):
+        service = self._service
+        changes = record.permission_changes
+        if not changes or changes[-1]["to_mode"] != mode or changes[-1]["status"] not in {"PENDING", "UNCONFIRMED"}:
+            raise CodexAppServerError("권한 변경 예약을 확인하지 못해 요청을 보내지 않았어요.")
+        previous = (record.permission_changes, record.permission_grants, record.protection_state)
+        change = {**changes[-1], "status": "SUBMITTING", "submitted_at": datetime.now(timezone.utc).isoformat()}
+        change["attempts"] = [*change.get("attempts", []), {"status": "SUBMITTING", "submitted_at": change["submitted_at"]}]
+        record.permission_changes = [*changes[:-1], change]
+        if mode != "workspace":
+            # Persist a scope exception BEFORE dispatch, even if a timeout
+            # later leaves execution unknown. This is not a verified grant.
+            if not any(item.get("change_id") == change["change_id"] for item in record.permission_grants):
+                record.permission_grants = [*record.permission_grants, {
+                    "change_id": change["change_id"], "granted_at": change["submitted_at"],
+                    "scope": "mode_change_request", "mode": mode,
+                    "network": True if mode == "full_access" else None, "filesystem": [],
+                    "reason": f"사용자가 다음 요청 권한으로 {mode} 선택; 실제 적용은 별도 검증 필요",
+                }]
+            record.protection_state = "DEGRADED"
+        try:
+            service._persist_runtime_state(record, strict=True)
+        except (OSError, ValueError) as error:
+            record.permission_changes, record.permission_grants, record.protection_state = previous
+            raise CodexAppServerError("권한 변경을 기록하지 못해 요청을 보내지 않았어요.") from error
+
+    def _finish_permission_submission(self, record, status):
+        changes = record.permission_changes
+        if not changes or changes[-1]["status"] != "SUBMITTING":
+            return
+        change = {**changes[-1], "status": status, "resolved_at": datetime.now(timezone.utc).isoformat()}
+        attempts = change.get("attempts", [])
+        if attempts:
+            change["attempts"] = [*attempts[:-1], {**attempts[-1], "status": status, "resolved_at": change["resolved_at"]}]
+        record.permission_changes = [*changes[:-1], change]
+        if status == "ACKNOWLEDGED":
+            record.full_access_used |= change["to_mode"] == "full_access"
+            record.auto_review_used |= change["to_mode"] == "auto_review"
+        try:
+            self._service._persist_runtime_state(record, strict=True)
+        except (OSError, ValueError) as error:
+            raise CodexAppServerError("권한 요청의 접수 여부를 기록하지 못했어요. 보호 범위 예외 기록은 유지됩니다.") from error
 
     def interrupt_codex_turn(self, session_id: str) -> dict[str, Any]:
         return {**self._codex_session(session_id).interrupt(), "session_id": session_id}
@@ -177,13 +239,60 @@ class CodexWorkbench:
         return {**result, "command": command, "session_id": session_id}
 
     def list_codex_connectors(self, session_id: str) -> dict[str, Any]:
-        return {"connectors": self._codex_session(session_id).list_connectors(), "session_id": session_id}
+        connectors = self._codex_session(session_id).list_connectors()
+        record = self._service.registry.get(session_id)
+        turned_off = list(record.runtime.get("external_tools_off") or ()) if record is not None else []
+        for connector in connectors:
+            connector["turned_off_by_aia"] = connector["name"] in turned_off
+        # Turned-off plugins and ChatGPT apps leave Codex's list; keep them visible as off.
+        listed = {connector["name"] for connector in connectors}
+        connectors.extend(
+            {"name": name, "status": "disabled", "auth": "unknown", "tool_count": 0, "tools": [], "error": None,
+             "turned_off_by_aia": True}
+            for name in turned_off if name not in listed
+        )
+        return {"connectors": connectors, "session_id": session_id}
 
     def read_codex_diff(self, session_id: str, turn_id: str | None) -> dict[str, Any]:
         return {**self._codex_session(session_id).read_diff(turn_id), "session_id": session_id}
 
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return {**self._codex_session(session_id).set_turn_settings(model, effort), "session_id": session_id}
+
+    def set_codex_permission_mode(self, session_id: str, mode: Any) -> dict[str, Any]:
+        """Switch between the Codex app's three permission choices for the next requests.
+
+        Like a permission grant, the run records the choice before Codex hears
+        of it, so a full-access request never runs unrecorded.
+        """
+
+        if not isinstance(mode, str) or mode not in TURN_PERMISSIONS:
+            raise CodexAppServerError("permission mode must be workspace, auto_review or full_access")
+        codex_session = self._codex_session(session_id)
+        service = self._service
+        record = service.registry.require(session_id)
+        with self._permission_lock(record):
+            previous_mode, previous_changes = record.permission_mode, record.permission_changes
+            changes = list(previous_changes)
+            if changes and changes[-1]["status"] == "PENDING":
+                changes[-1] = {**changes[-1], "status": "SUPERSEDED"}
+            record.permission_mode = mode
+            record.permission_changes = [*changes, {"change_id": uuid4().hex,
+                "requested_at": datetime.now(timezone.utc).isoformat(), "from_mode": previous_mode,
+                "to_mode": mode, "status": "PENDING"}]
+            try:
+                service._persist_runtime_state(record, strict=True)
+            except (OSError, ValueError) as error:
+                record.permission_mode, record.permission_changes = previous_mode, previous_changes
+                raise CodexAppServerError("권한 변경을 기록하지 못해 바꾸지 않았어요. 다시 시도해 주세요.") from error
+            try:
+                result = codex_session.set_permission_mode(mode)
+            except Exception:
+                record.permission_mode = previous_mode
+                record.permission_changes = previous_changes
+                service._persist_runtime_state(record, strict=True)
+                raise
+            return {**result, "session_id": session_id}
 
     def respond_codex_permissions(self, session_id: str, permissions_id: str, decision: str) -> dict[str, Any]:
         """Answer a sandbox-widening request and record a grant on the run."""

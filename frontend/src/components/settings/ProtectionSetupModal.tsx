@@ -19,6 +19,10 @@ import {
 import { HookStatusControl } from './HookStatusControl'
 import { readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
+import { absoluteInWorkspace, addProtectedPaths, insideWorkspace, MAX_PROTECTED_PATHS } from '../../api/protectedPaths'
+import { PERMISSION_DEFAULT, permissionAllowed, permissionOption, type PermissionMode } from '../../api/permissionMode'
+import { PermissionMenu } from '../terminal/PermissionChip'
+import { usePermissionProfiles } from '../../hooks/usePermissionProfiles'
 import { useProfiles } from '../../hooks/useProfiles'
 import { usePreflight } from '../../hooks/usePreflight'
 import { workspaceShortName } from '../shell/sessionLabel'
@@ -73,6 +77,14 @@ function NewRunSheet() {
   const [resumeThread, setResumeThread] = useState<ResumableConversation | null>(null)
   const conversations = useResumableConversations(resumeMode)
   const [effort, setEffort] = useState('')
+  const [protectedPaths, setProtectedPaths] = useState<string[]>([])
+  const [protectEntry, setProtectEntry] = useState('')
+  const [protectMessage, setProtectMessage] = useState<string | null>(null)
+  const [chosenPermission, setPermission] = useState<PermissionMode>(PERMISSION_DEFAULT)
+  const permissionProfiles = usePermissionProfiles()
+  // A choice Codex's config forbids falls back to asking the user.
+  const chosenOption = permissionOption(chosenPermission)
+  const permission: PermissionMode = chosenOption && permissionAllowed(chosenOption, permissionProfiles) ? chosenPermission : 'workspace'
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
   const storedDefault = readDefaultPolicyProfile()
@@ -80,6 +92,9 @@ function NewRunSheet() {
 
   function changeWorkspace(value: string) {
     setWorkspace(value)
+    // Protected paths belong to one work folder; a new folder starts with none.
+    setProtectedPaths([])
+    setProtectMessage(null)
     setRecovery(null)
     setReconcileError(null)
     setSizeNotice(null)
@@ -147,6 +162,8 @@ function NewRunSheet() {
         model: model || undefined,
         reasoning_effort: effort || undefined,
         resume_thread_id: resumeMode && resumeThread ? resumeThread.thread_id : undefined,
+        protected_paths: protectedPaths.length > 0 ? protectedPaths : undefined,
+        permission_mode: permission,
       })
       setActiveRun(result.session_id)
       setView('work')
@@ -155,6 +172,27 @@ function NewRunSheet() {
       setSubmitError(err instanceof Error ? err.message : String(err))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  function addProtected(additions: string[]) {
+    const result = addProtectedPaths(protectedPaths, additions, workspace)
+    setProtectedPaths(result.paths)
+    setProtectMessage(result.outside > 0
+      ? `작업 폴더 밖의 경로 ${result.outside}개는 넣지 않았어요. 작업 폴더 안의 파일·폴더만 지정할 수 있어요.`
+      : result.overLimit > 0 ? `최대 ${MAX_PROTECTED_PATHS}개까지 지정할 수 있어요.` : null)
+  }
+
+  async function pickProtected(kind: 'files' | 'folder') {
+    const api = window.pywebview?.api
+    try {
+      if (kind === 'files') addProtected((await api?.choose_files?.())?.paths ?? [])
+      else {
+        const folder = (await api?.choose_directory?.())?.path
+        if (folder) addProtected([folder])
+      }
+    } catch (error) {
+      setProtectMessage(error instanceof Error ? `선택창을 열지 못했어요: ${error.message}` : '선택창을 열지 못했어요.')
     }
   }
 
@@ -260,9 +298,48 @@ function NewRunSheet() {
             {policyProfile === 'CUSTOM' && <p className="faint-note">{customPolicy ? '저장한 사용자 지정 규칙을 실행 시작 시 다시 검증해요.' : '정책 화면에서 사용자 지정 규칙을 먼저 검증하고 저장해 주세요.'}</p>}
           </section>
 
+          <section className="newrun-section" aria-labelledby="newrun-permission">
+            <h3 id="newrun-permission"><span className="newrun-step">3</span>권한</h3>
+            <div className="glass-card newrun-permissions">
+              <PermissionMenu mode={permission} profiles={permissionProfiles} disabled={false} onChoose={setPermission} />
+            </div>
+            <p className="faint-note">Codex 앱과 같은 권한 설정이에요. 작업창에서도 바꿀 수 있어요. 어떤 권한이든 AIA가 모든 명령을 실행 전에 검사해요. 전체 권한에서는 작업 폴더 밖 변경과 인터넷 사용을 Codex가 막지 않고, 작업 폴더 밖 변경은 되돌리기 범위 밖이에요.</p>
+          </section>
+
+          <section className="newrun-section" aria-labelledby="newrun-protect">
+            <h3 id="newrun-protect"><span className="newrun-step">4</span>꼭 지킬 파일·폴더<small className="newrun-optional">선택</small></h3>
+            <p className="faint-note">고른 파일과 폴더는 정책에 더해 만들기·고치기·지우기·옮기기·이름 바꾸기를 실행 전에 막아요. 읽기는 막지 않아요.</p>
+            <div className="protect-actions">
+              {hasNativeWorkspacePicker() ? (
+                <>
+                  <Button variant="secondary" className="is-compact" disabled={workspaceState.status !== 'valid'} onClick={() => pickProtected('files')}><Icon name="file" size={16} />파일 추가</Button>
+                  <Button variant="secondary" className="is-compact" disabled={workspaceState.status !== 'valid'} onClick={() => pickProtected('folder')}><Icon name="folder" size={16} />폴더 추가</Button>
+                </>
+              ) : (
+                <form className="protect-entry" onSubmit={(event) => { event.preventDefault(); if (protectEntry.trim()) { addProtected([absoluteInWorkspace(workspace, protectEntry)]); setProtectEntry('') } }}>
+                  <input className="glass-input" value={protectEntry} disabled={workspaceState.status !== 'valid'} onChange={(event) => setProtectEntry(event.target.value)} placeholder="작업 폴더 안의 경로 (예: data\고객정보.db)" aria-label="보호할 파일·폴더 경로" />
+                  <Button type="submit" variant="secondary" className="is-compact" disabled={workspaceState.status !== 'valid' || !protectEntry.trim()}>추가</Button>
+                </form>
+              )}
+              {workspaceState.status !== 'valid' && <span className="faint-note">작업 폴더를 먼저 고르세요.</span>}
+            </div>
+            {protectedPaths.length > 0 && (
+              <ul className="protect-list" aria-label="꼭 지킬 파일·폴더">
+                {protectedPaths.map(path => (
+                  <li key={path}>
+                    <Icon name="shieldPlain" size={14} />
+                    <span className="mono" title={path}>{insideWorkspace(workspace, path) ?? path}</span>
+                    <Button variant="icon" className="protect-remove" aria-label={`${insideWorkspace(workspace, path) ?? path} 보호 해제`} onClick={() => setProtectedPaths(protectedPaths.filter(item => item !== path))}><Icon name="close" size={12} /></Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {protectMessage && <p className="warning-text" role="status">{protectMessage}</p>}
+          </section>
+
           {models.length > 0 && (
             <section className="newrun-section" aria-labelledby="newrun-model">
-              <h3 id="newrun-model"><span className="newrun-step">3</span>모델과 생각 깊이</h3>
+              <h3 id="newrun-model"><span className="newrun-step">5</span>모델과 생각 깊이</h3>
               <div className="newrun-model">
                 <label className="model-field">
                   <span>모델</span>
@@ -284,7 +361,7 @@ function NewRunSheet() {
           )}
 
           <section className="newrun-section" aria-labelledby="newrun-connection">
-            <h3 id="newrun-connection"><span className="newrun-step">{models.length > 0 ? 4 : 3}</span>연결 상태</h3>
+            <h3 id="newrun-connection"><span className="newrun-step">{models.length > 0 ? 6 : 5}</span>연결 상태</h3>
             <div className="newrun-pills">
               {CONNECTION_CHECKS.map(([name, label]) => {
                 const check = preflight?.checks?.find(item => item.name === name)

@@ -2181,6 +2181,9 @@ def test_result_bundle_reader_reports_verified_checkpoint_status(
         ("COMPLETED", "AGENT_EXITED", True, [], "COMPLETED_VERIFIED"),
         ("COMPLETED", "AGENT_EXITED", False, [], "COMPLETED_DEGRADED"),
         ("COMPLETED", "AGENT_EXITED", True, ["CODEX_PERMISSIONS_USER_GRANTED"], "COMPLETED_DEGRADED"),
+        # Full access (YOLO) is the user's starting choice, sealed as a limitation;
+        # AIA's own protection was still verified.
+        ("COMPLETED", "AGENT_EXITED", True, ["CODEX_FULL_ACCESS_USER_SELECTED"], "COMPLETED_VERIFIED"),
         (
             "COMPLETED",
             "AGENT_EXITED",
@@ -2770,6 +2773,8 @@ def test_protected_run_lifecycle_cleans_up_after_exception_without_losing_failur
 def test_interactive_launcher_keeps_protected_adapter_configuration(
     tmp_path, monkeypatch, launch_mode, expected_app_server
 ) -> None:
+    # An empty Codex home: only ChatGPT apps are on, and protected runs turn them off.
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
     record.interactive = True
@@ -2783,7 +2788,10 @@ def test_interactive_launcher_keeps_protected_adapter_configuration(
             "approval_policy": "on-request",
             "sandbox": "workspace-write",
             "interactive": True,
-            **({"app_server": True} if expected_app_server else {}),
+            **(
+                {"app_server": True, "disable_external_tools": ["features.apps=false"]}
+                if expected_app_server else {}
+            ),
         }
         assert captured["adapter"].enable_hooks is True
     finally:

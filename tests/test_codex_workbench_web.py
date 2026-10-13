@@ -184,6 +184,25 @@ def test_connectors_are_served_for_an_open_conversation(conversation) -> None:
     assert client.get("/api/runs/missing/codex/connectors").status_code == 404
 
 
+def test_connectors_mark_tools_the_run_turned_off_and_keep_vanished_ones_visible(conversation) -> None:
+    client, _ = conversation
+    client.app.state.service.registry.get("run-1").runtime["external_tools_off"] = ["tracker", "cua_repl"]
+    connectors = client.get("/api/runs/run-1/codex/connectors").json()["connectors"]
+    assert [(item["name"], item["turned_off_by_aia"]) for item in connectors] == [
+        ("github", False), ("tracker", True), ("cua_repl", True),
+    ]
+    assert connectors[2]["tool_count"] == 0
+
+
+def test_external_tools_settings_are_read_and_saved_through_the_api(conversation, tmp_path, monkeypatch) -> None:
+    client, _ = conversation
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    assert client.get("/api/external-tools").json()["tools"][0]["on_in_protected_runs"] is False
+    saved = client.post("/api/external-tools", json={"allowed": ["codex_apps"]})
+    assert saved.status_code == 200 and saved.json()["tools"][0]["on_in_protected_runs"] is True
+    assert client.post("/api/external-tools", json={"allowed": "codex_apps"}).status_code == 400
+
+
 def test_socket_reports_rejected_commands_without_closing(conversation) -> None:
     client, _ = conversation
     with client.websocket_connect("ws://127.0.0.1/api/runs/run-1/codex") as websocket:

@@ -243,7 +243,7 @@ def main() -> None:
             sandbox = os.environ.get("FAKE_APP_SERVER_SANDBOX", "workspaceWrite")
             send({"id": request_id, "result": {
                 "thread": {"id": "thr-1"}, "model": params.get("model") or "fake-model",
-                "modelProvider": "fake", "cwd": params.get("cwd"), "approvalsReviewer": "user",
+                "modelProvider": "fake", "cwd": params.get("cwd"), "approvalsReviewer": params.get("approvalsReviewer", "user"),
                 "approvalPolicy": params.get("approvalPolicy"), "sandbox": {"type": sandbox}}})
             notify("thread/started", thread={"id": "thr-1"})
         elif method == "thread/resume":
@@ -257,6 +257,12 @@ def main() -> None:
                     {"type": "agentMessage", "id": "oa-1", "text": "earlier answer"}]}]},
                 "model": params.get("model") or "fake-model", "modelProvider": "fake", "cwd": params.get("cwd"),
                 "approvalsReviewer": "user", "approvalPolicy": params.get("approvalPolicy"), "sandbox": {"type": sandbox}}})
+        elif method == "permissionProfile/list":
+            send({"id": request_id, "result": {"data": [
+                {"id": ":read-only", "description": None, "allowed": True},
+                {"id": ":workspace", "description": None, "allowed": True},
+                {"id": ":danger-full-access", "description": None, "allowed": False},
+            ], "nextCursor": None}})
         elif method == "mcpServerStatus/list":
             send({"id": request_id, "result": {"data": [
                 {"name": "github", "authStatus": "oAuth", "runtimeStatus": "connected",

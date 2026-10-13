@@ -262,6 +262,27 @@ def _register_catalog_routes(app: FastAPI) -> None:
     def run_history_api() -> JSONResponse:
         return JSONResponse({"runs": app.state.service.list_runs()})
 
+    @app.get("/api/storage")
+    def storage_summary() -> JSONResponse:
+        return JSONResponse(app.state.service.storage_summary())
+
+    @app.post("/api/storage/prune")
+    def storage_prune() -> JSONResponse:
+        return JSONResponse(app.state.service.prune_old_snapshots())
+
+    @app.get("/api/external-tools")
+    def external_tools() -> JSONResponse:
+        return JSONResponse(app.state.service.external_tools())
+
+    @app.post("/api/external-tools")
+    async def set_external_tools(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            allowed = payload.get("allowed") if isinstance(payload, dict) else None
+            return JSONResponse(app.state.service.set_external_tools(allowed))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
     @app.get("/api/profiles")
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())
@@ -622,6 +643,7 @@ def _register_codex_routes(app: FastAPI) -> None:
                     message.get("model"),
                     message.get("effort"),
                 ),
+                "permission_mode": lambda message: service.set_codex_permission_mode(session_id, message.get("mode")),
                 "permissions_decision": lambda message: service.respond_codex_permissions(
                     session_id,
                     str(message.get("permissions_id", "")),
@@ -735,6 +757,8 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Opening the app must not silently destroy older recovery sources.
+        # Cleanup is an explicit, confirmed action in Settings.
         yield
         active_service.shutdown(wait=False)
 

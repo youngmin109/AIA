@@ -9,12 +9,15 @@ import { ElicitationCard } from './ElicitationCard'
 import { PermissionsCard } from './PermissionsCard'
 import { UsageChip } from './UsageChip'
 import { ModelChip } from './ModelChip'
+import { PermissionChip } from './PermissionChip'
+import { usePermissionProfiles } from '../../hooks/usePermissionProfiles'
 import { PlanBar } from './PlanBar'
 import { DiffCard } from './DiffCard'
 import { CommandPalette } from './CommandPalette'
 import { ConnectorsCard } from './ConnectorsCard'
 import { AiaNoteCard } from './AiaNoteCard'
 import { matchSlashCommands, parseSlashCommand, type SlashCommand } from './slashCommands'
+import { commandPreview, groupCommands, hookMark } from './commandRows'
 import { policyNote, reportNote, restoreNote, whyNote, type AiaNote } from '../../api/securityNotes'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
@@ -74,6 +77,35 @@ function approvalTitle(request: ApprovalRequest): string {
   return request.kind === 'file_change' ? '파일 변경 승인 요청' : '명령 실행 승인 요청'
 }
 
+/** A command as one quiet row; opening it shows the Hook lines, the full command and its output. */
+function CommandRow({ command, hooks }: { command: Extract<TranscriptItem, { kind: 'command' }>; hooks: Array<Extract<TranscriptItem, { kind: 'hook' }>> }) {
+  const state = commandStatus(command)
+  const mark = hookMark(hooks)
+  const lines = command.output ? command.output.split('\n').length : 0
+  return (
+    <details className="chat-card is-command">
+      <summary className="chat-card-head">
+        <span className="glossy-icon is-sm is-hook chat-dollar" aria-hidden="true">$</span>
+        <code className="chat-command-line" title={command.command}>{commandPreview(command.command)}</code>
+        {mark && <span className={`chat-hook-mark is-${mark.tone}`}>{mark.text}</span>}
+        <Badge tone={state.tone}>{state.label}</Badge>
+        <span className="chat-command-toggle" aria-hidden="true"><Icon name="arrowRight" size={14} /></span>
+      </summary>
+      <div className="chat-command-detail">
+        {hooks.map(hook => {
+          const line = hookLine(hook)
+          return <div key={hook.key} className={`chat-hook is-${line.tone}`}>{line.text}</div>
+        })}
+        <pre className="chat-command">{command.command}</pre>
+        {command.cwd && <span className="faint-note">실행 위치 <span className="mono">{command.cwd}</span></span>}
+        {command.output && (lines > 6
+          ? <details className="chat-output"><summary>출력 {lines}줄 보기</summary><pre>{command.output}</pre></details>
+          : <pre className="chat-output">{command.output}</pre>)}
+      </div>
+    </details>
+  )
+}
+
 function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string }) {
   switch (item.kind) {
     case 'diff':
@@ -95,22 +127,6 @@ function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string })
       return item.done && !item.text ? null : (
         <div className="chat-reasoning">{item.done ? item.text : `Codex 진행 요약… ${item.text}`}</div>
       )
-    case 'command': {
-      const state = commandStatus(item)
-      const lines = item.output ? item.output.split('\n').length : 0
-      return (
-        <div className="chat-card is-command">
-          <div className="chat-card-head">
-            <span className="glossy-icon is-sm is-hook chat-dollar" aria-hidden="true">$</span>
-            <code className="chat-command">{item.command}</code>
-            <Badge tone={state.tone}>{state.label}</Badge>
-          </div>
-          {item.output && (lines > 6
-            ? <details className="chat-output"><summary>출력 {lines}줄 보기</summary><pre>{item.output}</pre></details>
-            : <pre className="chat-output">{item.output}</pre>)}
-        </div>
-      )
-    }
     case 'file_change':
       return (
         <div className="chat-card is-file">
@@ -352,6 +368,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const [connectorsOpen, setConnectorsOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
+  const [permissionOpen, setPermissionOpen] = useState(false)
   const { data: runStatus } = useRunStatus(runId)
   const { data: actions } = useRunActions(runId, !runEnded)
   const { profiles } = useProfiles()
@@ -487,6 +504,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const firstElicitation = session.pendingElicitations[0]
   const firstPermissions = session.pendingPermissions[0]
   const models = useCodexModels(!session.ended)
+  const permissionProfiles = usePermissionProfiles(!session.ended)
   const palette = session.ended ? [] : matchSlashCommands(draft)
   const diffItems = session.conversation.items.filter((item): item is Extract<TranscriptItem, { kind: 'diff' }> => item.kind === 'diff')
   const diffFiles = [...new Set(diffItems.flatMap(item => item.files))]
@@ -516,6 +534,14 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
         </div>
         <div className="chat-head-row is-chips">
         {context}
+        <PermissionChip
+          mode={session.permissionMode}
+          profiles={permissionProfiles}
+          disabled={!session.connected || session.ended}
+          onChoose={session.setPermissionMode}
+          open={permissionOpen}
+          onOpenChange={setPermissionOpen}
+        />
         <ModelChip
           models={models}
           model={session.turnSettings.model}
@@ -558,9 +584,9 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
             </div>
           ))
         )}
-        {session.conversation.items.map((item) => (
-          <TranscriptRow key={item.key} item={item} runId={runId} />
-        ))}
+        {groupCommands(session.conversation.items).map((entry) => (entry.kind === 'command'
+          ? <CommandRow key={entry.key} command={entry.command} hooks={entry.hooks} />
+          : <TranscriptRow key={entry.item.key} item={entry.item} runId={runId} />))}
       </div>
 
       {(session.errorMessage || error) && (

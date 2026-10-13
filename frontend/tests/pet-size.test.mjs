@@ -4,14 +4,15 @@ import { normalizePetSize, readPetSize, applyPetSize, petPixelSize } from '../sr
 import { petPixels, petPosition } from '../src/api/petPreference.ts'
 
 test('pet size migrates old choices and bounds the percentage slider', () => {
-  assert.equal(normalizePetSize(null), 100)
-  assert.equal(normalizePetSize('anything'), 100)
+  // No or unknown choice: the smallest pet.
+  assert.equal(normalizePetSize(null), 70)
+  assert.equal(normalizePetSize('anything'), 70)
   assert.equal(normalizePetSize('small'), 80)
   assert.equal(normalizePetSize('medium'), 100)
   assert.equal(normalizePetSize('large'), 130)
-  assert.equal(normalizePetSize('toString'), 100)
+  assert.equal(normalizePetSize('toString'), 70)
   assert.equal(normalizePetSize('125'), 125)
-  assert.equal(normalizePetSize(NaN), 100)
+  assert.equal(normalizePetSize(NaN), 70)
   assert.equal(normalizePetSize(65), 70)
   assert.equal(normalizePetSize(150), 140)
   assert.equal(normalizePetSize(123), 125)
@@ -38,6 +39,6 @@ test('pet size persists without requiring native desktop permission', () => {
     assert.equal(values.get('--browser-pet-size'), '135px')
     assert.deepEqual(events, ['aia:pet-size-changed'])
     globalThis.localStorage = { getItem() { throw new Error('unavailable') } }
-    assert.equal(readPetSize(), 100)
+    assert.equal(readPetSize(), 70)
   } finally { globalThis.localStorage = old.storage; globalThis.document = old.document; globalThis.window = old.window }
 })

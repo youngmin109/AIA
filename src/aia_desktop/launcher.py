@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import shutil
 import socket
+import subprocess
 import sys
 import time
 from threading import Thread
@@ -428,6 +429,17 @@ def _wait_for_server(url: str, server: Any, timeout: float = 30.0) -> None:
     raise RuntimeError(f"AIA 로컬 콘솔을 시작하지 못했습니다: {detail}")
 
 
+# The Codex /hooks trust step: print what to do, then type "codex" into the
+# prompt without running it. Fixed text; nothing from the page reaches the shell.
+_CODEX_TRUST_TERMINAL = (
+    "$Host.UI.RawUI.WindowTitle = 'AIA · Codex Hook 신뢰'; "
+    "Write-Host 'Enter를 누르면 Codex가 열려요. Codex에서 /hooks 를 입력하고 AIA Hook을 확인한 뒤 Trust를 고르세요.' "
+    "-ForegroundColor Cyan; "
+    "Register-EngineEvent -SourceIdentifier PowerShell.OnIdle -MaxTriggerCount 1 "
+    "-Action { [Microsoft.PowerShell.PSConsoleReadLine]::Insert('codex') } | Out-Null"
+)
+
+
 class DesktopBridge:
     """Small native bridge exposed to the setup page inside WebView2."""
 
@@ -442,9 +454,11 @@ class DesktopBridge:
         self._guardian: Any | None = None
         self._guardian_url: str | None = None
         self._guardian_shutting_down = False
-        self._guardian_size = 100
+        # Smallest by default (matches PET_SIZE_DEFAULT on the page); the settings slider enlarges it.
+        self._guardian_size = 70
         self._guardian_visible = False
         self._guardian_folded = False
+        self._guardian_placed = False
 
     def attach(self, window: Any, on_heartbeat: Callable[[], None] | None = None) -> None:
         self._window = window
@@ -505,6 +519,10 @@ class DesktopBridge:
         user32 = ctypes.windll.user32
         user32.ShowWindow(handle, 0)  # SW_HIDE
         try:
+            if not self._guardian_placed:
+                # pywebview centres a new window; the pet starts in the bottom-left corner instead.
+                self._guardian_placed = True
+                guardian_window.place_window(handle, guardian_window.corner_rect(*guardian_window.window_screen(handle)))
             guardian_window.hide_from_switcher(handle)
         except Exception as exc:
             desktop_log('guardian-window-style-failed', error=str(exc))
@@ -595,6 +613,42 @@ class DesktopBridge:
         self._bring_main_forward()
         self._window.evaluate_js('window.dispatchEvent(new CustomEvent("aia:guardian-help", {detail: '
                                  + json.dumps({'topic': topic}) + '}))')
+        return True
+
+    def open_codex_terminal(self) -> bool:
+        """Open PowerShell with ``codex`` typed in (not run) for the /hooks trust step.
+
+        Trusting the Hook stays the user's own decision inside Codex.
+        """
+
+        if not _is_windows():
+            return False
+        # Like a terminal the user opens: no Codex variables from this app.
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("CODEX_") or key == "CODEX_HOME"}
+        try:
+            subprocess.Popen(
+                ["powershell.exe", "-NoExit", "-NoLogo", "-Command", _CODEX_TRUST_TERMINAL],
+                cwd=str(Path.home()),
+                env=environment,
+                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+            )
+        except OSError:
+            return False
+        return True
+
+    def open_records_folder(self) -> bool:
+        """Show the local record folder (the control root) in File Explorer."""
+
+        if not _is_windows():
+            return False
+        from aia_web.app import default_control_root
+
+        root = default_control_root()
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            os.startfile(str(root))  # type: ignore[attr-defined]  # Windows only
+        except OSError:
+            return False
         return True
 
     def set_title_bar(self, tint: str) -> bool:

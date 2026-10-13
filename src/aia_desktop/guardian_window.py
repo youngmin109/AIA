@@ -48,6 +48,15 @@ def resized_rect(window: Rect, work_area: Rect, scale: float, size: tuple[int, i
     return max(wl, min(x, wr - width)), max(wt, min(y, wb - height)), width, height
 
 
+def corner_rect(window: Rect, work_area: Rect, scale: float, margin: int = 12) -> Rect:
+    """The pet's first place: the bottom-left corner of the monitor's work area, same size."""
+    left, top, right, bottom = window
+    width, height = right - left, bottom - top
+    gap = round(margin * scale)
+    work_left, _work_top, _work_right, work_bottom = work_area
+    return work_left + gap, work_bottom - height - gap, width, height
+
+
 def fold_rect(window: Rect, work_area: Rect, scale: float, size: tuple[int, int], *, folded: bool) -> Rect:
     """New ``(x, y, width, height)`` of the pet window.
 

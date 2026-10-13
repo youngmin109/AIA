@@ -229,3 +229,19 @@ Approval Policy를 요청하고, 바깥 Codex의 일시적인 세션·권한 환
 Sandbox와 Approval Policy는 Result Bundle에 제한된 메타데이터로 남긴다. 실행 환경이
 `read-only`로 강등되거나 보호 설정이 제품 요청과 다르게 적용되면 실행은 성공으로 포장하지 않고
 `COMPLETED_DEGRADED`와 제한사항을 남긴다.
+
+Workbench 대화 실행에서는 사용자가 Codex 앱과 같은 세 가지 권한 중 하나를 고른다. 메뉴는 Codex의
+`permissionProfile/list`로 불러와 Codex 설정이 막은 항목은 고를 수 없다.
+
+- **승인 요청(기본값):** 위의 `workspace-write` + `on-request` 계약, 승인은 사용자가 한다(`approvalsReviewer=user`).
+- **나 대신 승인:** 같은 Sandbox·Approval Policy에 `approvalsReviewer=auto_review`. Codex의 자동 검토가
+  승인 요청을 대신 판단하고, 위험한 것만 사용자에게 묻는다. Result Bundle에 `CODEX_AUTO_REVIEW_USER_SELECTED`.
+- **전체 권한(명시적 선택):** `danger-full-access` + `never`를 함께 요청한다(둘 중 하나만은 허용하지 않는다).
+  작업 폴더 밖 쓰기와 인터넷 사용을 Codex Sandbox가 막지 않고, 작업 폴더 밖 변경은 복구 범위 밖이다.
+  Result Bundle에 `CODEX_FULL_ACCESS_USER_SELECTED`.
+
+설치·신뢰된 AIA Hook은 지원되는 요청만 검사한다. Hook 밖 도구까지 검사한다고 주장하지 않는다.
+전체 권한·자동 검토 사용은 보호 범위 예외로 표시하며 `DEGRADED`를 유지한다. 요청하지 않은 전체 권한이나
+자동 검토가 적용되면 보호 실패로 처리한다. 대화 중 선택은 PENDING으로 예약하고, 실제 turn/start 직전에
+SUBMITTING과 확대 예외를 먼저 저장한다. Codex 접수 응답은 ACKNOWLEDGED, 전송 오류는 UNCONFIRMED이며
+접수가 실제 적용 검증을 뜻하지 않는다. 이후의 실행 정책은 NOT_OBSERVED로 표시한다.

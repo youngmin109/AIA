@@ -15,10 +15,26 @@ EPIC-018 평가에서 확인한 제품의 범위와 한계다. 아래 항목을 
 - MCP 도구는 현재 MVP 지원 범위가 아니다. Hook으로 도착한 MCP 요청은
   `UNSUPPORTED_TOOL_PATH`로 거부하며, MCP 서버 등록·호출이나 구조화된 MCP READ
   보호를 제품 기능으로 주장하지 않는다.
-- Codex 설정에서 켠 MCP 서버의 도구 호출은 보호 범위 밖이다. Codex 앱이 추가하는
+- Codex에서 켠 외부 도구(MCP 서버)의 도구 호출은 보호 범위 밖이다. Codex 앱이 추가하는
   `node_repl` 같은 일부 MCP 도구는 PreToolUse Hook을 거치지 않아 AIA가 차단하거나
-  기록하지 못한다. 사전 점검은 `config.toml`의 `[mcp_servers]`를 읽기만 해서 켜진
-  서버를 경고하며, Codex 설정을 바꾸지 않는다.
+  기록하지 못한다. 그래서 Workbench 보호 실행은 외부 도구를 기본으로 끈 채 시작한다.
+  `config.toml`의 `[mcp_servers]`, 캐시된 플러그인의 MCP 서버, ChatGPT 앱 연결(`codex_apps`)을
+  읽기만 해서 찾고, 그 실행의 `codex app-server`에만 끄는 `-c` 값을 넘긴다(Codex 설정 파일은
+  바꾸지 않는다). 사용자가 설정 › 외부 도구에서 켠 도구만 켜지고, 켠 도구는 여전히 보호 범위
+  밖이다. 플러그인 도구는 플러그인 단위로만 끌 수 있고, `-c` 경로로 쓸 수 없는 이름(점이 든
+  이름 등)은 끌 수 없어 켜진 것으로 경고한다. 처음 보는 도구도 꺼진 상태로 시작한다.
+- 전체 권한(사용자의 명시적 선택)에서는 Codex Sandbox가 작업 폴더 밖 쓰기와 인터넷 사용을 막지 않는다. 기본값은 승인 요청이다.
+  AIA는 지원되는 Hook 요청만 검사하며 OS 수준에서 모든 경로를 막지 않는다. 작업 폴더 밖 변경은 기준점·복구
+  범위 밖이다. 결과에는 `CODEX_FULL_ACCESS_USER_SELECTED`로 남는다.
+- "나 대신 승인"에서는 Codex 자동 검토가 승인 요청(Sandbox 밖 쓰기·네트워크 등)을 대신 판단한다. 그렇게
+  승인된 권한 확대는 사용자 허용과 달리 AIA 권한 기록(`permission_grants`)에 남지 않을 수 있다. 결과에는
+  `CODEX_AUTO_REVIEW_USER_SELECTED`로 남고, 자동 검토 결과 알림은 Codex가 아직 불안정한 형식이라고 밝힌
+  상태라 결과(승인·거절·위험도)만 대화에 보여 준다.
+- Codex Windows 샌드박스는 명령을 실행할 때마다 Codex 앱 런타임(`node_repl.exe` 등)의 권한을
+  점검한다. Codex 앱이나 백그라운드 app-server(daemon)가 `node_repl`을 실행 중이면 이 점검이
+  파일 잠금으로 실패해 모든 셸 명령이 `setup refresh had errors`로 실패할 수 있다. AIA 보호
+  실행은 `node_repl`을 끄지만 다른 Codex 프로세스의 잠금은 풀 수 없으므로, 이때는 Codex 앱을
+  종료하고 `codex app-server daemon stop`으로 백그라운드 서버를 멈춰야 한다.
 - Windows Job Object와 프로세스 수명주기는 테스트 실행 환경에 영향을 줄 수 있다.
 - Symlink/Junction/Reparse Point 범위는 거부 계약과 환경 독립 테스트로 검증했으며, 권한 없는 Windows 환경의 실제 Symlink 통합 테스트는 실행되지 않을 수 있다.
 - OS 수준의 파일 Writer 귀속은 제공하지 않는다.

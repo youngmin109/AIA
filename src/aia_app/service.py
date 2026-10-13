@@ -97,6 +97,8 @@ from .protected_run import (
 )
 from .run_control import RunControlMixin
 from .recovery_points import RecoveryPointsMixin
+from .storage import StorageMixin, snapshots_pruned
+from .external_tools import ExternalToolsMixin
 
 
 # The dashboard refreshes active runs every five seconds. Keep the verified
@@ -183,7 +185,8 @@ _POINT_SEND_WAIT_SECONDS = 30.0
 
 
 class RunApplicationService(
-    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin
+    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin, StorageMixin,
+    ExternalToolsMixin,
 ):
     """Connect UI requests to existing AIA Core APIs.
 
@@ -493,6 +496,9 @@ class RunApplicationService(
     def set_codex_turn_settings(self, session_id: str, model: Any, effort: Any) -> dict[str, Any]:
         return self._codex_workbench.set_codex_turn_settings(session_id, model, effort)
 
+    def set_codex_permission_mode(self, session_id: str, mode: Any) -> dict[str, Any]:
+        return self._codex_workbench.set_codex_permission_mode(session_id, mode)
+
     def run_codex_command(self, session_id: str, command: str, argument: Any = None) -> dict[str, Any]:
         return self._after_point_capture(
             session_id, lambda: self._codex_workbench.run_codex_command(session_id, command, argument)
@@ -585,6 +591,11 @@ class RunApplicationService(
                 session.start()
                 try:
                     payload: dict[str, Any] = {"models": session.list_models()}
+                    try:
+                        # The Codex app's permission menu comes from these profiles.
+                        payload["permission_profiles"] = session.list_permission_profiles()
+                    except CodexAppServerError:
+                        payload["permission_profiles"] = []
                 finally:
                     session.close(force=True)
             except Exception as error:  # noqa: BLE001 - the picker is optional
@@ -621,10 +632,12 @@ class RunApplicationService(
         codex_session = record.runtime.get("codex_session")
         if codex_session is None:
             return
+        full_access = record.permission_mode == "full_access"
         try:
             effective = codex_session.open(
-                sandbox="workspace-write",
-                approval_policy="on-request",
+                sandbox="danger-full-access" if full_access else "workspace-write",
+                approval_policy="never" if full_access else "on-request",
+                approvals_reviewer="auto_review" if record.permission_mode == "auto_review" else "user",
                 model=record.model,
                 **({"resume_thread_id": record.resume_thread_id} if record.resume_thread_id else {}),
             )
@@ -659,7 +672,22 @@ class RunApplicationService(
             effective_approval_policy=approval_policy or None,
             effective_sandbox=_APP_SERVER_SANDBOX_NAMES.get(sandbox, sandbox) or None,
         )
-        if sandbox == "dangerFullAccess" or approval_policy == "never":
+        if record.permission_mode == "auto_review" and effective.get("approvals_reviewer") == "auto_review":
+            # Codex's auto-review, not the user, answers approval requests; the Bundle states it.
+            record.auto_review_used = True
+            record.protection_state = "DEGRADED"
+            self._persist_runtime_state(record)
+        if full_access and sandbox in {"dangerFullAccess", "workspaceWrite", "readOnly"} and approval_policy in {"never", "on-request", "on-failure", "untrusted"}:
+            # The user chose full access; the Bundle states it.  The Hook,
+            # sensors and recovery stay in force.  A stricter mode Codex applied is fine.
+            record.full_access_used = sandbox == "dangerFullAccess" or approval_policy == "never"
+            if record.full_access_used:
+                record.protection_state = "DEGRADED"
+            if sandbox == "readOnly":
+                record.runtime["codex_sandbox_downgraded"] = True
+            self._persist_runtime_state(record)
+            return
+        if full_access or sandbox == "dangerFullAccess" or approval_policy == "never" or (record.permission_mode == "workspace" and effective.get("approvals_reviewer") == "auto_review"):
             # Codex applied a less protected mode than AIA requested (for
             # example from a managed config).  No task has been sent yet; end
             # the run through the same verified termination as a lost Hook
@@ -951,7 +979,8 @@ class RunApplicationService(
                            (point.checkpoint_id == checkpoint_id if checkpoint_id is not None
                             else not point.checkpoint_id.startswith('point-'))), None)
         if checkpoint is None:
-            return {"available": False, "reason": "CHECKPOINT_UNAVAILABLE"}
+            pruned = snapshots_pruned(self.reader.session_directory(session_id) / "checkpoints")
+            return {"available": False, "reason": "SNAPSHOT_PRUNED" if pruned else "CHECKPOINT_UNAVAILABLE"}
         from aia.checkpoint import compare_workspace_to_checkpoint
 
         comparison = compare_workspace_to_checkpoint(checkpoint, workspace)
@@ -1545,13 +1574,16 @@ class RunApplicationService(
         if record.phase == "RUNNING" and not _product_sensor_set_present(runtime_sensors):
             sensors_healthy = False
         hook_broker_healthy = _hook_broker_runtime_healthy(record)
-        if controller.errors or hook_broker_healthy is False or record.permission_grants:
-            record.protection_state = "DEGRADED"
-        elif events and sensors_healthy and hook_broker_healthy is not False:
-            record.protection_state = "ACTIVE_VERIFIED"
-        elif events:
-            record.protection_state = "ACTIVE_DEGRADED"
-        self._persist_runtime_state(record)
+        with self._codex_workbench._permission_lock(record):
+            if record.status in {"COMPLETED", "FAILED", "ABORTED"}:
+                return
+            if controller.errors or hook_broker_healthy is False or record.permission_grants or record.full_access_used or record.auto_review_used:
+                record.protection_state = "DEGRADED"
+            elif events and sensors_healthy and hook_broker_healthy is not False:
+                record.protection_state = "ACTIVE_VERIFIED"
+            elif events:
+                record.protection_state = "ACTIVE_DEGRADED"
+            self._persist_runtime_state(record)
 
     def _phase(self, record: RunRecord, phase: str, status: SessionStatus) -> None:
         record.phase = phase
@@ -1676,6 +1708,10 @@ class RunApplicationService(
             "phase": record.phase,
             "startup": record.startup,
             "permission_grants": record.permission_grants,
+            "permission_mode": record.permission_mode,
+            "permission_changes": record.permission_changes,
+            "full_access_used": record.full_access_used,
+            "auto_review_used": record.auto_review_used,
             "codex_thread_id": record.codex_thread_id,
             "resumed_from": record.resumed_from,
             "protection": {

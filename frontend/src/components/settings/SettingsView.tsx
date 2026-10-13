@@ -2,15 +2,17 @@ import { useEffect, useState } from 'react'
 import { Button } from '../common/Button'
 import { StatusPill } from '../common/Badge'
 import { Icon } from '../common/Icon'
-import { GlossyIcon, StatusDot } from '../common/Glass'
+import { StatusDot } from '../common/Glass'
 import { TintPicker } from '../common/TintPicker'
 import { HookStatusControl } from './HookStatusControl'
+import { ExternalToolsCard } from './ExternalToolsCard'
 import { GuardianGuide } from '../shell/GuardianGuide'
 import { useGuardianState } from '../../hooks/useGuardianState'
 import { usePreflight } from '../../hooks/usePreflight'
 import { useRunList } from '../../hooks/useRunList'
 import { useShellStore } from '../../state/shellStore'
-import { consoleInfo, type ConsoleInfo } from '../../api/endpoints'
+import { consoleInfo, pruneStorage, storageSummary, type ConsoleInfo } from '../../api/endpoints'
+import { formatBytes, pruneResultNotice, type StorageSummary } from '../../api/storageView'
 import { apiPost } from '../../api/client'
 import { applyMotionPreference, readMotionPreference, type MotionPreference } from '../../api/motionPreference'
 import { applyGlassPreference, readGlassPreference, type GlassPreference } from '../../api/glassPreference'
@@ -37,14 +39,24 @@ export function SettingsView() {
   const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState('')
   const lights = connectionLights(error ? null : preflight)
-  const mcp = preflight?.checks?.find(check => check.name === 'mcp_tools')
-  const mcpWarning = mcp && !mcp.ok
   const codex = preflight?.checks?.find(check => check.name === 'codex_executable')
   const controlRoot = preflight?.checks?.find(check => check.name === 'control_root')
   const ready = preflight?.readiness_code === 'READY'
   const serverLost = isConnectionLost(connectionFailures)
 
   useEffect(() => { consoleInfo().then(setInfo).catch(() => setInfo(null)) }, [])
+  const [storage, setStorage] = useState<StorageSummary | null>(null)
+  const [pruning, setPruning] = useState(false)
+  useEffect(() => { storageSummary().then(setStorage).catch(() => setStorage(null)) }, [])
+  async function prune() {
+    if (!window.confirm('최근 10개를 제외한 완료 실행의 복구용 사본을 삭제합니다. 삭제한 실행은 되돌릴 수 없으며 감사 기록만 남습니다. 정리할까요?')) return
+    setPruning(true); setNotice('')
+    try {
+      setNotice(pruneResultNotice(await pruneStorage()))
+      setStorage(await storageSummary())
+    } catch (failure) { setNotice(failure instanceof Error ? failure.message : '저장 공간을 정리하지 못했어요.') }
+    finally { setPruning(false) }
+  }
   useEffect(() => {
     // Avoid a burst of concurrent native window resizes while dragging the slider.
     const timer = setTimeout(() => {
@@ -64,6 +76,12 @@ export function SettingsView() {
     const next: GlassPreference = glass === 'on' ? 'off' : 'on'
     applyGlassPreference(next)
     setGlass(next)
+  }
+
+  // Desktop only: opens the control root in File Explorer (the path comes from the shell, not the page).
+  const canOpenRecords = typeof window.pywebview?.api?.open_records_folder === 'function'
+  function openRecords() {
+    window.pywebview?.api?.open_records_folder?.().then(ok => { if (!ok) setNotice('기록 폴더를 열지 못했어요.') }).catch(() => setNotice('기록 폴더를 열지 못했어요.'))
   }
 
   function togglePet() {
@@ -117,22 +135,11 @@ export function SettingsView() {
             </div>
           ))}
         </div>
-        {mcpWarning && (
-          <div className="glass-notice is-warning" role="note">
-            <GlossyIcon tone="amber" icon="alert" size="sm" />
-            <div className="settings-mcp">
-              <strong>Hook 밖 MCP 도구가 켜져 있어요</strong>
-              <p>이 도구는 실행 전 검사를 거치지 않아요. 보호는 계속되지만 범위가 줄어요.</p>
-            </div>
-            <details className="settings-mcp-more">
-              <summary>자세히</summary>
-              <p>{mcp?.detail ?? '켜진 MCP 서버를 확인하세요.'} AIA는 Codex 설정을 바꾸지 않아요. Codex 설정에서 끄면 경고가 사라져요.</p>
-            </details>
-          </div>
-        )}
         {!ready && preflight && <HookStatusControl />}
         {serverLost && <div className="glass-notice is-danger"><strong>AIA 로컬 서버와 연결이 끊겼어요</strong><p>자동으로 다시 연결을 시도해요.</p></div>}
       </section>
+
+      <ExternalToolsCard />
 
       <section className="settings-grid" aria-label="화면과 정보">
         <div className="glass-card settings-card">
@@ -171,7 +178,15 @@ export function SettingsView() {
             <li><span>지원 환경</span><b>{info?.supported_environment ?? 'Windows · Codex'}</b></li>
             <li><span>Codex</span><b>{codex ? (codex.ok ? '설치 확인됨' : '확인 필요') : '확인 중'}</b></li>
             <li><span>데이터 위치</span><b className="mono" title={controlRoot?.detail}>{controlRoot?.detail ?? '이 PC의 로컬 기록 폴더'}</b></li>
+            {canOpenRecords && <li className="settings-facts-action"><Button variant="text" onClick={openRecords}><Icon name="folder" size={14} />기록 폴더 열기</Button></li>}
+            <li><span>저장 공간</span><b>{storage ? `${formatBytes(storage.total_bytes)} · 기준점 사본 ${formatBytes(storage.snapshot_bytes)}` : '확인 중'}</b></li>
           </ul>
+          {storage && (
+            <p className="faint-note settings-storage-note">
+              정리하면 최근 {storage.keep_recent_runs}개 완료 실행의 사본만 남아요. 삭제한 실행은 복구할 수 없고 감사 기록만 남습니다. 앱을 켤 때 자동 삭제하지 않아요.
+              {storage.prunable_runs > 0 && <Button variant="text" disabled={pruning} onClick={prune}>{pruning ? '정리하는 중…' : `지금 정리 (${storage.prunable_runs}개 실행 · ${formatBytes(storage.prunable_bytes)})`}</Button>}
+            </p>
+          )}
           <div className="settings-actions">
             <Button variant="secondary" className="is-compact" disabled={exporting} onClick={exportDiagnostics}>{exporting ? '준비 중…' : '진단 정보 저장'}</Button>
             <Button variant="text" onClick={() => setGuideOpen(true)}>도움말</Button>

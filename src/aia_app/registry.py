@@ -45,6 +45,16 @@ class RunRecord:
     # Sandbox widenings the user granted to Codex during the run.  Replaced
     # as a whole, like ``startup``.
     permission_grants: list[dict[str, Any]] = field(default_factory=list)
+    # AI permission of a Workbench run, the Codex app's three choices:
+    # "workspace" (승인 요청: sandbox, the user approves), "auto_review"
+    # (나 대신 승인: sandbox, Codex's auto-review approves) or "full_access"
+    # (전체 권한: no sandbox, no approval prompts).  The AIA Hook checks every
+    # command in all three.  It may change between requests; the ``*_used``
+    # flags stay set once a mode was used.
+    permission_mode: str = "workspace"
+    permission_changes: list[dict[str, Any]] = field(default_factory=list)
+    full_access_used: bool = False
+    auto_review_used: bool = False
     # Codex conversation id of a Workbench run, so a later run can resume only
     # conversations AIA itself opened.  The conversation text is never stored.
     codex_thread_id: str | None = None
@@ -127,6 +137,10 @@ class RunRegistry:
             sensor_health=dict(record.sensor_health),
             startup=record.startup,
             permission_grants=record.permission_grants,
+            permission_mode=record.permission_mode,
+            permission_changes=record.permission_changes,
+            full_access_used=record.full_access_used,
+            auto_review_used=record.auto_review_used,
             codex_thread_id=record.codex_thread_id,
             resume_thread_id=record.resume_thread_id,
             resumed_from=record.resumed_from,

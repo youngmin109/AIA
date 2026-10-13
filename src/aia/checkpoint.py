@@ -410,11 +410,65 @@ def _copy_file(source: Path, target: Path) -> tuple[int, str]:
     return size, digest.hexdigest()
 
 
+# A file an earlier checkpoint of the same run already holds: (size, sha256, its snapshot root).
+ReusableFile = tuple[int, str, Path]
+
+
+def _reusable_checkpoint_files(checkpoints_root: Path) -> dict[str, ReusableFile]:
+    """Files the run's earlier checkpoints already hold, newest first, by path.
+
+    A new checkpoint hard-links an unchanged file to one of these instead of
+    copying it again.  Every checkpoint stays a complete tree whose bytes are
+    validated against its own manifest, so restore and validation are the same.
+    """
+
+    reusable: dict[str, ReusableFile] = {}
+    try:
+        earlier = sorted(
+            (path for path in checkpoints_root.iterdir() if path.is_dir() and not path.name.startswith(".")),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return reusable
+    for checkpoint in earlier:
+        snapshot = checkpoint / "workspace"
+        try:
+            entries = _parse_manifest(_read_json(checkpoint / "manifest.json"))
+        except CheckpointError:
+            continue
+        if not snapshot.is_dir():
+            continue
+        for entry in entries:
+            if (
+                entry.entry_type is ManifestEntryType.FILE
+                and entry.size is not None
+                and entry.sha256 is not None
+                and entry.relative_path not in reusable
+            ):
+                reusable[entry.relative_path] = (entry.size, entry.sha256, snapshot)
+    return reusable
+
+
+def _link_unchanged(reuse: Mapping[str, ReusableFile], entry: ManifestEntry, target: Path) -> bool:
+    """Hard-link an identical file from an earlier checkpoint; False means copy it."""
+
+    known = reuse.get(entry.relative_path)
+    if known is None or known[0] != entry.size or known[1] != entry.sha256:
+        return False
+    try:
+        os.link(_safe_join(known[2], entry.relative_path), target)
+    except (OSError, CheckpointError):
+        return False
+    return True
+
+
 def _copy_workspace_snapshot(
     workspace: Path,
     entries: Iterable[ManifestEntry],
     destination: Path,
     on_file: Callable[[int], None] | None = None,
+    reuse: Mapping[str, ReusableFile] | None = None,
 ) -> None:
     destination.mkdir(parents=True, exist_ok=False)
     files_copied = 0
@@ -438,11 +492,15 @@ def _copy_workspace_snapshot(
                 f"Workspace entry changed type during copy: {source}"
             )
         target.parent.mkdir(parents=True, exist_ok=True)
-        size, digest = _copy_file(source, target)
-        if size != entry.size or digest != entry.sha256:
-            raise WorkspaceChangedDuringCheckpoint(
-                f"Workspace file changed during copy: {entry.relative_path}"
-            )
+        # Unchanged since an earlier checkpoint: share its bytes.  The scan after
+        # the copy still catches workspace changes, and artifact validation still
+        # hashes this file against the new manifest.
+        if not (reuse and _link_unchanged(reuse, entry, target)):
+            size, digest = _copy_file(source, target)
+            if size != entry.size or digest != entry.sha256:
+                raise WorkspaceChangedDuringCheckpoint(
+                    f"Workspace file changed during copy: {entry.relative_path}"
+                )
         files_copied += 1
         if on_file is not None:
             on_file(files_copied)
@@ -825,11 +883,14 @@ class SafeCheckpointManager:
                 file_total = sum(
                     1 for entry in source_entries if entry.entry_type is ManifestEntryType.FILE
                 )
+                # Later checkpoints of a run share unchanged files with earlier ones.
+                reuse = _reusable_checkpoint_files(checkpoints_root)
                 _copy_workspace_snapshot(
                     session.workspace,
                     source_entries,
                     staging_workspace,
                     **_progress_kwargs(progress, "copy", file_total),
+                    **({"reuse": reuse} if reuse else {}),
                 )
                 source_after = _scan_workspace(
                     session.workspace,

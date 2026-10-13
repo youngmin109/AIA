@@ -8,12 +8,16 @@ import { readPetSize } from './api/petSizePreference.ts'
 
 type WorkspacePicker = {
   choose_workspace?: () => Promise<{ path?: string | null }>
+  choose_directory?: () => Promise<{ path?: string | null }>
+  choose_files?: () => Promise<{ paths?: string[] }>
   heartbeat?: () => Promise<boolean>
   set_title_bar?: (tint: string) => Promise<boolean>
   set_guardian_visible?: (visible: boolean) => Promise<boolean>
   set_guardian_size?: (size: number) => Promise<boolean>
   set_guardian_folded?: (folded: boolean) => Promise<boolean>
   open_main?: (view: string, sessionId: string | null) => Promise<boolean>
+  open_codex_terminal?: () => Promise<boolean>
+  open_records_folder?: () => Promise<boolean>
   open_guardian_help?: (topic: string) => Promise<boolean>
 }
 

@@ -1,5 +1,8 @@
 import type { CodexModel } from './modelView'
 import type { CodexConnector } from './connectorView'
+import type { StoragePruneResult, StorageSummary } from './storageView'
+import type { ExternalToolsState } from './externalToolsView'
+import type { PermissionMode, PermissionProfile } from './permissionMode'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -76,12 +79,33 @@ export interface CreateRunPayload {
   launch_mode?: 'inherit' | 'new_terminal' | 'codex_app_server'
   reasoning_effort?: string | null
   resume_thread_id?: string | null
+  /** Files and folders inside the workspace to protect on top of the policy. */
+  protected_paths?: string[]
+  /** Permission, the Codex app's three choices. */
+  permission_mode?: PermissionMode
 }
 
 export interface CreateRunResult {
   session_id: string
   redirect_url?: string
   status?: string
+}
+
+export function storageSummary(): Promise<StorageSummary> {
+  return apiGet<StorageSummary>('/api/storage')
+}
+
+export function pruneStorage(): Promise<StoragePruneResult> {
+  return apiPost<StoragePruneResult>('/api/storage/prune', {})
+}
+
+/** Codex external tools and which ones AIA's protected runs keep on. */
+export function externalTools(): Promise<ExternalToolsState> {
+  return apiGet<ExternalToolsState>('/api/external-tools')
+}
+
+export function setExternalTools(allowed: string[]): Promise<ExternalToolsState> {
+  return apiPost<ExternalToolsState>('/api/external-tools', { allowed })
 }
 
 export async function createProtectedRun(payload: CreateRunPayload): Promise<CreateRunResult> {
@@ -162,6 +186,6 @@ export function codexConversations(): Promise<{ conversations: ResumableConversa
 }
 
 /** Visible Codex models from a short-lived app-server; an empty list hides the pickers. */
-export function codexModels(): Promise<{ models: CodexModel[]; error?: string }> {
-  return apiGet<{ models: CodexModel[]; error?: string }>('/api/codex/models')
+export function codexModels(): Promise<{ models: CodexModel[]; permission_profiles?: PermissionProfile[]; error?: string }> {
+  return apiGet<{ models: CodexModel[]; permission_profiles?: PermissionProfile[]; error?: string }>('/api/codex/models')
 }
