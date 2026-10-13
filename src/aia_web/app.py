@@ -262,6 +262,14 @@ def _register_catalog_routes(app: FastAPI) -> None:
     def run_history_api() -> JSONResponse:
         return JSONResponse({"runs": app.state.service.list_runs()})
 
+    @app.get("/api/storage")
+    def storage_summary() -> JSONResponse:
+        return JSONResponse(app.state.service.storage_summary())
+
+    @app.post("/api/storage/prune")
+    def storage_prune() -> JSONResponse:
+        return JSONResponse(app.state.service.prune_old_snapshots())
+
     @app.get("/api/profiles")
     def profiles() -> JSONResponse:
         return JSONResponse(app.state.service.policy_profiles())
@@ -735,6 +743,10 @@ def create_app(service: RunApplicationService | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        if service is None:
+            # The app's own record folder: drop snapshot copies of old finished
+            # runs in the background (records and audit stay; see aia_app.storage).
+            asyncio.get_running_loop().run_in_executor(None, active_service.prune_old_snapshots)
         yield
         active_service.shutdown(wait=False)
 

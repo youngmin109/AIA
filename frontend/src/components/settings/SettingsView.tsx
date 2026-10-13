@@ -10,7 +10,8 @@ import { useGuardianState } from '../../hooks/useGuardianState'
 import { usePreflight } from '../../hooks/usePreflight'
 import { useRunList } from '../../hooks/useRunList'
 import { useShellStore } from '../../state/shellStore'
-import { consoleInfo, type ConsoleInfo } from '../../api/endpoints'
+import { consoleInfo, pruneStorage, storageSummary, type ConsoleInfo } from '../../api/endpoints'
+import { formatBytes, pruneResultNotice, type StorageSummary } from '../../api/storageView'
 import { apiPost } from '../../api/client'
 import { applyMotionPreference, readMotionPreference, type MotionPreference } from '../../api/motionPreference'
 import { applyGlassPreference, readGlassPreference, type GlassPreference } from '../../api/glassPreference'
@@ -45,6 +46,17 @@ export function SettingsView() {
   const serverLost = isConnectionLost(connectionFailures)
 
   useEffect(() => { consoleInfo().then(setInfo).catch(() => setInfo(null)) }, [])
+  const [storage, setStorage] = useState<StorageSummary | null>(null)
+  const [pruning, setPruning] = useState(false)
+  useEffect(() => { storageSummary().then(setStorage).catch(() => setStorage(null)) }, [])
+  async function prune() {
+    setPruning(true); setNotice('')
+    try {
+      setNotice(pruneResultNotice(await pruneStorage()))
+      setStorage(await storageSummary())
+    } catch (failure) { setNotice(failure instanceof Error ? failure.message : '저장 공간을 정리하지 못했어요.') }
+    finally { setPruning(false) }
+  }
   useEffect(() => {
     // Avoid a burst of concurrent native window resizes while dragging the slider.
     const timer = setTimeout(() => {
@@ -171,7 +183,14 @@ export function SettingsView() {
             <li><span>Codex</span><b>{codex ? (codex.ok ? '설치 확인됨' : '확인 필요') : '확인 중'}</b></li>
             <li><span>데이터 위치</span><b className="mono" title={controlRoot?.detail}>{controlRoot?.detail ?? '이 PC의 로컬 기록 폴더'}</b></li>
             {canOpenRecords && <li className="settings-facts-action"><Button variant="text" onClick={openRecords}><Icon name="folder" size={14} />기록 폴더 열기</Button></li>}
+            <li><span>저장 공간</span><b>{storage ? `${formatBytes(storage.total_bytes)} · 기준점 사본 ${formatBytes(storage.snapshot_bytes)}` : '확인 중'}</b></li>
           </ul>
+          {storage && (
+            <p className="faint-note settings-storage-note">
+              실행 기준점 사본은 최근 {storage.keep_recent_runs}개 실행만 보관하고, 앱을 켤 때 오래된 사본을 지워요. 감사 기록은 지우지 않아요.
+              {storage.prunable_runs > 0 && <Button variant="text" disabled={pruning} onClick={prune}>{pruning ? '정리하는 중…' : `지금 정리 (${storage.prunable_runs}개 실행 · ${formatBytes(storage.prunable_bytes)})`}</Button>}
+            </p>
+          )}
           <div className="settings-actions">
             <Button variant="secondary" className="is-compact" disabled={exporting} onClick={exportDiagnostics}>{exporting ? '준비 중…' : '진단 정보 저장'}</Button>
             <Button variant="text" onClick={() => setGuideOpen(true)}>도움말</Button>

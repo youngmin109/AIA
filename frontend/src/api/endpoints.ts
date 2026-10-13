@@ -1,5 +1,6 @@
 import type { CodexModel } from './modelView'
 import type { CodexConnector } from './connectorView'
+import type { StoragePruneResult, StorageSummary } from './storageView'
 import { apiGet, apiPost, apiPostTolerant } from './client'
 
 export interface PolicyProfile {
@@ -84,6 +85,14 @@ export interface CreateRunResult {
   session_id: string
   redirect_url?: string
   status?: string
+}
+
+export function storageSummary(): Promise<StorageSummary> {
+  return apiGet<StorageSummary>('/api/storage')
+}
+
+export function pruneStorage(): Promise<StoragePruneResult> {
+  return apiPost<StoragePruneResult>('/api/storage/prune', {})
 }
 
 export async function createProtectedRun(payload: CreateRunPayload): Promise<CreateRunResult> {

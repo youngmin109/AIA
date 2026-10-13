@@ -428,6 +428,10 @@
   font-size: 12.5px;
 }
 
+.settings-storage-note {
+  margin: 0;
+}
+
 /* "기록 폴더 열기" sits under the path it opens. */
 .settings-facts li.settings-facts-action {
   display: flex;

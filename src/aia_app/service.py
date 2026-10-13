@@ -97,6 +97,7 @@ from .protected_run import (
 )
 from .run_control import RunControlMixin
 from .recovery_points import RecoveryPointsMixin
+from .storage import StorageMixin, snapshots_pruned
 
 
 # The dashboard refreshes active runs every five seconds. Keep the verified
@@ -183,7 +184,7 @@ _POINT_SEND_WAIT_SECONDS = 30.0
 
 
 class RunApplicationService(
-    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin
+    RunControlMixin, ProtectedRunMixin, RunHistoryMixin, PreflightMixin, RecoveryPointsMixin, StorageMixin
 ):
     """Connect UI requests to existing AIA Core APIs.
 
@@ -951,7 +952,8 @@ class RunApplicationService(
                            (point.checkpoint_id == checkpoint_id if checkpoint_id is not None
                             else not point.checkpoint_id.startswith('point-'))), None)
         if checkpoint is None:
-            return {"available": False, "reason": "CHECKPOINT_UNAVAILABLE"}
+            pruned = snapshots_pruned(self.reader.session_directory(session_id) / "checkpoints")
+            return {"available": False, "reason": "SNAPSHOT_PRUNED" if pruned else "CHECKPOINT_UNAVAILABLE"}
         from aia.checkpoint import compare_workspace_to_checkpoint
 
         comparison = compare_workspace_to_checkpoint(checkpoint, workspace)

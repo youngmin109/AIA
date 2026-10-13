@@ -28,3 +28,14 @@ test('adding keeps each path once, skips outside paths, and stops at the limit',
   assert.equal(capped.paths.length, MAX_PROTECTED_PATHS)
   assert.equal(capped.overLimit, 2)
 })
+
+test('storage sizes read naturally and the clean-up notice says what was freed', async () => {
+  const { formatBytes, pruneResultNotice } = await import('../src/api/storageView.ts')
+  assert.equal(formatBytes(512), '512B')
+  assert.equal(formatBytes(1536), '1.5KB')
+  assert.equal(formatBytes(607_000_000), '579MB')
+  assert.equal(formatBytes(3 * 1024 ** 3), '3GB')
+  assert.equal(formatBytes(-1), '—')
+  assert.match(pruneResultNotice({ pruned_runs: 2, freed_bytes: 2048, keep_recent_runs: 10 }), /2개.*2KB/)
+  assert.equal(pruneResultNotice({ pruned_runs: 0, freed_bytes: 0, keep_recent_runs: 10 }), '지울 기준점 사본이 없어요.')
+})

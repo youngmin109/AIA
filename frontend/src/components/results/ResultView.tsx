@@ -50,7 +50,8 @@ function restoreTile(recovery: RecoveryStatusView | null, data: ResultData): { v
   if (!recovery) return { value: '확인 중', note: '기준점 확인 중' }
   if (recovery.workspace_matches) return { value: '변경 없음', note: '기준점과 같아요' }
   if (recovery.available) return { value: '가능', note: `바뀐 항목 ${recovery.change_count ?? 0}개` }
-  return { value: '불가', note: recovery.reason === 'RUN_IS_ACTIVE' ? '실행이 끝나면 가능' : '기준점이 없어요', tone: 'warning' }
+  const note = recovery.reason === 'RUN_IS_ACTIVE' ? '실행이 끝나면 가능' : recovery.reason === 'SNAPSHOT_PRUNED' ? '저장 공간 정리로 사본을 지웠어요' : '기준점이 없어요'
+  return { value: '불가', note, tone: 'warning' }
 }
 
 /** ③ Result: one glance summary on top, every detailed section folded below. */
