@@ -454,7 +454,8 @@ class DesktopBridge:
         self._guardian: Any | None = None
         self._guardian_url: str | None = None
         self._guardian_shutting_down = False
-        self._guardian_size = 100
+        # Smallest by default (matches PET_SIZE_DEFAULT on the page); the settings slider enlarges it.
+        self._guardian_size = 70
         self._guardian_visible = False
         self._guardian_folded = False
 

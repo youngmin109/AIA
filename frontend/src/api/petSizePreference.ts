@@ -2,14 +2,16 @@ export type PetSizePreference = number
 export const PET_SIZE_MIN = 70
 export const PET_SIZE_MAX = 140
 export const PET_SIZE_STEP = 5
+/** The pet starts at its smallest so it does not get in the way; the slider makes it bigger. */
+export const PET_SIZE_DEFAULT = PET_SIZE_MIN
 const LEGACY: Record<string, number> = { small: 80, medium: 100, large: 130 }
 export function normalizePetSize(value: string | number | null): PetSizePreference {
   if (typeof value === 'string' && Object.hasOwn(LEGACY, value)) return LEGACY[value]
   const size = value === null || value === '' ? NaN : Number(value)
-  return Number.isFinite(size) ? Math.max(PET_SIZE_MIN, Math.min(PET_SIZE_MAX, Math.round(size / PET_SIZE_STEP) * PET_SIZE_STEP)) : 100
+  return Number.isFinite(size) ? Math.max(PET_SIZE_MIN, Math.min(PET_SIZE_MAX, Math.round(size / PET_SIZE_STEP) * PET_SIZE_STEP)) : PET_SIZE_DEFAULT
 }
 export function readPetSize(): PetSizePreference {
-  try { return normalizePetSize(localStorage.getItem('aia.pet.size')) } catch { return 100 }
+  try { return normalizePetSize(localStorage.getItem('aia.pet.size')) } catch { return PET_SIZE_DEFAULT }
 }
 export function displayPetSize(value: PetSizePreference): void {
   document.documentElement.dataset.petSize = String(value)
