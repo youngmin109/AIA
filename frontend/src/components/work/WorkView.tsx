@@ -1,9 +1,8 @@
 import { Button } from '../common/Button'
 import { Icon } from '../common/Icon'
-import { RoundAction } from '../common/Glass'
+import { RoundAction, GlossyIcon } from '../common/Glass'
 import { useShellStore } from '../../state/shellStore'
 import { CodexConversationPane } from '../terminal/CodexConversationPane'
-import { ResultView } from '../results/ResultView'
 import { useRunStatus } from '../../hooks/useRunStatus'
 import { useProfiles } from '../../hooks/useProfiles'
 import { elapsedLabel, useNow } from '../../hooks/useElapsed'
@@ -21,7 +20,7 @@ const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
 
 /** ⑤ Work view: the large Codex conversation and the protection panel. */
 export function WorkView() {
-  const { activeRunId, openNewRun, setView } = useShellStore()
+  const { activeRunId, openNewRun, setView, openResult } = useShellStore()
   const { data: status } = useRunStatus(activeRunId, { enabled: Boolean(activeRunId) })
   const { profiles } = useProfiles()
   const sessionStatus = status?.session?.status
@@ -47,7 +46,18 @@ export function WorkView() {
   }
 
   if (isEnded) {
-    return <><SessionTabs /><div className="work-result"><ResultView runId={activeRunId} /></div></>
+    return (
+      <>
+      <SessionTabs />
+      <div className="glass is-soft work-empty work-ended view-enter" key={activeRunId}>
+        <GlossyIcon tone="success" icon="check" size="lg" />
+        <strong>작업이 끝났어요</strong>
+        <span className="muted">보호 실행 결과와 '작업 폴더 되돌리기'는 <b>기록</b>에서 볼 수 있어요.</span>
+        <Button variant="cta" onClick={() => openResult(activeRunId)}><Icon name="records" size={16} />기록에서 결과 보기</Button>
+        <Button variant="text" onClick={openNewRun}><Icon name="plus" size={14} />새 대화 시작</Button>
+      </div>
+      </>
+    )
   }
 
   return (
@@ -74,7 +84,7 @@ export function WorkView() {
       </section>
       <ProtectionPanel runId={activeRunId} status={status} live={live} actions={actions} threats={threats} />
     </div>
-    <ThreatAlert key={activeRunId} threats={threats} fileCount={status?.activity?.unique_file_count ?? null} />
+    <ThreatAlert key={`alert-${activeRunId}`} threats={threats} fileCount={status?.activity?.unique_file_count ?? null} />
     </>
   )
 }
