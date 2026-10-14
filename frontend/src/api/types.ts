@@ -90,6 +90,8 @@ export interface RunStatus {
     launch_mode?: string
   }
   policy?: { id?: string; profile?: string; version?: string }
+  permission_mode?: string
+  full_access_used?: boolean
   protection?: { state?: string; hook_events?: number; hook_broker?: string }
   runtime_reconciliation?: { orphaned?: boolean; [key: string]: unknown }
   events?: SecurityEvent[]

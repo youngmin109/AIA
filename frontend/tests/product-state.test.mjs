@@ -37,6 +37,42 @@ test('threats stopped before they ran read as a protection win, not a review que
   assert.equal(verdict.tone, 'ok')
   assert.ok(verdict.headline.includes('막았'))
 })
+test('an out-of-scope tool does not turn a verified run into a warning', () => {
+  // A tool AIA cannot interpret is recorded (UNSUPPORTED_TOOL_PATH) but is not
+  // a protection failure, so a verified bundle still reads as protected.
+  const verdict = deriveVerdict({ bundle_status: 'VALID', session_status: 'COMPLETED', protection_state: 'COMPLETED_VERIFIED', limitations: ['UNSUPPORTED_TOOL_PATH'] })
+  assert.notEqual(verdict.tone, 'bad')
+  assert.notEqual(verdict.tone, 'warn')
+  const live = guardianStatus({ selected: true, ready: true, status: { session: { status: 'COMPLETED' } }, result: { session_status: 'COMPLETED', bundle_status: 'VALID', protection_state: 'COMPLETED_VERIFIED', limitations: ['UNSUPPORTED_TOOL_PATH'] } })
+  assert.notEqual(live.state, 'review')
+})
+test('full access live run reads as a scope choice, not an observation failure', () => {
+  const base = { selected: true, ready: true, status: {
+    session: { status: 'RUNNING' }, phase: 'RUNNING',
+    permission_mode: 'full_access', full_access_used: true,
+    protection: { state: 'DEGRADED', hook_broker: 'HEALTHY' },
+    sensor_health: { FILESYSTEM_WATCHER: 'HEALTHY', AGENT_HOOK: 'HEALTHY', PROCESS_RUNTIME: 'HEALTHY' } } }
+  const value = guardianStatus(base)
+  assert.equal(value.state, 'normal')
+  assert.ok(!value.headline.includes('확인할 수 없'))
+  assert.ok(value.label.includes('전체 권한'))
+  // A real observation failure still surfaces even under full access.
+  const brokerDown = guardianStatus({ ...base, status: { ...base.status, protection: { state: 'DEGRADED', hook_broker: 'FAILED' } } })
+  assert.equal(brokerDown.state, 'review')
+  const sensorDown = guardianStatus({ ...base, status: { ...base.status, sensor_health: { AGENT_HOOK: 'FAILED' } } })
+  assert.equal(sensorDown.state, 'review')
+})
+test('a hidden child process caught after it ran is detection, not a block', () => {
+  // Process-tree attribution with no real enforcement action: AIA observed it
+  // after the fact (the Hook never gated the child), so it is not "막았어요".
+  const r = { bundle_status: 'VALID', session_status: 'COMPLETED', protection_state: 'COMPLETED_VERIFIED',
+    incidents: [{ attribution_class: 'PROCESS', policy_effect: 'DENY', enforcement_action: '', execution_result: 'NOT_ATTEMPTED', summary: 'powershell Remove-Item' }] }
+  const v = deriveVerdict(r)
+  assert.equal(v.branch, 'PROCESS_DETECTED')
+  assert.ok(v.headline.includes('프로세스 센서'))
+  assert.ok(!v.headline.includes('막았'))
+  assert.equal(v.tone, 'warn')
+})
 test('disconnected observation is not reported as healthy', () => {
   assert.equal(guardianStatus({ selected: true, ready: true, error: true }).state, 'review')
   assert.equal(guardianStatus({ selected: false, ready: false }).label, '연결 필요')

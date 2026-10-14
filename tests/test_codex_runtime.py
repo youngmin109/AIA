@@ -150,7 +150,7 @@ def test_bound_pretool_normalization_failure_does_not_fall_through_to_allow(
     ]
 
 
-def test_bound_pretool_unknown_tool_is_denied_and_marked_unsupported(
+def test_bound_pretool_unknown_tool_is_allowed_and_recorded(
     monkeypatch,
 ) -> None:
     controller = object.__new__(CodexPreToolController)
@@ -185,10 +185,13 @@ def test_bound_pretool_unknown_tool_is_denied_and_marked_unsupported(
     payload["tool_name"] = "mcp__unknown__write_file"
     result = controller.evaluate(payload)
 
-    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert "UNSUPPORTED_TOOL_PATH" in result["reason"]
+    # A tool AIA cannot interpret is not blocked: it runs under Codex's own
+    # handling and is recorded as outside the protection scope.  Only clear
+    # Hook policy violations deny a tool.  Being out of scope is not a Hook
+    # error, so it does not degrade the run.
+    assert result == {}
     assert controller.unsupported_tool_names == ("mcp__unknown__write_file",)
-    assert controller.errors == ("UNSUPPORTED_TOOL_PATH: mcp__unknown__write_file",)
+    assert controller.errors == ()
 
 
 def _unsupported_tool_controller(monkeypatch, reviewer) -> CodexPreToolController:
@@ -226,54 +229,33 @@ def _unsupported_payload() -> dict[str, object]:
     return payload
 
 
-def test_user_approved_unsupported_tool_continues_without_an_explicit_allow(monkeypatch) -> None:
-    reviews = []
+def test_unsupported_tool_runs_without_an_approval_prompt(monkeypatch) -> None:
+    # The product does not add approval fatigue: a tool AIA cannot interpret is
+    # never sent to the user for review.  It runs and is recorded as outside
+    # the protection scope.
+    consulted = []
+    controller = _unsupported_tool_controller(monkeypatch, lambda review: consulted.append(review) or True)
+    result = controller.evaluate(_unsupported_payload())
 
+    assert result == {}
+    assert consulted == []
+    assert controller.user_approved_unsupported_tools == ()
+    assert controller.unsupported_tool_names == ("web_search",)
+    # Recorded as out of scope, not as a Hook error that would degrade the run.
+    assert controller.errors == ()
+
+
+def test_unsupported_tool_is_never_refused(monkeypatch) -> None:
+    # Even a reviewer that would refuse or fail is never consulted, so the tool
+    # is allowed rather than blocked.
     def reviewer(review):
-        reviews.append(review)
-        return True
+        raise TimeoutError("must not be called")
 
     controller = _unsupported_tool_controller(monkeypatch, reviewer)
     result = controller.evaluate(_unsupported_payload())
 
     assert result == {}
-    assert reviews[0].tool_name == "web_search"
-    assert reviews[0].tool_use_id == "tool-1"
-    assert json.loads(reviews[0].input_summary) == {"query": "훈민정음 창제 연도"}
-    assert controller.user_approved_unsupported_tools == ("web_search",)
-    # The run still used a path AIA cannot interpret.
     assert controller.unsupported_tool_names == ("web_search",)
-    assert controller.errors == ("UNSUPPORTED_TOOL_PATH: web_search",)
-
-
-@pytest.mark.parametrize("answer", [False, None, "yes"])
-def test_unsupported_tool_is_refused_unless_the_user_explicitly_approves(monkeypatch, answer) -> None:
-    controller = _unsupported_tool_controller(monkeypatch, lambda review: answer)
-    result = controller.evaluate(_unsupported_payload())
-
-    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert "UNSUPPORTED_TOOL_PATH" in result["reason"]
-    assert controller.user_approved_unsupported_tools == ()
-
-
-def test_unsupported_tool_review_failure_is_a_refusal(monkeypatch) -> None:
-    def reviewer(review):
-        raise TimeoutError("no decision")
-
-    controller = _unsupported_tool_controller(monkeypatch, reviewer)
-    result = controller.evaluate(_unsupported_payload())
-
-    assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert "UNSUPPORTED_TOOL_REVIEW_FAILED: TimeoutError" in controller.errors
-
-
-def test_unsupported_tool_review_summary_is_bounded(monkeypatch) -> None:
-    reviews = []
-    controller = _unsupported_tool_controller(monkeypatch, lambda review: reviews.append(review) or False)
-    payload = _unsupported_payload()
-    payload["tool_input"] = {"query": "x" * 5000}
-    controller.evaluate(payload)
-    assert len(reviews[0].input_summary) == codex_runtime.UnsupportedToolReview.MAX_SUMMARY_CHARS
 
 
 def test_codex_hook_broker_round_trip_is_capability_authenticated(

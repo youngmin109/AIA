@@ -32,10 +32,10 @@ def product_capabilities() -> dict[str, Any]:
                 for canonical, aliases in AIA_CODEX_TOOL_ALIASES.items()
             },
             "unsupported_tool_behavior": (
-                "Hook으로 수신되지만 의미를 해석하지 못하는 도구는 "
-                "UNSUPPORTED_TOOL_PATH로 거부하고 실행 성공으로 주장하지 않음. "
-                "Workbench 대화(app-server) 실행에서는 사용자가 25초 안에 직접 허용할 수 있으며, "
-                "허용한 경우에도 보호 성공으로 주장하지 않고 UNSUPPORTED_TOOL_USER_APPROVED로 기록함"
+                "Hook으로 수신되지만 의미를 해석하지 못하는 도구는 승인을 묻지 않고 "
+                "정책 판정 없이 실행하며, 보호 범위 밖 실행으로 UNSUPPORTED_TOOL_PATH에 "
+                "기록하고 보호 성공으로 주장하지 않음. 차단은 Hook 기반 명확한 정책 "
+                "위반에만 적용함"
             ),
         },
         "verified_behaviors": [

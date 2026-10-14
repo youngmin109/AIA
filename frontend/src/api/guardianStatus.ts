@@ -35,7 +35,17 @@ export function guardianStatus({ ready, selected, status, result, approval, erro
     if (result.recovery_status === 'RESTORED' && result.integrity_status === 'VERIFIED') return { state: 'recovery', label: '복구·검증 완료', headline: '작업공간 복구와 무결성 검증을 마쳤습니다', detail: '복구 기록과 원래 실행의 감사 결과는 별도로 확인할 수 있어요.' }
     return { state: 'normal', label: result.session_status === 'ABORTED' ? '사용자 중지' : '실행 종료', headline: result.session_status === 'ABORTED' ? '요청하신 실행 중지를 확인했습니다' : '실행이 종료되고 감사 기록이 확인됐습니다', detail: '실행 종료는 복구 완료와 다릅니다. 결과 화면에서 각 검증 항목을 확인해주세요.' }
   }
-  if (Object.values(status.sensor_health ?? {}).some(value => value === 'FAILED') || /DEGRADED/.test(status.protection?.state ?? '') || status.runtime_reconciliation?.orphaned) return { state: 'review', label: '관찰 확인 필요', headline: '일부 보호 조건을 확인할 수 없습니다', detail: '센서와 연결 상태를 확인해주세요. 정책 위반으로 확정된 상태는 아닙니다.' }
+  const sensorFailed = Object.values(status.sensor_health ?? {}).some(value => value === 'FAILED')
+  const hookBrokerFailed = status.protection?.hook_broker === 'FAILED'
+  const orphaned = status.runtime_reconciliation?.orphaned === true
+  const degraded = /DEGRADED/.test(status.protection?.state ?? '')
+  // Full access turns Codex's sandbox off by the user's YOLO scope choice, which
+  // marks the live state DEGRADED on purpose. That is a narrower scope, not a
+  // fault, so real observation problems still surface first.
+  const fullAccessLive = status.full_access_used === true || status.permission_mode === 'full_access'
+  if (sensorFailed || hookBrokerFailed || orphaned) return { state: 'review', label: '관찰 확인 필요', headline: '일부 보호 조건을 확인할 수 없습니다', detail: '센서와 연결 상태를 확인해주세요. 정책 위반으로 확정된 상태는 아닙니다.' }
+  if (degraded && fullAccessLive) return { state: 'normal', label: '전체 권한 · 관찰 중', headline: '전체 권한으로 에이전트의 작업을 관찰하고 있어요', detail: '작업 폴더 안의 모든 명령을 실행 전에 검사하고, 폴더 변경은 되돌릴 수 있게 기록하고 있어요. 작업 폴더 밖 변경과 인터넷 사용만 보호 범위 밖이에요.' }
+  if (degraded) return { state: 'review', label: '관찰 확인 필요', headline: '일부 보호 조건을 확인할 수 없습니다', detail: '센서와 연결 상태를 확인해주세요. 정책 위반으로 확정된 상태는 아닙니다.' }
   if (approval) return { state: 'review', label: '사용자 확인', headline: '실행 전에 확인할 요청이 있습니다', detail: '도구, 대상, 이유와 허용 범위를 읽어주세요. 정책상 금지된 행동은 승인으로 해제되지 않습니다.' }
   const latest = (status.events ?? []).filter(event => event.category !== 'SENSOR').at(-1)
   if (latest?.category === 'ENFORCEMENT') return { state: 'blocked', label: '통제 요청', headline: '제한된 요청의 대응 결과를 확인해주세요', detail: 'AIA 판단과 실제 실행 결과를 활동 기록에서 나눠 확인할 수 있어요.' }

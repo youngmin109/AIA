@@ -190,13 +190,14 @@ class CodexPreToolController:
                 self._sensor_payload(native_payload, native)
             )
             if native.tool_name not in AIA_CODEX_SUPPORTED_MATCHERS:
+                # Product stance: AIA does not add approval fatigue. A tool AIA
+                # cannot interpret runs without an AIA policy verdict and is
+                # recorded as outside the protection scope; only clear Hook
+                # policy violations block a tool.  Empty output keeps Codex's
+                # own sandbox and approval handling; AIA never emits an explicit
+                # allow.  The run stays marked as having used an unsupported path.
                 self._record_unsupported_tool(native.tool_name)
-                if self._user_allows_unsupported_tool(native.tool_name, native.tool_use_id, native_payload):
-                    # Empty output keeps Codex's own sandbox and approval
-                    # handling; AIA never emits an explicit allow.  The run
-                    # stays marked as having used an unsupported path.
-                    return {}
-                return protected_pretool_deny("UNSUPPORTED_TOOL_PATH")
+                return {}
             normalized = normalize_evidence(
                 records,
                 aia_session_id=self.session.session_id,
@@ -580,14 +581,19 @@ class CodexPreToolController:
         return approved
 
     def _record_unsupported_tool(self, tool_name: str) -> None:
-        """Record a path refusal without retaining the tool input here."""
+        """Record an out-of-scope tool without degrading the protected run.
+
+        AIA cannot interpret the tool, so it runs under Codex's own handling
+        and is recorded as outside the protection scope (the
+        ``UNSUPPORTED_TOOL_PATH`` limitation, derived from
+        ``unsupported_tool_names``).  This is not a Hook error, so it never
+        marks the run degraded; only clear policy violations do.  The tool
+        input is not retained here.
+        """
 
         with self._lock:
             if tool_name not in self._unsupported_tool_names:
                 self._unsupported_tool_names.append(tool_name)
-            message = f"UNSUPPORTED_TOOL_PATH: {tool_name}"
-            if message not in self._errors:
-                self._errors.append(message)
 
 
 class PreToolDecisionEvaluator:

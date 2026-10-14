@@ -11,6 +11,7 @@ export type VerdictBranch =
   | 'INCIDENTS_AND_POLICY_ATTENTION'
   | 'POLICY_ATTENTION_ONLY'
   | 'INCIDENTS_ONLY'
+  | 'PROCESS_DETECTED'
   | 'FAILED_DEGRADED_INVALID'
   | 'ABORTED_VERIFIED'
   | 'SUCCESS'
@@ -42,11 +43,26 @@ export function isFullAccessScoped(result: ResultView): boolean {
   return (result.limitations ?? []).includes('CODEX_FULL_ACCESS_USER_SELECTED')
 }
 
-/** A policy incident that was contained before it ran (a protection win, not a problem to triage). */
+/** A policy incident the Hook actually contained before it ran (a protection
+ * win). This needs a real enforcement action -- a NOT_ATTEMPTED execution
+ * result alone is ambiguous (e.g. a process AIA only observed after the fact),
+ * so it does not by itself mean "blocked". */
 function incidentBlocked(incident: { enforcement_action?: string; execution_result?: string }): boolean {
   const enforcement = String(incident.enforcement_action || '').toUpperCase()
-  const execution = String(incident.execution_result || '').toUpperCase()
-  return ['CONTAIN', 'REFUSE', 'BLOCKED'].includes(enforcement) || ['BLOCKED', 'NOT_EXECUTED', 'NOT_ATTEMPTED'].includes(execution)
+  return ['CONTAIN', 'REFUSE', 'BLOCKED'].includes(enforcement)
+}
+
+/** A violation AIA did not block but caught after the fact via the verified
+ * Agent Process Tree -- the Hook never saw this child process. Detection, not
+ * prevention. */
+function processDetected(incident: { attribution_class?: string; enforcement_action?: string; execution_result?: string }): boolean {
+  return String(incident.attribution_class || '').toUpperCase() === 'PROCESS' && !incidentBlocked(incident)
+}
+
+/** Incidents the Process/File sensors caught after they ran (hidden child
+ * processes the Hook could not gate). Used to highlight the sensor in the UI. */
+export function processDetectedIncidents(result: ResultView): Array<{ attribution_class?: string; enforcement_action?: string; execution_result?: string; summary?: string; target?: { display?: string } }> {
+  return (result.incidents ?? []).filter(processDetected)
 }
 
 export function deriveVerdict(result: ResultView): Verdict {
@@ -66,6 +82,7 @@ export function deriveVerdict(result: ResultView): Verdict {
   const incidentCount = incidents.length || (result.incident_count ?? 0)
   const hasIncidents = incidentCount > 0
   const allBlocked = incidents.length > 0 && incidents.every(incidentBlocked)
+  const allProcessDetected = incidents.length > 0 && incidents.every(processDetected)
   const scopeDetail = fullAccessScoped ? ` ${FULL_ACCESS_NOTE}` : ''
 
   if (!bundleVerified || protectionDegraded || result.session_status === 'FAILED') {
@@ -84,6 +101,18 @@ export function deriveVerdict(result: ResultView): Verdict {
       branch: 'SUCCESS', tone: 'ok',
       headline: `위협 ${incidentCount}건을 실행 전에 막았어요.`,
       detail: `지원 범위 안의 위험한 요청을 실행되기 전에 모두 차단했고 감사 묶음도 검증됐어요.${scopeDetail}`,
+      executionPolicyAttention,
+    }
+  }
+
+  // A hidden child process the Hook never gated, caught after it ran by the
+  // verified Agent Process Tree. Emphasize the sensor that caught it, and be
+  // honest that this is detection (recoverable), not prevention.
+  if (allProcessDetected && !executionPolicyAttention) {
+    return {
+      branch: 'PROCESS_DETECTED', tone: 'warn',
+      headline: `프로세스 센서가 Hook이 못 본 숨은 프로세스 ${incidentCount}건을 감지했어요.`,
+      detail: `도구 단위 Hook이 보지 못한 하위 프로세스를 검증된 Agent Process Tree에서 포착했어요. 실행 전에 막은 건 아니지만, 작업 폴더는 되돌릴 수 있어요.${scopeDetail}`,
       executionPolicyAttention,
     }
   }

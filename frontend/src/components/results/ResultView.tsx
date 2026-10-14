@@ -12,7 +12,7 @@ import { useRecoveryStatus } from '../../hooks/useRecoveryStatus'
 import { useRunSnapshot } from '../../hooks/useRunSnapshot'
 import { displayStatus, statusTone } from '../../api/display'
 import type { IncidentView, RecoveryStatusView, ResultView as ResultData } from '../../api/resultTypes'
-import { deriveVerdict } from '../../api/resultVerdict'
+import { deriveVerdict, processDetectedIncidents } from '../../api/resultVerdict'
 import { verdictSlices } from '../../api/chartMath'
 import { fileBreakdown, resultHeadline } from '../../api/resultSummary'
 import { useShellStore } from '../../state/shellStore'
@@ -95,6 +95,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   const sensorIssues = (data.sensor_summary ?? []).filter(sensor => ['warn', 'bad'].includes(statusTone(sensor.final_sensor_state))).length
   const blockedConfirmed = data.codex_block_confirmation === 'BLOCK_CONFIRMED' ? summary?.blocked ?? 0 : 0
   const threats = threatsOf(actions)
+  const processHidden = processDetectedIncidents(data)
 
   function showEvidence() {
     setEvidenceOpen(true)
@@ -114,6 +115,19 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
           <div>
             <strong>이번 실행에서 위협 {threats.length}건을 실행 전에 차단 판정했어요</strong>
             <p>{threatCounts(threats)}</p>
+          </div>
+        </div>
+      )}
+
+      {processHidden.length > 0 && (
+        <div className="glass-notice is-warning process-detect" role="note">
+          <Icon name="pulse" size={22} />
+          <div>
+            <strong>프로세스 센서가 Hook이 못 본 숨은 프로세스 {processHidden.length}건을 감지했어요</strong>
+            <p>도구 단위 Hook이 보지 못한 하위 프로세스를 검증된 Agent Process Tree에서 포착했어요. 실행 전에 막은 건 아니지만, 작업 폴더는 되돌릴 수 있어요.</p>
+            {processHidden.map((incident, index) => (
+              <p key={incident.target?.display ?? index} className="faint-note mono">{incident.summary ?? incident.target?.display ?? '숨은 프로세스 관측'}</p>
+            ))}
           </div>
         </div>
       )}
@@ -237,6 +251,11 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
             </details>
           )}
 
+          {data.limitations?.includes('UNSUPPORTED_TOOL_PATH') && (
+            <p className="faint-note">
+              AIA가 의미를 해석하지 못하는 도구는 막지 않고 실행하며 보호 범위 밖 실행으로 기록해요. 그 도구의 동작은 정책 판정·보호 대상에서 빠져요.
+            </p>
+          )}
           {data.limitations?.includes('CODEX_FULL_ACCESS_USER_SELECTED') && (
             <p className="faint-note">
               전체 권한으로 실행했어요. 모든 명령은 AIA가 실행 전에 검사했고 작업 폴더는 되돌릴 수 있어요. 작업 폴더 밖 변경과 인터넷 사용은 Codex 샌드박스가 막지 않았고 되돌리기 범위 밖이에요.
