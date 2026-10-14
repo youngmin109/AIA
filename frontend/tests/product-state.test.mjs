@@ -23,6 +23,20 @@ test('record integrity alone is not proof of complete protection', () => {
   assert.notEqual(deriveVerdict({ bundle_status: 'VALID', session_status: 'COMPLETED' }).branch, 'SUCCESS')
   assert.equal(deriveVerdict({ bundle_status: 'VALID', protection_state: 'COMPLETED_DEGRADED' }).tone, 'warn')
 })
+test('full access is a scope choice, not a degraded failure, when the bundle is valid', () => {
+  const fullAccess = { bundle_status: 'VALID', session_status: 'COMPLETED', protection_state: 'COMPLETED_DEGRADED', limitations: ['CODEX_FULL_ACCESS_USER_SELECTED'] }
+  assert.equal(deriveVerdict(fullAccess).tone, 'ok')
+  assert.ok(deriveVerdict(fullAccess).detail.includes('작업 폴더'))
+  // A real failure still warns even under full access.
+  assert.equal(deriveVerdict({ ...fullAccess, bundle_status: 'INVALID' }).tone, 'bad')
+})
+test('threats stopped before they ran read as a protection win, not a review queue', () => {
+  const blocked = { bundle_status: 'VALID', session_status: 'COMPLETED', protection_state: 'COMPLETED_VERIFIED',
+    incidents: [{ enforcement_action: 'CONTAIN' }, { enforcement_action: 'REFUSE' }] }
+  const verdict = deriveVerdict(blocked)
+  assert.equal(verdict.tone, 'ok')
+  assert.ok(verdict.headline.includes('막았'))
+})
 test('disconnected observation is not reported as healthy', () => {
   assert.equal(guardianStatus({ selected: true, ready: true, error: true }).state, 'review')
   assert.equal(guardianStatus({ selected: false, ready: false }).label, '연결 필요')

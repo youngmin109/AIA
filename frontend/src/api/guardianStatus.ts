@@ -1,6 +1,7 @@
 import type { RunStatus } from './types'
 import type { ResultView } from './resultTypes'
 import { isSessionRunning } from './display.ts'
+import { isFullAccessScoped } from './resultVerdict.ts'
 
 export type GuardianState = 'normal' | 'review' | 'blocked' | 'recovery'
 export interface GuardianStatus { state: GuardianState; label: string; headline: string; detail: string }
@@ -23,7 +24,10 @@ export function guardianStatus({ ready, selected, status, result, approval, erro
         : { state: 'review', label: '연결 끊김', headline: '이전 실행의 연결이 끊겼어요', detail: '기록에서 저장된 상태를 확인하세요. 살아 있는 프로세스를 자동으로 강제 종료하지 않아요.' }
     }
     if (!result) return { state: 'review', label: '결과 확인 중', headline: '실행이 끝났습니다. 결과를 확인하고 있어요', detail: '감사 결과가 확인되기 전에는 보호 성공이나 복구 완료를 확정하지 않습니다.' }
-    if (result.bundle_status !== 'VALID' || /DEGRADED|UNKNOWN/.test(result.protection_state ?? '') || result.session_status === 'FAILED') {
+    // Full access degrades the state only because the user turned Codex's
+    // sandbox off; with a valid bundle that is a scope choice, not a failure.
+    const fullAccessScoped = isFullAccessScoped(result) && result.bundle_status === 'VALID' && result.session_status !== 'FAILED'
+    if (!fullAccessScoped && (result.bundle_status !== 'VALID' || /DEGRADED|UNKNOWN/.test(result.protection_state ?? '') || result.session_status === 'FAILED')) {
       return { state: 'review', label: '검증 확인 필요', headline: result.session_status === 'ABORTED' ? '실행이 중지됐습니다. 보호 결과를 확인해주세요' : '보호 결과가 완전히 확인되지 않았습니다', detail: '관찰 이상과 정책 위반은 다릅니다. 감사 기록에서 검증 상태와 제한사항을 확인하세요.' }
     }
     const policyIncident = result.incidents?.some(item => item.policy_effect === 'DENY' || item.policy_decision === 'VIOLATION')
