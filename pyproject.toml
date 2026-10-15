@@ -59,7 +59,7 @@ evaluation = [
 artifacts = ["src/aia_web/static/app/**"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aia", "src/aia_app", "src/aia_desktop", "src/aia_web"]
+packages = ["src/aia", "src/aia_app", "src/aia_desktop", "src/aia_web", "src/aia_hook_client"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [

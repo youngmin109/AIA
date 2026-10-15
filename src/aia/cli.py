@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import sys
+
+# Codex starts `aia-cli.exe hook runtime` before and after every tool call, and
+# that process only forwards the payload to the per-run AIA broker.  Leave
+# before the AIA imports below, which cost about 0.4 s per call.  Any other
+# invocation, including `main(["hook", "runtime"])`, keeps the full CLI path.
+if __name__ == "__main__" and sys.argv[1:] == ["hook", "runtime"]:
+    from aia_hook_client import main as hook_client_main
+
+    raise SystemExit(hook_client_main())
+
 import argparse
 import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 import threading
 from typing import Sequence
 import webbrowser
