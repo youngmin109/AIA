@@ -1432,6 +1432,31 @@ def test_hook_verify_live_probe_persists_session_bound_verified_proof(
     assert proof["hook_event_count"] == 1
 
 
+def test_hook_verify_probe_asks_for_the_command_not_a_tool_codex_lacks(tmp_path) -> None:
+    """Codex names its shell tool `Bash` only in Hook payloads.
+
+    The model has no tool by that name, so a task that asked for "the Bash
+    tool" and forbade every other tool was refused and produced no Hook event.
+    """
+
+    from aia.cli_hook import _hook_probe_payload
+
+    _marker, command, _environment, _payload = _hook_probe_payload(
+        argparse.Namespace(timeout=180.0),
+        CodexHookInstaller(tmp_path / "hooks.json"),
+        tmp_path / "codex.exe",
+        tmp_path / "control",
+        tmp_path / "workspace",
+        {},
+    )
+    task = command[command.index("--task") + 1]
+
+    assert "Bash" not in task
+    assert "Do not use another tool" not in task
+    assert "shell command" in task
+    assert "AIA_HOOK_PROBE_MARKER.txt" in task
+
+
 def test_hook_verify_live_probe_marker_without_hook_event_stays_unverified(
     tmp_path, monkeypatch, capsys
 ) -> None:

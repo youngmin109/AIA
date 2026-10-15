@@ -530,11 +530,16 @@ def _hook_probe_payload(
     codex_hook_trust: dict[str, object],
 ) -> tuple[Path, list[str], dict[str, str], dict[str, object]]:
     marker = probe_workspace / "AIA_HOOK_PROBE_MARKER.txt"
+    # Codex reports its shell tool to Hooks as `Bash`, but the model has no
+    # tool by that name.  Asking for "the Bash tool" and forbidding any other
+    # tool made the model refuse to run the command in 3 of 4 measured runs,
+    # so the probe saw no Hook event.  Ask for the command instead.
     task = (
-        "Use the Bash tool to run exactly: "
+        "Run this exact shell command in the current workspace with your "
+        "command execution tool: "
         "python -c \"from pathlib import Path; "
         "Path('AIA_HOOK_PROBE_MARKER.txt').write_text('ok', encoding='utf-8')\". "
-        "Do not use another tool."
+        "Do not create or edit the file any other way."
     )
     command = _self_cli_command(
         "protect",
