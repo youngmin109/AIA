@@ -8,6 +8,7 @@ import { useProfiles } from '../../hooks/useProfiles'
 import { elapsedLabel, useNow } from '../../hooks/useElapsed'
 import { isSessionRunning } from '../../api/display'
 import { startupView } from '../../api/startupStatus'
+import { StartupFailurePanel } from './StartupFailurePanel'
 import { workspaceShortName } from '../shell/sessionLabel'
 import { ProtectionPanel } from './ProtectionPanel'
 import { SessionTabs } from './SessionTabs'
@@ -42,6 +43,22 @@ export function WorkView() {
         <RoundAction small onClick={openNewRun}>보호 시작</RoundAction>
         <Button variant="text" onClick={() => setView('history')}>지난 실행 보기 <Icon name="arrowRight" size={14} /></Button>
       </div>
+    )
+  }
+
+  if (isEnded && sessionStatus === 'FAILED') {
+    // A run that failed, often while preparing, must not read as a finished task.
+    return (
+      <>
+      <SessionTabs />
+      <StartupFailurePanel
+        key={activeRunId}
+        error={status?.error}
+        workspace={status?.session?.workspace}
+        onRestart={openNewRun}
+        onOpenResult={status?.result_available ? () => openResult(activeRunId) : undefined}
+      />
+      </>
     )
   }
 

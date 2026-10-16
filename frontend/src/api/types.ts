@@ -117,6 +117,7 @@ export interface RunSummary {
   run_classification?: string
   bundle_status?: string
   incident_count?: number
+  hook_event_count?: number
   result_url?: string
   protection_state?: string
   launch_mode?: string

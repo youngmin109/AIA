@@ -29,6 +29,41 @@
   font-size: 22px;
 }
 
+.work-failed .muted {
+  max-width: 46ch;
+  line-height: 1.6;
+}
+
+.work-failed-item,
+.work-failed-detail code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.work-failed-item {
+  max-width: 100%;
+  padding: 6px 12px;
+  border-radius: var(--radius-control);
+  background: var(--fill-2);
+}
+
+.work-failed-detail {
+  max-width: 100%;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.work-failed-detail summary {
+  cursor: pointer;
+}
+
+.work-failed-detail code {
+  display: block;
+  margin-top: 8px;
+  text-align: left;
+}
+
 .work-result {
   flex: 1;
   min-height: 0;

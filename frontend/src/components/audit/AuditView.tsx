@@ -8,7 +8,9 @@ import { ResultView } from '../results/ResultView'
 import { RecoveryPoints } from '../results/RecoveryPoints'
 import type { RunSummary } from '../../api/types'
 import { filterRuns, historyState, historyStateLabel, type HistoryFilter } from '../../api/historyFilter'
-import { stoppedWhilePreparing } from '../../api/sessionNavigation'
+import { failedBeforeResult, stoppedWhilePreparing } from '../../api/sessionNavigation'
+import { useRunSnapshot } from '../../hooks/useRunSnapshot'
+import { StartupFailurePanel } from '../work/StartupFailurePanel'
 import { sessionCreatedLabel, sessionShortId, workspaceShortName } from '../shell/sessionLabel'
 
 const FILTERS: Array<[HistoryFilter, string]> = [['all', '전체'], ['review', '확인 필요'], ['ok', '정상']]
@@ -117,10 +119,19 @@ function HistoryDetail({ run, onBack, onOpenWork }: { run: RunSummary; onBack: (
           <strong>이전 실행의 연결이 끊겼어요</strong>
           <span className="muted">저장된 상태는 실행 중으로 남아 있지만 지금 대화를 다시 연결할 수 없어요. 새 보호 실행에서 같은 작업 폴더를 고르면 안전하게 정리할 수 있는지 확인해요. 살아 있는 프로세스를 자동으로 강제 종료하지 않아요.</span>
         </div>
+      ) : failedBeforeResult(run) ? (
+        <FailedRunDetail run={run} onRestart={openNewRun} />
       ) : (
         <ResultView runId={run.session_id} showEvidenceLog />
       )}
-      <RecoveryPoints key={run.session_id} runId={run.session_id} />
+      {/* A run that failed before its result never made a checkpoint to restore. */}
+      {!failedBeforeResult(run) && <RecoveryPoints key={run.session_id} runId={run.session_id} />}
     </div>
   )
+}
+
+function FailedRunDetail({ run, onRestart }: { run: RunSummary; onRestart: () => void }) {
+  // The run list has no reason; the run's own status keeps it.
+  const snapshot = useRunSnapshot(run.session_id)
+  return <StartupFailurePanel error={snapshot?.error} workspace={run.workspace} onRestart={onRestart} />
 }

@@ -12,6 +12,14 @@ export function stoppedWhilePreparing(run: RunSummary): boolean {
   return Boolean(reconciliation?.orphaned) && reconciliation?.agent_process_status === 'NOT_STARTED' && PREPARING_STATUSES.includes(run.status ?? '')
 }
 
+/**
+ * The run failed before it left a verified result or saw a Hook event, usually
+ * while preparing (for example an unreadable item stopped the checkpoint).
+ */
+export function failedBeforeResult(run: RunSummary): boolean {
+  return run.status === 'FAILED' && run.bundle_status !== 'VALID' && !run.hook_event_count
+}
+
 export function isRunActive(run: RunSummary): boolean {
   const reconciliation = run.runtime_reconciliation as { orphaned?: boolean } | undefined
   return isSessionRunning(run.status, Boolean(reconciliation?.orphaned))
@@ -44,6 +52,7 @@ export function sessionDestination(run: RunSummary): 'work' | 'history' {
 export function sessionStateLabel(run: RunSummary): string {
   const reconciliation = run.runtime_reconciliation as { orphaned?: boolean } | undefined
   if (stoppedWhilePreparing(run)) return '준비 중 중단'
+  if (failedBeforeResult(run)) return '시작 실패'
   if (reconciliation?.orphaned) return '연결 끊김 · 기록 확인'
   if (run.status === 'READY') return '입력 준비 완료'
   if (run.status === 'RUNNING') return '실행 중'

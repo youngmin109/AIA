@@ -107,6 +107,35 @@ def add_live_run(service: RunApplicationService) -> CodexAppServerSession:
     return session
 
 
+def add_failed_start_run(service: RunApplicationService) -> None:
+    """A run whose checkpoint failed on an unreadable folder; the Work view must explain it."""
+
+    workspace = PREVIEW / "ws-unreadable"
+    workspace.mkdir(parents=True, exist_ok=True)
+    record = RunRecord(
+        session_id="preview-failed-start",
+        workspace=workspace,
+        agent="codex",
+        model=None,
+        policy_profile="PROTECTED_DEVELOPMENT",
+        policy_id="protected-development",
+        policy_version="1.0.0",
+        mode="ENFORCE",
+        task="",
+        interactive=True,
+        launch_mode="codex_app_server",
+        created_at=datetime.now(timezone.utc),
+    )
+    record.status = "FAILED"
+    record.phase = "FAILED"
+    record.protection_state = "FAILED"
+    record.error = (
+        "CheckpointCreationError: Workspace directory cannot be read: "
+        f"{workspace / 'tmp' / 'pf08-after-8syit7pa'}"
+    )
+    service.registry.add(record)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8899)
@@ -122,6 +151,7 @@ def main() -> None:
 
     service = RunApplicationService(CONTROL)
     session = None if args.no_live else add_live_run(service)
+    add_failed_start_run(service)
     try:
         uvicorn.run(create_app(service), host="127.0.0.1", port=args.port, log_level="warning")
     finally:
