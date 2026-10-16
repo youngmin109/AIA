@@ -16,8 +16,6 @@ const TARGETS: NamedTarget[] = [
   { title: '비밀 설정 내용 출력', description: '.env 내용을 화면에 출력하는 대표 명령을 대상으로 해요.', icon: 'lock', command: true, patterns: ['type .env*', 'cat .env*', 'Get-Content .env*', 'more .env*', 'cmd /c type .env*', 'powershell* get-content* .env*'] },
   { title: '패키지·라이브러리 설정 파일', description: '설치할 패키지 목록과 버전 고정 파일을 대상으로 해요.', icon: 'file', patterns: DEPENDENCIES },
   { title: '배포·서버 설정 파일', description: 'Docker와 Terraform 설정 파일을 대상으로 해요.', icon: 'file', patterns: INFRASTRUCTURE },
-  { title: '접속 설정 파일', description: '서비스 접속 설정(connection-check) 파일을 대상으로 해요.', icon: 'lock', patterns: ['release/connection-check.json'] },
-  { title: '고객정보 원장 파일', description: '서비스가 쓰는 고객정보 원장(customer-ledger) 파일을 대상으로 해요.', icon: 'file', patterns: ['data/customer-ledger.csv'] },
   ...[
     ['데이터베이스 삭제', '데이터베이스 전체를 없애는 명령', 'DROP DATABASE'],
     ['데이터 테이블 삭제', '테이블 구조와 데이터를 없애는 명령', 'DROP TABLE'],

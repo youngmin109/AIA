@@ -69,6 +69,23 @@ def test_all_official_profiles_resolve() -> None:
     assert all(item.source for item in resolved)
 
 
+def test_official_profiles_carry_no_demo_workspace_rules() -> None:
+    # A demonstration protects its own files with a custom policy; the product
+    # profiles must not be tuned to one demo folder.
+    resolver = ProfileResolver()
+    demo_paths = {"release/connection-check.json", "data/customer-ledger.csv"}
+
+    for profile in (
+        PolicyProfile.PROTECTED_DEVELOPMENT,
+        PolicyProfile.BASIC_DEVELOPMENT,
+        PolicyProfile.CONSERVATIVE_SECURITY,
+        PolicyProfile.FREE_DEVELOPMENT,
+    ):
+        rules = resolver.resolve(profile).policy.rules
+        assert not [rule.rule_id for rule in rules if rule.rule_id.startswith("demo-")]
+        assert not demo_paths & {pattern for rule in rules for pattern in rule.path_patterns}
+
+
 @pytest.mark.parametrize(
     ("display_name", "profile"),
     [
