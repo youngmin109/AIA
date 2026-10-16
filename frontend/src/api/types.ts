@@ -78,6 +78,9 @@ export interface RunStatus {
     available?: boolean; live?: boolean; current_alive_count?: number | null; unique_file_count?: number;
     process_identity_count?: number; truncated?: boolean;
     files?: Array<{ path: string; event_type: string; event_count: number; observed_at: string; evidence_id: string }>;
+    /** Live runs only: observed changes the run's policy denies, newest first. */
+    protected_changes?: Array<{ path: string; event_type: string; event_count: number; observed_at: string; evidence_id: string; rule_ids: string[] }>;
+    protected_change_count?: number;
     processes?: Array<{ pid: number; create_time: number; parent_pid?: number; parent_create_time?: number; name: string; role: string; state: string; observed_at: string; evidence_id: string }>;
   }
   session?: {

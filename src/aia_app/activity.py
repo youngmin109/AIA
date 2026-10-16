@@ -5,11 +5,17 @@ this projection. It does not attribute a file writer or grant control authority.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from aia.process_identity import ProcessIdentity, ProcessIdentityStatus, inspect_process_identity
+
+# Rule IDs that deny an observed change, from a workspace-relative path and
+# the watcher's event type; empty when the change is allowed.
+ProtectedChangeJudge = Callable[[str, str], tuple[str, ...]]
+MAX_PROTECTED_CHANGES = 50
 
 
 @dataclass
@@ -57,8 +63,9 @@ class ActivityIndex:
                 'observed_at': captured_at, 'evidence_id': evidence_id,
             }
 
-    def view(self, workspace: Path, *, live: bool) -> dict[str, Any]:
+    def view(self, workspace: Path, *, live: bool, judge: ProtectedChangeJudge | None = None) -> dict[str, Any]:
         files = []
+        protected_changes = []
         for path, item in self.files.items():
             try:
                 # lexical paths: never resolve a symlink or open a target file.
@@ -68,6 +75,10 @@ class ActivityIndex:
             if '..' in Path(relative).parts:
                 continue
             files.append({'path': relative, **item})
+            # Every tracked file, not only the newest 200 shown, so a mass change cannot hide one.
+            rule_ids = judge(relative, item['event_type']) if judge is not None else ()
+            if rule_ids:
+                protected_changes.append({'path': relative, **item, 'rule_ids': list(rule_ids)})
         processes = [dict(item) for item in self.processes.values()]
         alive = 0
         complete = live and not self.truncated and len(processes) <= 200
@@ -93,4 +104,6 @@ class ActivityIndex:
         return {'available': True, 'live': live, 'files': sorted(files, key=lambda item: item['observed_at'], reverse=True)[:200],
                 'processes': processes[-200:], 'unique_file_count': len(files), 'process_identity_count': len(processes),
                 'current_alive_count': alive if complete else None, 'truncated': self.truncated or len(files) > 200 or len(processes) > 200,
+                'protected_changes': sorted(protected_changes, key=lambda item: item['observed_at'], reverse=True)[:MAX_PROTECTED_CHANGES],
+                'protected_change_count': len(protected_changes),
                 'attribution_note': '세션 중 관찰된 변경입니다. 파일을 바꾼 프로세스를 확정하지 않습니다.'}

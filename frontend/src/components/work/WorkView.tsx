@@ -102,7 +102,8 @@ export function WorkView() {
       </section>
       <ProtectionPanel runId={activeRunId} status={status} live={live} actions={actions} threats={threats} />
     </div>
-    <ThreatAlert key={`alert-${activeRunId}`} threats={threats} fileCount={status?.activity?.unique_file_count ?? null} />
+    <ThreatAlert key={`alert-${activeRunId}`} threats={threats} fileCount={status?.activity?.unique_file_count ?? null}
+      protectedChanges={status?.activity?.protected_changes} protectedCount={status?.activity?.protected_change_count ?? null} />
     </>
   )
 }

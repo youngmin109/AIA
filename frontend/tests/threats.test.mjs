@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { massChange, threatCounts, threatOf, threatsOf } from '../src/api/threats.ts'
+import { changeLabel, massChange, newProtectedChange, threatCounts, threatOf, threatsOf } from '../src/api/threats.ts'
 
 const contain = (extra) => ({ enforcement_decision: 'CONTAIN', ...extra })
 
@@ -34,4 +34,15 @@ test('a mass change is a large jump between two polls', () => {
   assert.equal(massChange(null, 300), 0)
   assert.equal(massChange(10, 20), 0)
   assert.equal(massChange(10, 312), 302)
+})
+
+test('a protected file change is announced once, when the live count grows', () => {
+  const changes = [{ path: 'data/customer-ledger.csv', event_type: 'deleted' }, { path: '.env', event_type: 'modified' }]
+  // The first poll is the baseline: reopening a run does not replay old changes.
+  assert.equal(newProtectedChange(null, 2, changes), null)
+  assert.equal(newProtectedChange(2, 2, changes), null)
+  assert.deepEqual(newProtectedChange(1, 2, changes), changes[0])
+  assert.equal(newProtectedChange(1, null, changes), null)
+  assert.equal(changeLabel('deleted'), '삭제')
+  assert.equal(changeLabel('moved'), '이동')
 })

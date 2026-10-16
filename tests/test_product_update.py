@@ -54,6 +54,55 @@ def test_live_activity_comes_from_same_audit_stream(tmp_path):
     assert reader.read_activity('session-1', workspace, live=True)['unique_file_count'] == 1
 
 
+def test_a_protected_change_is_reported_even_behind_a_mass_change(tmp_path):
+    index = ActivityIndex()
+    index.observe('FILESYSTEM_WATCHER', 'FILESYSTEM_EVENT', {'event_type': 'deleted', 'src_path': str(tmp_path / 'keep.csv'), 'is_directory': False}, '000', 'e-keep')
+    for n in range(250):
+        index.observe('FILESYSTEM_WATCHER', 'FILESYSTEM_EVENT', {'event_type': 'modified', 'src_path': str(tmp_path / f'orders/{n}.json'), 'is_directory': False}, f'{n + 1:03d}', f'e{n}')
+
+    view = index.view(tmp_path, live=True, judge=lambda path, event: ('keep-rule',) if path == 'keep.csv' else ())
+
+    assert 'keep.csv' not in [item['path'] for item in view['files']]  # only the newest 200 are listed
+    assert view['protected_change_count'] == 1
+    assert view['protected_changes'][0] | {} == {'path': 'keep.csv', 'event_type': 'deleted', 'observed_at': '000',
+                                                  'evidence_id': 'e-keep', 'event_count': 1, 'rule_ids': ['keep-rule']}
+
+
+def test_live_activity_names_protected_files_changed_by_any_path(tmp_path):
+    from types import SimpleNamespace
+    from aia import PolicyProfile, resolve_profile
+    from aia_app.registry import RunRecord
+
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    service = RunApplicationService(tmp_path / 'control')
+    record = RunRecord(
+        session_id='live-1', workspace=workspace, agent='codex', model=None, policy_profile='PROTECTED_DEVELOPMENT',
+        policy_id='aia-protected-development', policy_version='1.2', mode='ENFORCE', task='', interactive=True,
+        launch_mode='codex_app_server', created_at=datetime.now(timezone.utc),
+    )
+    record.status = 'RUNNING'
+    record.runtime['preparation'] = SimpleNamespace(
+        active_policy=SimpleNamespace(policy=resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy)
+    )
+    service.registry.add(record)
+    store = RawEvidenceStore.for_session(tmp_path / 'control', 'live-1')
+    # As a script or child process would leave them: no Hook request, only the watcher's records.
+    for event, name in [('modified', '.env'), ('deleted', 'pyproject.toml'), ('modified', 'src/app.py')]:
+        store.append(RawEvidenceRecord(session_id='live-1', source='FILESYSTEM_WATCHER', record_type='FILESYSTEM_EVENT',
+                                       observation_stage='POST_ACTION', captured_at=datetime.now(timezone.utc),
+                                       payload={'event_type': event, 'src_path': str(workspace / name), 'is_directory': False}))
+    try:
+        live = service.get_run_activity('live-1', {'session': {'status': 'RUNNING', 'workspace': str(workspace)}})
+        changes = {item['path']: (item['event_type'], item['rule_ids']) for item in live['protected_changes']}
+        assert changes == {'.env': ('modified', ['protected-secret-files']),
+                           'pyproject.toml': ('deleted', ['protected-dependency-files'])}
+        assert live['protected_change_count'] == 2
+        assert live['unique_file_count'] == 3
+    finally:
+        service.shutdown()
+
+
 def test_browser_boundary_rejects_foreign_origin_and_requires_local_capability(tmp_path):
     service = RunApplicationService(tmp_path / 'control')
     with TestClient(create_app(service), base_url='http://127.0.0.1:8791') as client:
@@ -197,7 +246,7 @@ def test_completed_activity_is_not_reverified_on_every_poll(tmp_path, monkeypatc
 def test_live_activity_is_rebuilt_at_most_once_per_refresh_window(tmp_path, monkeypatch):
     reader = ResultBundleReader(tmp_path / 'control')
     builds = []
-    monkeypatch.setattr(reader, '_build_activity', lambda session_id, workspace, live: builds.append(1) or {'available': True, 'n': len(builds)})
+    monkeypatch.setattr(reader, '_build_activity', lambda session_id, workspace, live, judge=None: builds.append(1) or {'available': True, 'n': len(builds)})
     monkeypatch.setattr('aia_app.readers.time.monotonic', lambda: 100.0)
     assert reader.read_activity('session-1', tmp_path, live=True)['n'] == 1
     assert reader.read_activity('session-1', tmp_path, live=True)['n'] == 1

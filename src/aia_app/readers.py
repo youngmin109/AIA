@@ -17,7 +17,7 @@ from typing import Any, Callable
 
 from aia import BundleVerificationStatus, verify_evidence_bundle
 from aia.evidence import RawEvidenceRecord
-from .activity import ActivityIndex
+from .activity import ActivityIndex, ProtectedChangeJudge
 
 
 _SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9-]+$")
@@ -384,7 +384,9 @@ class ResultBundleReader:
                         record.evidence_id
                     )
 
-    def read_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
+    def read_activity(
+        self, session_id: str, workspace: Path, *, live: bool, judge: ProtectedChangeJudge | None = None,
+    ) -> dict[str, Any]:
         """Use the same evidence stream as Audit; no screen-only logs.
 
         The console asks for this with every status poll (every second while a
@@ -392,14 +394,15 @@ class ResultBundleReader:
         most every ACTIVITY_LIVE_REFRESH_SECONDS, and a completed run's view is
         rebuilt only when its Result Bundle files change instead of verifying
         the whole bundle on every poll.  Display data only; the result and
-        audit views still verify the bundle themselves.
+        audit views still verify the bundle themselves.  ``judge`` marks
+        observed changes the run's policy denies (live runs only).
         """
         key = self._activity_view_key(session_id, live=live)
         with self._parsed_cache_lock:
             cached = self._activity_views.get(session_id)
             if key is not None and cached is not None and cached[0] == key:
                 return cached[1]
-        view = self._build_activity(session_id, workspace, live=live)
+        view = self._build_activity(session_id, workspace, live=live, judge=judge)
         if key is not None and view.get('available'):
             with self._parsed_cache_lock:
                 self._activity_views[session_id] = (key, view)
@@ -419,7 +422,9 @@ class ResultBundleReader:
         except OSError:
             return None
 
-    def _build_activity(self, session_id: str, workspace: Path, *, live: bool) -> dict[str, Any]:
+    def _build_activity(
+        self, session_id: str, workspace: Path, *, live: bool, judge: ProtectedChangeJudge | None = None,
+    ) -> dict[str, Any]:
         if live:
             self.read_live_evidence_snapshot(session_id)
             path = self.session_directory(session_id) / 'evidence' / 'raw-evidence.jsonl'
@@ -450,7 +455,7 @@ class ResultBundleReader:
                     self._activity_cache[session_id] = (digest, deepcopy(index))
                     if len(self._activity_cache) > 32:
                         self._activity_cache.pop(next(iter(self._activity_cache)))
-        return index.view(workspace, live=live)
+        return index.view(workspace, live=live, judge=judge)
 
     def list_completed(self) -> list[dict[str, Any]]:
         """List only committed, valid Result Bundles under this Control Root."""

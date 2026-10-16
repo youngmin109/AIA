@@ -63,6 +63,19 @@ export function threatCounts(threats: Threat[]): string {
   return [...counts].map(([title, count]) => `${title} ${count}`).join(' · ')
 }
 
+/** A protected file the file sensor saw change while the run was live (not a block). */
+export interface ProtectedChange { path: string; event_type: string; observed_at?: string; evidence_id?: string }
+const CHANGE_LABEL: Record<string, string> = { created: '생성', modified: '수정', deleted: '삭제', moved: '이동' }
+export function changeLabel(eventType: string): string {
+  return CHANGE_LABEL[eventType] ?? eventType
+}
+
+/** The newest protected change to announce, only when the count grew since the last poll. */
+export function newProtectedChange(previous: number | null, current: number | null, changes: ProtectedChange[] | undefined): ProtectedChange | null {
+  if (previous === null || current === null || current <= previous) return null
+  return changes?.[0] ?? null
+}
+
 /** A jump in observed file changes between two polls that is worth an alert. */
 export const MASS_CHANGE_THRESHOLD = 25
 export function massChange(previous: number | null, current: number | null): number {

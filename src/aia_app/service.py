@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from datetime import datetime
+from functools import lru_cache
 import hashlib
 from pathlib import Path
 import os
@@ -22,6 +23,8 @@ from aia import (
     CodexExecutionObservation,
     CodexHookInstaller,  # noqa: F401 - reached through this module
     Operation,
+    PolicyDecision,
+    PolicyEvaluationError,
     PolicyProfile,
     ProcessIdentityStatus,
     ProtectedRunSession,
@@ -87,6 +90,13 @@ _MODELS_CACHE_SECONDS = 600.0
 _WORKSPACE_SIZE_MAX_FILES = 5_000
 _WORKSPACE_SIZE_MAX_SECONDS = 1.5
 _REPLACE_ATTEMPTS = 6
+# File watcher event types as the policy operation they would be.
+_WATCHER_OPERATIONS = {
+    "created": Operation.CREATE,
+    "modified": Operation.MODIFY,
+    "deleted": Operation.DELETE,
+    "moved": Operation.MOVE,
+}
 
 
 def _replace_with_retry(source: Path, target: Path) -> None:
@@ -1188,10 +1198,46 @@ class RunApplicationService(
         session = status.get('session') or {}
         live = session.get('status') in {'RUNNING', 'STARTING', 'PROTECTING', 'CREATED', 'PREPARING', 'READY'}
         live = live and not (status.get('runtime_reconciliation') or {}).get('orphaned')
+        judge = self._protected_change_judge(session_id) if live else None
         try:
-            return self.reader.read_activity(session_id, Path(session['workspace']), live=live)
+            return self.reader.read_activity(session_id, Path(session['workspace']), live=live, judge=judge)
         except (KeyError, OSError, ValueError, TypeError):
             return {'available': False, 'reason': 'EVIDENCE_NOT_VERIFIED'}
+
+    def _protected_change_judge(self, session_id: str):
+        """Judge observed file changes with the live run's policy while it runs.
+
+        The run's own Evidence decides incidents when it finishes; this only
+        lets the console say at once that a protected file changed by a path
+        the Hook did not see (a script, a child process). Display only.
+        """
+
+        record = self.registry.get(session_id)
+        if record is None:
+            return None
+        judge = record.runtime.get('protected_change_judge')
+        if judge is not None:
+            return judge
+        active_policy = getattr(record.runtime.get('preparation'), 'active_policy', None)
+        policy = getattr(active_policy, 'policy', None)
+        if policy is None:
+            return None
+
+        @lru_cache(maxsize=16_384)
+        def judge(path: str, event_type: str) -> tuple[str, ...]:
+            operation = _WATCHER_OPERATIONS.get(event_type)
+            if operation is None:
+                return ()
+            try:
+                evaluation = policy.evaluate_target(operation=operation, path=path)
+            except (PolicyEvaluationError, ValueError):
+                return ()
+            if evaluation.policy_decision is not PolicyDecision.VIOLATION:
+                return ()
+            return tuple(evaluation.matched_rule_ids)
+
+        record.runtime['protected_change_judge'] = judge
+        return judge
 
     def get_report(self, session_id: str) -> str:
         return self.reader.read_report(session_id)

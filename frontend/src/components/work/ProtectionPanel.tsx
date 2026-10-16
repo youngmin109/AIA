@@ -6,7 +6,7 @@ import { TIMELINE_LIMIT, activityStrip } from '../../api/chartMath'
 import { displayStatus, statusTone } from '../../api/display'
 import type { RunStatus } from '../../api/types'
 import { blockDecisionCount, type RunAction } from '../../hooks/useRunActions'
-import type { Threat } from '../../api/threats'
+import { changeLabel, type Threat } from '../../api/threats'
 import { useNow } from '../../hooks/useElapsed'
 import { useCodexConnectors } from '../../hooks/useCodexConnectors'
 import { connectorsOnFirst, connectorSummary } from '../../api/connectorView'
@@ -46,8 +46,9 @@ export function ProtectionPanel({ runId, status, live, actions, threats }: { run
     { key: 'pretool', tone: 'hook', icon: 'shieldPlain', label: '실행 전 검사', value: `${summary?.pretool_events ?? 0}건` },
     { key: 'block', tone: 'danger', icon: 'block', label: '차단 판정', value: `${blocks}건`, alert: blocks > 0 },
     { key: 'process', tone: 'process', icon: 'pulse', label: activity?.current_alive_count == null ? '누적 관찰 프로세스' : '현재 실행 프로세스', value: activity?.current_alive_count != null || activity?.process_identity_count != null ? `${activity.current_alive_count ?? activity.process_identity_count}개` : '—' },
-    { key: 'file', tone: 'file', icon: 'file', label: '파일 변경', value: `${activity?.unique_file_count ?? 0}개` },
+    { key: 'file', tone: 'file', icon: 'file', label: '파일 변경', value: `${activity?.unique_file_count ?? 0}개`, alert: (activity?.protected_change_count ?? 0) > 0 },
   ]
+  const protectedChanges = activity?.protected_changes ?? []
 
   return (
     <aside className="glass is-soft work-panel" aria-label="보호 패널">
@@ -74,6 +75,22 @@ export function ProtectionPanel({ runId, status, live, actions, threats }: { run
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {protectedChanges.length > 0 && (
+        <section className="work-panel-section">
+          <h3>보호 파일 변경 감지 {activity?.protected_change_count ?? protectedChanges.length}건</h3>
+          <ul className="work-threats">
+            {protectedChanges.slice(0, 4).map(change => (
+              <li key={`${change.path}-${change.evidence_id}`}>
+                <span className="badge is-bad">감지</span>
+                <strong>{changeLabel(change.event_type)}</strong>
+                <small className="mono">{change.path}</small>
+              </li>
+            ))}
+          </ul>
+          <p className="faint-note">실행 전 검사를 거치지 않은 변경이에요. 누가 바꿨는지는 확정하지 않아요. 끝난 뒤 기록에서 작업 폴더를 되돌릴 수 있어요.</p>
         </section>
       )}
 

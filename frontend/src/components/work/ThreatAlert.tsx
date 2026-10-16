@@ -1,15 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../common/Icon'
-import { massChange, type Threat } from '../../api/threats'
+import { changeLabel, massChange, newProtectedChange, type ProtectedChange, type Threat } from '../../api/threats'
 
 const SHOW_MS = 12_000
 
-/** Top-of-screen alert when AIA blocks a threat or the file sensor sees a burst of changes. */
-export function ThreatAlert({ threats, fileCount }: { threats: Threat[]; fileCount: number | null }) {
+/** Top-of-screen alert when AIA blocks a threat, the file sensor sees a burst of changes, or a protected file changes without passing the Hook. */
+export function ThreatAlert({ threats, fileCount, protectedChanges, protectedCount }: {
+  threats: Threat[]
+  fileCount: number | null
+  protectedChanges?: ProtectedChange[]
+  protectedCount: number | null
+}) {
   const [threat, setThreat] = useState<Threat | null>(null)
   const [burst, setBurst] = useState(0)
+  const [detected, setDetected] = useState<ProtectedChange | null>(null)
   const seenThreats = useRef<number | null>(null)
   const lastFiles = useRef<number | null>(null)
+  const seenProtected = useRef<number | null>(null)
+
+  useEffect(() => {
+    const change = newProtectedChange(seenProtected.current, protectedCount, protectedChanges)
+    if (change) setDetected(change)
+    if (protectedCount !== null) seenProtected.current = protectedCount
+  }, [protectedCount, protectedChanges])
+
+  useEffect(() => {
+    if (!detected) return
+    const timer = setTimeout(() => setDetected(null), SHOW_MS)
+    return () => clearTimeout(timer)
+  }, [detected])
 
   // The first poll only sets the baseline, so reopening a run does not replay old alerts.
   useEffect(() => {
@@ -35,9 +54,22 @@ export function ThreatAlert({ threats, fileCount }: { threats: Threat[]; fileCou
     return () => clearTimeout(timer)
   }, [burst])
 
-  if (!threat && !burst) return null
+  if (!threat && !burst && !detected) return null
   return (
     <div className="threat-alerts" role="alert" aria-live="assertive">
+      {detected && (
+        <div className="threat-alert is-detected">
+          <span className="threat-alert-icon"><Icon name="alert" size={22} /></span>
+          <div className="threat-alert-copy">
+            <small>보호 파일 변경 감지 · 파일 센서</small>
+            <strong>보호 파일이 {changeLabel(detected.event_type)}됐어요</strong>
+            <span className="mono">{detected.path}</span>
+            <span>실행 전 검사를 거치지 않은 변경이에요 · 끝난 뒤 되돌릴 수 있어요</span>
+          </div>
+          <span className="threat-alert-count">이번 실행 {protectedCount}건 감지</span>
+          <button type="button" className="icon-button" aria-label="알림 닫기" onClick={() => setDetected(null)}><Icon name="close" size={16} /></button>
+        </div>
+      )}
       {threat && (
         <div className="threat-alert is-blocked">
           <span className="threat-alert-icon"><Icon name="block" size={22} /></span>
