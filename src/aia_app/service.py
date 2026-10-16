@@ -54,6 +54,7 @@ from .run_history import (
     _runtime_coordinator_reconciliation,
     _PRODUCT_SENSOR_NAMES,
     _annotate_execution_observations,
+    _annotated_actions,
     _hook_broker_runtime_healthy,
     _sensor_summary_is_verified,  # noqa: F401 - reached through this module
 )
@@ -1556,20 +1557,13 @@ class RunApplicationService(
                     tool_name=_event_tool_name(containment.source_event),
                 )
             )
-        display_view = {"actions": action_views}
         (
-            evidence_metadata,
+            _evidence_metadata,
             observed_evidence_ids,
             capture_times,
         ) = self._read_live_evidence_snapshot(record.session_id)
-        _annotate_execution_observations(
-            display_view,
-            control_root=self.control_root,
-            session_id=record.session_id,
-            evidence_metadata=evidence_metadata,
-            execution_observations=(observed_evidence_ids, capture_times),
-        )
-        record.actions = display_view["actions"]
+        # Runs on every status poll; only the annotated actions are kept here.
+        record.actions = _annotated_actions(action_views, observed_evidence_ids, capture_times)
         record.incidents = [
             item
             for item in (incident_view(action) for action in action_views)

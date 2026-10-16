@@ -221,6 +221,16 @@
 .chat-row.is-agent .md-link { color: var(--link); }
 .chat-row.is-agent .md-link-url { color: var(--text-faint); }
 .chat-row.is-agent blockquote { margin: 0 0 8px; padding-left: 12px; border-left: 3px solid var(--line-3); color: var(--text-muted); }
+.chat-row.is-agent .md-table-wrap { margin: 0 0 8px; max-width: 100%; overflow-x: auto; border-radius: 12px; border: 1px solid var(--line-1); }
+.chat-row.is-agent .md-table { border-collapse: collapse; min-width: 100%; font-size: 14px; line-height: 1.5; }
+.chat-row.is-agent .md-table th,
+.chat-row.is-agent .md-table td { padding: 7px 12px; border-bottom: 1px solid var(--line-1); text-align: left; vertical-align: top; overflow-wrap: break-word; }
+/* Keep a path or name whole; a narrow window scrolls the table instead of splitting it. */
+.chat-row.is-agent .md-table code { white-space: nowrap; }
+.chat-row.is-agent .md-table th { background: var(--fill-2); font-weight: 700; white-space: nowrap; }
+.chat-row.is-agent .md-table tbody tr:last-child td { border-bottom: 0; }
+.chat-row.is-agent .md-table .is-center { text-align: center; }
+.chat-row.is-agent .md-table .is-right { text-align: right; }
 
 .chat-row.is-agent .codex-caret {
   display: inline-block;

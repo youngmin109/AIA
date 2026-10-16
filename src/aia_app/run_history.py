@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +101,32 @@ def _execution_observation_metadata(
     return observed, capture_times
 
 
+def _annotated_actions(
+    actions: Iterable[Mapping[str, Any]],
+    observed_evidence_ids: set[str],
+    capture_times: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    """Copy actions with display-only PostToolUse status and observation time."""
+
+    annotated = []
+    for action in actions:
+        item = dict(action)
+        item["execution_observed"] = any(
+            evidence_id in observed_evidence_ids
+            for evidence_id in item.get("evidence_ids", [])
+        )
+        if not item.get("observed_at"):
+            timestamps = [
+                capture_times[evidence_id]
+                for evidence_id in item.get("evidence_ids", [])
+                if evidence_id in capture_times
+            ]
+            if timestamps:
+                item["observed_at"] = max(timestamps)
+        annotated.append(item)
+    return annotated
+
+
 def _annotate_execution_observations(
     view: dict[str, Any],
     *,
@@ -118,22 +144,7 @@ def _annotate_execution_observations(
         )
     else:
         observed_evidence_ids, capture_times = execution_observations
-    actions = []
-    for action in view.get("actions", []):
-        item = dict(action)
-        item["execution_observed"] = any(
-            evidence_id in observed_evidence_ids
-            for evidence_id in item.get("evidence_ids", [])
-        )
-        if not item.get("observed_at"):
-            timestamps = [
-                capture_times[evidence_id]
-                for evidence_id in item.get("evidence_ids", [])
-                if evidence_id in capture_times
-            ]
-            if timestamps:
-                item["observed_at"] = max(timestamps)
-        actions.append(item)
+    actions = _annotated_actions(view.get("actions", []), observed_evidence_ids, capture_times)
     view["actions"] = actions
     view["events"] = safe_event_views(
         actions,
@@ -377,31 +388,25 @@ class RunHistoryMixin:
             else _hook_broker_runtime_healthy(record)
         )
         incidents = list(record.incidents)
-        display_view = {"actions": [dict(item) for item in record.actions]}
         (
             evidence_metadata,
             observed_evidence_ids,
             capture_times,
         ) = self._read_live_evidence_snapshot(session_id)
-        _annotate_execution_observations(
-            display_view,
-            control_root=self.control_root,
-            session_id=session_id,
-            evidence_metadata=evidence_metadata,
-            execution_observations=(observed_evidence_ids, capture_times),
-        )
+        # Polled every second: build only the views the status carries. The
+        # evidence chains belong to the result view.
+        actions = _annotated_actions(record.actions, observed_evidence_ids, capture_times)
         return {
             "checkpoint": record.checkpoint,
             "error": record.error,
             "incident_count": len(incidents),
-            "latest_actions": display_view["actions"][-20:],
+            "latest_actions": actions[-20:],
             "events": safe_event_views(
-                display_view["actions"],
+                actions,
                 sensor_health=record.sensor_health,
                 evidence_metadata=evidence_metadata,
             ),
-            "evidence_chains": display_view["evidence_chains"],
-            "evidence_timeline": display_view["evidence_timeline"],
+            "evidence_timeline": evidence_timeline_views(evidence_metadata, actions=actions),
             "lease": record.lease,
             "mode": record.mode,
             "interactive": record.interactive,
@@ -516,7 +521,6 @@ class RunHistoryMixin:
             "incident_count": len(view["incidents"]),
             "latest_actions": view["actions"][-20:],
             "events": view.get("events", []),
-            "evidence_chains": view.get("evidence_chains", []),
             "evidence_timeline": view.get("evidence_timeline", []),
             "lease": "RELEASED",
             "mode": view["mode"],
@@ -693,7 +697,6 @@ class RunHistoryMixin:
                 sensor_health=state.get("sensor_health", {}),
                 evidence_metadata=evidence_metadata,
             ),
-            "evidence_chains": display_view["evidence_chains"],
             "evidence_timeline": display_view["evidence_timeline"],
             "lease": state.get("lease", "UNKNOWN"),
             "mode": state.get("mode"),

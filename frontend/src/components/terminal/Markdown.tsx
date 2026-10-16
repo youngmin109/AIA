@@ -1,97 +1,11 @@
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
+import { parseBlocks, type Align } from './markdownBlocks'
 
 // Minimal Markdown for Codex answers: headings, lists, quotes, fenced code,
-// inline code, bold/italic and links. It builds React elements only (no
-// innerHTML), so model output can never inject markup. Links are shown as
+// tables, inline code, bold/italic and links. It builds React elements only
+// (no innerHTML), so model output can never inject markup. Links are shown as
 // text plus URL rather than anchors: navigating would replace the desktop
 // app's own window. Unclosed fences (while streaming) render as code.
-
-type Block =
-  | { kind: 'code'; text: string }
-  | { kind: 'heading'; level: number; text: string }
-  | { kind: 'list'; ordered: boolean; items: string[] }
-  | { kind: 'quote'; text: string }
-  | { kind: 'rule' }
-  | { kind: 'paragraph'; text: string }
-
-const LIST_ITEM = /^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/
-
-function parseBlocks(source: string): Block[] {
-  const lines = source.replace(/\r\n/g, '\n').split('\n')
-  const blocks: Block[] = []
-  let index = 0
-  while (index < lines.length) {
-    const line = lines[index]
-    const fence = line.match(/^\s*(```|~~~)/)
-    if (fence) {
-      const body: string[] = []
-      index += 1
-      while (index < lines.length && !lines[index].trim().startsWith(fence[1])) {
-        body.push(lines[index])
-        index += 1
-      }
-      index += 1
-      blocks.push({ kind: 'code', text: body.join('\n') })
-      continue
-    }
-    if (!line.trim()) {
-      index += 1
-      continue
-    }
-    const heading = line.match(/^(#{1,6})\s+(.*)$/)
-    if (heading) {
-      blocks.push({ kind: 'heading', level: heading[1].length, text: heading[2] })
-      index += 1
-      continue
-    }
-    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
-      blocks.push({ kind: 'rule' })
-      index += 1
-      continue
-    }
-    const listMatch = line.match(LIST_ITEM)
-    if (listMatch) {
-      const ordered = Boolean(listMatch[2])
-      const items: string[] = []
-      while (index < lines.length) {
-        const item = lines[index].match(LIST_ITEM)
-        if (item && Boolean(item[2]) === ordered) {
-          items.push(item[3])
-        } else if (items.length && /^\s{2,}\S/.test(lines[index])) {
-          items[items.length - 1] += `\n${lines[index].trim()}`
-        } else {
-          break
-        }
-        index += 1
-      }
-      blocks.push({ kind: 'list', ordered, items })
-      continue
-    }
-    if (line.startsWith('>')) {
-      const quoted: string[] = []
-      while (index < lines.length && lines[index].startsWith('>')) {
-        quoted.push(lines[index].replace(/^>\s?/, ''))
-        index += 1
-      }
-      blocks.push({ kind: 'quote', text: quoted.join('\n') })
-      continue
-    }
-    const paragraph: string[] = []
-    while (
-      index < lines.length &&
-      lines[index].trim() &&
-      !/^\s*(```|~~~)/.test(lines[index]) &&
-      !/^#{1,6}\s/.test(lines[index]) &&
-      !LIST_ITEM.test(lines[index]) &&
-      !lines[index].startsWith('>')
-    ) {
-      paragraph.push(lines[index])
-      index += 1
-    }
-    blocks.push({ kind: 'paragraph', text: paragraph.join('\n') })
-  }
-  return blocks
-}
 
 const INLINE = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*|__[^_\n]+__)|(\*[^*\s][^*\n]*\*|_[^_\s][^_\n]*_)|(\[[^\]\n]+\]\([^)\s]+\))/g
 
@@ -122,7 +36,12 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return nodes
 }
 
-export function Markdown({ text }: { text: string }) {
+function alignClass(align: Align): string | undefined {
+  return align ? `is-${align}` : undefined
+}
+
+/** Parsed again only when the text changes; a long conversation re-renders just the message that grew. */
+export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="md">
       {parseBlocks(text).map((block, index) => {
@@ -140,10 +59,25 @@ export function Markdown({ text }: { text: string }) {
             return <blockquote key={key}>{renderInline(block.text, key)}</blockquote>
           case 'rule':
             return <hr key={key} />
+          case 'table':
+            return (
+              <div key={key} className="md-table-wrap">
+                <table className="md-table">
+                  <thead>
+                    <tr>{block.header.map((cell, column) => <th key={column} className={alignClass(block.aligns[column])}>{renderInline(cell, `${key}-h${column}`)}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {block.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>{row.map((cell, column) => <td key={column} className={alignClass(block.aligns[column])}>{renderInline(cell, `${key}-${rowIndex}-${column}`)}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           case 'paragraph':
             return <p key={key}>{renderInline(block.text, key)}</p>
         }
       })}
     </div>
   )
-}
+})

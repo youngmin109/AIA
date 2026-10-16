@@ -124,8 +124,9 @@ function HomeIdle() {
 }
 
 function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
-  const { activeRunId, setView, requestEnd, codexActivity } = useShellStore()
-  const { data: actions } = useRunActions(activeRunId, true)
+  const { activeRunId, activeView, setView, requestEnd, codexActivity } = useShellStore()
+  // Views stay mounted; the hidden home must not poll the same list the Work view already does.
+  const { data: actions } = useRunActions(activeRunId, activeView === 'home')
   const blocks = blockDecisionCount(actions)
   const summary = status.evidence_summary
   const activity = status.activity

@@ -20,13 +20,13 @@ import { matchSlashCommands, parseSlashCommand, type SlashCommand } from './slas
 import { commandPreview, groupCommands, hookMark } from './commandRows'
 import { policyNote, reportNote, restoreNote, whyNote, type AiaNote } from '../../api/securityNotes'
 import { useRunStatus } from '../../hooks/useRunStatus'
-import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
+import { blockDecisionCount, type RunAction } from '../../hooks/useRunActions'
 import { useProfiles } from '../../hooks/useProfiles'
 import { useCodexModels } from '../../hooks/useCodexModels'
 import { useNow } from '../../hooks/useElapsed'
 import { grantSummary } from '../../api/permissionGrants'
 import type { StartupView } from '../../api/startupStatus'
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShellStore } from '../../state/shellStore'
 import type { ApprovalRequest, TranscriptItem } from './codexConversation'
@@ -77,8 +77,10 @@ function approvalTitle(request: ApprovalRequest): string {
   return request.kind === 'file_change' ? '파일 변경 승인 요청' : '명령 실행 승인 요청'
 }
 
+type CommandRowProps = { command: Extract<TranscriptItem, { kind: 'command' }>; hooks: Array<Extract<TranscriptItem, { kind: 'hook' }>> }
+
 /** A command as one quiet row; opening it shows the Hook lines, the full command and its output. */
-function CommandRow({ command, hooks }: { command: Extract<TranscriptItem, { kind: 'command' }>; hooks: Array<Extract<TranscriptItem, { kind: 'hook' }>> }) {
+const CommandRow = memo(function CommandRow({ command, hooks }: CommandRowProps) {
   const state = commandStatus(command)
   const mark = hookMark(hooks)
   const lines = command.output ? command.output.split('\n').length : 0
@@ -104,9 +106,24 @@ function CommandRow({ command, hooks }: { command: Extract<TranscriptItem, { kin
       </div>
     </details>
   )
+}, sameCommandRow)
+
+/** Grouping builds a fresh hooks array on every update; the items inside it keep their identity. */
+function sameCommandRow(previous: CommandRowProps, next: CommandRowProps): boolean {
+  return previous.command === next.command
+    && previous.hooks.length === next.hooks.length
+    && previous.hooks.every((hook, index) => hook === next.hooks[index])
 }
 
-function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string }) {
+/** Changed rows only: transcript items keep their identity until an event changes them. */
+const Transcript = memo(function Transcript({ items, runId }: { items: TranscriptItem[]; runId: string }) {
+  const entries = useMemo(() => groupCommands(items), [items])
+  return entries.map((entry) => (entry.kind === 'command'
+    ? <CommandRow key={entry.key} command={entry.command} hooks={entry.hooks} />
+    : <TranscriptRow key={entry.item.key} item={entry.item} runId={runId} />))
+})
+
+const TranscriptRow = memo(function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string }) {
   switch (item.kind) {
     case 'diff':
       return <DiffCard runId={runId} turnId={item.turnId} files={item.files} fileCount={item.fileCount} added={item.added} removed={item.removed} />
@@ -170,7 +187,7 @@ function TranscriptRow({ item, runId }: { item: TranscriptItem; runId: string })
     case 'notice':
       return <div className={`chat-notice is-${item.tone}`}>{item.text}</div>
   }
-}
+})
 
 const PERMISSION_DECISION_LABELS: Record<string, string> = {
   turn: '이번 요청만 허용했어요',
@@ -350,7 +367,8 @@ function ChatActivity({ statusName, approvals, working, lastEventAt, ownerPid, s
   return <span className="chat-activity">{activityLabel(statusName, approvals, elapsed, silent, ownerPid, startupLabel)}</span>
 }
 
-export function CodexConversationPane({ runId, runEnded, context, startup }: { runId: string; runEnded: boolean; context?: ReactNode; startup?: StartupView | null }) {
+/** `actions` comes from the Work view's poller, so the conversation does not poll the same list again. */
+export function CodexConversationPane({ runId, runEnded, context, startup, actions }: { runId: string; runEnded: boolean; context?: ReactNode; startup?: StartupView | null; actions: RunAction[] | null }) {
   const session = useCodexSession(runId, { runEnded })
   const [draft, setDraft] = useState('')
   // The deferred submit after an IME composition runs from an older render;
@@ -370,7 +388,6 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
   const [usageOpen, setUsageOpen] = useState(false)
   const [permissionOpen, setPermissionOpen] = useState(false)
   const { data: runStatus } = useRunStatus(runId)
-  const { data: actions } = useRunActions(runId, !runEnded)
   const { profiles } = useProfiles()
   const policyProfile = profiles.find(profile => profile.value === runStatus?.policy?.profile)
   useEffect(() => {
@@ -584,9 +601,7 @@ export function CodexConversationPane({ runId, runEnded, context, startup }: { r
             </div>
           ))
         )}
-        {groupCommands(session.conversation.items).map((entry) => (entry.kind === 'command'
-          ? <CommandRow key={entry.key} command={entry.command} hooks={entry.hooks} />
-          : <TranscriptRow key={entry.item.key} item={entry.item} runId={runId} />))}
+        <Transcript items={session.conversation.items} runId={runId} />
       </div>
 
       {(session.errorMessage || error) && (

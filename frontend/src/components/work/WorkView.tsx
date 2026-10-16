@@ -90,6 +90,7 @@ export function WorkView() {
             runId={activeRunId}
             runEnded={isEnded}
             startup={startupView(status?.startup)}
+            actions={actions}
             context={<>
               {policyName && <span className="chip is-small"><Icon name="shieldPlain" size={14} />{policyName}</span>}
               {elapsed && <span className="chip is-small chat-elapsed">{elapsed}</span>}

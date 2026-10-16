@@ -645,6 +645,11 @@ def test_live_status_reuses_evidence_and_refreshes_appended_records(
         first = service.get_run_status(record.session_id)
         assert len(parsed_lines) == 1
         assert first["latest_actions"][0]["execution_observed"] is False
+        # The per-second status links the timeline to actions; evidence chains stay in the result view.
+        assert [(item["evidence_id"], item["linked_action_id"]) for item in first["evidence_timeline"]] == [
+            ("pretool-1", "action-1"),
+        ]
+        assert "evidence_chains" not in first
 
         parsed_lines.clear()
         assert service.get_run_status(record.session_id) == first
