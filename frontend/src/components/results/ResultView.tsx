@@ -173,7 +173,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
         <StatTile label="차단 판정" value={summary?.contain ?? 0} tone={(summary?.contain ?? 0) > 0 ? 'danger' : undefined} note={blockedConfirmed > 0 ? `막음 확인 ${blockedConfirmed}건` : '실행 전 정책 판정'} />
         <StatTile label="파일 변경" value={changedFiles ?? '—'} note={changedFiles === null ? '관찰 기록 확인 중' : '관찰된 경로 수'} />
         <StatTile label="되돌리기" value={restore.value} word tone={restore.tone} note={restore.note} />
-        <StatTile label="감사 기록" value={data.bundle_status === 'VALID' ? '확인됨' : displayStatus(data.bundle_status)} word tone={data.bundle_status === 'VALID' ? 'success' : 'warning'} note={data.bundle_status === 'VALID' ? '해시 체인 검증' : '검증 상태 확인 필요'} />
+        <StatTile label="감사 기록" value={data.bundle_status === 'VALID' ? '확인됨' : displayStatus(data.bundle_status)} word tone={data.bundle_status === 'VALID' ? 'success' : 'warning'} note={data.bundle_status === 'VALID' ? '해시 목록 검증' : '검증 상태 확인 필요'} />
       </section>
 
       <div className="result-lower">

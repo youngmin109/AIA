@@ -82,7 +82,7 @@ export function AuditView() {
           )
         })}
         <div className="history-foot">
-          <p className="faint-note">각 실행의 감사 기록은 해시 체인으로 검증돼요. 기록은 데이터베이스가 아니라 이 PC의 기록 폴더에 실행마다 파일로 저장되고, 실행 전 기준점(작업 폴더 사본)도 함께 있어서 폴더가 클수록 용량이 커져요. 밖으로 보내지 않아요.</p>
+          <p className="faint-note">각 실행의 감사 기록은 파일마다 SHA-256 해시 목록으로 검증돼요. 기록은 데이터베이스가 아니라 이 PC의 기록 폴더에 실행마다 파일로 저장되고, 실행 전 기준점(작업 폴더 사본)도 함께 있어서 폴더가 클수록 용량이 커져요. 밖으로 보내지 않아요.</p>
           {typeof window.pywebview?.api?.open_records_folder === 'function' && (
             <Button variant="text" onClick={() => { window.pywebview?.api?.open_records_folder?.().catch(() => {}) }}><Icon name="folder" size={14} />기록 폴더 열기</Button>
           )}
