@@ -16,15 +16,40 @@ export function writeDefaultPolicyProfile(value: string) {
   }
 }
 import type { PolicyDocument } from './policyModel'
+import { apiGet } from '../../api/client.ts'
+
+type StoredCustomPolicy = { path: string; document: PolicyDocument }
 
 const CUSTOM_KEY = 'aia.customPolicy'
-export function readCustomPolicy(): { path: string; document: PolicyDocument } | null {
+function asCustomPolicy(value: unknown): StoredCustomPolicy | null {
+  const candidate = value as Partial<StoredCustomPolicy> | null
+  return typeof candidate?.path === 'string' && candidate.document?.profile === 'CUSTOM' && Array.isArray(candidate.document?.rules)
+    ? candidate as StoredCustomPolicy
+    : null
+}
+export function readCustomPolicy(): StoredCustomPolicy | null {
   try {
-    const value = JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? 'null')
-    return typeof value?.path === 'string' && value.document?.profile === 'CUSTOM' && Array.isArray(value.document?.rules) ? value : null
+    return asCustomPolicy(JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? 'null'))
   } catch { return null }
 }
-export function writeCustomPolicy(value: { path: string; document: PolicyDocument }) {
+export function writeCustomPolicy(value: StoredCustomPolicy) {
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(value))
   window.dispatchEvent(new Event('aia:policy-updated'))
+}
+
+/**
+ * The saved custom policy, also after an app restart: the desktop app opens
+ * each launch with an empty WebView profile, so an empty browser copy is
+ * filled from the one the local server remembers.
+ */
+export async function loadCustomPolicy(): Promise<StoredCustomPolicy | null> {
+  const local = readCustomPolicy()
+  if (local) return local
+  try {
+    const remembered = asCustomPolicy(await apiGet<unknown>('/api/policy/custom'))
+    if (remembered) {
+      try { writeCustomPolicy(remembered) } catch { /* still usable for this view */ }
+    }
+    return remembered
+  } catch { return null }
 }

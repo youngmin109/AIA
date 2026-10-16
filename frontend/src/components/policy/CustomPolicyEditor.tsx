@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../../api/client'
 import { Button } from '../common/Button'
 import { EFFECTS, OPS, type PolicyDocument, type PolicyRule } from './policyModel'
-import { readCustomPolicy, writeCustomPolicy } from './policyStorage'
+import { loadCustomPolicy, readCustomPolicy, writeCustomPolicy } from './policyStorage'
 import { Icon } from '../common/Icon'
 import { GlossyIcon } from '../common/Glass'
 import { makeRule, RULE_STARTERS, ruleCardClass, rulePresentation } from './policyPresentation'
@@ -21,7 +21,15 @@ export function CustomPolicyEditor({ onSaved }: { onSaved: () => void }) {
   useEffect(() => {
     if (stored) return
     let cancelled = false
-    apiGet<{ document: PolicyDocument }>('/api/policy/templates/PROTECTED_DEVELOPMENT').then(({ document }) => {
+    // After a restart the browser copy is empty; continue from the policy saved last time.
+    loadCustomPolicy().then(async remembered => {
+      if (cancelled) return
+      if (remembered) {
+        setDraft(remembered.document)
+        setSaved(true)
+        return
+      }
+      const { document } = await apiGet<{ document: PolicyDocument }>('/api/policy/templates/PROTECTED_DEVELOPMENT')
       if (!cancelled) setDraft({ ...document, profile: 'CUSTOM', policy_id: `aia-user-${crypto.randomUUID()}`, policy_version: '1' })
     }).catch(() => { if (!cancelled) setNotice('기본 규칙을 불러오지 못했어요. 다시 열어 주세요.') })
     return () => { cancelled = true }

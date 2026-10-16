@@ -17,7 +17,7 @@ import {
   type WorkspaceRecovery,
 } from '../../api/endpoints'
 import { HookStatusControl } from './HookStatusControl'
-import { readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
+import { loadCustomPolicy, readDefaultPolicyProfile, readCustomPolicy } from '../policy/policyStorage'
 import { POLICY_ICONS } from '../policy/policyPresentation'
 import { chooseNativeWorkspace, hasNativeWorkspacePicker } from '../../desktopBridge'
 import { absoluteInWorkspace, addProtectedPaths, insideWorkspace, MAX_PROTECTED_PATHS } from '../../api/protectedPaths'
@@ -57,7 +57,13 @@ function NewRunSheet() {
   const { closeNewRun, setActiveRun, setView } = useShellStore()
   const { profiles: allProfiles } = useProfiles()
   const profiles = allProfiles
-  const customPolicy = readCustomPolicy()
+  const [customPolicy, setCustomPolicy] = useState(readCustomPolicy)
+  useEffect(() => {
+    // An app restart empties the browser copy; ask the local server for the saved one.
+    let cancelled = false
+    loadCustomPolicy().then(policy => { if (!cancelled) setCustomPolicy(policy) })
+    return () => { cancelled = true }
+  }, [])
   const { data: preflight } = usePreflight()
   // Same condition HookStatusControl reports as ready; the steps stay visible until it holds.
   const hookReady = preflight?.readiness_code === 'READY'

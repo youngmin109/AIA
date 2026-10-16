@@ -589,3 +589,33 @@ def test_console_policy_editor_api_validates_and_saves_strict_document(tmp_path)
         assert invalid.status_code == 400
     finally:
         service.shutdown()
+
+
+def test_saved_custom_policy_survives_an_app_restart(tmp_path) -> None:
+    control = tmp_path / "control"
+    service = RunApplicationService(control)
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
+    try:
+        assert client.get("/api/policy/custom").json() == {"path": None, "document": None}
+        template = client.get("/api/policy/templates/PROTECTED_DEVELOPMENT").json()["document"]
+        custom = {**template, "profile": "CUSTOM", "policy_id": "aia-user-restart", "policy_version": "1"}
+        saved = client.post("/api/policy/save", json={"document": custom, "path": str(tmp_path / "custom.json")})
+        assert saved.status_code == 200
+        # A policy saved by anything but the custom editor is not taken as the user's choice.
+        other = client.post("/api/policy/save", json={"document": template, "path": str(tmp_path / "other.json")})
+        assert other.status_code == 200
+    finally:
+        service.shutdown()
+
+    # The desktop app starts each launch with an empty WebView profile; the server still knows.
+    relaunched = RunApplicationService(control)
+    client = TestClient(create_app(relaunched), base_url="http://127.0.0.1")
+    try:
+        remembered = client.get("/api/policy/custom").json()
+        assert remembered["path"] == saved.json()["path"]
+        assert remembered["document"]["rules"] == custom["rules"]
+        # A file that no longer validates is never offered for a run.
+        (tmp_path / "custom.json").write_text("{}", encoding="utf-8")
+        assert client.get("/api/policy/custom").json() == {"path": None, "document": None}
+    finally:
+        relaunched.shutdown()

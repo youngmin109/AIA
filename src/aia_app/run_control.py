@@ -38,6 +38,10 @@ from .registry import RunRecord
 from .run_history import _runtime_coordinator_reconciliation, _workspace_key
 
 _FINISHED_RUN_STATUSES = frozenset({"COMPLETED", "ABORTED", "FAILED"})
+# Which policy the console editor saved last. The desktop app gives every
+# launch a fresh WebView profile, so the browser's own copy is lost on restart.
+_CUSTOM_POLICY_FILE = "custom-policy.json"
+_NO_CUSTOM_POLICY: dict[str, Any] = {"path": None, "document": None}
 
 
 class RunControlMixin:
@@ -115,6 +119,32 @@ class RunControlMixin:
         os.replace(temporary, path)
         summary = RunControlMixin.validate_policy_document(document)
         return {**summary, "path": str(path)}
+
+    def remember_custom_policy(self, path: str) -> None:
+        """Keep the editor's saved custom policy across app launches."""
+
+        pointer = self.control_root / _CUSTOM_POLICY_FILE
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        temporary = pointer.with_name(pointer.name + ".tmp")
+        temporary.write_text(json.dumps({"path": str(path)}, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(temporary, pointer)
+
+    def remembered_custom_policy(self) -> dict[str, Any]:
+        """The remembered custom policy, only while its file still validates."""
+
+        try:
+            pointer = json.loads((self.control_root / _CUSTOM_POLICY_FILE).read_text(encoding="utf-8"))
+            path = Path(pointer["path"])
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, KeyError, TypeError):
+            return dict(_NO_CUSTOM_POLICY)
+        if not isinstance(document, dict) or document.get("profile") != "CUSTOM":
+            return dict(_NO_CUSTOM_POLICY)
+        try:
+            self.validate_policy_document(document)
+        except ApplicationValidationError:
+            return dict(_NO_CUSTOM_POLICY)
+        return {"path": str(path), "document": document}
 
     @staticmethod
     def _workspace_policy_path(

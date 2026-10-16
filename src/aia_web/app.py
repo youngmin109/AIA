@@ -325,9 +325,17 @@ def _register_policy_routes(app: FastAPI) -> None:
     async def save_policy(request: Request) -> JSONResponse:
         try:
             payload = await request.json()
-            return JSONResponse(app.state.service.save_policy_document(payload))
+            saved = app.state.service.save_policy_document(payload)
+            document = payload.get("document") if isinstance(payload, dict) else None
+            if isinstance(document, dict) and document.get("profile") == "CUSTOM":
+                app.state.service.remember_custom_policy(saved["path"])
+            return JSONResponse(saved)
         except (json.JSONDecodeError, ValueError, OSError) as exc:
             return JSONResponse({"saved": False, "error": str(exc)}, status_code=400)
+
+    @app.get("/api/policy/custom")
+    def remembered_custom_policy() -> JSONResponse:
+        return JSONResponse(app.state.service.remembered_custom_policy())
 
 
 def _register_readiness_routes(app: FastAPI) -> None:
