@@ -1,8 +1,13 @@
 /** AI permission of a Workbench run: the Codex app's three choices, same words and order. */
 export type PermissionMode = 'workspace' | 'auto_review' | 'full_access'
 
-/** Preserve the protected workspace boundary unless the user explicitly opts out. */
-export const PERMISSION_DEFAULT: PermissionMode = 'workspace'
+/**
+ * AIA's product stance: let the agent work without Codex's sandbox or approval
+ * prompts and keep protection in AIA's own layer (Hook before every command,
+ * sensors, recovery of the work folder).  "승인 요청" stays one click away for a
+ * stricter run, and a Codex config that forbids full access falls back to it.
+ */
+export const PERMISSION_DEFAULT: PermissionMode = 'full_access'
 
 /** The Codex app's own question above its permission menu. */
 export const PERMISSION_TITLE = 'ChatGPT 액션은 어떻게 승인할까요?'

@@ -101,7 +101,7 @@ test('connectors the run turned off read as off and sort after the ones still on
 
 test("permission: the Codex app's three choices, words and order, with full access by default", async () => {
   const { PERMISSION_DEFAULT, PERMISSION_OPTIONS, PERMISSION_TITLE, permissionAllowed, permissionModeOf, permissionModeFromCodex } = await import('../src/api/permissionMode.ts')
-  assert.equal(PERMISSION_DEFAULT, 'workspace')
+  assert.equal(PERMISSION_DEFAULT, 'full_access')
   assert.equal(PERMISSION_TITLE, 'ChatGPT 액션은 어떻게 승인할까요?')
   assert.deepEqual(PERMISSION_OPTIONS.map(option => option.label), ['승인 요청', '나 대신 승인', '전체 권한'])
   assert.equal(PERMISSION_OPTIONS[2].chip, '전체 액세스')
