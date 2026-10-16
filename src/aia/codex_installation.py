@@ -34,6 +34,35 @@ AIA_CODEX_TOOL_ALIASES = {
 # ``AIA_CODEX_SUPPORTED_MATCHERS``; an unknown tool is denied by the bound
 # Protected Run instead of silently bypassing the AIA boundary.
 AIA_CODEX_HOOK_MATCHER = "*"
+AIA_HOOK_EXECUTABLE_NAMES = frozenset({"aia-hook.exe", "aia-hook"})
+
+
+def installed_hook_executable() -> Path | None:
+    """Return the per-user installed Hook forwarder, if the installer placed it.
+
+    Every AIA build on this machine -- the installed app, a ``dist`` build or a
+    source checkout -- resolves this same path.  The command written to Codex's
+    ``hooks.json``, and with it the hash Codex trusts, therefore no longer
+    changes with whichever build last ran ``setup``.
+    """
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        return None
+    candidate = Path(local_app_data) / "Programs" / "AIA" / "aia-hook" / "aia-hook.exe"
+    return candidate if candidate.is_file() else None
+
+
+def _bundled_hook_executable(executable: Path) -> Path | None:
+    """Return the forwarder shipped beside a packaged app outside the default folder."""
+
+    for candidate in (
+        executable.parent / "aia-hook" / "aia-hook.exe",
+        executable.parent.parent / "aia-hook" / "aia-hook.exe",
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _is_ephemeral_uv_python(path: Path) -> bool:
@@ -94,6 +123,16 @@ class CodexHookInstaller:
         """
 
         python_path = Path(self.python_executable)
+        if not explicit_python:
+            # The standalone forwarder starts without the AIA package and keeps
+            # one Hook command for every AIA build on this machine.
+            hook_executable = installed_hook_executable() or (
+                _bundled_hook_executable(python_path)
+                if getattr(sys, "frozen", False)
+                else None
+            )
+            if hook_executable is not None:
+                return (str(hook_executable),)
         if not explicit_python and getattr(sys, "frozen", False):
             executable_name = python_path.name.casefold()
             if executable_name in {"aia-cli.exe", "aia-cli"}:
@@ -147,6 +186,12 @@ class CodexHookInstaller:
     @property
     def command(self) -> str:
         return subprocess.list2cmdline(list(self._command_tokens))
+
+    @property
+    def hook_executable(self) -> Path:
+        """The program Codex starts for each Hook event."""
+
+        return Path(self._command_tokens[0])
 
     @property
     def uses_uv_launcher(self) -> bool:
@@ -376,6 +421,12 @@ class CodexHookInstaller:
         except ValueError:
             return False
         normalized = [token.strip('"').casefold() for token in tokens]
+        if (
+            len(normalized) == 1
+            and normalized[0].replace("\\", "/").rsplit("/", 1)[-1]
+            in AIA_HOOK_EXECUTABLE_NAMES
+        ):
+            return True
         if any(
             token == "-m"
             and index + 1 < len(normalized)
@@ -447,4 +498,5 @@ __all__ = [
     "AIA_CODEX_HOOK_MATCHER",
     "CodexHookInstallationError",
     "CodexHookInstaller",
+    "installed_hook_executable",
 ]

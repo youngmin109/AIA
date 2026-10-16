@@ -29,6 +29,9 @@ SignedUninstaller=yes
 [Files]
 Source: "..\..\dist\windows\AIA\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "..\..\dist\windows\aia-cli\*"; DestDir: "{app}\aia-cli"; Flags: recursesubdirs ignoreversion
+; Codex runs this forwarder for every Hook event. Its fixed path keeps the Hook
+; command, and Codex's trust in it, the same across AIA builds and updates.
+Source: "..\..\dist\windows\aia-hook\*"; DestDir: "{app}\aia-hook"; Flags: recursesubdirs ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\README.ko.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\INSTALL.md"; DestDir: "{app}\docs"; Flags: ignoreversion

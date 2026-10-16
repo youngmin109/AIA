@@ -47,7 +47,8 @@ function Resolve-SigningTargets {
 
     $targets = @(
         (Join-Path $Root "AIA\AIA.exe"),
-        (Join-Path $Root "aia-cli\aia-cli.exe")
+        (Join-Path $Root "aia-cli\aia-cli.exe"),
+        (Join-Path $Root "aia-hook\aia-hook.exe")
     )
     if ($IncludeRuntime) {
         $targets += Get-ChildItem -LiteralPath $Root -Recurse -File -ErrorAction Stop |
@@ -67,7 +68,8 @@ if (-not (Test-Path -LiteralPath $outputPath -PathType Container)) {
 $targets = Resolve-SigningTargets -Root $outputPath -IncludeRuntime:$SignRuntimeBinaries
 $missing = @(
     (Join-Path $outputPath "AIA\AIA.exe"),
-    (Join-Path $outputPath "aia-cli\aia-cli.exe")
+    (Join-Path $outputPath "aia-cli\aia-cli.exe"),
+    (Join-Path $outputPath "aia-hook\aia-hook.exe")
 ) | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) }
 if ($missing.Count -gt 0) {
     throw "필수 Windows 실행 파일이 없습니다: $($missing -join ', ')"

@@ -139,6 +139,7 @@ $manifestPath = Join-Path $installer.DirectoryName "AIA-SHA256SUMS.txt"
 $manifestFiles = @(
     Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "dist\windows\AIA") -Recurse -File
     Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "dist\windows\aia-cli") -Recurse -File
+    Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "dist\windows\aia-hook") -Recurse -File
     $installer
 )
 $manifestLines = $manifestFiles |

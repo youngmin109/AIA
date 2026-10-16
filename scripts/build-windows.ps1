@@ -92,6 +92,25 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "aia-cli build failed with exit code $LASTEXITCODE"
     }
+
+    Write-Host "[AIA] Building the Codex Hook forwarder..."
+    # Codex starts this before and after every tool call.  It holds only the
+    # standard-library forwarder, so it starts without the app's runtime hooks
+    # and bundle, and the installer gives it one fixed path for Codex's trust.
+    & uv run --group build pyinstaller `
+        --noconfirm `
+        --clean `
+        --onedir `
+        --console `
+        --name aia-hook `
+        --icon $iconPath `
+        --distpath $outputPath `
+        --workpath (Join-Path $buildPath "aia-hook") `
+        --specpath (Join-Path $buildPath "spec") `
+        (Join-Path $repositoryRoot "src\aia_hook_client\__main__.py")
+    if ($LASTEXITCODE -ne 0) {
+        throw "aia-hook build failed with exit code $LASTEXITCODE"
+    }
 }
 finally {
     Pop-Location
@@ -99,3 +118,4 @@ finally {
 
 Write-Host "[AIA] Desktop build created: $outputPath\AIA\AIA.exe"
 Write-Host "[AIA] CLI build created: $outputPath\aia-cli\aia-cli.exe"
+Write-Host "[AIA] Hook forwarder created: $outputPath\aia-hook\aia-hook.exe"

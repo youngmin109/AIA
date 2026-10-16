@@ -52,3 +52,23 @@ def test_desktop_build_bundles_a_multi_size_icon_for_the_title_bar() -> None:
     sizes = {ico[6 + 16 * index] or 256 for index in range(count)}
     assert (reserved, kind) == (0, 1)
     assert {16, 24, 32, 48, 256} <= sizes
+
+
+def test_windows_release_builds_signs_and_installs_the_hook_forwarder() -> None:
+    # Codex starts aia-hook.exe for every Hook event; it must stay a small build
+    # of the stdlib forwarder and land at the fixed path the installer owns.
+    build = (ROOT / "scripts" / "build-windows.ps1").read_text(encoding="utf-8")
+    hook_build = build[build.index("--name aia-hook"):]
+    hook_build = hook_build[: hook_build.index("throw")]
+    assert r"src\aia_hook_client\__main__.py" in hook_build
+    assert "--collect-all" not in hook_build
+    assert "--onedir" in build[build.index("Building the Codex Hook forwarder"):]
+
+    installer = (ROOT / "packaging" / "windows" / "AIA.iss").read_text(encoding="utf-8")
+    assert r'Source: "..\..\dist\windows\aia-hook\*"; DestDir: "{app}\aia-hook"' in installer
+    assert r"DefaultDirName={localappdata}\Programs\AIA" in installer
+
+    signing = (ROOT / "scripts" / "sign-windows.ps1").read_text(encoding="utf-8")
+    assert signing.count(r'"aia-hook\aia-hook.exe"') == 2
+    package = (ROOT / "scripts" / "package-windows.ps1").read_text(encoding="utf-8")
+    assert r'"dist\windows\aia-hook"' in package

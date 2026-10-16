@@ -306,7 +306,7 @@ def test_hook_verification_is_bound_to_hook_and_codex_fingerprints(
     assert store.is_current(installer, executable) is True
     document = store.read()
     assert document is not None
-    assert document["schema_version"] == "aia-hook-verification-5"
+    assert document["schema_version"] == "aia-hook-verification-6"
     assert document["codex_config_sha256"]
     assert document["aia_hook_runtime_sha256"]
     assert document["session_id"] == "session-1"
@@ -435,5 +435,145 @@ def test_hook_verification_is_invalid_after_codex_executable_changes(tmp_path: P
     )
 
     executable.write_bytes(b"codex-test-build-2")
+
+    assert store.is_current(installer, executable) is False
+
+
+def _hook_forwarder(tmp_path: Path, content: bytes = b"forwarder-1") -> Path:
+    forwarder = tmp_path / "Programs" / "AIA" / "aia-hook" / "aia-hook.exe"
+    forwarder.parent.mkdir(parents=True, exist_ok=True)
+    forwarder.write_bytes(content)
+    return forwarder
+
+
+def test_installed_hook_forwarder_is_the_hook_command_for_every_build(
+    tmp_path: Path, monkeypatch
+) -> None:
+    forwarder = _hook_forwarder(tmp_path)
+    monkeypatch.setattr(codex_installation, "installed_hook_executable", lambda: forwarder)
+    source_installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    dist_desktop = tmp_path / "dist" / "windows" / "AIA" / "AIA.exe"
+    dist_desktop.parent.mkdir(parents=True)
+    dist_desktop.touch()
+    dist_cli = tmp_path / "dist" / "windows" / "aia-cli" / "aia-cli.exe"
+    dist_cli.parent.mkdir(parents=True)
+    dist_cli.touch()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(dist_desktop))
+    dist_installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    expected = subprocess.list2cmdline([str(forwarder)])
+    assert source_installer.command == expected
+    assert dist_installer.command == expected
+    assert dist_installer.hook_executable == forwarder
+
+
+def test_explicit_python_hook_keeps_the_module_runtime(tmp_path: Path, monkeypatch) -> None:
+    forwarder = _hook_forwarder(tmp_path)
+    monkeypatch.setattr(codex_installation, "installed_hook_executable", lambda: forwarder)
+    python_executable = tmp_path / "python.exe"
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json", python_executable=python_executable)
+
+    assert installer.command == subprocess.list2cmdline(
+        [str(python_executable.resolve(strict=False)), "-m", "aia.codex_hook_runtime"]
+    )
+
+
+def test_packaged_app_outside_the_default_folder_uses_its_own_forwarder(
+    tmp_path: Path, monkeypatch
+) -> None:
+    desktop = tmp_path / "Custom AIA" / "AIA.exe"
+    desktop.parent.mkdir(parents=True)
+    desktop.touch()
+    forwarder = tmp_path / "Custom AIA" / "aia-hook" / "aia-hook.exe"
+    forwarder.parent.mkdir(parents=True)
+    forwarder.touch()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(desktop))
+
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+
+    assert installer.command == subprocess.list2cmdline([str(forwarder)])
+
+
+def test_setup_replaces_an_earlier_aia_hook_command_with_the_forwarder(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "hooks.json"
+    old_cli = tmp_path / "dist" / "windows" / "aia-cli" / "aia-cli.exe"
+    path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    event: [
+                        {
+                            "matcher": "*",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": subprocess.list2cmdline([str(old_cli), "hook", "runtime"]),
+                                }
+                            ],
+                        },
+                        {"matcher": "Bash", "hooks": [{"type": "command", "command": "user-hook"}]},
+                    ]
+                    for event in ("PreToolUse", "PostToolUse")
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    forwarder = _hook_forwarder(tmp_path)
+    monkeypatch.setattr(codex_installation, "installed_hook_executable", lambda: forwarder)
+    installer = CodexHookInstaller(path)
+
+    assert installer.is_installed() is False
+    assert installer.has_aia_runtime() is True
+    installer.install()
+
+    document = json.loads(path.read_text(encoding="utf-8"))
+    for event in ("PreToolUse", "PostToolUse"):
+        commands = [
+            handler["command"]
+            for entry in document["hooks"][event]
+            for handler in entry["hooks"]
+        ]
+        # The stale AIA entry is dropped and the forwarder entry appended;
+        # Codex runs every matching Hook, so only the set matters.
+        assert sorted(commands) == sorted([installer.command, "user-hook"])
+    assert installer.is_fully_installed() is True
+
+    installer.uninstall()
+    document = json.loads(path.read_text(encoding="utf-8"))
+    assert [
+        handler["command"]
+        for entry in document["hooks"]["PreToolUse"]
+        for handler in entry["hooks"]
+    ] == ["user-hook"]
+
+
+def test_hook_verification_is_invalid_after_the_hook_forwarder_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    forwarder = _hook_forwarder(tmp_path)
+    monkeypatch.setattr(codex_installation, "installed_hook_executable", lambda: forwarder)
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(tmp_path / "hooks.json")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    assert store.is_current(installer, executable) is True
+    assert store.read()["hook_executable_sha256"]
+
+    forwarder.write_bytes(b"forwarder-2")
 
     assert store.is_current(installer, executable) is False

@@ -15,7 +15,7 @@ from typing import Any
 from .codex_installation import CodexHookInstaller
 
 
-_SCHEMA_VERSION = "aia-hook-verification-5"
+_SCHEMA_VERSION = "aia-hook-verification-6"
 _RUNTIME_PATH = (Path(__file__).resolve().parent / "codex_hook_runtime.py").resolve()
 
 
@@ -117,9 +117,14 @@ class HookVerificationStore:
         executable_sha256 = cls._sha256(executable_path)
         if executable_sha256 is None:
             return None
+        # The program Codex starts for every Hook event.  A standalone
+        # forwarder no longer runs codex_hook_runtime.py, so bind its bytes too.
+        hook_executable = installer.hook_executable.expanduser().resolve(strict=False)
         return {
             "hook_path": str(hook_path),
             "hook_sha256": hook_sha256,
+            "hook_executable": str(hook_executable),
+            "hook_executable_sha256": cls._sha256(hook_executable),
             "codex_config": str(config_path),
             "codex_config_sha256": cls._codex_config_fingerprint(config_path),
             "aia_hook_runtime": _runtime_identity(),
