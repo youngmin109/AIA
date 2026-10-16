@@ -196,10 +196,47 @@ def test_full_access_run_opens_without_codex_sandbox_and_is_not_a_protection_fai
 
     assert session.calls == [("open", {"sandbox": "danger-full-access", "approval_policy": "never", "approvals_reviewer": "user", "model": "gpt-test"})]
     assert record.full_access_used is True
-    assert record.protection_state == 'DEGRADED'
+    # Full access is the user's choice of Codex sandbox, recorded as the
+    # CODEX_FULL_ACCESS_USER_SELECTED limitation.  It does not degrade AIA's
+    # own Hook, sensors and recovery, so opening leaves the state untouched.
+    assert record.protection_state == 'STARTING'
     assert "protection_failure_reason" not in record.runtime
     assert "codex_sandbox_downgraded" not in record.runtime
     assert "codex_approval_policy_downgraded" not in record.runtime
+
+
+def _exec_record(tmp_path, permission_mode: str) -> RunRecord:
+    record = make_record(tmp_path, launch_mode="inherit")
+    record.interactive = False
+    record.permission_mode = permission_mode
+    return record
+
+
+def test_exec_observation_treats_requested_full_access_as_the_contract(service, tmp_path) -> None:
+    from io import BytesIO
+
+    record = _exec_record(tmp_path, "full_access")
+
+    service._capture_codex_execution_observation(
+        record, [BytesIO(b""), BytesIO(b"approval: never\nsandbox: danger-full-access\n")]
+    )
+
+    assert record.full_access_used is True
+    assert "codex_approval_policy_downgraded" not in record.runtime
+    assert "codex_sandbox_downgraded" not in record.runtime
+
+
+def test_exec_observation_still_flags_never_when_the_sandbox_was_requested(service, tmp_path) -> None:
+    from io import BytesIO
+
+    record = _exec_record(tmp_path, "workspace")
+
+    service._capture_codex_execution_observation(
+        record, [BytesIO(b""), BytesIO(b"approval: never\nsandbox: workspace-write\n")]
+    )
+
+    assert record.runtime["codex_approval_policy_downgraded"] is True
+    assert record.full_access_used is False
 
 
 def test_auto_review_run_lets_codex_review_approvals_inside_the_sandbox(service, tmp_path) -> None:

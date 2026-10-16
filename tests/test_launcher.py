@@ -944,6 +944,36 @@ def test_codex_adapter_rejects_safe_exec_mode_with_explicit_sandbox(tmp_path: Pa
         adapter.build_launch(request, Path(sys.executable))
 
 
+def test_codex_adapter_accepts_exec_full_access_only_as_the_complete_pair(tmp_path: Path) -> None:
+    adapter = CodexAdapter()
+
+    def launch(options):
+        return adapter.build_launch(
+            ProtectedLaunchRequest(
+                aia_session_id="session-1",
+                workspace=tmp_path,
+                agent="codex",
+                prompt="run",
+                adapter_options=options,
+            ),
+            Path(sys.executable),
+        )
+
+    spec = launch({"sandbox": "danger-full-access", "approval_policy": "never"})
+
+    assert spec.argv[spec.argv.index("--sandbox") + 1] == "danger-full-access"
+    assert 'approval_policy="never"' in spec.argv
+    assert "--dangerously-bypass-approvals-and-sandbox" not in spec.argv
+    for half in (
+        {"sandbox": "danger-full-access"},
+        {"sandbox": "danger-full-access", "approval_policy": "on-request"},
+        {"sandbox": "workspace-write", "approval_policy": "never"},
+        {"sandbox": "unrestricted"},
+    ):
+        with pytest.raises(AdapterError):
+            launch(half)
+
+
 def test_codex_adapter_rejects_never_approval_policy(tmp_path: Path) -> None:
     adapter = CodexAdapter()
     request = ProtectedLaunchRequest(

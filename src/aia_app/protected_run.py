@@ -612,6 +612,17 @@ class ProtectedRunMixin:
                 overrides, turned_off = self._external_tool_overrides()
                 adapter_options["disable_external_tools"] = overrides
                 record.runtime["external_tools_off"] = turned_off
+        elif record.permission_mode == "full_access":
+            # Only the Hook verification probe runs exec with full access.  It
+            # proves the Hook path, which fires before any sandboxed execution,
+            # so waiting for Codex to prepare its sandbox only delays the proof.
+            adapter_options.update(
+                {
+                    "sandbox": "danger-full-access",
+                    "approval_policy": "never",
+                    "skip_git_repo_check": True,
+                }
+            )
         else:
             # Codex CLI's current exec contract applies the supported
             # workspace-write/on-request policy through --approve-for-me.
@@ -754,7 +765,7 @@ class ProtectedRunMixin:
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
                 and not record.permission_grants
-                and not record.full_access_used and not record.auto_review_used
+                and not record.auto_review_used
                 else "ABORTED_DEGRADED"
                 if final.result.session_status is SessionStatus.ABORTED
                 else "COMPLETED_VERIFIED"
@@ -764,7 +775,7 @@ class ProtectedRunMixin:
                 and not record.runtime.get("codex_sandbox_downgraded")
                 and not record.runtime.get("codex_approval_policy_downgraded")
                 and not record.permission_grants
-                and not record.full_access_used and not record.auto_review_used
+                and not record.auto_review_used
                 else "COMPLETED_DEGRADED"
             ),
             hook_event_count=len(controller.events),

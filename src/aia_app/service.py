@@ -192,11 +192,15 @@ class RunApplicationService(
         registry: RunRegistry | None = None,
         max_workers: int = 4,
         require_hook_verification: bool = False,
+        hook_verification_probe: bool = False,
     ) -> None:
         self.control_root = Path(control_root).expanduser().resolve(strict=False)
         self.registry = registry or RunRegistry()
         self.reader = ResultBundleReader(self.control_root)
         self.require_hook_verification = require_hook_verification
+        # Set only by the CLI after it consumed the one-time probe token; the
+        # web console never constructs a service with this flag.
+        self.hook_verification_probe = hook_verification_probe
         self._runtime_state_lock = RLock()
         self._runtime_states_cache_lock = RLock()
         self._runtime_states_cache: dict[
@@ -673,11 +677,11 @@ class RunApplicationService(
             record.protection_state = "DEGRADED"
             self._persist_runtime_state(record)
         if full_access and sandbox in {"dangerFullAccess", "workspaceWrite", "readOnly"} and approval_policy in {"never", "on-request", "on-failure", "untrusted"}:
-            # The user chose full access; the Bundle states it.  The Hook,
-            # sensors and recovery stay in force.  A stricter mode Codex applied is fine.
+            # The user chose full access; the Bundle states it as a limitation
+            # (CODEX_FULL_ACCESS_USER_SELECTED).  It does not degrade AIA's own
+            # protection: the Hook, sensors and recovery stay in force.  A
+            # stricter mode Codex applied is fine.
             record.full_access_used = sandbox == "dangerFullAccess" or approval_policy == "never"
-            if record.full_access_used:
-                record.protection_state = "DEGRADED"
             if sandbox == "readOnly":
                 record.runtime["codex_sandbox_downgraded"] = True
             self._persist_runtime_state(record)
@@ -1473,14 +1477,20 @@ class RunApplicationService(
             posttool_observed=posttool_observed,
         )
         record.runtime["codex_output_observation"] = observation
-        if (
-            observation.effective_sandbox is not None
-            and observation.effective_sandbox.casefold().startswith("read-only")
-        ):
+        effective_sandbox = (observation.effective_sandbox or "").casefold()
+        effective_approval = (observation.effective_approval_policy or "").casefold()
+        if effective_sandbox.startswith("read-only"):
             record.runtime["codex_sandbox_downgraded"] = True
-        if (
+        if record.permission_mode == "full_access":
+            # Full access was requested, so approval=never is the expected
+            # contract rather than a downgrade.  The Bundle states it.
+            record.full_access_used = (
+                effective_sandbox.startswith("danger-full-access")
+                or effective_approval == "never"
+            )
+        elif (
             observation.effective_approval_policy is not None
-            and observation.effective_approval_policy.casefold() != "on-request"
+            and effective_approval != "on-request"
         ):
             record.runtime["codex_approval_policy_downgraded"] = True
 
@@ -1574,7 +1584,7 @@ class RunApplicationService(
         with self._codex_workbench._permission_lock(record):
             if record.status in {"COMPLETED", "FAILED", "ABORTED"}:
                 return
-            if controller.errors or hook_broker_healthy is False or record.permission_grants or record.full_access_used or record.auto_review_used:
+            if controller.errors or hook_broker_healthy is False or record.permission_grants or record.auto_review_used:
                 record.protection_state = "DEGRADED"
             elif events and sensors_healthy and hook_broker_healthy is not False:
                 record.protection_state = "ACTIVE_VERIFIED"

@@ -401,7 +401,15 @@ class RunControlMixin:
             reasoning_effort=request.reasoning_effort,
             resume_thread_id=request.resume_thread_id,
             resumed_from=resumed_from,
-            permission_mode=request.permission_mode,
+            # The request DTO keeps full access to the Codex conversation.  The
+            # one exception is the token-authorized Hook verification probe:
+            # a fixed command in a disposable folder whose proof (the Hook
+            # event) never depends on the Codex sandbox.
+            permission_mode=(
+                "full_access"
+                if getattr(self, "hook_verification_probe", False) and not request.interactive
+                else request.permission_mode
+            ),
             created_at=session.created_at,
             protection_state="STARTING",
             coordinator_pid=os.getpid(),

@@ -455,6 +455,19 @@ class CodexAdapter:
 
     @staticmethod
     def _append_options(argv: list[str], options: Mapping[str, Any]) -> None:
+        # As in the app-server launch, full access is accepted only as the
+        # complete pair: no Codex sandbox and no Codex approval prompts.  The
+        # installed, trusted Hook still checks every tool call.
+        full_access = (options.get("sandbox"), options.get("approval_policy")) == (
+            "danger-full-access",
+            "never",
+        )
+        if (
+            "sandbox" in options
+            and not full_access
+            and options["sandbox"] not in {"read-only", "workspace-write"}
+        ):
+            raise AdapterError("Codex sandbox is not allowed for protected launches")
         scalar_flags = {
             "profile": "--profile",
             "sandbox": "--sandbox",
@@ -478,7 +491,7 @@ class CodexAdapter:
                 argv.extend(("--add-dir", value))
         if "approval_policy" in options:
             value = options["approval_policy"]
-            if value not in {"on-request", "on-failure", "untrusted"}:
+            if not full_access and value not in {"on-request", "on-failure", "untrusted"}:
                 raise AdapterError("Codex approval policy is not allowed for protected launches")
             import json
 

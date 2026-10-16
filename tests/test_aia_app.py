@@ -2816,6 +2816,42 @@ def test_non_interactive_launcher_keeps_current_adapter_options(
         service.shutdown()
 
 
+def test_non_interactive_full_access_run_launches_codex_without_its_sandbox(
+    tmp_path, monkeypatch
+) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.permission_mode = "full_access"
+    try:
+        _launcher, _captured, options = capture_service_launcher_factory(
+            service, record, monkeypatch
+        )
+
+        assert options == {
+            "sandbox": "danger-full-access",
+            "approval_policy": "never",
+            "skip_git_repo_check": True,
+        }
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize("probe", [True, False])
+def test_only_the_hook_verification_probe_service_runs_exec_with_full_access(
+    tmp_path, monkeypatch, probe
+) -> None:
+    service = RunApplicationService(tmp_path / "control", hook_verification_probe=probe)
+    records = []
+    service._run = records.append
+    monkeypatch.setattr(service._executor, "submit", lambda callback, record: callback(record))
+    try:
+        service.create_protected_run({"workspace": str(tmp_path), "task": "inspect"})
+    finally:
+        service.shutdown()
+
+    assert records[0].permission_mode == ("full_access" if probe else "workspace")
+
+
 def test_non_interactive_launch_failure_closes_temporary_output_handles(
     tmp_path, monkeypatch
 ) -> None:

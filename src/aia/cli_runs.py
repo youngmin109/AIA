@@ -307,6 +307,9 @@ def _run_protected(args: argparse.Namespace) -> int:
     service = RunApplicationService(
         _control_root(args.control_root),
         require_hook_verification=not args._hook_verification_probe,
+        # The probe token was consumed above; only then may the probe run
+        # without the Codex sandbox.
+        hook_verification_probe=args._hook_verification_probe,
     )
     try:
         created = service.create_protected_run(
