@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -218,6 +220,36 @@ _SHELL_WRAPPER = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _STATEMENT_SEPARATORS = frozenset(";|&\n\r{}()")
+# powershell/pwsh -EncodedCommand <base64 of UTF-16LE script>, under any prefix
+# PowerShell accepts for the parameter (-e, -ec, -enc, ... -EncodedCommand).
+_ENCODED_COMMAND = re.compile(
+    r'(?:powershell|pwsh)(?:\.exe)?["\']?(?:\s+[^\s|;&]+)*?\s+[-/]{1,2}'
+    r'(?:e|ec|en(?:c(?:o(?:d(?:e(?:d(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?)?)?)?)?)?)?)'
+    r'\s+["\']?([A-Za-z0-9+/]{4,}={0,2})(?![A-Za-z0-9+/=])',
+    re.IGNORECASE,
+)
+_ENCODED_DEPTH = 3
+
+
+def _encoded_scripts(raw_command: str, depth: int = 0) -> tuple[str, ...]:
+    """Scripts hidden as -EncodedCommand in a command, decoded (nested ones too).
+
+    A value that is not valid base64 of UTF-16LE text is left alone: the
+    command is then judged by its visible text as before.
+    """
+
+    if depth >= _ENCODED_DEPTH:
+        return ()
+    scripts: list[str] = []
+    for match in _ENCODED_COMMAND.finditer(raw_command):
+        try:
+            script = base64.b64decode(match.group(1), validate=True).decode("utf-16-le")
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            continue
+        if script.strip():
+            scripts.append(script)
+            scripts.extend(_encoded_scripts(script, depth + 1))
+    return tuple(scripts)
 
 
 def _split_statements(text: str) -> list[str]:
@@ -251,10 +283,11 @@ def command_segments(raw_command: str) -> tuple[str, ...]:
     on ``;``, ``|``, ``&``, newlines, braces and parentheses outside quotes, so
     a command pattern also matches a statement in the middle of a script
     (``$t = 'x'; Remove-Item $t``), not only the start of the whole command.
+    A script passed as ``-EncodedCommand`` is decoded and judged the same way.
     """
 
     segments = [normalize_command(raw_command)]
-    pending = [raw_command]
+    pending = [raw_command, *_encoded_scripts(raw_command)]
     while pending and len(segments) < 200:
         text = pending.pop()
         wrapped = _SHELL_WRAPPER.match(text)
@@ -285,20 +318,26 @@ def _command_pattern_matches(command: str, pattern: str) -> bool:
     return False
 
 
-# Shell verbs that visibly delete, move, rename or overwrite a path the same
-# command names.  Reading needs no verb: any command that names a read-denied
-# path can print, copy or send it (see command_path_denials).
+# Shell verbs and inline Python file calls that visibly delete, move, rename or
+# overwrite a path the same command names.  Reading needs no verb: any command
+# that names a read-denied path can print, copy or send it (see
+# command_path_denials).
 _COMMAND_FILE_VERBS: Mapping[Operation, re.Pattern[str]] = MappingProxyType(
     {
         Operation.DELETE: re.compile(
             r"(?<![\w-])(?:remove-item|ri|rm|del|erase|rd|rmdir|unlink|shred)(?![\w-])"
             r"|::delete\(|\.delete\("
+            r"|os\.(?:remove|removedirs)\(|shutil\.rmtree\("
         ),
-        Operation.MOVE: re.compile(r"(?<![\w-])(?:move-item|mi|mv|move)(?![\w-])|::move\("),
+        Operation.MOVE: re.compile(r"(?<![\w-])(?:move-item|mi|mv|move)(?![\w-])|::move\(|os\.replace\("),
         Operation.RENAME: re.compile(r"(?<![\w-])(?:rename-item|rni|ren|rename)(?![\w-])"),
         Operation.MODIFY: re.compile(
             r"(?<![\w-])(?:set-content|add-content|clear-content|clc|out-file|tee-object|truncate)(?![\w-])"
             r"|::(?:write|append)\w*\("
+            # open(path, "w"/"a"/"x"/"r+"...), Path.open("w") and Path.write_text/write_bytes
+            r"|(?<!\w)open\([^)]*,\s*(?:mode\s*=\s*)?['\"](?:[wax]|r\+)[^'\"]*['\"]"
+            r"|\.open\(\s*(?:mode\s*=\s*)?['\"](?:[wax]|r\+)"
+            r"|\.write_(?:text|bytes)\("
         ),
     }
 )
@@ -340,9 +379,18 @@ def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[
     no verb: naming the path is enough, because ``gc``, ``rg``, ``Copy-Item``,
     ``python -c "open(...)"`` or ``curl -d @.env`` all read it.  Only DENY
     effects are derived, so this can block more but never allows anything a
-    rule would not.
+    rule would not.  A script hidden as ``-EncodedCommand`` is checked too.
     """
 
+    denied: list[PolicyRule] = []
+    for source in (raw_command, *_encoded_scripts(raw_command)):
+        for rule in _visible_path_denials(rules, source):
+            if rule not in denied:
+                denied.append(rule)
+    return denied
+
+
+def _visible_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[PolicyRule]:
     text = normalize_command(raw_command)
     tokens = _command_path_tokens(raw_command)
     # curl and similar tools read a file given as @path.

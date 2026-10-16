@@ -61,7 +61,7 @@ def test_all_official_profiles_resolve() -> None:
     ]
     assert all(item.policy_id for item in resolved)
     assert [item.policy_version for item in resolved] == [
-        "1.1",
+        "1.2",
         "1.0",
         "1.0",
         "1.0",
@@ -661,6 +661,119 @@ def test_command_matching_does_not_infer_script_meaning() -> None:
     assert result.policy_decision is PolicyDecision.COMPLIANT
     assert result.operation_effect is PolicyEffect.ALLOW
     assert result.matched_rule_ids == ()
+
+
+def _encoded(script: str) -> str:
+    import base64
+
+    return base64.b64encode(script.encode("utf-16-le")).decode()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"powershell -EncodedCommand {_encoded('Get-Content .env')}",
+        f"pwsh -enc {_encoded('type .env')}",
+        f"powershell.exe -NoProfile -e {_encoded('[IO.File]::ReadAllText(\".env\")')}",
+        # Codex wraps every command; the hidden script sits one level deeper.
+        f'powershell.exe -NoProfile -Command "powershell -ec {_encoded("Get-Content .env")}"',
+        f"powershell -e {_encoded('powershell -e ' + _encoded('Get-Content .env'))}",
+    ],
+)
+def test_a_secret_read_hidden_as_encoded_command_is_denied(command: str) -> None:
+    policy = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy
+
+    result = policy.evaluate_target(operation=Operation.EXECUTE, raw_command=command)
+
+    assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.asset_type is SecurityAssetType.SECRET
+
+
+def test_an_encoded_command_is_judged_by_what_it_decodes_to() -> None:
+    policy = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy
+
+    def decision(command: str) -> PolicyDecision:
+        return policy.evaluate_target(operation=Operation.EXECUTE, raw_command=command).policy_decision
+
+    assert decision(f"powershell -EncodedCommand {_encoded('Remove-Item -Recurse orders')}") is PolicyDecision.VIOLATION
+    assert decision(f"powershell -EncodedCommand {_encoded('Get-ChildItem src')}") is PolicyDecision.COMPLIANT
+    # Not base64 of UTF-16 text: nothing hidden to decode, the visible text decides.
+    assert decision("powershell -EncodedCommand not-base64!") is PolicyDecision.COMPLIANT
+    assert decision("powershell -ExecutionPolicy Bypass -File build.ps1") is PolicyDecision.COMPLIANT
+
+
+def _ledger_policy():
+    return load_policy_document(
+        {
+            "profile": "CUSTOM",
+            "policy_name": "ledger",
+            "policy_id": "ledger",
+            "policy_version": "1",
+            "schema_version": "1",
+            "default_effect": "AUDIT",
+            "rules": [
+                {
+                    "rule_id": "keep-ledger",
+                    "priority": 2001,
+                    "asset_type": "WORKSPACE",
+                    "path_patterns": ["data/customer-ledger.csv"],
+                    "operation_effects": {
+                        "CREATE": "DENY",
+                        "MODIFY": "DENY",
+                        "DELETE": "DENY",
+                        "MOVE": "DENY",
+                        "RENAME": "DENY",
+                    },
+                }
+            ],
+        },
+        source="<test>",
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "decision"),
+    [
+        ("python -c \"import os; os.remove('data/customer-ledger.csv')\"", PolicyDecision.VIOLATION),
+        ("python -c \"open('data/customer-ledger.csv','w').close()\"", PolicyDecision.VIOLATION),
+        ("python -c \"open('data/customer-ledger.csv', mode='a').write('x')\"", PolicyDecision.VIOLATION),
+        ("python -c \"from pathlib import Path; Path('data/customer-ledger.csv').write_text('')\"", PolicyDecision.VIOLATION),
+        ("python -c \"import shutil; shutil.move('data/customer-ledger.csv', 'archive/')\"", PolicyDecision.VIOLATION),
+        ("python -c \"import os; os.replace('data/customer-ledger.csv', 'x.csv')\"", PolicyDecision.VIOLATION),
+        # Reading the file is allowed by this rule.
+        ("python -c \"print(open('data/customer-ledger.csv').read())\"", PolicyDecision.COMPLIANT),
+        ("python -c \"print(open('data/customer-ledger.csv', 'r').read())\"", PolicyDecision.COMPLIANT),
+        # Writing another file is not this rule's business.
+        ("python -c \"open('output/report.json','w').write('{}')\"", PolicyDecision.COMPLIANT),
+    ],
+)
+def test_inline_python_file_calls_count_as_file_operations(command: str, decision: PolicyDecision) -> None:
+    result = _ledger_policy().evaluate_target(operation=Operation.EXECUTE, raw_command=command)
+
+    assert result.policy_decision is decision
+
+
+@pytest.mark.parametrize(
+    ("command", "decision"),
+    [
+        ("python -c \"import shutil; shutil.rmtree('orders')\"", PolicyDecision.VIOLATION),
+        ("python -c \"import os; [os.remove(f) for f in os.listdir('orders')]\"", PolicyDecision.VIOLATION),
+        ("python -c \"from pathlib import Path; [p.unlink() for p in Path('orders').glob('*')]\"", PolicyDecision.VIOLATION),
+        ("python -c \"import os; print(os.listdir('.'))\"", PolicyDecision.COMPLIANT),
+        ("python -c \"import shutil; print(shutil.which('git'))\"", PolicyDecision.COMPLIANT),
+        ("python -m pytest -q", PolicyDecision.COMPLIANT),
+    ],
+)
+def test_protected_profile_blocks_inline_python_deletes_like_shell_deletes(
+    command: str, decision: PolicyDecision
+) -> None:
+    policy = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy
+
+    result = policy.evaluate_target(operation=Operation.EXECUTE, raw_command=command)
+
+    assert result.policy_decision is decision
+    if decision is PolicyDecision.VIOLATION:
+        assert result.matched_rule_ids == ("protected-script-delete",)
 
 
 def test_missing_file_path_evidence_is_indeterminate() -> None:

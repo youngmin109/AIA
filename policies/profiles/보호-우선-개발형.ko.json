@@ -2,7 +2,7 @@
   "프로필": "보호 우선 개발형",
   "정책명": "AIA 보호 우선 개발형 정책",
   "정책ID": "aia-protected-development",
-  "정책버전": "1.1",
+  "정책버전": "1.2",
   "스키마버전": "1",
   "기본효과": "기록",
   "규칙": [
@@ -161,6 +161,21 @@
         "Remove-Item*",
         "Stop-Process*",
         "taskkill /f*"
+      ],
+      "행위효과": {
+        "실행": "금지"
+      }
+    },
+    {
+      "규칙ID": "protected-script-delete",
+      "우선순위": 520,
+      "자산유형": "작업공간",
+      "명령패턴": [
+        "*shutil.rmtree(*",
+        "*os.remove(*",
+        "*os.removedirs(*",
+        "*.unlink(*",
+        "*.rmdir(*"
       ],
       "행위효과": {
         "실행": "금지"

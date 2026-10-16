@@ -29,6 +29,7 @@ const TARGETS: NamedTarget[] = [
     { title, description: `${description}과 뒤에 인수가 붙은 형태를 대상으로 해요.`, icon: 'terminal', command: true, patterns: [`${pattern}*`] },
   ]),
   { title: '파일 삭제·프로세스 강제 종료', description: '일괄 삭제와 강제 종료에 쓰이는 대표 명령을 대상으로 해요.', icon: 'block', command: true, patterns: ['rm -rf*', 'rmdir /s*', 'rd /s*', 'del *', 'erase *', 'Remove-Item*', 'Stop-Process*', 'taskkill /f*'] },
+  { title: '스크립트 한 줄로 파일 삭제', description: '파이썬 한 줄 명령 안의 파일·폴더 삭제 함수를 대상으로 해요.', icon: 'block', command: true, patterns: ['*shutil.rmtree(*', '*os.remove(*', '*os.removedirs(*', '*.unlink(*', '*.rmdir(*'] },
 ]
 
 // Names describe the actual targets, not rule IDs: edited targets must never
