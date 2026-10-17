@@ -324,7 +324,11 @@ _COMMAND_FILE_VERBS: Mapping[Operation, re.Pattern[str]] = MappingProxyType(
     {
         Operation.READ: re.compile(
             r"(?<![\w-])(?:get-content|gc|cat|type|more|select-string|sls|"
-            r"copy-item|cpi|copy|cp|rg|grep|findstr|less|head|tail)(?![\w-])"
+            r"copy-item|cpi|copy|cp|rg|grep|findstr|less|head|tail|"
+            r"robocopy|xcopy|tar|7z|zip|compress-archive|certutil|curl|invoke-webrequest|iwr|xargs|"
+            r"import-\w+)(?![\w-])"
+            r"|(?<!\w)readall\w*"
+            r"|(?:^|\s)-exec(?:\s|$)"
             r"|(?<![\w.])open\s*\(|\.open\s*\(|\.read_(?:text|bytes)\("
         ),
         Operation.DELETE: re.compile(
@@ -381,9 +385,9 @@ def _wildcard_token_names_path(token: str, pattern: str) -> bool:
         normalized_pattern = normalize_path(pattern)
     except PolicyEvaluationError:
         return False
-    if not any(char in normalized_token for char in "*?"):
+    if not any(char in normalized_token for char in "*?["):
         return False
-    if not any(char not in "*/?\\." for char in normalized_token):
+    if normalized_token in {"*", "*.*", "?", ".", ".."}:
         return False
 
     token_parts = normalized_token.lstrip("/").split("/")
