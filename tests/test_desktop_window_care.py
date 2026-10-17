@@ -216,6 +216,8 @@ def test_run_desktop_opens_the_window_where_it_was_last_closed(tmp_path, monkeyp
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     (tmp_path / "AIA").mkdir()
     _write(tmp_path / "AIA" / "desktop-window.json", x=320, y=240, width=1600, height=1000, scale=1.0, maximized=True)
+    stale_session = tmp_path / "AIA" / "WebView2" / "session-99999999"
+    stale_session.mkdir(parents=True)
     created = {}
     window = SimpleNamespace(events=SimpleNamespace(closing=FakeEvent(), loaded=FakeEvent(), shown=FakeEvent(), minimized=FakeEvent(), restored=FakeEvent()))
 
@@ -234,6 +236,7 @@ def test_run_desktop_opens_the_window_where_it_was_last_closed(tmp_path, monkeyp
     monkeypatch.setattr(launcher, "_detach_desktop_console", lambda: False)
     monkeypatch.setattr(launcher, "_is_windows", lambda: True)
     monkeypatch.setattr(launcher, "_webview2_runtime_present", lambda: True)
+    monkeypatch.setattr(launcher.psutil, "pid_exists", lambda _pid: False)
     monkeypatch.setattr(launcher, "_acquire_desktop_instance", lambda: SimpleNamespace(release=lambda: None))
     monkeypatch.setattr(launcher, "choose_loopback_port", lambda preferred: 8799)
     monkeypatch.setattr(launcher, "_start_local_server", lambda host, port: SimpleNamespace(stop=lambda: None))
@@ -243,6 +246,7 @@ def test_run_desktop_opens_the_window_where_it_was_last_closed(tmp_path, monkeyp
     started = []
     monkeypatch.setattr(launcher.WebViewRecovery, "start", lambda self: started.append(self))
     assert launcher.run_desktop() == 0
+    assert not stale_session.exists()
     assert created["url"] == "http://127.0.0.1:8799/"
     assert (created["x"], created["y"], created["width"], created["height"]) == (320, 240, 1600, 1000)
     assert created["maximized"] is True and created["min_size"] == MIN_SIZE
