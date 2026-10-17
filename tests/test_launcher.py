@@ -580,6 +580,7 @@ def test_codex_adapter_turns_external_tools_off_for_app_server(tmp_path: Path) -
         "mcp_servers.node_repl.enabled=false",
         "plugins.unified-computer-use@openai-bundled.enabled=false",
         "features.apps=false",
+        "notify=[]",
     ]
     request = ProtectedLaunchRequest(
         aia_session_id="session-1",
@@ -590,7 +591,7 @@ def test_codex_adapter_turns_external_tools_off_for_app_server(tmp_path: Path) -
 
     spec = CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
 
-    assert spec.argv[-6:] == ("-c", offs[0], "-c", offs[1], "-c", offs[2])
+    assert spec.argv[-8:] == tuple(value for item in offs for value in ("-c", item))
 
 
 def test_codex_adapter_turns_external_tools_off_for_exec(tmp_path: Path) -> None:
@@ -598,6 +599,7 @@ def test_codex_adapter_turns_external_tools_off_for_exec(tmp_path: Path) -> None
         "mcp_servers.node_repl.enabled=false",
         "plugins.unified-computer-use@openai-bundled.enabled=false",
         "features.apps=false",
+        "notify=[]",
     ]
     request = ProtectedLaunchRequest(
         aia_session_id="session-1",
@@ -646,6 +648,11 @@ def test_codex_adapter_adds_no_external_tool_overrides_when_none_are_disabled(
         "plugins.no-marketplace.enabled=false",
         "features.hooks=false",
         "features.apps=false\nsandbox_mode=x",
+        'notify=["x"]',
+        "notify=[ ]",
+        "notify=[]; evil",
+        "notify = []",
+        "some_other_key=false",
     ],
 )
 def test_codex_adapter_accepts_only_overrides_that_turn_a_tool_off(tmp_path: Path, override: str) -> None:

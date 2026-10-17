@@ -2802,7 +2802,7 @@ def test_interactive_launcher_keeps_protected_adapter_configuration(
             "sandbox": "workspace-write",
             "interactive": True,
             **(
-                {"app_server": True, "disable_external_tools": ["features.apps=false"]}
+                {"app_server": True, "disable_external_tools": ["features.apps=false", "notify=[]"]}
                 if expected_app_server else {}
             ),
         }
@@ -2825,7 +2825,7 @@ def test_non_interactive_launcher_keeps_current_adapter_options(
         assert options == {
             "approve_for_me": True,
             "skip_git_repo_check": True,
-            "disable_external_tools": ["features.apps=false"],
+            "disable_external_tools": ["features.apps=false", "notify=[]"],
         }
         assert record.runtime["external_tools_off"] == ["codex_apps"]
     finally:
@@ -2848,7 +2848,7 @@ def test_non_interactive_full_access_run_launches_codex_without_its_sandbox(
             "sandbox": "danger-full-access",
             "approval_policy": "never",
             "skip_git_repo_check": True,
-            "disable_external_tools": ["features.apps=false"],
+            "disable_external_tools": ["features.apps=false", "notify=[]"],
         }
         assert record.runtime["external_tools_off"] == ["codex_apps"]
     finally:
@@ -2877,6 +2877,7 @@ def test_non_interactive_exec_records_disabled_tools_and_keeps_allowed_tools_on(
         assert options["disable_external_tools"] == [
             "mcp_servers.node_repl.enabled=false",
             "features.apps=false",
+            "notify=[]",
         ]
         assert "mcp_servers.context7.enabled=false" not in options["disable_external_tools"]
         assert record.runtime["external_tools_off"] == ["node_repl", "codex_apps"]
