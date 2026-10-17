@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../common/Button'
 import { StatusPill } from '../common/Badge'
 import { Icon } from '../common/Icon'
@@ -22,6 +22,7 @@ import { blockDecisionCount, useRunActions } from '../../hooks/useRunActions'
 import { elapsedLabel, useNow } from '../../hooks/useElapsed'
 import type { RunStatus } from '../../api/types'
 import { startupView } from '../../api/startupStatus'
+import { UI_PREFERENCE_RESTORED_EVENT } from '../../api/preferenceSync'
 
 /** ① before a run and ② while the selected run is live. */
 export function HomeView() {
@@ -37,13 +38,20 @@ function HomeIdle() {
   const { data: runs } = useRunList()
   const { profiles } = useProfiles()
   const guardian = useGuardianState()
+  const [policyValue, setPolicyValue] = useState(readDefaultPolicyProfile)
+  useEffect(() => {
+    const restoreDefault = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === 'aia.defaultPolicyProfile') setPolicyValue(readDefaultPolicyProfile())
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreDefault)
+    return () => window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreDefault)
+  }, [])
   const ready = preflight?.readiness_code === 'READY'
   const checks = preflight?.checks
   const blocking = blockingPillar(checks)
   const recovery = recoveryPillar(checks)
   const lastRun = runs?.[0]
   const liveRun = (runs ?? []).find(isRunActive)
-  const policyValue = readDefaultPolicyProfile()
   const policyName = profiles.find(profile => profile.value === policyValue)?.display_name ?? profiles[0]?.display_name ?? '기본 정책'
 
   function openLastRun() {

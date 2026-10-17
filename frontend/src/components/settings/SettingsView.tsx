@@ -21,6 +21,7 @@ import { connectionLights } from '../../api/settingsStatus'
 import { isConnectionLost } from '../../api/connectionState'
 import { syncDesktopGuardian } from '../../desktopBridge'
 import { applyPetSize, readPetSize, PET_SIZE_MIN, PET_SIZE_MAX, PET_SIZE_STEP, type PetSizePreference } from '../../api/petSizePreference'
+import { UI_PREFERENCE_RESTORED_EVENT } from '../../api/preferenceSync'
 
 const MOTION_OPTIONS: Array<[MotionPreference, string]> = [['auto', '자동'], ['full', '켜기'], ['reduced', '줄이기']]
 
@@ -45,6 +46,18 @@ export function SettingsView() {
   const serverLost = isConnectionLost(connectionFailures)
 
   useEffect(() => { consoleInfo().then(setInfo).catch(() => setInfo(null)) }, [])
+  useEffect(() => {
+    const restorePreference = (event: Event) => {
+      switch ((event as CustomEvent<string>).detail) {
+        case 'aia.motion': setMotion(readMotionPreference()); break
+        case 'aia.glass': setGlass(readGlassPreference()); break
+        case 'aia.pet': setPet(readPetPreference()); break
+        case 'aia.pet.size': setPetSize(readPetSize()); break
+      }
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, restorePreference)
+    return () => window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, restorePreference)
+  }, [])
   const [storage, setStorage] = useState<StorageSummary | null>(null)
   const [pruning, setPruning] = useState(false)
   useEffect(() => { storageSummary().then(setStorage).catch(() => setStorage(null)) }, [])

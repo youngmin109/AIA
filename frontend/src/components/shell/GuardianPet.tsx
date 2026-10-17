@@ -6,6 +6,7 @@ import { useShellStore } from '../../state/shellStore'
 import { normalizePetPosition, petPixels, petPosition, readPetPosition, savePetPosition, type PetPosition } from '../../api/petPreference'
 import { GuardianGuide, type GuideTopic } from './GuardianGuide'
 import { readPetSize, petPixelSize } from '../../api/petSizePreference'
+import { UI_PREFERENCE_RESTORED_EVENT } from '../../api/preferenceSync'
 
 const DRAG_THRESHOLD = 4
 const SPEAK_MS = 6000
@@ -54,6 +55,22 @@ export function GuardianPet() {
     window.addEventListener('aia:pet-size-changed', updateSize)
     window.addEventListener('storage', updateSize)
     return () => { window.removeEventListener('aia:pet-size-changed', updateSize); window.removeEventListener('storage', updateSize) }
+  }, [])
+
+  useEffect(() => {
+    const updatePosition = (event: Event) => {
+      const restored = event as CustomEvent<PetPosition>
+      if (restored.detail) setPosition(normalizePetPosition(restored.detail))
+    }
+    window.addEventListener('aia:pet-position-restored', updatePosition)
+    const updatePreference = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === 'aia.pet.position') setPosition(readPetPosition())
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, updatePreference)
+    return () => {
+      window.removeEventListener('aia:pet-position-restored', updatePosition)
+      window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, updatePreference)
+    }
   }, [])
 
   // A new headline shows the speech bubble for a few seconds.

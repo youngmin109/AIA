@@ -1,3 +1,5 @@
+import { queueUiPreferenceWrite } from './preferenceSync.ts'
+
 export type GlassPreference = 'on' | 'off'
 
 /** Glass is off unless the viewer turned it on: the blur and refraction filters make slower PCs lag. */
@@ -12,5 +14,5 @@ export function readGlassPreference(): GlassPreference {
 /** Turning glass off drops the blur and refraction filters for slower PCs; protection is unaffected. */
 export function applyGlassPreference(value: GlassPreference): void {
   document.documentElement.dataset.glass = value
-  try { localStorage.setItem('aia.glass', value) } catch { /* keep the in-memory choice */ }
+  try { localStorage.setItem('aia.glass', value); queueUiPreferenceWrite('aia.glass', value) } catch { /* keep the in-memory choice */ }
 }

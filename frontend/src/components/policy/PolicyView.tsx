@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../common/Button'
 import { TileCorner, type GlossTone } from '../common/Glass'
 import { Icon, type IconName } from '../common/Icon'
@@ -9,6 +9,7 @@ import { readDefaultPolicyProfile, writeDefaultPolicyProfile } from './policySto
 import { CustomPolicyEditor } from './CustomPolicyEditor'
 import { POLICY_ICONS } from './policyPresentation'
 import { PolicyTemplateRules } from './PolicyTemplateRules'
+import { UI_PREFERENCE_RESTORED_EVENT } from '../../api/preferenceSync'
 
 type SupportStatus = '지원' | '부분 지원'
 
@@ -54,6 +55,13 @@ export function PolicyView() {
   const profiles = all
   const [chosen, setChosen] = useState<string | null>(readDefaultPolicyProfile)
   const [notice, setNotice] = useState('')
+  useEffect(() => {
+    const restoreDefault = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === 'aia.defaultPolicyProfile') setChosen(readDefaultPolicyProfile())
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreDefault)
+    return () => window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreDefault)
+  }, [])
   const selected = profiles.some(profile => profile.value === chosen) ? chosen : profiles[0]?.value ?? null
   const selectedProfile = profiles.find(profile => profile.value === selected)
 

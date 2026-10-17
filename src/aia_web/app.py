@@ -337,6 +337,20 @@ def _register_policy_routes(app: FastAPI) -> None:
     def remembered_custom_policy() -> JSONResponse:
         return JSONResponse(app.state.service.remembered_custom_policy())
 
+    @app.get("/api/ui-preferences")
+    def ui_preferences() -> JSONResponse:
+        return JSONResponse(app.state.service.ui_preferences())
+
+    @app.post("/api/ui-preferences")
+    async def remember_ui_preference(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                raise ValueError("UI preference request must be a JSON object")
+            return JSONResponse(app.state.service.remember_ui_preference(payload.get("key"), payload.get("value")))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            return JSONResponse({"saved": False, "error": str(exc)}, status_code=400)
+
 
 def _register_readiness_routes(app: FastAPI) -> None:
     @app.get("/api/preflight")

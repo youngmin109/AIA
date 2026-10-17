@@ -27,6 +27,7 @@ import { usePermissionProfiles } from '../../hooks/usePermissionProfiles'
 import { useProfiles } from '../../hooks/useProfiles'
 import { usePreflight } from '../../hooks/usePreflight'
 import { workspaceShortName } from '../shell/sessionLabel'
+import { UI_PREFERENCE_RESTORED_EVENT } from '../../api/preferenceSync'
 
 type WorkspaceState = { status: 'idle' | 'checking' | 'valid' | 'invalid'; message?: string }
 const CARD_TONES: GlossTone[] = ['hook', 'file', 'process', 'amber']
@@ -58,6 +59,14 @@ function NewRunSheet() {
   const { profiles: allProfiles } = useProfiles()
   const profiles = allProfiles
   const [customPolicy, setCustomPolicy] = useState(readCustomPolicy)
+  const [storedDefault, setStoredDefault] = useState(readDefaultPolicyProfile)
+  useEffect(() => {
+    const restoreDefault = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === 'aia.defaultPolicyProfile') setStoredDefault(readDefaultPolicyProfile())
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreDefault)
+    return () => window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreDefault)
+  }, [])
   useEffect(() => {
     // An app restart empties the browser copy; ask the local server for the saved one.
     let cancelled = false
@@ -94,7 +103,6 @@ function NewRunSheet() {
   const permission: PermissionMode = chosenOption && permissionAllowed(chosenOption, permissionProfiles) ? chosenPermission : 'workspace'
 
   const dialogRef = useDialog(true, () => { if (!submitting) closeNewRun() })
-  const storedDefault = readDefaultPolicyProfile()
   const policyProfile = chosenProfile ?? (profiles.some(profile => profile.value === storedDefault) ? storedDefault : profiles[0]?.value) ?? ''
 
   function changeWorkspace(value: string) {

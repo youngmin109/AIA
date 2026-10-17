@@ -1,3 +1,5 @@
+import { queueUiPreferenceWrite } from './preferenceSync.ts'
+
 export type TintPreference = 'violet' | 'indigo' | 'teal'
 
 export const TINT_OPTIONS: Array<{ value: TintPreference; label: string }> = [
@@ -17,5 +19,5 @@ export function readTintPreference(): TintPreference {
 /** Per-viewer look only; it never changes protection behavior. */
 export function applyTintPreference(tint: TintPreference): void {
   document.documentElement.dataset.tint = tint
-  try { localStorage.setItem('aia.tint', tint) } catch { /* private mode: keep the in-memory choice */ }
+  try { localStorage.setItem('aia.tint', tint); queueUiPreferenceWrite('aia.tint', tint) } catch { /* private mode: keep the in-memory choice */ }
 }

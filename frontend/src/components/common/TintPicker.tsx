@@ -1,10 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TINT_OPTIONS, applyTintPreference, readTintPreference, type TintPreference } from '../../api/tintPreference'
 import { syncTitleBar } from '../../desktopBridge'
+import { UI_PREFERENCE_RESTORED_EVENT } from '../../api/preferenceSync'
 
 /** Color theme swatches (violet, indigo, teal) for the single dark glass theme. */
 export function TintPicker() {
   const [tint, setTint] = useState<TintPreference>(readTintPreference)
+
+  useEffect(() => {
+    const restoreTint = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== 'aia.tint') return
+      const value = readTintPreference()
+      setTint(value)
+      syncTitleBar(value)
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreTint)
+    return () => window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreTint)
+  }, [])
 
   function choose(next: TintPreference) {
     applyTintPreference(next)
