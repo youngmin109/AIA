@@ -514,6 +514,136 @@ def test_hook_verification_stale_reasons_handle_old_proof_without_metadata(
     ]
 
 
+def _write_verified_for_config_test(
+    tmp_path: Path, monkeypatch, config_text: str
+) -> tuple[Path, HookVerificationStore, CodexHookInstaller, Path]:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text(config_text, encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setattr(
+        "aia.adapters.codex.CodexAdapter.executable_version",
+        lambda _executable: "0.162.1",
+    )
+    hook_path = tmp_path / "hooks.json"
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex-test-build-1")
+    installer = CodexHookInstaller(hook_path, python_executable=tmp_path / "python.exe")
+    installer.install()
+    store = HookVerificationStore(tmp_path / "control")
+    store.write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+    return config_path, store, installer, executable
+
+
+def test_hook_verification_stale_reasons_name_changed_scalar_config_item(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path, store, installer, executable = _write_verified_for_config_test(
+        tmp_path, monkeypatch, 'model = "before-model"\n'
+    )
+
+    config_path.write_text('model = "after-model"\n', encoding="utf-8")
+
+    assert store.is_current(installer, executable) is False
+    assert store.stale_reasons(installer, executable) == [
+        "Codex 설정 파일이 바뀌었어요: model 항목"
+    ]
+
+
+def test_hook_verification_stale_reasons_name_changed_table_and_scalar(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path, store, installer, executable = _write_verified_for_config_test(
+        tmp_path,
+        monkeypatch,
+        'model = "before-model"\n[desktop]\ntheme = "light"\n',
+    )
+
+    config_path.write_text(
+        'model = "after-model"\n[desktop]\ntheme = "dark"\n',
+        encoding="utf-8",
+    )
+
+    assert store.is_current(installer, executable) is False
+    assert store.stale_reasons(installer, executable) == [
+        "Codex 설정 파일이 바뀌었어요: [desktop] 표, model 항목"
+    ]
+
+
+def test_hook_verification_does_not_persist_or_display_scalar_config_values(
+    tmp_path: Path, monkeypatch
+) -> None:
+    sentinel = "SECRET-SENTINEL-123"
+    config_path, store, installer, executable = _write_verified_for_config_test(
+        tmp_path,
+        monkeypatch,
+        'model = "' + sentinel + '"\n[desktop]\napi_token = "' + sentinel + '"\n',
+    )
+
+    config_path.write_text(
+        'model = "' + sentinel + '-changed"\n[desktop]\napi_token = "' + sentinel + '"\n',
+        encoding="utf-8",
+    )
+    reasons = store.stale_reasons(installer, executable)
+    stored_proof = store.path.read_text(encoding="utf-8")
+
+    assert reasons == ["Codex 설정 파일이 바뀌었어요: model 항목"]
+    assert sentinel not in " ".join(reasons)
+    assert sentinel not in stored_proof
+    assert str(config_path) not in " ".join(reasons)
+
+
+def test_hook_verification_stale_reasons_handle_t13_proof_without_scalar_hashes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path, store, installer, executable = _write_verified_for_config_test(
+        tmp_path,
+        monkeypatch,
+        'model = "before-model"\n[desktop]\ntheme = "light"\n',
+    )
+    proof = store.read()
+    assert proof is not None
+    assert set(proof["codex_config_tables_sha256"]) == {"desktop", "model"}
+    proof["codex_config_tables_sha256"].pop("model")
+    proof.pop("codex_config_table_names")
+    store.path.write_text(json.dumps(proof), encoding="utf-8")
+
+    config_path.write_text(
+        'model = "after-model"\n[desktop]\ntheme = "light"\n',
+        encoding="utf-8",
+    )
+
+    assert store.is_current(installer, executable) is False
+    assert store.stale_reasons(installer, executable) == [
+        "Codex 설정 파일이 바뀌었어요(어느 항목인지는 다음 검증부터 보여요)"
+    ]
+
+
+def test_hook_verification_scalar_metadata_does_not_change_is_current(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path, store, installer, executable = _write_verified_for_config_test(
+        tmp_path, monkeypatch, 'model = "before-model"\n'
+    )
+    assert store.is_current(installer, executable) is True
+
+    proof = store.read()
+    assert proof is not None
+    proof["codex_config_tables_sha256"]["model"] = "metadata-only-change"
+    proof["codex_config_table_names"] = ["not-the-current-table-name"]
+    store.path.write_text(json.dumps(proof), encoding="utf-8")
+
+    assert store.is_current(installer, executable) is True
+    config_path.write_text('model = "after-model"\n', encoding="utf-8")
+    assert store.is_current(installer, executable) is False
+
+
 def test_hook_verification_survives_codex_workspace_trust_bookkeeping(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -89,9 +89,9 @@ class HookVerificationStore:
         return hashlib.sha256(canonical).hexdigest()
 
     @classmethod
-    def _codex_config_tables_sha256(cls, path: Path) -> dict[str, str] | None:
-        """Hash top-level Codex tables without retaining their values."""
-
+    def _codex_config_hashes_and_table_names(
+        cls, path: Path
+    ) -> tuple[dict[str, str], list[str]] | None:
         try:
             document = tomllib.loads(path.read_text(encoding="utf-8"))
         except (OSError, tomllib.TOMLDecodeError):
@@ -109,17 +109,28 @@ class HookVerificationStore:
                 document.pop("projects", None)
 
         hashes: dict[str, str] = {}
-        for name, table in document.items():
-            if not isinstance(table, (dict, list)):
+        table_names: list[str] = []
+        for name, value in document.items():
+            is_table = isinstance(value, (dict, list))
+            if is_table:
+                table_names.append(name)
+            elif not isinstance(value, (str, int, float, bool)):
                 continue
             canonical = json.dumps(
-                table,
+                value,
                 ensure_ascii=False,
                 sort_keys=True,
                 separators=(",", ":"),
             ).encode("utf-8")
             hashes[name] = hashlib.sha256(canonical).hexdigest()
-        return hashes
+        return hashes, sorted(table_names)
+
+    @classmethod
+    def _codex_config_tables_sha256(cls, path: Path) -> dict[str, str] | None:
+        """Hash top-level tables and scalar values without retaining their values."""
+
+        metadata = cls._codex_config_hashes_and_table_names(path)
+        return metadata[0] if metadata is not None else None
 
     @classmethod
     def _codex_config_path(cls) -> Path:
@@ -274,26 +285,39 @@ class HookVerificationStore:
             for key in ("codex_config", "codex_config_sha256")
         )
         if codex_config_changed:
-            stored_tables = proof.get("codex_config_tables_sha256")
-            current_tables = self._codex_config_tables_sha256(
+            stored_hashes = proof.get("codex_config_tables_sha256")
+            current_metadata = self._codex_config_hashes_and_table_names(
                 self._codex_config_path()
             )
-            if not isinstance(stored_tables, dict) or current_tables is None:
+            if not isinstance(stored_hashes, dict) or current_metadata is None:
                 reasons.append(
                     "Codex 설정 파일이 바뀌었어요(어느 표인지는 다음 검증부터 보여요)"
                 )
+            elif not isinstance(proof.get("codex_config_table_names"), list) or not all(
+                isinstance(name, str)
+                for name in proof["codex_config_table_names"]
+            ):
+                reasons.append(
+                    "Codex 설정 파일이 바뀌었어요(어느 항목인지는 다음 검증부터 보여요)"
+                )
             else:
-                table_names = sorted(
+                current_hashes, current_table_names = current_metadata
+                stored_table_names = proof["codex_config_table_names"]
+                changed_names = sorted(
                     name
-                    for name in set(stored_tables) | set(current_tables)
-                    if stored_tables.get(name) != current_tables.get(name)
+                    for name in set(stored_hashes) | set(current_hashes)
+                    if stored_hashes.get(name) != current_hashes.get(name)
                     and isinstance(name, str)
                     and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name)
                 )
-                if table_names:
-                    rendered_names = ", ".join(f"[{name}]" for name in table_names)
+                if changed_names:
+                    table_names = set(stored_table_names) | set(current_table_names)
+                    rendered_names = ", ".join(
+                        f"[{name}] 표" if name in table_names else f"{name} 항목"
+                        for name in changed_names
+                    )
                     reasons.append(
-                        f"Codex 설정 파일이 바뀌었어요: {rendered_names} 표"
+                        f"Codex 설정 파일이 바뀌었어요: {rendered_names}"
                     )
                 else:
                     reasons.append("Codex 설정 파일이 바뀌었어요")
@@ -332,6 +356,9 @@ class HookVerificationStore:
         fingerprint = self._fingerprint(installer, executable)
         if fingerprint is None:
             raise OSError("cannot fingerprint the installed Hook and Codex executable")
+        config_metadata = self._codex_config_hashes_and_table_names(
+            self._codex_config_path()
+        )
         document: dict[str, object] = {
             "schema_version": _SCHEMA_VERSION,
             "verified": True,
@@ -340,8 +367,11 @@ class HookVerificationStore:
             "hook_event_count": hook_event_count,
             **fingerprint,
             "codex_version": self._codex_version(executable),
-            "codex_config_tables_sha256": self._codex_config_tables_sha256(
-                self._codex_config_path()
+            "codex_config_tables_sha256": (
+                config_metadata[0] if config_metadata is not None else None
+            ),
+            "codex_config_table_names": (
+                config_metadata[1] if config_metadata is not None else None
             ),
         }
         self.control_root.mkdir(parents=True, exist_ok=True)
