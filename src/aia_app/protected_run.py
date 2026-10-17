@@ -128,6 +128,66 @@ def _filesystem_sensor_healthy_for_confirmation(
     return True
 
 
+def _hook_sensor_healthy_for_confirmation(
+    sensor: Any,
+    evidence_records: Any,
+    *,
+    stopped: bool,
+    broker_healthy_before_stop: bool | None,
+) -> bool | None:
+    """Require healthy pre-stop state, a clean health history, and broker health."""
+
+    if not stopped or broker_healthy_before_stop is False:
+        return False
+    if broker_healthy_before_stop is not True or evidence_records is None:
+        return None
+    try:
+        check_health = getattr(sensor, "check_health", None)
+        post_stop_health = (
+            check_health() if callable(check_health) else getattr(sensor, "health", None)
+        )
+        if callable(post_stop_health):
+            post_stop_health = post_stop_health()
+        post_stop_status_value = getattr(post_stop_health, "status", None)
+        post_stop_status = getattr(
+            post_stop_status_value, "value", post_stop_status_value
+        )
+        if post_stop_status != "STOPPED":
+            return False if post_stop_status is not None else None
+        runtime_health = getattr(sensor, "runtime_health_before_stop", None)
+        if callable(runtime_health):
+            runtime_health = runtime_health()
+        health_status_value = getattr(runtime_health, "status", None)
+        health_status = getattr(
+            health_status_value, "value", health_status_value
+        )
+        if health_status != "HEALTHY":
+            return False if health_status is not None else None
+        allowed_statuses = {"STARTING", "HEALTHY", "STOPPED"}
+        healthy_status_record_seen = False
+        for record in evidence_records:
+            source_value = getattr(record, "source", None)
+            source = getattr(source_value, "value", source_value)
+            record_type_value = getattr(record, "record_type", None)
+            record_type = getattr(record_type_value, "value", record_type_value)
+            if (
+                source != EvidenceSource.AGENT_HOOK.value
+                or record_type != EvidenceRecordType.SENSOR_HEALTH.value
+            ):
+                continue
+            payload = getattr(record, "payload", None)
+            if not isinstance(payload, Mapping):
+                return None
+            status_value = payload.get("status")
+            status = getattr(status_value, "value", status_value)
+            if status not in allowed_statuses:
+                return False if status is not None else None
+            healthy_status_record_seen = healthy_status_record_seen or status == "HEALTHY"
+        return True if healthy_status_record_seen else None
+    except Exception:
+        return None
+
+
 def _gui_run_interrupted(record: Any, hook_snapshot: Any) -> bool | None:
     """Treat stop errors or unfinished turns as interruption, not a normal stop request."""
 
@@ -462,6 +522,17 @@ class ProtectedRunMixin:
                     codex_session.close(force=False)
                 except Exception:
                     pass
+            hook_sensor_stopped = False
+            try:
+                stopped_hook_context = hook.stop()
+                stopped_hook_status = getattr(
+                    stopped_hook_context.status,
+                    "value",
+                    stopped_hook_context.status,
+                )
+                hook_sensor_stopped = stopped_hook_status == "STOPPED"
+            except Exception:
+                hook_sensor_stopped = False
             filesystem_stopped = False
             try:
                 stopped_context = filesystem.stop()
@@ -492,6 +563,12 @@ class ProtectedRunMixin:
                 evidence_records,
                 stopped=filesystem_stopped,
             )
+            hook_sensor_healthy = _hook_sensor_healthy_for_confirmation(
+                hook,
+                evidence_records,
+                stopped=hook_sensor_stopped,
+                broker_healthy_before_stop=hook_broker_healthy_before_stop,
+            )
             protected_file_change_count = _protected_file_change_count(
                 evidence_records,
                 workspace=session.workspace,
@@ -509,7 +586,8 @@ class ProtectedRunMixin:
                     broker_drained=broker_drained,
                     protected_file_change_count=protected_file_change_count,
                     file_sensor_healthy=filesystem_healthy,
-                    hook_sensor_healthy=_sensor_status(hook.check_health()) == "HEALTHY",
+                    hook_sensor_healthy=hook_sensor_healthy,
+                    hook_broker_healthy_before_stop=hook_broker_healthy_before_stop,
                     interrupted=_gui_run_interrupted(record, hook_snapshot),
                 )
         self._capture_codex_execution_observation(record, codex_output_handles)

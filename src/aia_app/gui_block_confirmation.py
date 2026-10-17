@@ -160,6 +160,8 @@ def _basis(
     pretool_count: int | None,
     protected_file_change_count: int | None,
     file_sensor_healthy: bool | None,
+    hook_sensor_healthy: bool | None,
+    hook_broker_healthy_before_stop: bool | None,
     turn_status: str,
     collection_complete: bool,
     broker_drained: bool,
@@ -177,6 +179,16 @@ def _basis(
         "file_sensor_status": (
             "HEALTHY" if file_sensor_healthy is True
             else "UNHEALTHY" if file_sensor_healthy is False
+            else "UNKNOWN"
+        ),
+        "hook_sensor_status": (
+            "HEALTHY" if hook_sensor_healthy is True
+            else "UNHEALTHY" if hook_sensor_healthy is False
+            else "UNKNOWN"
+        ),
+        "hook_broker_status": (
+            "HEALTHY" if hook_broker_healthy_before_stop is True
+            else "UNHEALTHY" if hook_broker_healthy_before_stop is False
             else "UNKNOWN"
         ),
         "turn_status": turn_status,
@@ -202,6 +214,7 @@ def confirm_gui_pretool_blocks(
     protected_file_change_count: int | None,
     file_sensor_healthy: bool | None,
     hook_sensor_healthy: bool | None,
+    hook_broker_healthy_before_stop: bool | None,
     interrupted: bool | None = False,
 ) -> tuple[bool | None, ...]:
     """Confirm each GUI deny only when its independent call-level proof is complete."""
@@ -251,6 +264,8 @@ def confirm_gui_pretool_blocks(
                         pretool_count=None,
                         protected_file_change_count=protected_file_change_count,
                         file_sensor_healthy=file_sensor_healthy,
+                        hook_sensor_healthy=hook_sensor_healthy,
+                        hook_broker_healthy_before_stop=hook_broker_healthy_before_stop,
                         turn_status="unknown",
                         collection_complete=snapshot_complete,
                         broker_drained=broker_drained,
@@ -336,6 +351,7 @@ def confirm_gui_pretool_blocks(
                 and pretool_records[0].evidence_id == event_pretool_records[0].evidence_id
                 and controller_call_count == 1
                 and hook_sensor_healthy is True
+                and hook_broker_healthy_before_stop is True
                 and not controller.errors
                 and codex_status == "blocked"
                 and pair_valid
@@ -359,6 +375,8 @@ def confirm_gui_pretool_blocks(
             pretool_count=pretool_count,
             protected_file_change_count=protected_file_change_count,
             file_sensor_healthy=file_sensor_healthy,
+            hook_sensor_healthy=hook_sensor_healthy,
+            hook_broker_healthy_before_stop=hook_broker_healthy_before_stop,
             turn_status=turn_status,
             collection_complete=snapshot_complete,
             broker_drained=broker_drained,

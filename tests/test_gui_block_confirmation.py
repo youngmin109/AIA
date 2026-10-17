@@ -31,6 +31,7 @@ from aia_app.gui_block_confirmation import confirm_gui_pretool_blocks, parse_hoo
 from aia_app.protected_run import (
     _filesystem_sensor_healthy_for_confirmation,
     _gui_run_interrupted,
+    _hook_sensor_healthy_for_confirmation,
 )
 from tests.test_enforcement import _gate_input
 
@@ -213,6 +214,35 @@ def _sensor_health_record(status: str) -> RawEvidenceRecord:
     )
 
 
+def _hook_sensor_health_record(status: str) -> RawEvidenceRecord:
+    return RawEvidenceRecord(
+        session_id="session-hook-health",
+        source=EvidenceSource.AGENT_HOOK,
+        record_type=EvidenceRecordType.SENSOR_HEALTH,
+        captured_at=NOW,
+        observation_stage=ObservationStage.POST_ACTION,
+        payload={"status": status, "sensor": "AGENT_HOOK"},
+    )
+
+
+class _FakeHookSensor:
+    def __init__(self, status: str = "HEALTHY") -> None:
+        self._status = status
+        self._health_before_stop = None
+
+    @property
+    def runtime_health_before_stop(self):
+        return self._health_before_stop or self.check_health()
+
+    def check_health(self):
+        return SimpleNamespace(status=self._status)
+
+    def stop(self):
+        self._health_before_stop = self.check_health()
+        self._status = "STOPPED"
+        return SimpleNamespace(status=self._status)
+
+
 def _confirm(controller, records, snapshot, **overrides):
     values = {
         "hook_snapshot": snapshot,
@@ -222,10 +252,212 @@ def _confirm(controller, records, snapshot, **overrides):
         "protected_file_change_count": 0,
         "file_sensor_healthy": True,
         "hook_sensor_healthy": True,
+        "hook_broker_healthy_before_stop": True,
         "interrupted": False,
     }
     values.update(overrides)
     return confirm_gui_pretool_blocks(controller, **values)
+
+
+def test_hook_sensor_confirmation_uses_pre_stop_health_after_stop(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    sensor = _FakeHookSensor()
+    health_records = (
+        _hook_sensor_health_record("STARTING"),
+        _hook_sensor_health_record("HEALTHY"),
+    )
+
+    stopped_context = sensor.stop()
+    evidence_records = (*records, *health_records, _hook_sensor_health_record("STOPPED"))
+    hook_healthy = _hook_sensor_healthy_for_confirmation(
+        sensor,
+        evidence_records,
+        stopped=stopped_context.status == "STOPPED",
+        broker_healthy_before_stop=True,
+    )
+
+    assert sensor.check_health().status == "STOPPED"
+    assert hook_healthy is True
+    assert _confirm(
+        controller,
+        evidence_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        hook_sensor_healthy=hook_healthy,
+    ) == (True,)
+    assert controller.events[0].gate_result.confirmation_basis["hook_sensor_status"] == "HEALTHY"
+
+
+def test_hook_sensor_confirmation_rejects_unhealthy_state_before_stop(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    sensor = _FakeHookSensor("FAILED")
+    stopped_context = sensor.stop()
+    evidence_records = (
+        *records,
+        _hook_sensor_health_record("STARTING"),
+        _hook_sensor_health_record("HEALTHY"),
+        _hook_sensor_health_record("FAILED"),
+    )
+    hook_healthy = _hook_sensor_healthy_for_confirmation(
+        sensor,
+        evidence_records,
+        stopped=stopped_context.status == "STOPPED",
+        broker_healthy_before_stop=True,
+    )
+
+    assert hook_healthy is False
+    assert _confirm(
+        controller,
+        evidence_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        hook_sensor_healthy=hook_healthy,
+    ) == (None,)
+    assert controller.events[0].gate_result.confirmation_basis["hook_sensor_status"] == "UNHEALTHY"
+
+
+def test_hook_sensor_confirmation_rejects_unhealthy_history_after_recovery(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    sensor = _FakeHookSensor()
+    stopped_context = sensor.stop()
+    evidence_records = (
+        *records,
+        _hook_sensor_health_record("STARTING"),
+        _hook_sensor_health_record("HEALTHY"),
+        _hook_sensor_health_record("FAILED"),
+        _hook_sensor_health_record("HEALTHY"),
+        _hook_sensor_health_record("STOPPED"),
+    )
+    hook_healthy = _hook_sensor_healthy_for_confirmation(
+        sensor,
+        evidence_records,
+        stopped=stopped_context.status == "STOPPED",
+        broker_healthy_before_stop=True,
+    )
+
+    assert hook_healthy is False
+    assert _confirm(
+        controller,
+        evidence_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        hook_sensor_healthy=hook_healthy,
+    ) == (None,)
+    assert controller.events[0].gate_result.confirmation_basis["hook_sensor_status"] == "UNHEALTHY"
+
+
+def test_gui_confirmation_basis_records_hook_status_without_secrets(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    _confirm(controller, records, _snapshot([{"tool_use_id": DENIED_ID}]))
+    basis = controller.events[0].gate_result.confirmation_basis
+    assert basis is not None
+    serialized = json.dumps(dict(basis), sort_keys=True)
+
+    assert basis["hook_sensor_status"] == "HEALTHY"
+    assert basis["hook_broker_status"] == "HEALTHY"
+    assert DENIED_ID not in serialized
+    assert HOOKS_PATH not in serialized
+    assert "command" not in serialized.casefold()
+    assert "path" not in serialized.casefold()
+    assert "hook_run_id" not in serialized.casefold()
+
+
+def test_gui_confirmation_rejects_unhealthy_hook_broker_before_stop(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    assert _confirm(
+        controller,
+        records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        hook_broker_healthy_before_stop=False,
+    ) == (None,)
+    basis = controller.events[0].gate_result.confirmation_basis
+    assert basis["hook_broker_status"] == "UNHEALTHY"
+
+
+def test_actual_trace_shape_confirms_only_deny_after_sensor_and_broker_stop(
+    tmp_path: Path,
+) -> None:
+    controller, records, decisions = _make_controller(
+        tmp_path,
+        tool_ids=(DENIED_ID, ALLOWED_ID, THIRD_ID),
+    )
+    snapshot = _snapshot(
+        [
+            {"tool_use_id": DENIED_ID, "status": "blocked"},
+            {"tool_use_id": ALLOWED_ID, "index": 2, "status": "completed"},
+            {"tool_use_id": THIRD_ID, "index": 3, "status": "completed"},
+        ],
+        exit_code=15,
+        unexpected=False,
+    )
+
+    class FakeBroker:
+        is_running = True
+
+        def stop(self):
+            self.is_running = False
+            return True
+
+    broker = FakeBroker()
+    broker_healthy_before_stop = broker.is_running
+    broker_drained = broker.stop()
+    sensor = _FakeHookSensor()
+    sensor_stopped = sensor.stop().status == "STOPPED"
+    file_sensor = SimpleNamespace(
+        status="STOPPED",
+        health=SimpleNamespace(status="STOPPED"),
+        runtime_health_before_stop=SimpleNamespace(status="HEALTHY"),
+    )
+    evidence_records = (
+        *records,
+        _hook_sensor_health_record("STARTING"),
+        _hook_sensor_health_record("HEALTHY"),
+        _hook_sensor_health_record("STOPPED"),
+        _sensor_health_record("STARTING"),
+        _sensor_health_record("HEALTHY"),
+        _sensor_health_record("STOPPED"),
+    )
+    file_healthy = _filesystem_sensor_healthy_for_confirmation(
+        file_sensor,
+        evidence_records,
+        stopped=True,
+    )
+    hook_healthy = _hook_sensor_healthy_for_confirmation(
+        sensor,
+        evidence_records,
+        stopped=sensor_stopped,
+        broker_healthy_before_stop=broker_healthy_before_stop,
+    )
+    interrupted = _gui_run_interrupted(
+        SimpleNamespace(stop_requested=True, stop_error=None),
+        snapshot,
+    )
+
+    assert sensor.check_health().status == "STOPPED"
+    assert broker.is_running is False
+    assert decisions[0].gate_result.decision is EnforcementDecision.CONTAIN
+    assert all(item.gate_result.decision is EnforcementDecision.CONTINUE for item in decisions[1:])
+    assert interrupted is False
+    assert _confirm(
+        controller,
+        evidence_records,
+        snapshot,
+        broker_drained=broker_drained,
+        file_sensor_healthy=file_healthy,
+        hook_sensor_healthy=hook_healthy,
+        hook_broker_healthy_before_stop=broker_healthy_before_stop,
+        interrupted=interrupted,
+    ) == (True,)
+    assert controller.events[0].gate_result.action is EnforcementAction.BLOCKED
+    assert controller.events[1].gate_result.action is EnforcementAction.NONE
+    assert controller.events[2].gate_result.action is EnforcementAction.NONE
 
 
 def test_parse_hook_run_id_keeps_windows_drive_colon_and_call_suffix() -> None:
