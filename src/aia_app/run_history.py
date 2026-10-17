@@ -22,6 +22,10 @@ from .presenters import (
     safe_event_views,
 )
 from .registry import RunRecord
+from .presenters_result_events import (
+    policy_incident_count,
+    unevaluated_observation_views,
+)
 
 _PRODUCT_SENSOR_NAMES = frozenset(
     {
@@ -388,6 +392,13 @@ class RunHistoryMixin:
             else _hook_broker_runtime_healthy(record)
         )
         incidents = list(record.incidents)
+        incident_count = len(incidents)
+        unevaluated_observation_count = 0
+        if record.result is not None:
+            incident_count = policy_incident_count(record.result)
+            unevaluated_observation_count = len(
+                unevaluated_observation_views(record.result)
+            )
         (
             evidence_metadata,
             observed_evidence_ids,
@@ -399,7 +410,8 @@ class RunHistoryMixin:
         return {
             "checkpoint": record.checkpoint,
             "error": record.error,
-            "incident_count": len(incidents),
+            "incident_count": incident_count,
+            "unevaluated_observation_count": unevaluated_observation_count,
             "latest_actions": actions[-20:],
             "events": safe_event_views(
                 actions,
@@ -464,10 +476,15 @@ class RunHistoryMixin:
 
     def _status_from_completed_bundle(self, session_id: str) -> dict[str, Any]:
         result = self.reader.read_result(session_id)
-        view = result_view(result, self.reader.verification(session_id).status.value)
         evidence_metadata = self._evidence_metadata(
             session_id,
             require_valid=False,
+        )
+        verification = self.reader.verification(session_id)
+        view = result_view(
+            result,
+            verification.status.value if verification else "NOT_FOUND",
+            evidence_metadata=evidence_metadata,
         )
         _annotate_execution_observations(
             view,
@@ -518,7 +535,8 @@ class RunHistoryMixin:
         return {
             "checkpoint": self.reader.checkpoint_status(session_id),
             "error": None,
-            "incident_count": len(view["incidents"]),
+            "incident_count": view["incident_count"],
+            "unevaluated_observation_count": view["unevaluated_observations"]["count"],
             "latest_actions": view["actions"][-20:],
             "events": view.get("events", []),
             "evidence_timeline": view.get("evidence_timeline", []),
@@ -619,6 +637,13 @@ class RunHistoryMixin:
             else:
                 run_classification = "PRODUCT_PROTECTED_RUN"
                 bundle_status = record.bundle_status or "PENDING"
+            incident_count = len(record.incidents)
+            unevaluated_observation_count = 0
+            if record.result is not None:
+                incident_count = policy_incident_count(record.result)
+                unevaluated_observation_count = len(
+                    unevaluated_observation_views(record.result)
+                )
             values[record.session_id] = {
                 "session_id": record.session_id,
                 "status": record.status,
@@ -629,7 +654,8 @@ class RunHistoryMixin:
                 "policy": {"id": record.policy_id, "version": record.policy_version},
                 "run_classification": run_classification,
                 "bundle_status": bundle_status,
-                "incident_count": len(record.incidents),
+                "incident_count": incident_count,
+                "unevaluated_observation_count": unevaluated_observation_count,
                 "result_url": f"/runs/{record.session_id}/result",
                 "protection_state": record.protection_state,
                 "hook_event_count": record.hook_event_count,
@@ -691,6 +717,7 @@ class RunHistoryMixin:
             "checkpoint": state.get("checkpoint", "UNKNOWN"),
             "error": state.get("error"),
             "incident_count": state.get("incident_count", 0),
+            "unevaluated_observation_count": state.get("unevaluated_observation_count", 0),
             "latest_actions": display_view["actions"],
             "events": safe_event_views(
                 display_view["actions"],

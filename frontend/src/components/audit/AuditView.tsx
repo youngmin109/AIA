@@ -74,6 +74,7 @@ export function AuditView() {
               </span>
               <span className="history-row-chips">
                 {(run.incident_count ?? 0) > 0 && <span className="badge is-bad">사건 {run.incident_count}</span>}
+                {(run.unevaluated_observation_count ?? 0) > 0 && <span className="badge is-neutral">판정 불가 {run.unevaluated_observation_count}</span>}
                 {run.bundle_status === 'VALID' && <span className="badge is-neutral">기록 확인됨</span>}
               </span>
               <span className={`status-pill ${PILL_TONE[state]}`}>{historyStateLabel(run)}</span>

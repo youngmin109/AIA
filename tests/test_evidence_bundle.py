@@ -150,6 +150,7 @@ def test_history_scan_verifies_concurrently_and_preserves_order_and_content(
             "hook_event_count": 0,
             "posttool_event_count": 0,
             "incident_count": 1 if session_id == "session-b" else 0,
+            "unevaluated_observation_count": 0,
             "result_url": f"/runs/{session_id}/result",
         }
         for session_id in session_ids

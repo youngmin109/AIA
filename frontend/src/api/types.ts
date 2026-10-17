@@ -103,6 +103,7 @@ export interface RunStatus {
   evidence_chains?: EvidenceChain[]
   evidence_timeline?: EvidenceTimelineRecord[]
   incident_count?: number
+  unevaluated_observation_count?: number
   bundle_status?: string
   result_available?: boolean
   stop?: { requested?: boolean; error?: string | null }
@@ -120,6 +121,7 @@ export interface RunSummary {
   run_classification?: string
   bundle_status?: string
   incident_count?: number
+  unevaluated_observation_count?: number
   hook_event_count?: number
   result_url?: string
   protection_state?: string

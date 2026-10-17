@@ -1465,6 +1465,299 @@ def test_incident_presenter_localizes_attribution_reason_and_keeps_raw_free() ->
     assert view["tool_name"] == "Bash"
 
 
+def test_result_presenter_separates_exact_unevaluated_process_observations() -> None:
+    reason = "Process was observed in the verified Agent Process Tree"
+    actions = [
+        {
+            "action_id": "blocked-1",
+            "operation": "DELETE",
+            "policy_decision": "VIOLATION",
+            "attribution_grade": "EXACT",
+            "enforcement_action": "BLOCKED",
+            "execution_result": "SUCCEEDED",
+            "target": {"target_kind": "FILE"},
+        },
+    ]
+    attributions = []
+    evidence_metadata = []
+    for index in range(3):
+        action_id = f"process-{index}"
+        evidence_id = f"process-evidence-{index}"
+        actions.append(
+            {
+                "action_id": action_id,
+                "operation": "EXECUTE",
+                "policy_decision": "INDETERMINATE",
+                "attribution_grade": "PROCESS",
+                "attribution_reason": reason,
+                "enforcement_decision": "REFUSE",
+                "enforcement_action": "NONE",
+                "execution_result": "NOT_ATTEMPTED",
+                "target": {"target_kind": "PROCESS"},
+                "evidence_ids": [evidence_id],
+            }
+        )
+        attributions.append(
+            {
+                "action_id": action_id,
+                "grade": "PROCESS",
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+                "reason": reason,
+                "supporting_evidence_ids": [evidence_id],
+            }
+        )
+        evidence_metadata.append(
+            {
+                "evidence_id": evidence_id,
+                "source": "PROCESS_RUNTIME",
+                "record_type": "PROCESS_OBSERVED",
+                "process_name": f"helper-{index}.exe",
+                "process_role": "DESCENDANT",
+            }
+        )
+    result = {"action_outcomes": actions, "attribution_results": attributions}
+    before = json.loads(json.dumps(result))
+
+    view = result_view(result, "VALID", evidence_metadata=evidence_metadata)
+
+    assert view["bundle_status"] == "VALID"
+    assert result == before
+    assert view["incident_count"] == 1
+    assert [item["action_id"] for item in view["incidents"]] == ["blocked-1"]
+    assert view["unevaluated_observations"] == {
+        "count": 3,
+        "items": [
+            {
+                "process_name": f"helper-{index}.exe",
+                "process_role": "DESCENDANT",
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+            }
+            for index in range(3)
+        ],
+    }
+    assert [item["incident"] for item in view["actions"]] == [True, False, False, False]
+    assert "command_fingerprint" not in repr(view["unevaluated_observations"])
+    assert "raw_command" not in repr(view["unevaluated_observations"])
+    assert "target" not in repr(view["unevaluated_observations"])
+
+
+def test_completed_run_status_counts_policy_incidents_and_observations_separately(tmp_path) -> None:
+    reason = "Process was observed in the verified Agent Process Tree"
+    observations = [
+        {
+            "action_id": f"process-{index}",
+            "operation": "EXECUTE",
+            "policy_decision": "INDETERMINATE",
+            "attribution_grade": "PROCESS",
+            "attribution_reason": reason,
+            "enforcement_action": "NONE",
+            "execution_result": "NOT_ATTEMPTED",
+            "target": {"target_kind": "PROCESS"},
+        }
+        for index in range(3)
+    ]
+    result = {
+        "action_outcomes": [
+            {
+                "action_id": "blocked",
+                "policy_decision": "VIOLATION",
+                "target": {"target_kind": "FILE"},
+            },
+            *observations,
+        ],
+        "attribution_results": [
+            {
+                "action_id": action["action_id"],
+                "grade": "PROCESS",
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+                "reason": reason,
+            }
+            for action in observations
+        ],
+    }
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "COMPLETED"
+    record.phase = "COMPLETED"
+    record.result = result
+    record.bundle_status = "VALID"
+    record.incidents = [{}] * 4
+    service.registry.add(record)
+
+    try:
+        status = service.get_run_status(record.session_id)
+        runtime_state = service._runtime_state_mapping(record)
+    finally:
+        service.shutdown()
+
+    assert status["incident_count"] == runtime_state["incident_count"] == 1
+    assert status["unevaluated_observation_count"] == runtime_state["unevaluated_observation_count"] == 3
+
+
+def test_result_presenter_separates_observation_only_run_from_policy_incidents() -> None:
+    reason = "Process was observed in the verified Agent Process Tree"
+    view = result_view(
+        {
+            "action_outcomes": [
+                {
+                    "action_id": "process-only",
+                    "operation": "EXECUTE",
+                    "policy_decision": "INDETERMINATE",
+                    "attribution_grade": "PROCESS",
+                    "attribution_reason": reason,
+                    "enforcement_action": "NONE",
+                    "execution_result": "NOT_ATTEMPTED",
+                    "target": {"target_kind": "PROCESS"},
+                }
+            ],
+            "attribution_results": [
+                {
+                    "action_id": "process-only",
+                    "grade": "PROCESS",
+                    "reason_code": "VERIFIED_AGENT_PROCESS",
+                    "reason": reason,
+                }
+            ],
+        },
+        "VALID",
+    )
+
+    assert view["bundle_status"] == "VALID"
+    assert view["incident_count"] == 0
+    assert view["incidents"] == []
+    assert view["unevaluated_observations"]["count"] == 1
+    assert view["unevaluated_observations"]["items"][0]["reason_code"] == "VERIFIED_AGENT_PROCESS"
+
+
+def test_result_presenter_keeps_near_match_indeterminate_and_process_violation_as_incidents() -> None:
+    reason = "Process was observed in the verified Agent Process Tree"
+    cases = [
+        (
+            "command-present",
+            {
+                "policy_decision": "INDETERMINATE",
+                "attribution_grade": "PROCESS",
+                "attribution_reason": reason,
+                "target": {"command_fingerprint": "sha256:present"},
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+                "attribution_result_reason": reason,
+            },
+        ),
+        (
+            "raw-command-present",
+            {
+                "policy_decision": "INDETERMINATE",
+                "attribution_grade": "PROCESS",
+                "attribution_reason": reason,
+                "target": {"target_kind": "PROCESS", "raw_command": "helper --secret"},
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+                "attribution_result_reason": reason,
+            },
+        ),
+        (
+            "different-reason",
+            {
+                "policy_decision": "INDETERMINATE",
+                "attribution_grade": "PROCESS",
+                "attribution_reason": "Process Action has no valid observed lifetime",
+                "target": {"target_kind": "PROCESS"},
+                "reason_code": "PROCESS_LIFETIME_UNVERIFIED",
+                "attribution_result_reason": "Process Action has no valid observed lifetime",
+            },
+        ),
+        (
+            "different-attribution",
+            {
+                "policy_decision": "INDETERMINATE",
+                "attribution_grade": "UNKNOWN",
+                "attribution_reason": reason,
+                "target": {"target_kind": "PROCESS"},
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+                "attribution_result_reason": reason,
+                "attribution_result_grade": "UNKNOWN",
+            },
+        ),
+        (
+            "process-violation",
+            {
+                "policy_decision": "VIOLATION",
+                "attribution_grade": "PROCESS",
+                "attribution_reason": reason,
+                "target": {"target_kind": "PROCESS"},
+                "reason_code": "VERIFIED_AGENT_PROCESS",
+                "attribution_result_reason": reason,
+            },
+        ),
+    ]
+    actions = []
+    attributions = []
+    for action_id, case in cases:
+        actions.append(
+            {
+                "action_id": action_id,
+                "operation": "EXECUTE",
+                "policy_decision": case["policy_decision"],
+                "attribution_grade": case["attribution_grade"],
+                "attribution_reason": case["attribution_reason"],
+                "enforcement_decision": "REFUSE",
+                "enforcement_action": "NONE",
+                "execution_result": "NOT_ATTEMPTED",
+                "target": case["target"],
+                "evidence_ids": [action_id + "-evidence"],
+            }
+        )
+        attributions.append(
+            {
+                "action_id": action_id,
+                "grade": case.get("attribution_result_grade", "PROCESS"),
+                "reason_code": case["reason_code"],
+                "reason": case["attribution_result_reason"],
+            }
+        )
+
+    view = result_view(
+        {"action_outcomes": actions, "attribution_results": attributions},
+        "VALID",
+    )
+
+    assert view["incident_count"] == 5
+    assert {item["action_id"] for item in view["incidents"]} == {
+        action_id for action_id, _case in cases
+    }
+    assert view["unevaluated_observations"] == {"count": 0, "items": []}
+
+
+def test_result_bundle_reader_exposes_only_safe_process_display_metadata(tmp_path) -> None:
+    reader = ResultBundleReader(tmp_path)
+    evidence_path = tmp_path / "sessions" / "session-1" / "evidence" / "raw-evidence.jsonl"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "evidence_id": "process-1",
+                "source": "PROCESS_RUNTIME",
+                "record_type": "PROCESS_OBSERVED",
+                "payload": {
+                    "name": "C:/Codex/runtime/codex-helper.exe",
+                    "process_role": "DESCENDANT",
+                    "raw_command": "helper --token SECRET_VALUE",
+                    "executable": "C:/Codex/runtime/codex-helper.exe",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    metadata = reader.read_evidence_metadata("session-1", require_valid=False)
+
+    assert metadata[0]["process_name"] == "codex-helper.exe"
+    assert metadata[0]["process_role"] == "DESCENDANT"
+    assert "raw_command" not in metadata[0]
+    assert "C:/Codex" not in repr(metadata)
+    assert "SECRET_VALUE" not in repr(metadata)
+
+
 def test_synthetic_incident_summaries_are_localized() -> None:
     incidents = incident_views_for_result(
         {

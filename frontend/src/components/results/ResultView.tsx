@@ -11,7 +11,7 @@ import { useResult } from '../../hooks/useResult'
 import { useRecoveryStatus } from '../../hooks/useRecoveryStatus'
 import { useRunSnapshot } from '../../hooks/useRunSnapshot'
 import { displayStatus, statusTone } from '../../api/display'
-import type { IncidentView, RecoveryStatusView, ResultView as ResultData } from '../../api/resultTypes'
+import type { IncidentView, RecoveryStatusView, ResultView as ResultData, UnevaluatedObservationView } from '../../api/resultTypes'
 import { deriveVerdict, processDetectedIncidents } from '../../api/resultVerdict'
 import { verdictSlices } from '../../api/chartMath'
 import { fileBreakdown, resultHeadline } from '../../api/resultSummary'
@@ -80,6 +80,10 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   }
 
   const incidents = data.incidents ?? []
+  const unevaluatedObservations: UnevaluatedObservationView[] =
+    data.unevaluated_observations?.items ?? []
+  const unevaluatedObservationCount =
+    data.unevaluated_observations?.count ?? unevaluatedObservations.length
   const verdict = deriveVerdict(data)
   const summary = data.action_summary as { total?: number; compliant?: number; audit?: number; violation?: number; indeterminate?: number; contain?: number; blocked?: number; terminated?: number } | undefined
   const slices = verdictSlices(summary)
@@ -87,7 +91,10 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
   const changedFiles = activity?.available ? activity.unique_file_count ?? 0 : null
   const headline = resultHeadline({ ...data, action_summary: summary, codex_block_confirmation: data.codex_block_confirmation as string | undefined }, changedFiles)
   const breakdown = fileBreakdown(activity?.files)
-  const attention = verdict.tone === 'ok' ? 0 : Math.max(1, incidents.length)
+  const attention = verdict.tone === 'ok' ? unevaluatedObservationCount : Math.max(1, incidents.length)
+  const attentionLabel = verdict.tone === 'ok' && unevaluatedObservationCount > 0
+    ? `판정 불가 관찰 ${unevaluatedObservationCount}건`
+    : attention > 0 ? `확인할 것 ${attention}개` : '모두 확인됐어요'
   const restore = restoreTile(recovery, data)
   const canRestore = Boolean(recovery?.available && !recovery.workspace_matches && recovery.preview_fingerprint)
   const duration = durationLabel(data.started_at, data.ended_at)
@@ -131,6 +138,20 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
           </div>
         </div>
       )}
+      {unevaluatedObservationCount > 0 && (
+        <section className="glass-notice is-warning unevaluated-process-observations" role="note" aria-label="판정하지 못한 프로세스 관찰">
+          <Icon name="pulse" size={22} />
+          <div>
+            <strong>판정하지 못한 프로세스 관찰</strong>
+            <p>그 밖에 명령줄을 읽지 못한 보조 프로세스 {unevaluatedObservationCount}건은 판정하지 못했어요.</p>
+            {unevaluatedObservations.map((observation, index) => (
+              <p key={`${observation.process_name}-${index}`} className="faint-note mono">
+                {observation.process_name} · {observation.process_role} · {observation.reason_code}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
 
       {(snapshot?.permission_grants ?? []).length > 0 && (
         <div className="glass-notice is-warning" role="note">
@@ -153,7 +174,7 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
       <section className="glass is-hero lens-hero result-hero" aria-label="결과 요약">
         <GuardianFigure state={guardianFor(data, verdict.tone)} alt="결과를 알려주는 아이아 가디언" className="result-guardian" />
         <div className="result-hero-copy">
-          <span className={`status-pill ${attention > 0 ? 'warning' : 'good'}`}>{attention > 0 ? `확인할 것 ${attention}개` : '모두 확인됐어요'}</span>
+          <span className={`status-pill ${attention > 0 ? 'warning' : 'good'}`}>{attentionLabel}</span>
           <h1>{headline.map((line, index) => <span key={line}>{line}{index < headline.length - 1 && <br />}</span>)}</h1>
           <p className="muted">{verdict.headline}</p>
           <div className="result-actions">
@@ -196,10 +217,13 @@ export function ResultView({ runId, showEvidenceLog = false }: { runId: string; 
             {incidents.length === 0 ? <p className="faint-note">기록된 정책 사건이 없어요.</p> : (
               <div className="result-incidents">{incidents.map((incident, index) => <IncidentRow key={incident.action_id ?? index} incident={incident} />)}</div>
             )}
-            {(showEvidenceLog || evidenceOpen) && incidents.length > 0 && (
-              <details className="result-sub"><summary>원시 증거 메타데이터</summary><EvidenceLogView incidents={incidents} /></details>
-            )}
           </details>
+          {(showEvidenceLog || evidenceOpen) && (
+            <details className="result-sub" open>
+              <summary>증거 로그</summary>
+              <EvidenceLogView incidents={incidents} unevaluatedObservations={unevaluatedObservations} />
+            </details>
+          )}
 
           <details>
             <summary>행위 귀속 · 자동 통제</summary>

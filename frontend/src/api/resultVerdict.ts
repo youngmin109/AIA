@@ -38,6 +38,8 @@ const PROTECTION_DEGRADED_STATES = new Set([
 
 /** Full access is a scope the user chose, not a protection failure. */
 const FULL_ACCESS_NOTE = '전체 권한으로 실행했어요. 작업 폴더 안의 모든 명령을 AIA가 실행 전에 검사했고, 작업 폴더는 되돌릴 수 있어요. 작업 폴더 밖 변경과 인터넷 사용만 보호 범위 밖이에요.'
+const unevaluatedObservationNote = (count: number) =>
+  '그 밖에 명령줄을 읽지 못한 보조 프로세스 ' + count + '건은 판정하지 못했어요.'
 
 export function isFullAccessScoped(result: ResultView): boolean {
   return (result.limitations ?? []).includes('CODEX_FULL_ACCESS_USER_SELECTED')
@@ -79,10 +81,15 @@ export function deriveVerdict(result: ResultView): Verdict {
   const executionPolicyAttention = ['DEGRADED', 'NOT_OBSERVED'].includes(result.execution_policy_status || '')
   const completedAndValid = protectionVerified && bundleVerified
   const incidents = result.incidents ?? []
-  const incidentCount = incidents.length || (result.incident_count ?? 0)
-  const hasIncidents = incidentCount > 0
+  const incidentCount = result.incident_count ?? incidents.length
+  const hasIncidents = incidents.length > 0 || incidentCount > 0
   const allBlocked = incidents.length > 0 && incidents.every(incidentBlocked)
   const allProcessDetected = incidents.length > 0 && incidents.every(processDetected)
+  const unevaluatedObservationCount =
+    result.unevaluated_observations?.count ?? result.unevaluated_observations?.items.length ?? 0
+  const observationDetail = unevaluatedObservationCount > 0
+    ? ' ' + unevaluatedObservationNote(unevaluatedObservationCount)
+    : ''
   const scopeDetail = fullAccessScoped ? ` ${FULL_ACCESS_NOTE}` : ''
 
   if (!bundleVerified || protectionDegraded || result.session_status === 'FAILED') {
@@ -100,7 +107,7 @@ export function deriveVerdict(result: ResultView): Verdict {
     return {
       branch: 'SUCCESS', tone: 'ok',
       headline: `위협 ${incidentCount}건을 실행 전에 막았어요.`,
-      detail: `지원 범위 안의 위험한 요청을 실행되기 전에 모두 차단했고 감사 묶음도 검증됐어요.${scopeDetail}`,
+      detail: `지원 범위 안의 위험한 요청을 실행되기 전에 모두 차단했고 감사 묶음도 검증됐어요.${scopeDetail}${observationDetail}`,
       executionPolicyAttention,
     }
   }
@@ -112,7 +119,7 @@ export function deriveVerdict(result: ResultView): Verdict {
     return {
       branch: 'PROCESS_DETECTED', tone: 'warn',
       headline: `프로세스 센서가 Hook이 못 본 숨은 프로세스 ${incidentCount}건을 감지했어요.`,
-      detail: `도구 단위 Hook이 보지 못한 하위 프로세스를 검증된 Agent Process Tree에서 포착했어요. 실행 전에 막은 건 아니지만, 작업 폴더는 되돌릴 수 있어요.${scopeDetail}`,
+      detail: `도구 단위 Hook이 보지 못한 하위 프로세스를 검증된 Agent Process Tree에서 포착했어요. 실행 전에 막은 건 아니지만, 작업 폴더는 되돌릴 수 있어요.${scopeDetail}${observationDetail}`,
       executionPolicyAttention,
     }
   }
@@ -151,7 +158,7 @@ export function deriveVerdict(result: ResultView): Verdict {
       branch: 'ABORTED_VERIFIED',
       tone: 'ok',
       headline: '사용자 중지로 종료됐지만 보호 상태는 검증됐습니다.',
-      detail: '감사 묶음과 보호 상태가 검증됐습니다. 모든 행동이 안전했다는 의미는 아닙니다.',
+      detail: '감사 묶음과 보호 상태가 검증됐습니다. 모든 행동이 안전했다는 의미는 아닙니다.' + observationDetail,
       executionPolicyAttention,
     }
   }
@@ -160,7 +167,7 @@ export function deriveVerdict(result: ResultView): Verdict {
       branch: 'SUCCESS',
       tone: 'ok',
       headline: fullAccessScoped ? '작업 폴더를 보호했어요.' : '보호 실행이 정상적으로 완료됐습니다.',
-      detail: `감사 묶음과 보호 상태가 검증됐습니다. 복구 여부는 별도로 확인하세요.${scopeDetail}`,
+      detail: `감사 묶음과 보호 상태가 검증됐습니다. 복구 여부는 별도로 확인하세요.${scopeDetail}${observationDetail}`,
       executionPolicyAttention,
     }
   }

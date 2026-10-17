@@ -19,7 +19,10 @@ from .presenters_result_events import (
     evidence_summary,
     incident_view,  # noqa: F401 - reached through this module
     incident_views_for_result,
+    policy_incident_count,
     safe_event_views,
+    unevaluated_observation_action_ids,
+    unevaluated_observation_views,
 )
 
 
@@ -270,8 +273,15 @@ def _integrity_summary(integrity: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]:
+def result_view(
+    result: Mapping[str, Any],
+    bundle_status: str,
+    *,
+    evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+) -> dict[str, Any]:
     incidents = incident_views_for_result(result)
+    unevaluated_observations = unevaluated_observation_views(result, evidence_metadata)
+    unevaluated_action_ids = unevaluated_observation_action_ids(result)
     incident_action_ids = {
         item.get("action_id")
         for item in incidents
@@ -280,7 +290,8 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
     actions = [
         {
             **action_view(item),
-            "incident": item.get("action_id") in incident_action_ids,
+            "incident": item.get("action_id") in incident_action_ids
+            and str(item.get("action_id")) not in unevaluated_action_ids,
         }
         for item in result.get("action_outcomes", [])
     ]
@@ -323,6 +334,11 @@ def result_view(result: Mapping[str, Any], bundle_status: str) -> dict[str, Any]
         "ended_at": result.get("ended_at"),
         "enforcement_results": list(result.get("enforcement_results") or []),
         "incidents": incidents,
+        "incident_count": policy_incident_count(result),
+        "unevaluated_observations": {
+            "count": len(unevaluated_observations),
+            "items": unevaluated_observations,
+        },
         "integrity": result.get("integrity_result"),
         "user_abort_termination": result.get("user_abort_termination_result"),
         "protection_failure_termination": result.get(
