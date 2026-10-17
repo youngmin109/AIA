@@ -517,6 +517,7 @@ class RunControlMixin:
         launcher_status = getattr(getattr(launcher, "status", None), "value", None)
         if launcher is not None and launcher_status == "STARTING":
             try:
+                self._mark_codex_exit_expected(record)
                 stopped = self._request_user_abort(record, launcher)
             except Exception as error:
                 stopped = False
@@ -552,6 +553,7 @@ class RunControlMixin:
                 "reason": "STOP_WILL_BE_APPLIED_BEFORE_AGENT_LAUNCH",
             }
         try:
+            self._mark_codex_exit_expected(record)
             stopped = self._request_user_abort(record, launcher)
         except Exception as error:
             stopped = False
@@ -574,6 +576,19 @@ class RunControlMixin:
             "status": "STOP_REQUESTED",
             "reason": "USER_ABORT_REQUESTED",
         }
+
+    @staticmethod
+    def _mark_codex_exit_expected(record: RunRecord) -> None:
+        """Tell an active app-server that AIA is about to terminate its process."""
+
+        codex_session = record.runtime.get("codex_session")
+        marker = getattr(codex_session, "mark_expected_exit", None)
+        if callable(marker):
+            try:
+                marker()
+            except Exception:
+                # Failure to record the intent leaves confirmation fail-closed.
+                pass
 
     @staticmethod
     def _request_user_abort(record: RunRecord, launcher: ProtectedLauncher) -> bool:
@@ -728,6 +743,7 @@ class RunControlMixin:
                         continue
                     record.runtime["stop_action_attempted"] = True
                     record.protection_state = "STOP_REQUESTED"
+                    self._mark_codex_exit_expected(record)
                     if not self._request_user_abort(record, launcher):
                         record.stop_error = record.stop_error or "USER_ABORT_TERMINATION_UNCONFIRMED"
                         record.protection_state = "DEGRADED"
@@ -743,6 +759,7 @@ class RunControlMixin:
                         record.runtime["protection_failure_termination_attempted"] = True
                         record.runtime["protection_failure_reason"] = reason
                         record.protection_state = "DEGRADED"
+                        self._mark_codex_exit_expected(record)
                         try:
                             result = launcher.request_protection_failure_termination_result(
                                 reason

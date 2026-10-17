@@ -711,6 +711,7 @@ class RunApplicationService(
             result: dict[str, Any] | None = None
             try:
                 if launcher is not None:
+                    self._mark_codex_exit_expected(record)
                     result = launcher.request_protection_failure_termination_result(reason)
             except Exception as error:
                 result = {

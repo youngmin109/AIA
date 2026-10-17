@@ -421,6 +421,7 @@ class ProtectedRunMixin:
                     lease,
                 )
                 return None
+            self._mark_codex_exit_expected(record)
             if not self._request_user_abort(record, launcher):
                 record.stop_error = "USER_ABORT_TERMINATION_UNCONFIRMED"
         if launch.context is None or launch.status.value != "RUNNING":

@@ -3263,6 +3263,43 @@ def test_request_stop_can_terminate_a_verified_root_during_launch(tmp_path) -> N
         service.shutdown()
 
 
+def test_request_stop_marks_codex_exit_expected_before_abort(tmp_path, monkeypatch) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.status = "RUNNING"
+    record.phase = "RUNNING"
+    calls: list[str | tuple[str, bool]] = []
+
+    class CodexSession:
+        expected_exit = False
+
+        def mark_expected_exit(self) -> None:
+            calls.append("mark_expected_exit")
+            self.expected_exit = True
+
+    class Launcher:
+        status = SimpleNamespace(value="RUNNING")
+
+    codex_session = CodexSession()
+    record.runtime["codex_session"] = codex_session
+    record.runtime["launcher"] = Launcher()
+    service.registry.add(record)
+
+    def request_abort(requested_record, _launcher) -> bool:
+        calls.append(("request_abort", requested_record.runtime["codex_session"].expected_exit))
+        return True
+
+    monkeypatch.setattr(service, "_request_user_abort", request_abort)
+    try:
+        result = service.request_stop(record.session_id)
+
+        assert result["accepted"] is True
+        assert calls == ["mark_expected_exit", ("request_abort", True)]
+    finally:
+        record.status = "ABORTED"
+        service.shutdown()
+
+
 def test_shutdown_requests_stop_for_live_run_before_executor_closes(tmp_path) -> None:
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)

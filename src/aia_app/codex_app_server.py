@@ -995,6 +995,20 @@ class CodexAppServerSession:
                 self._usage_limits = limits
                 self._append_event_locked({"type": "usage.limits", "limits": limits})
 
+    def mark_expected_exit(self) -> bool:
+        """Record an AIA-initiated process stop before the launcher terminates it.
+
+        This only marks the exit as expected; it does not interrupt a turn or
+        resolve pending requests like close() does.
+        """
+
+        with self._lock:
+            process = self._process
+            if process is None or process.poll() is not None:
+                return False
+            self._closing = True
+            return True
+
     def close(self, *, force: bool = False) -> None:
         """End the conversation and let the app-server exit.
 
