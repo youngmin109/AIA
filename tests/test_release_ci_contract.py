@@ -72,3 +72,44 @@ def test_windows_release_builds_signs_and_installs_the_hook_forwarder() -> None:
     assert signing.count(r'"aia-hook\aia-hook.exe"') == 2
     package = (ROOT / "scripts" / "package-windows.ps1").read_text(encoding="utf-8")
     assert r'"dist\windows\aia-hook"' in package
+
+
+def _installer_section(installer: str, name: str) -> str:
+    marker = f"[{name}]\n"
+    assert marker in installer
+    return installer.split(marker, 1)[1].split("\n[", 1)[0]
+
+
+def test_installer_clears_both_old_asset_directories_before_files() -> None:
+    installer = (ROOT / "packaging" / "windows" / "AIA.iss").read_text(encoding="utf-8")
+    delete_section = _installer_section(installer, "InstallDelete")
+
+    assert installer.index("[InstallDelete]") < installer.index("[Files]")
+    assert r'Type: filesandordirs; Name: "{app}\_internal\aia_web\static\app\assets"' in delete_section
+    assert r'Type: filesandordirs; Name: "{app}\aia-cli\_internal\aia_web\static\app\assets"' in delete_section
+
+
+def test_installer_delete_targets_are_only_the_two_asset_directories() -> None:
+    installer = (ROOT / "packaging" / "windows" / "AIA.iss").read_text(encoding="utf-8")
+    delete_section = _installer_section(installer, "InstallDelete")
+    delete_commands = [line.strip() for line in delete_section.splitlines() if line.strip()]
+
+    assert delete_commands == [
+        r'Type: filesandordirs; Name: "{app}\_internal\aia_web\static\app\assets"',
+        r'Type: filesandordirs; Name: "{app}\aia-cli\_internal\aia_web\static\app\assets"',
+    ]
+
+
+def test_installer_delete_keeps_docs_and_hook_install_directories() -> None:
+    installer = (ROOT / "packaging" / "windows" / "AIA.iss").read_text(encoding="utf-8")
+    delete_section = _installer_section(installer, "InstallDelete")
+    delete_targets = [
+        line.split('Name: "', 1)[1].split('"', 1)[0]
+        for line in delete_section.splitlines()
+        if 'Name: "' in line
+    ]
+    files_section = _installer_section(installer, "Files")
+
+    assert all(r"\docs" not in target and r"\aia-hook" not in target for target in delete_targets)
+    assert r'DestDir: "{app}\docs"' in files_section
+    assert r'DestDir: "{app}\aia-hook"' in files_section
