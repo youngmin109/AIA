@@ -26,6 +26,10 @@ SignTool=AIA
 SignedUninstaller=yes
 #endif
 
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal\aia_web\static\app\assets"
+Type: filesandordirs; Name: "{app}\aia-cli\_internal\aia_web\static\app\assets"
+
 [Files]
 Source: "..\..\dist\windows\AIA\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "..\..\dist\windows\aia-cli\*"; DestDir: "{app}\aia-cli"; Flags: recursesubdirs ignoreversion
