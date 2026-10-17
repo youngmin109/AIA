@@ -593,6 +593,48 @@ def test_codex_adapter_turns_external_tools_off_for_app_server(tmp_path: Path) -
     assert spec.argv[-6:] == ("-c", offs[0], "-c", offs[1], "-c", offs[2])
 
 
+def test_codex_adapter_turns_external_tools_off_for_exec(tmp_path: Path) -> None:
+    offs = [
+        "mcp_servers.node_repl.enabled=false",
+        "plugins.unified-computer-use@openai-bundled.enabled=false",
+        "features.apps=false",
+    ]
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="safe",
+        adapter_options={
+            "approve_for_me": True,
+            "skip_git_repo_check": True,
+            "disable_external_tools": offs,
+        },
+    )
+
+    spec = CodexAdapter().build_launch(request, Path(sys.executable))
+
+    expected = tuple(value for item in offs for value in ("-c", item))
+    assert spec.argv[-(len(expected) + 1) : -1] == expected
+    assert spec.interactive is False
+
+
+@pytest.mark.parametrize("external_options", [{}, {"disable_external_tools": []}])
+def test_codex_adapter_adds_no_external_tool_overrides_when_none_are_disabled(
+    tmp_path: Path, external_options: dict
+) -> None:
+    request = ProtectedLaunchRequest(
+        aia_session_id="session-1",
+        workspace=tmp_path,
+        agent="codex",
+        prompt="safe",
+        adapter_options={"approve_for_me": True, **external_options},
+    )
+
+    spec = CodexAdapter().build_launch(request, Path(sys.executable))
+
+    assert "-c" not in spec.argv
+
+
 @pytest.mark.parametrize(
     "override",
     [
@@ -618,16 +660,20 @@ def test_codex_adapter_accepts_only_overrides_that_turn_a_tool_off(tmp_path: Pat
         CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
 
 
-def test_codex_adapter_turns_external_tools_off_only_in_app_server_mode(tmp_path: Path) -> None:
+def test_codex_adapter_rejects_external_tool_overrides_for_terminal_interactive_mode(
+    tmp_path: Path,
+) -> None:
     request = ProtectedLaunchRequest(
         aia_session_id="session-1",
         workspace=tmp_path,
         agent="codex",
-        prompt="safe",
-        adapter_options={"approve_for_me": True, "disable_external_tools": ["features.apps=false"]},
+        adapter_options={
+            "interactive": True,
+            "disable_external_tools": ["features.apps=false"],
+        },
     )
 
-    with pytest.raises(AdapterError):
+    with pytest.raises(AdapterError, match="interactive terminal mode"):
         CodexAdapter(enable_hooks=True).build_launch(request, Path(sys.executable))
 
 
