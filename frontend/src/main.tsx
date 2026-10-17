@@ -3,11 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { DesktopGuardian } from './components/shell/DesktopGuardian'
-import { readMotionPreference } from './api/motionPreference'
-import { readTintPreference } from './api/tintPreference'
-import { readGlassPreference } from './api/glassPreference'
-import { readPetPreference } from './api/petPreference'
-import { readPetSize, displayPetSize } from './api/petSizePreference'
+import { applyMotionPreference, readMotionPreference } from './api/motionPreference'
+import { applyTintPreference, readTintPreference } from './api/tintPreference'
+import { applyGlassPreference, readGlassPreference } from './api/glassPreference'
+import { applyPetPreference, applyPetPosition, readPetPosition, readPetPreference } from './api/petPreference'
+import { applyPetSize, readPetSize, displayPetSize } from './api/petSizePreference'
+import { restoreUiPreferences } from './api/preferenceSync'
 import { startDesktopHeartbeat, syncTitleBar, syncDesktopGuardian } from './desktopBridge'
 
 // One dark glass theme (EPIC-020); the viewer only picks a color tint.
@@ -29,3 +30,17 @@ createRoot(document.getElementById('root')!).render(
     {desktopGuardian ? <DesktopGuardian /> : <App />}
   </StrictMode>,
 )
+
+// Restore asynchronously so the first screen never waits for the local server.
+if (!desktopGuardian) {
+  void restoreUiPreferences(key => {
+    switch (key) {
+      case 'aia.glass': applyGlassPreference(readGlassPreference()); break
+      case 'aia.motion': applyMotionPreference(readMotionPreference()); break
+      case 'aia.tint': applyTintPreference(readTintPreference()); syncTitleBar(readTintPreference()); break
+      case 'aia.pet': applyPetPreference(readPetPreference()); syncDesktopGuardian(); break
+      case 'aia.pet.position': applyPetPosition(readPetPosition()); break
+      case 'aia.pet.size': applyPetSize(readPetSize()); syncDesktopGuardian(); break
+    }
+  })
+}

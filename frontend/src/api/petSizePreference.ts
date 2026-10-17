@@ -1,3 +1,5 @@
+import { queueUiPreferenceWrite } from './preferenceSync.ts'
+
 export type PetSizePreference = number
 export const PET_SIZE_MIN = 70
 export const PET_SIZE_MAX = 140
@@ -20,7 +22,7 @@ export function displayPetSize(value: PetSizePreference): void {
 export function applyPetSize(value: PetSizePreference): void {
   const size = normalizePetSize(value)
   displayPetSize(size)
-  try { localStorage.setItem('aia.pet.size', String(size)) } catch { /* keep the in-memory choice */ }
+  try { localStorage.setItem('aia.pet.size', String(size)); queueUiPreferenceWrite('aia.pet.size', String(size)) } catch { /* keep the in-memory choice */ }
   window.dispatchEvent(new Event('aia:pet-size-changed'))
 }
 export function petPixelSize(value: PetSizePreference): number {

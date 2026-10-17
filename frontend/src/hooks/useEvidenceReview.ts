@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRunStatus } from './useRunStatus'
 import type { SecurityEvent } from '../api/types'
+import { queueUiPreferenceWrite, UI_PREFERENCE_RESTORED_EVENT } from '../api/preferenceSync'
 
 const STORAGE_KEY = 'aia.ackedIncidents'
 
@@ -16,21 +17,38 @@ function isFlagged(event: SecurityEvent): boolean {
 
 export type AckMark = 'problem' | 'reviewed'
 
+function latestAcked(value: Record<string, AckMark>): Record<string, AckMark> {
+  let entries = Object.entries(value).slice(-500)
+  while (entries.length) {
+    const latest = Object.fromEntries(entries) as Record<string, AckMark>
+    if (new TextEncoder().encode(JSON.stringify(latest)).byteLength <= 8 * 1024) return latest
+    entries = entries.slice(1)
+  }
+  return {}
+}
+
 function readAcked(): Record<string, AckMark> {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as Record<string, AckMark>) : {}
+    const parsed = raw ? JSON.parse(raw) as Record<string, AckMark> : {}
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? latestAcked(parsed)
+      : {}
   } catch {
     return {}
   }
 }
 
-function writeAcked(value: Record<string, AckMark>) {
+function writeAcked(value: Record<string, AckMark>): Record<string, AckMark> {
+  const latest = latestAcked(value)
+  const serialized = JSON.stringify(latest)
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+    window.localStorage.setItem(STORAGE_KEY, serialized)
   } catch {
     // Per-viewer convenience only; ignore storage failures (private mode, etc).
   }
+  queueUiPreferenceWrite(STORAGE_KEY, serialized)
+  return latest
 }
 
 function eventKey(runId: string, event: SecurityEvent, index: number): string {
@@ -55,6 +73,14 @@ export function useEvidenceReview(runId: string | null) {
     }
   }, [runId])
 
+  useEffect(() => {
+    const restoreAcked = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === STORAGE_KEY) setAcked(readAcked())
+    }
+    window.addEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreAcked)
+    return () => window.removeEventListener(UI_PREFERENCE_RESTORED_EVENT, restoreAcked)
+  }, [])
+
   const events = status?.events ?? []
   const pendingIndex = runId
     ? events.findIndex((event, index) => isFlagged(event) && !(eventKey(runId, event, index) in acked))
@@ -65,9 +91,11 @@ export function useEvidenceReview(runId: string | null) {
   function ack(mark: AckMark) {
     if (!runId || pendingIndex < 0) return
     const key = eventKey(runId, events[pendingIndex], pendingIndex)
-    const next = { ...acked, [key]: mark }
-    writeAcked(next)
-    setAcked(next)
+    const next = { ...acked }
+    delete next[key]
+    next[key] = mark
+    const saved = writeAcked(next)
+    setAcked(saved)
   }
 
   return { pending, ack }

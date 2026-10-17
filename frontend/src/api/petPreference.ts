@@ -1,3 +1,5 @@
+import { queueUiPreferenceWrite } from './preferenceSync.ts'
+
 export type PetPreference = 'on' | 'off'
 /** Where the pet sits, as 0..1 across the free area of the window, so it survives resizing. */
 export interface PetPosition { x: number; y: number }
@@ -19,7 +21,7 @@ export function readPetPreference(): PetPreference {
 /** The guardian pet only explains; hiding it changes nothing about protection. */
 export function applyPetPreference(value: PetPreference): void {
   document.documentElement.dataset.pet = value
-  try { localStorage.setItem('aia.pet', value) } catch { /* keep the in-memory choice */ }
+  try { localStorage.setItem('aia.pet', value); queueUiPreferenceWrite('aia.pet', value) } catch { /* keep the in-memory choice */ }
 }
 
 function axis(value: unknown): number {
@@ -37,7 +39,16 @@ export function readPetPosition(): PetPosition {
 }
 
 export function savePetPosition(position: PetPosition): void {
-  try { localStorage.setItem('aia.pet.position', JSON.stringify(position)) } catch { /* the pet still stays where it was dropped */ }
+  try {
+    const value = JSON.stringify(position)
+    localStorage.setItem('aia.pet.position', value)
+    queueUiPreferenceWrite('aia.pet.position', value)
+  } catch { /* the pet still stays where it was dropped */ }
+}
+
+/** Reposition an already-mounted pet after a server preference was restored. */
+export function applyPetPosition(position: PetPosition): void {
+  window.dispatchEvent(new CustomEvent('aia:pet-position-restored', { detail: normalizePetPosition(position) }))
 }
 
 function span(length: number, size: number): number {

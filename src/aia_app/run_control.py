@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-from threading import Thread
+from threading import RLock, Thread
 from typing import Any
 from uuid import UUID
 
@@ -42,9 +42,75 @@ _FINISHED_RUN_STATUSES = frozenset({"COMPLETED", "ABORTED", "FAILED"})
 # launch a fresh WebView profile, so the browser's own copy is lost on restart.
 _CUSTOM_POLICY_FILE = "custom-policy.json"
 _NO_CUSTOM_POLICY: dict[str, Any] = {"path": None, "document": None}
+_UI_PREFERENCE_FILE = "ui-preferences.json"
+_UI_PREFERENCE_KEYS = frozenset({
+    "aia.glass",
+    "aia.motion",
+    "aia.tint",
+    "aia.pet",
+    "aia.pet.position",
+    "aia.pet.size",
+    "aia.defaultPolicyProfile",
+    "aia.ackedIncidents",
+})
+_UI_PREFERENCE_VALUE_MAX_BYTES = 8 * 1024
+_UI_PREFERENCE_FILE_MAX_BYTES = 64 * 1024
+_UI_PREFERENCE_LOCK = RLock()
 
 
 class RunControlMixin:
+
+    def _read_ui_preferences(self) -> dict[str, str]:
+        path = self.control_root / _UI_PREFERENCE_FILE
+        try:
+            raw = path.read_bytes()
+            if len(raw) > _UI_PREFERENCE_FILE_MAX_BYTES:
+                return {}
+            values = json.loads(raw.decode("utf-8"))
+        except (OSError, UnicodeError, ValueError):
+            return {}
+        if not isinstance(values, dict):
+            return {}
+        try:
+            if any(
+                key not in _UI_PREFERENCE_KEYS
+                or not isinstance(value, str)
+                or len(value.encode("utf-8")) > _UI_PREFERENCE_VALUE_MAX_BYTES
+                for key, value in values.items()
+            ):
+                return {}
+        except UnicodeError:
+            return {}
+        return values
+
+    def ui_preferences(self) -> dict[str, str]:
+        """Return the small, non-sensitive set of preferences for the UI."""
+
+        with _UI_PREFERENCE_LOCK:
+            return self._read_ui_preferences()
+
+    def remember_ui_preference(self, key: Any, value: Any) -> dict[str, bool]:
+        """Atomically remember one allowlisted UI preference."""
+
+        if not isinstance(key, str) or key not in _UI_PREFERENCE_KEYS:
+            raise ApplicationValidationError("unknown UI preference key")
+        if not isinstance(value, str):
+            raise ApplicationValidationError("UI preference value must be a string")
+        if len(value.encode("utf-8")) > _UI_PREFERENCE_VALUE_MAX_BYTES:
+            raise ApplicationValidationError("UI preference value exceeds 8 KB")
+
+        with _UI_PREFERENCE_LOCK:
+            values = self._read_ui_preferences()
+            values[key] = value
+            encoded = (json.dumps(values, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+            if len(encoded) > _UI_PREFERENCE_FILE_MAX_BYTES:
+                raise ApplicationValidationError("UI preferences file exceeds 64 KB")
+            path = self.control_root / _UI_PREFERENCE_FILE
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_name(path.name + ".tmp")
+            temporary.write_bytes(encoded)
+            os.replace(temporary, path)
+        return {"saved": True}
 
     def shutdown(self, wait: bool = True) -> None:
         """Stop live Protected Runs before closing the application service.

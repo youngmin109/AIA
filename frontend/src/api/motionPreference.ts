@@ -1,3 +1,5 @@
+import { queueUiPreferenceWrite } from './preferenceSync.ts'
+
 export type MotionPreference = 'auto' | 'full' | 'reduced'
 export function normalizeMotionPreference(value: string | null): MotionPreference {
   return value === 'full' || value === 'reduced' ? value : 'auto'
@@ -8,5 +10,5 @@ export function readMotionPreference(): MotionPreference {
 /** Per-viewer motion choice; html[data-motion] drives the CSS kill switch. */
 export function applyMotionPreference(value: MotionPreference): void {
   document.documentElement.dataset.motion = value
-  try { localStorage.setItem('aia.motion', value) } catch { /* In-memory preference still works. */ }
+  try { localStorage.setItem('aia.motion', value); queueUiPreferenceWrite('aia.motion', value) } catch { /* In-memory preference still works. */ }
 }

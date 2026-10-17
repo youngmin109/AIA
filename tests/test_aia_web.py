@@ -619,3 +619,67 @@ def test_saved_custom_policy_survives_an_app_restart(tmp_path) -> None:
         assert client.get("/api/policy/custom").json() == {"path": None, "document": None}
     finally:
         relaunched.shutdown()
+
+
+def test_ui_preferences_reject_unknown_key_and_large_value(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
+    try:
+        assert client.get("/api/ui-preferences").json() == {}
+        assert client.post("/api/ui-preferences", json={"key": "aia.unknown", "value": "x"}).status_code == 400
+        assert client.post("/api/ui-preferences", json={"key": "aia.tint", "value": 3}).status_code == 400
+        assert client.post("/api/ui-preferences", json={"key": "aia.tint", "value": "x" * (8 * 1024 + 1)}).status_code == 400
+        keys = [
+            "aia.glass", "aia.motion", "aia.tint", "aia.pet", "aia.pet.position",
+            "aia.pet.size", "aia.defaultPolicyProfile", "aia.ackedIncidents",
+        ]
+        for key in keys[:-1]:
+            assert client.post("/api/ui-preferences", json={"key": key, "value": "x" * (8 * 1024)}).status_code == 200
+        assert client.post(
+            "/api/ui-preferences", json={"key": keys[-1], "value": "x" * (8 * 1024)}
+        ).status_code == 400
+        assert len(client.get("/api/ui-preferences").json()) == 7
+    finally:
+        service.shutdown()
+
+
+def test_ui_preferences_survive_service_restart(tmp_path) -> None:
+    control = tmp_path / "control"
+    service = RunApplicationService(control)
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
+    try:
+        response = client.post("/api/ui-preferences", json={"key": "aia.tint", "value": "teal"})
+        assert response.status_code == 200
+    finally:
+        service.shutdown()
+
+    relaunched = RunApplicationService(control)
+    client = TestClient(create_app(relaunched), base_url="http://127.0.0.1")
+    try:
+        assert client.get("/api/ui-preferences").json() == {"aia.tint": "teal"}
+    finally:
+        relaunched.shutdown()
+
+
+def test_corrupt_ui_preferences_file_reads_as_empty(tmp_path) -> None:
+    control = tmp_path / "control"
+    control.mkdir()
+    (control / "ui-preferences.json").write_text("not json", encoding="utf-8")
+    service = RunApplicationService(control)
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
+    try:
+        assert client.get("/api/ui-preferences").json() == {}
+    finally:
+        service.shutdown()
+
+
+def test_ui_preferences_repeated_writes_keep_last_value(tmp_path) -> None:
+    service = RunApplicationService(tmp_path / "control")
+    client = TestClient(create_app(service), base_url="http://127.0.0.1")
+    try:
+        first = client.post("/api/ui-preferences", json={"key": "aia.glass", "value": "on"})
+        last = client.post("/api/ui-preferences", json={"key": "aia.glass", "value": "off"})
+        assert first.status_code == last.status_code == 200
+        assert client.get("/api/ui-preferences").json() == {"aia.glass": "off"}
+    finally:
+        service.shutdown()

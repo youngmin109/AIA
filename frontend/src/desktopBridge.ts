@@ -5,6 +5,7 @@
  * pretending a browser dialog is equivalent to the native folder picker.
  */
 import { readPetSize } from './api/petSizePreference.ts'
+import { readPetPreference } from './api/petPreference.ts'
 
 type WorkspacePicker = {
   choose_workspace?: () => Promise<{ path?: string | null }>
@@ -68,8 +69,7 @@ export function syncDesktopGuardian(): void {
   const show = window.pywebview?.api?.set_guardian_visible
   if (!show) return
   document.documentElement.dataset.nativeGuardian = 'on'
-  let visible = true
-  try { visible = localStorage.getItem('aia.pet') !== 'off' } catch { /* default on */ }
+  const visible = readPetPreference() !== 'off'
   const size = window.pywebview?.api?.set_guardian_size
   const prepared = size ? size(readPetSize()) : Promise.resolve(true)
   prepared.then(() => show(visible)).then(ok => { if (!ok) document.documentElement.dataset.nativeGuardian = 'off' })
