@@ -184,6 +184,7 @@ class FilesystemSensor:
             _now_utc(),
             reason="NOT_STARTED",
         )
+        self._runtime_health_before_stop: SensorHealth | None = None
 
     @property
     def status(self) -> SensorStatus:
@@ -191,6 +192,15 @@ class FilesystemSensor:
 
     @property
     def health(self) -> SensorHealth:
+        return self.check_health()
+
+    @property
+    def runtime_health_before_stop(self) -> SensorHealth:
+        """Health at the end of observation, retained after an orderly stop."""
+
+        with self._lock:
+            if self._runtime_health_before_stop is not None:
+                return self._runtime_health_before_stop
         return self.check_health()
 
     @property
@@ -221,6 +231,7 @@ class FilesystemSensor:
                 _now_utc(),
                 reason="STARTING",
             )
+            self._runtime_health_before_stop = None
             observer: Any | None = None
             try:
                 self._set_health(SensorStatus.STARTING, "STARTING", append=True)
@@ -278,12 +289,14 @@ class FilesystemSensor:
             if self._status is SensorStatus.STOPPED:
                 return self._context()
             if self._status is SensorStatus.FAILED and self._observer is None:
+                self._runtime_health_before_stop = self._health
                 return self._context()
             observer = self._observer
             self._observer = None
             try:
                 if observer is not None:
                     self._stop_observer(observer)
+                self._runtime_health_before_stop = self._health
                 self._set_health(SensorStatus.STOPPED, "STOPPED", append=True)
                 if self._status is not SensorStatus.STOPPED:
                     raise SensorStopError(
@@ -296,6 +309,7 @@ class FilesystemSensor:
                     self._failure_reason(error, "STOP_FAILED"),
                     append=True,
                 )
+                self._runtime_health_before_stop = self._health
                 if isinstance(error, SensorStopError):
                     raise
                 raise SensorStopError("Filesystem Sensor failed to stop") from error

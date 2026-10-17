@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable
 
 import psutil
@@ -177,6 +178,7 @@ class EnforcementGateResult:
     sensor_statuses: tuple[SensorHealth, ...]
     lease_status: str
     latency_ms: float | None = None
+    confirmation_basis: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.action_id.strip() or not self.aia_session_id.strip():
@@ -195,6 +197,12 @@ class EnforcementGateResult:
         object.__setattr__(self, "hook_trust_status", HookTrustStatus(self.hook_trust_status))
         if self.latency_ms is not None and self.latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
+        if self.confirmation_basis is not None:
+            object.__setattr__(
+                self,
+                "confirmation_basis",
+                MappingProxyType(dict(self.confirmation_basis)),
+            )
 
     @property
     def containment_approved(self) -> bool:

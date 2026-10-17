@@ -15,6 +15,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
+import time
 from typing import Any, TYPE_CHECKING
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -440,12 +441,22 @@ class CodexPreToolController:
             evidence_sources=evidence_sources,
         )
 
-    def confirm_block(self, tool_use_id: str, blocked: bool) -> CodexPreToolEvent | None:
+    def confirm_block(
+        self,
+        tool_use_id: str,
+        blocked: bool | None,
+        *,
+        action_id: str | None = None,
+        confirmation_basis: Mapping[str, Any] | None = None,
+    ) -> CodexPreToolEvent | None:
         """Attach an externally observed Codex execution confirmation."""
 
         with self._lock:
             for index, event in enumerate(self._events):
-                if event.tool_use_id != tool_use_id:
+                if action_id is not None:
+                    if event.action.action_id != action_id:
+                        continue
+                elif event.tool_use_id != tool_use_id:
                     continue
                 confirmation = event.decision.confirm(
                     PreToolExecutionConfirmation(blocked, _now_utc())
@@ -467,6 +478,11 @@ class CodexPreToolController:
                                 (*updated_gate.failure_reasons, confirmation.reason)
                             )
                         ),
+                    )
+                if confirmation_basis is not None:
+                    updated_gate = replace(
+                        updated_gate,
+                        confirmation_basis=dict(confirmation_basis),
                     )
                 updated = replace(
                     event,
@@ -629,6 +645,9 @@ class CodexHookBroker:
         self.handler = handler
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._request_condition = threading.Condition()
+        self._in_flight_requests = 0
+        self._drain_complete = False
 
     @property
     def endpoint(self) -> str | None:
@@ -657,10 +676,39 @@ class CodexHookBroker:
         server, thread = self._server, self._thread
         return server is not None and thread is not None and thread.is_alive()
 
+    @property
+    def in_flight_requests(self) -> int:
+        with self._request_condition:
+            return self._in_flight_requests
+
+    def _request_started(self) -> None:
+        with self._request_condition:
+            self._in_flight_requests += 1
+
+    def _request_finished(self) -> None:
+        with self._request_condition:
+            self._in_flight_requests = max(0, self._in_flight_requests - 1)
+            self._request_condition.notify_all()
+
     def start(self) -> None:
         if self._server is not None:
             raise RuntimeError("Codex Hook Broker is already started")
         broker = self
+
+        class TrackingServer(ThreadingHTTPServer):
+            def process_request(self, request: Any, client_address: Any) -> None:
+                broker._request_started()
+                try:
+                    super().process_request(request, client_address)
+                except Exception:
+                    broker._request_finished()
+                    raise
+
+            def process_request_thread(self, request: Any, client_address: Any) -> None:
+                try:
+                    super().process_request_thread(request, client_address)
+                finally:
+                    broker._request_finished()
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, format: str, *args: Any) -> None:
@@ -699,7 +747,7 @@ class CodexHookBroker:
                     except (BrokenPipeError, ConnectionResetError):
                         return
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server = TrackingServer(("127.0.0.1", 0), Handler)
         self._server.daemon_threads = True
         self._thread = threading.Thread(
             target=self._server.serve_forever,
@@ -708,15 +756,32 @@ class CodexHookBroker:
         )
         self._thread.start()
 
-    def stop(self) -> None:
+    def stop(self) -> bool:
+        """Stop accepting requests and wait for every accepted Hook call."""
+
         server, thread = self._server, self._thread
         self._server = None
         self._thread = None
-        if server is not None:
+        if server is None:
+            return self._drain_complete
+        try:
             server.shutdown()
             server.server_close()
+        except Exception:
+            self._drain_complete = False
+            return False
         if thread is not None:
             thread.join(timeout=2)
+        deadline = time.monotonic() + 30.0
+        with self._request_condition:
+            while self._in_flight_requests:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._drain_complete = False
+                    return False
+                self._request_condition.wait(remaining)
+        self._drain_complete = thread is None or not thread.is_alive()
+        return self._drain_complete
 
 
 def send_hook_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:

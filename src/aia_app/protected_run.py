@@ -39,9 +39,17 @@ from aia import (
     process_create_time,
     __version__,
 )
+from aia.evidence import EvidenceRecordType, EvidenceSource
+from aia.integrity import IntegrityStatus, IntegrityVerifier
+from aia.normalizer import canonicalize_workspace_path
 from aia.readiness import ProtectionReadinessBarrier
 from aia.session import SessionEndReason
-from .codex_app_server import CodexAppServerError, CodexAppServerSession
+from .codex_app_server import (
+    CodexAppServerError,
+    CodexAppServerSession,
+    CodexHookEventCollector,
+)
+from .gui_block_confirmation import confirm_gui_pretool_blocks
 
 from .registry import RunRecord
 from .run_history import _hook_broker_runtime_healthy, _sensor_summary_is_verified
@@ -66,11 +74,19 @@ def _popen_kwargs_for_launch_mode(launch_mode: str) -> dict[str, Any]:
     return {"creationflags": getattr(subprocess, "CREATE_NEW_CONSOLE", 0)}
 
 
-def _sensor_status(sensor: Any) -> str | None:
-    health = getattr(sensor, "health", None)
+def _sensor_health_for_runtime(sensor: Any) -> Any:
+    health = getattr(sensor, "runtime_health_before_stop", None)
     if callable(health):
         health = health()
-    status = getattr(health, "status", None)
+    if health is None:
+        health = getattr(sensor, "health", None)
+        if callable(health):
+            health = health()
+    return health
+
+
+def _sensor_status(sensor: Any) -> str | None:
+    status = getattr(_sensor_health_for_runtime(sensor), "status", None)
     return getattr(status, "value", status)
 
 
@@ -105,7 +121,7 @@ def _runtime_action_view(
     """Build the redacted live/result action view from authoritative facts."""
 
     observed_at = getattr(action, "observed_at", None)
-    return {
+    view = {
         "action_id": action.action_id,
         "attribution_grade": attribution_result.grade.value,
         "attribution_reason": attribution_result.reason,
@@ -142,12 +158,71 @@ def _runtime_action_view(
             "target_kind": action.target_kind.value,
         },
     }
+    confirmation_basis = getattr(gate_result, "confirmation_basis", None)
+    if isinstance(confirmation_basis, Mapping):
+        view["confirmation_basis"] = dict(confirmation_basis)
+    return view
 
 
 def _containment_errors(containments: Any) -> list[str]:
     """Termination errors of post-action containments, once per containment."""
 
     return [item.termination_error for item in containments if item.termination_error]
+
+
+def _protected_file_change_count(
+    records: tuple[Any, ...] | None,
+    *,
+    workspace: Path,
+    integrity_result: Any,
+) -> int | None:
+    """Count distinct changed Workspace files without retaining paths in the basis."""
+
+    if records is None or integrity_result is None:
+        return None
+    errors = set(getattr(integrity_result, "verification_errors", ()))
+    integrity_status = getattr(integrity_result, "integrity_status", None)
+    known_differences = {"MISSING_PATHS", "UNEXPECTED_PATHS", "TYPE_MISMATCH", "SHA256_MISMATCH"}
+    if (
+        integrity_status not in {IntegrityStatus.VERIFIED, IntegrityStatus.FAILED}
+        or errors - known_differences
+        or (integrity_status is IntegrityStatus.FAILED and not errors)
+    ):
+        return None
+    changed_paths: set[str] = set()
+    for record in records:
+        if (
+            getattr(record, "source", None) is not EvidenceSource.FILESYSTEM_WATCHER
+            or getattr(record, "record_type", None) is not EvidenceRecordType.FILESYSTEM_EVENT
+        ):
+            continue
+        payload = getattr(record, "payload", {})
+        if payload.get("is_directory") is True:
+            continue
+        event_type = payload.get("event_type")
+        if event_type == "modified" and payload.get("content_unchanged") is True:
+            continue
+        if event_type not in {"created", "modified", "deleted", "moved"}:
+            return None
+        raw_paths = [payload.get("src_path")]
+        if event_type == "moved":
+            raw_paths.append(payload.get("dest_path"))
+        for raw_path in raw_paths:
+            if not isinstance(raw_path, str):
+                return None
+            canonical = canonicalize_workspace_path(raw_path, workspace).canonical_path
+            if canonical is None:
+                return None
+            changed_paths.add(canonical.casefold())
+    for path in (
+        *getattr(integrity_result, "missing_paths", ()),
+        *getattr(integrity_result, "unexpected_paths", ()),
+        *getattr(integrity_result, "type_mismatches", ()),
+        *getattr(integrity_result, "changed_paths", ()),
+    ):
+        if isinstance(path, str) and path:
+            changed_paths.add(path.replace("\\", "/").casefold())
+    return len(changed_paths)
 
 
 def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
@@ -321,7 +396,62 @@ class ProtectedRunMixin:
         record.runtime["hook_broker_runtime_healthy_before_stop"] = (
             hook_broker_healthy_before_stop
         )
-        launcher.stop_hook_broker()
+        broker_drained = launcher.stop_hook_broker()
+        record.runtime["hook_broker_drain_complete"] = broker_drained
+        if record.launch_mode == "codex_app_server":
+            codex_session = record.runtime.get("codex_session")
+            if codex_session is not None:
+                try:
+                    codex_session.close(force=False)
+                except Exception:
+                    pass
+            filesystem_healthy = False
+            try:
+                sensor_health = filesystem.check_health()
+                sensor_was_healthy = _sensor_status(sensor_health) == "HEALTHY"
+                stopped_context = filesystem.stop()
+                stopped_status = getattr(
+                    stopped_context.status, "value", stopped_context.status
+                )
+                filesystem_healthy = sensor_was_healthy and stopped_status == "STOPPED"
+            except Exception:
+                filesystem_healthy = False
+            evidence_records = None
+            integrity_result = None
+            try:
+                evidence_records = tuple(
+                    RawEvidenceStore.for_session(self.control_root, session.session_id).records()
+                )
+            except Exception:
+                evidence_records = None
+            try:
+                integrity_result = IntegrityVerifier().verify(
+                    checkpoint,
+                    workspace=session.workspace,
+                    session=session,
+                )
+            except Exception:
+                integrity_result = None
+            protected_file_change_count = _protected_file_change_count(
+                evidence_records,
+                workspace=session.workspace,
+                integrity_result=integrity_result,
+            )
+            collector = record.runtime.get("codex_hook_event_collector")
+            hook_snapshot = collector.snapshot() if collector is not None else None
+            controller = record.runtime.get("codex_controller")
+            if controller is not None:
+                confirm_gui_pretool_blocks(
+                    controller,
+                    hook_snapshot=hook_snapshot,
+                    evidence_records=evidence_records,
+                    hooks_path=CodexHookInstaller().path,
+                    broker_drained=broker_drained,
+                    protected_file_change_count=protected_file_change_count,
+                    file_sensor_healthy=filesystem_healthy,
+                    hook_sensor_healthy=_sensor_status(hook.check_health()) == "HEALTHY",
+                    interrupted=record.stop_requested or record.stop_error is not None,
+                )
         self._capture_codex_execution_observation(record, codex_output_handles)
         self._confirm_codex_blocks(record)
         self._process_evidence(record)
@@ -390,7 +520,11 @@ class ProtectedRunMixin:
             policy_result = evaluator.evaluate(action)
             attribution_result = attribution_engine.attribute(action)
             sensors = record.runtime.get("sensors", ())
-            sensor_health = tuple(sensor.health for sensor in sensors if sensor is not None)
+            sensor_health = tuple(
+                _sensor_health_for_runtime(sensor)
+                for sensor in sensors
+                if sensor is not None
+            )
             codex_event = matching_codex_event(action)
             if codex_event is not None:
                 policy_result = codex_event.policy_evaluation
@@ -538,13 +672,16 @@ class ProtectedRunMixin:
 
             if record.launch_mode == "codex_app_server":
                 try:
+                    hook_event_collector = CodexHookEventCollector()
                     codex_session = CodexAppServerSession(
                         argv,
                         cwd=Path(kwargs["cwd"]),
                         env=kwargs["env"],
                         client_version=__version__,
+                        hook_event_collector=hook_event_collector,
                     )
                     codex_session.start()
+                    record.runtime["codex_hook_event_collector"] = hook_event_collector
                 except (KeyError, CodexAppServerError) as error:
                     raise RuntimeError(f"CODEX_APP_SERVER_START_FAILED: {error}") from error
                 record.runtime["codex_session"] = codex_session
