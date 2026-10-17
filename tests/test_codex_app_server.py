@@ -720,6 +720,7 @@ def test_unexpected_exit_fails_the_session_and_pending_requests(opened: CodexApp
     with pytest.raises(CodexAppServerError):
         opened.send_message("crash now")
     events = _wait_for(opened, lambda items: "session.exited" in _types(items))
+    assert opened.mark_expected_exit() is False
     exited = next(e for e in events if e["type"] == "session.exited")
     assert exited == {**exited, "exit_code": 3, "unexpected": True}
     snapshot = opened.snapshot()
@@ -727,6 +728,19 @@ def test_unexpected_exit_fails_the_session_and_pending_requests(opened: CodexApp
     assert snapshot["error"] == "CODEX_APP_SERVER_EXITED"
     with pytest.raises(CodexAppServerError):
         opened.send_message("hello again")
+
+
+def test_mark_expected_exit_keeps_nonzero_app_server_exit_expected(opened: CodexAppServerSession) -> None:
+    assert opened.mark_expected_exit() is True
+    with pytest.raises(CodexAppServerError):
+        opened.send_message("crash now")
+
+    events = _wait_for(opened, lambda items: "session.exited" in _types(items))
+    exited = next(event for event in events if event["type"] == "session.exited")
+    assert exited == {**exited, "exit_code": 3, "unexpected": False}
+    snapshot = opened.snapshot()
+    assert snapshot["status"] == "EXITED"
+    assert snapshot["error"] is None
 
 
 def test_graceful_close_cancels_pending_approval_and_lets_codex_exit(tmp_path: Path) -> None:

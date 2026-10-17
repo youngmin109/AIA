@@ -17,7 +17,9 @@ persisted into the Evidence Bundle or the Result Bundle.
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from types import MappingProxyType
 from urllib.parse import urlparse
 import json
 import re
@@ -32,6 +34,154 @@ from typing import Any, Callable, Mapping, Sequence
 
 class CodexAppServerError(RuntimeError):
     """Raised when the Codex app-server session cannot be started or used."""
+
+
+@dataclass(frozen=True, slots=True)
+class CodexHookEvent:
+    """One bounded-field Hook notification collected for block confirmation."""
+
+    turn_id: str | None
+    hook_run_id: str | None
+    event_name: str | None
+    phase: str
+    status: str | None
+    sequence: int
+
+
+@dataclass(frozen=True, slots=True)
+class CodexHookEventSnapshot:
+    """Per-run structured Hook evidence, kept apart from the UI event buffer."""
+
+    events: tuple[CodexHookEvent, ...]
+    turn_statuses: Mapping[str, str]
+    turn_completion_sequences: Mapping[str, int]
+    collection_complete: bool
+    missing: bool
+    overflowed: bool
+    reader_finished: bool
+    process_exit_code: int | None
+    unexpected_exit: bool | None
+    all_turns_completed: bool
+
+
+class CodexHookEventCollector:
+    """Collect only structured Hook/turn fields needed for fail-closed proof."""
+
+    MAX_EVENTS = 10_000
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._events: list[CodexHookEvent] = []
+        self._turn_statuses: dict[str, str] = {}
+        self._turn_started: set[str] = set()
+        self._turn_completion_sequences: dict[str, int] = {}
+        self._sequence = 0
+        self._missing = False
+        self._overflowed = False
+        self._reader_finished = False
+        self._process_exit_code: int | None = None
+        self._unexpected_exit: bool | None = None
+
+    def observe_notification(self, method: str, params: Mapping[str, Any]) -> None:
+        if method not in {"hook/started", "hook/completed", "turn/started", "turn/completed"}:
+            return
+        with self._lock:
+            self._sequence += 1
+            sequence = self._sequence
+            if method in {"hook/started", "hook/completed"}:
+                run = params.get("run")
+                if not isinstance(run, Mapping):
+                    self._missing = True
+                    run = {}
+                turn_id = params.get("turnId")
+                hook_run_id = run.get("id")
+                event_name = run.get("eventName")
+                status = run.get("status")
+                if turn_id is not None and not isinstance(turn_id, str):
+                    self._missing = True
+                    turn_id = None
+                if not isinstance(hook_run_id, str) or not hook_run_id:
+                    self._missing = True
+                    hook_run_id = None
+                if not isinstance(event_name, str) or not event_name:
+                    self._missing = True
+                    event_name = None
+                if not isinstance(status, str) or not status:
+                    self._missing = True
+                    status = None
+                if len(self._events) >= self.MAX_EVENTS:
+                    self._overflowed = True
+                    return
+                self._events.append(
+                    CodexHookEvent(
+                        turn_id=turn_id,
+                        hook_run_id=hook_run_id,
+                        event_name=event_name,
+                        phase="started" if method == "hook/started" else "completed",
+                        status=status,
+                        sequence=sequence,
+                    )
+                )
+                return
+
+            turn = params.get("turn")
+            if not isinstance(turn, Mapping):
+                self._missing = True
+                return
+            turn_id = turn.get("id")
+            if not isinstance(turn_id, str) or not turn_id:
+                self._missing = True
+                return
+            if method == "turn/started":
+                if turn_id in self._turn_started:
+                    self._missing = True
+                self._turn_started.add(turn_id)
+                self._turn_statuses[turn_id] = "inProgress"
+                return
+            status = turn.get("status")
+            if turn_id not in self._turn_started or turn_id in self._turn_completion_sequences:
+                self._missing = True
+            if not isinstance(status, str) or not status:
+                self._missing = True
+                status = "unknown"
+            self._turn_statuses[turn_id] = status
+            self._turn_completion_sequences[turn_id] = sequence
+
+    def mark_missing(self) -> None:
+        with self._lock:
+            self._missing = True
+
+    def mark_process_exit(self, exit_code: int, *, unexpected: bool) -> None:
+        with self._lock:
+            self._process_exit_code = exit_code
+            self._unexpected_exit = unexpected
+            self._reader_finished = True
+
+    def snapshot(self) -> CodexHookEventSnapshot:
+        with self._lock:
+            unmatched_hook_turn = any(
+                event.turn_id is not None and event.turn_id not in self._turn_started
+                for event in self._events
+            )
+            missing = self._missing or unmatched_hook_turn
+            all_turns_completed = bool(self._turn_started) and all(
+                self._turn_statuses.get(turn_id) == "completed"
+                and turn_id in self._turn_completion_sequences
+                for turn_id in self._turn_started
+            )
+            complete = not missing and not self._overflowed and self._reader_finished
+            return CodexHookEventSnapshot(
+                events=tuple(self._events),
+                turn_statuses=MappingProxyType(dict(self._turn_statuses)),
+                turn_completion_sequences=MappingProxyType(dict(self._turn_completion_sequences)),
+                collection_complete=complete,
+                missing=missing,
+                overflowed=self._overflowed,
+                reader_finished=self._reader_finished,
+                process_exit_code=self._process_exit_code,
+                unexpected_exit=self._unexpected_exit,
+                all_turns_completed=all_turns_completed,
+            )
 
 
 def _now() -> datetime:
@@ -665,6 +815,7 @@ class CodexAppServerSession:
         cwd: Path | str,
         env: Mapping[str, str],
         client_version: str = "0",
+        hook_event_collector: CodexHookEventCollector | None = None,
     ) -> None:
         if not argv or any(not isinstance(item, str) or not item for item in argv):
             raise CodexAppServerError("app-server argv must contain non-empty strings")
@@ -672,6 +823,7 @@ class CodexAppServerSession:
         self.cwd = Path(cwd).expanduser().resolve(strict=False)
         self.env = dict(env)
         self.client_version = client_version
+        self.hook_event_collector = hook_event_collector
         self._process: subprocess.Popen[bytes] | None = None
         self._lock = Lock()
         self._write_lock = Lock()
@@ -842,6 +994,20 @@ class CodexAppServerSession:
             with self._lock:
                 self._usage_limits = limits
                 self._append_event_locked({"type": "usage.limits", "limits": limits})
+
+    def mark_expected_exit(self) -> bool:
+        """Record an AIA-initiated process stop before the launcher terminates it.
+
+        This only marks the exit as expected; it does not interrupt a turn or
+        resolve pending requests like close() does.
+        """
+
+        with self._lock:
+            process = self._process
+            if process is None or process.poll() is not None:
+                return False
+            self._closing = True
+            return True
 
     def close(self, *, force: bool = False) -> None:
         """End the conversation and let the app-server exit.
@@ -1392,6 +1558,8 @@ class CodexAppServerSession:
                 try:
                     message = json.loads(raw)
                 except ValueError:
+                    if self.hook_event_collector is not None:
+                        self.hook_event_collector.mark_missing()
                     continue
                 if isinstance(message, dict):
                     self._dispatch(message)
@@ -1413,6 +1581,8 @@ class CodexAppServerSession:
             self._pending_elicitations.clear()
             self._pending_permissions.clear()
             self._append_event_locked({"type": "session.exited", "exit_code": exit_code, "unexpected": unexpected})
+        if self.hook_event_collector is not None:
+            self.hook_event_collector.mark_process_exit(exit_code, unexpected=unexpected)
 
     def _read_stderr(self) -> None:
         process = self._process
@@ -1547,6 +1717,11 @@ class CodexAppServerSession:
             )
 
     def _handle_notification(self, method: str, params: Mapping[str, Any]) -> None:
+        if self.hook_event_collector is not None:
+            try:
+                self.hook_event_collector.observe_notification(method, params)
+            except Exception:
+                self.hook_event_collector.mark_missing()
         if method == "serverRequest/resolved":
             request_id = params.get("requestId")
             with self._lock:

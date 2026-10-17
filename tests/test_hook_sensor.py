@@ -447,6 +447,24 @@ def test_hook_health_uses_shared_sensor_domain_and_session_stays_preparing(
     release_lease(context, lease_manager)
 
 
+def test_hook_sensor_retains_pre_stop_health_after_stop(tmp_path: Path) -> None:
+    sensor, _, _, context, lease_manager = make_sensor(tmp_path)
+    sensor.start()
+
+    stopped = sensor.stop()
+
+    assert stopped.status is SensorStatus.STOPPED
+    assert sensor.check_health().status is SensorStatus.STOPPED
+    assert sensor.runtime_health_before_stop.status is SensorStatus.HEALTHY
+    health = [
+        record.payload["status"]
+        for record in sensor.evidence_store.records()
+        if record.record_type is EvidenceRecordType.SENSOR_HEALTH
+    ]
+    assert health == ["STARTING", "HEALTHY", "STOPPED"]
+    release_lease(context, lease_manager)
+
+
 def test_observe_before_start_is_rejected_without_evidence(tmp_path: Path) -> None:
     sensor, workspace, session, context, lease_manager = make_sensor(tmp_path)
 

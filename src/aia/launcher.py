@@ -389,12 +389,13 @@ class ProtectedLauncher:
     def hook_broker(self) -> Any | None:
         return self._hook_broker
 
-    def stop_hook_broker(self) -> None:
-        """Stop the per-launch local Hook transport after the Agent exits."""
+    def stop_hook_broker(self) -> bool:
+        """Stop and drain the per-launch local Hook transport after Agent exit."""
 
         broker, self._hook_broker = self._hook_broker, None
-        if broker is not None:
-            broker.stop()
+        if broker is None:
+            return False
+        return bool(broker.stop())
 
     def request_user_abort(self) -> bool:
         """Stop the registered Agent tree for an explicit user abort.

@@ -39,9 +39,17 @@ from aia import (
     process_create_time,
     __version__,
 )
+from aia.evidence import EvidenceRecordType, EvidenceSource
+from aia.integrity import IntegrityStatus, IntegrityVerifier
+from aia.normalizer import canonicalize_workspace_path
 from aia.readiness import ProtectionReadinessBarrier
 from aia.session import SessionEndReason
-from .codex_app_server import CodexAppServerError, CodexAppServerSession
+from .codex_app_server import (
+    CodexAppServerError,
+    CodexAppServerSession,
+    CodexHookEventCollector,
+)
+from .gui_block_confirmation import confirm_gui_pretool_blocks
 
 from .registry import RunRecord
 from .run_history import _hook_broker_runtime_healthy, _sensor_summary_is_verified
@@ -66,12 +74,136 @@ def _popen_kwargs_for_launch_mode(launch_mode: str) -> dict[str, Any]:
     return {"creationflags": getattr(subprocess, "CREATE_NEW_CONSOLE", 0)}
 
 
-def _sensor_status(sensor: Any) -> str | None:
-    health = getattr(sensor, "health", None)
+def _sensor_health_for_runtime(sensor: Any) -> Any:
+    health = getattr(sensor, "runtime_health_before_stop", None)
     if callable(health):
         health = health()
-    status = getattr(health, "status", None)
+    if health is None:
+        health = getattr(sensor, "health", None)
+        if callable(health):
+            health = health()
+    return health
+
+
+def _sensor_status(sensor: Any) -> str | None:
+    status = getattr(_sensor_health_for_runtime(sensor), "status", None)
     return getattr(status, "value", status)
+
+
+def _filesystem_sensor_healthy_for_confirmation(
+    sensor: Any,
+    evidence_records: Any,
+    *,
+    stopped: bool,
+) -> bool:
+    """Require the pre-stop health snapshot and every recorded run status to be healthy."""
+
+    try:
+        if (
+            not stopped
+            or evidence_records is None
+            or _sensor_status(sensor) != "HEALTHY"
+        ):
+            return False
+        allowed_statuses = {"STARTING", "HEALTHY", "STOPPED"}
+        for record in evidence_records:
+            source_value = getattr(record, "source", None)
+            source = getattr(source_value, "value", source_value)
+            record_type_value = getattr(record, "record_type", None)
+            record_type = getattr(record_type_value, "value", record_type_value)
+            if (
+                source != EvidenceSource.FILESYSTEM_WATCHER.value
+                or record_type != EvidenceRecordType.SENSOR_HEALTH.value
+            ):
+                continue
+            payload = getattr(record, "payload", None)
+            if not isinstance(payload, Mapping):
+                return False
+            status_value = payload.get("status")
+            status = getattr(status_value, "value", status_value)
+            if status not in allowed_statuses:
+                return False
+    except Exception:
+        return False
+    return True
+
+
+def _hook_sensor_healthy_for_confirmation(
+    sensor: Any,
+    evidence_records: Any,
+    *,
+    stopped: bool,
+    broker_healthy_before_stop: bool | None,
+) -> bool | None:
+    """Require healthy pre-stop state, a clean health history, and broker health."""
+
+    if not stopped or broker_healthy_before_stop is False:
+        return False
+    if broker_healthy_before_stop is not True or evidence_records is None:
+        return None
+    try:
+        check_health = getattr(sensor, "check_health", None)
+        post_stop_health = (
+            check_health() if callable(check_health) else getattr(sensor, "health", None)
+        )
+        if callable(post_stop_health):
+            post_stop_health = post_stop_health()
+        post_stop_status_value = getattr(post_stop_health, "status", None)
+        post_stop_status = getattr(
+            post_stop_status_value, "value", post_stop_status_value
+        )
+        if post_stop_status != "STOPPED":
+            return False if post_stop_status is not None else None
+        runtime_health = getattr(sensor, "runtime_health_before_stop", None)
+        if callable(runtime_health):
+            runtime_health = runtime_health()
+        health_status_value = getattr(runtime_health, "status", None)
+        health_status = getattr(
+            health_status_value, "value", health_status_value
+        )
+        if health_status != "HEALTHY":
+            return False if health_status is not None else None
+        allowed_statuses = {"STARTING", "HEALTHY", "STOPPED"}
+        healthy_status_record_seen = False
+        for record in evidence_records:
+            source_value = getattr(record, "source", None)
+            source = getattr(source_value, "value", source_value)
+            record_type_value = getattr(record, "record_type", None)
+            record_type = getattr(record_type_value, "value", record_type_value)
+            if (
+                source != EvidenceSource.AGENT_HOOK.value
+                or record_type != EvidenceRecordType.SENSOR_HEALTH.value
+            ):
+                continue
+            payload = getattr(record, "payload", None)
+            if not isinstance(payload, Mapping):
+                return None
+            status_value = payload.get("status")
+            status = getattr(status_value, "value", status_value)
+            if status not in allowed_statuses:
+                return False if status is not None else None
+            healthy_status_record_seen = healthy_status_record_seen or status == "HEALTHY"
+        return True if healthy_status_record_seen else None
+    except Exception:
+        return None
+
+
+def _gui_run_interrupted(record: Any, hook_snapshot: Any) -> bool | None:
+    """Treat stop errors or unfinished turns as interruption, not a normal stop request."""
+
+    if getattr(record, "stop_error", None) is not None:
+        return True
+    if hook_snapshot is None:
+        return None
+    if getattr(hook_snapshot, "all_turns_completed", False) is not True:
+        return True
+    turn_statuses = getattr(hook_snapshot, "turn_statuses", None)
+    if not isinstance(turn_statuses, Mapping) or not turn_statuses:
+        return True
+    return any(
+        status != "completed"
+        for status in turn_statuses.values()
+    )
 
 
 def _sensors_runtime_healthy(sensors: Any) -> bool:
@@ -105,7 +237,7 @@ def _runtime_action_view(
     """Build the redacted live/result action view from authoritative facts."""
 
     observed_at = getattr(action, "observed_at", None)
-    return {
+    view = {
         "action_id": action.action_id,
         "attribution_grade": attribution_result.grade.value,
         "attribution_reason": attribution_result.reason,
@@ -142,12 +274,71 @@ def _runtime_action_view(
             "target_kind": action.target_kind.value,
         },
     }
+    confirmation_basis = getattr(gate_result, "confirmation_basis", None)
+    if isinstance(confirmation_basis, Mapping):
+        view["confirmation_basis"] = dict(confirmation_basis)
+    return view
 
 
 def _containment_errors(containments: Any) -> list[str]:
     """Termination errors of post-action containments, once per containment."""
 
     return [item.termination_error for item in containments if item.termination_error]
+
+
+def _protected_file_change_count(
+    records: tuple[Any, ...] | None,
+    *,
+    workspace: Path,
+    integrity_result: Any,
+) -> int | None:
+    """Count distinct changed Workspace files without retaining paths in the basis."""
+
+    if records is None or integrity_result is None:
+        return None
+    errors = set(getattr(integrity_result, "verification_errors", ()))
+    integrity_status = getattr(integrity_result, "integrity_status", None)
+    known_differences = {"MISSING_PATHS", "UNEXPECTED_PATHS", "TYPE_MISMATCH", "SHA256_MISMATCH"}
+    if (
+        integrity_status not in {IntegrityStatus.VERIFIED, IntegrityStatus.FAILED}
+        or errors - known_differences
+        or (integrity_status is IntegrityStatus.FAILED and not errors)
+    ):
+        return None
+    changed_paths: set[str] = set()
+    for record in records:
+        if (
+            getattr(record, "source", None) is not EvidenceSource.FILESYSTEM_WATCHER
+            or getattr(record, "record_type", None) is not EvidenceRecordType.FILESYSTEM_EVENT
+        ):
+            continue
+        payload = getattr(record, "payload", {})
+        if payload.get("is_directory") is True:
+            continue
+        event_type = payload.get("event_type")
+        if event_type == "modified" and payload.get("content_unchanged") is True:
+            continue
+        if event_type not in {"created", "modified", "deleted", "moved"}:
+            return None
+        raw_paths = [payload.get("src_path")]
+        if event_type == "moved":
+            raw_paths.append(payload.get("dest_path"))
+        for raw_path in raw_paths:
+            if not isinstance(raw_path, str):
+                return None
+            canonical = canonicalize_workspace_path(raw_path, workspace).canonical_path
+            if canonical is None:
+                return None
+            changed_paths.add(canonical.casefold())
+    for path in (
+        *getattr(integrity_result, "missing_paths", ()),
+        *getattr(integrity_result, "unexpected_paths", ()),
+        *getattr(integrity_result, "type_mismatches", ()),
+        *getattr(integrity_result, "changed_paths", ()),
+    ):
+        if isinstance(path, str) and path:
+            changed_paths.add(path.replace("\\", "/").casefold())
+    return len(changed_paths)
 
 
 def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
@@ -290,6 +481,7 @@ class ProtectedRunMixin:
                     lease,
                 )
                 return None
+            self._mark_codex_exit_expected(record)
             if not self._request_user_abort(record, launcher):
                 record.stop_error = "USER_ABORT_TERMINATION_UNCONFIRMED"
         if launch.context is None or launch.status.value != "RUNNING":
@@ -321,7 +513,83 @@ class ProtectedRunMixin:
         record.runtime["hook_broker_runtime_healthy_before_stop"] = (
             hook_broker_healthy_before_stop
         )
-        launcher.stop_hook_broker()
+        broker_drained = launcher.stop_hook_broker()
+        record.runtime["hook_broker_drain_complete"] = broker_drained
+        if record.launch_mode == "codex_app_server":
+            codex_session = record.runtime.get("codex_session")
+            if codex_session is not None:
+                try:
+                    codex_session.close(force=False)
+                except Exception:
+                    pass
+            hook_sensor_stopped = False
+            try:
+                stopped_hook_context = hook.stop()
+                stopped_hook_status = getattr(
+                    stopped_hook_context.status,
+                    "value",
+                    stopped_hook_context.status,
+                )
+                hook_sensor_stopped = stopped_hook_status == "STOPPED"
+            except Exception:
+                hook_sensor_stopped = False
+            filesystem_stopped = False
+            try:
+                stopped_context = filesystem.stop()
+                stopped_status = getattr(
+                    stopped_context.status, "value", stopped_context.status
+                )
+                filesystem_stopped = stopped_status == "STOPPED"
+            except Exception:
+                filesystem_stopped = False
+            evidence_records = None
+            integrity_result = None
+            try:
+                evidence_records = tuple(
+                    RawEvidenceStore.for_session(self.control_root, session.session_id).records()
+                )
+            except Exception:
+                evidence_records = None
+            try:
+                integrity_result = IntegrityVerifier().verify(
+                    checkpoint,
+                    workspace=session.workspace,
+                    session=session,
+                )
+            except Exception:
+                integrity_result = None
+            filesystem_healthy = _filesystem_sensor_healthy_for_confirmation(
+                filesystem,
+                evidence_records,
+                stopped=filesystem_stopped,
+            )
+            hook_sensor_healthy = _hook_sensor_healthy_for_confirmation(
+                hook,
+                evidence_records,
+                stopped=hook_sensor_stopped,
+                broker_healthy_before_stop=hook_broker_healthy_before_stop,
+            )
+            protected_file_change_count = _protected_file_change_count(
+                evidence_records,
+                workspace=session.workspace,
+                integrity_result=integrity_result,
+            )
+            collector = record.runtime.get("codex_hook_event_collector")
+            hook_snapshot = collector.snapshot() if collector is not None else None
+            controller = record.runtime.get("codex_controller")
+            if controller is not None:
+                confirm_gui_pretool_blocks(
+                    controller,
+                    hook_snapshot=hook_snapshot,
+                    evidence_records=evidence_records,
+                    hooks_path=CodexHookInstaller().path,
+                    broker_drained=broker_drained,
+                    protected_file_change_count=protected_file_change_count,
+                    file_sensor_healthy=filesystem_healthy,
+                    hook_sensor_healthy=hook_sensor_healthy,
+                    hook_broker_healthy_before_stop=hook_broker_healthy_before_stop,
+                    interrupted=_gui_run_interrupted(record, hook_snapshot),
+                )
         self._capture_codex_execution_observation(record, codex_output_handles)
         self._confirm_codex_blocks(record)
         self._process_evidence(record)
@@ -390,7 +658,11 @@ class ProtectedRunMixin:
             policy_result = evaluator.evaluate(action)
             attribution_result = attribution_engine.attribute(action)
             sensors = record.runtime.get("sensors", ())
-            sensor_health = tuple(sensor.health for sensor in sensors if sensor is not None)
+            sensor_health = tuple(
+                _sensor_health_for_runtime(sensor)
+                for sensor in sensors
+                if sensor is not None
+            )
             codex_event = matching_codex_event(action)
             if codex_event is not None:
                 policy_result = codex_event.policy_evaluation
@@ -538,13 +810,16 @@ class ProtectedRunMixin:
 
             if record.launch_mode == "codex_app_server":
                 try:
+                    hook_event_collector = CodexHookEventCollector()
                     codex_session = CodexAppServerSession(
                         argv,
                         cwd=Path(kwargs["cwd"]),
                         env=kwargs["env"],
                         client_version=__version__,
+                        hook_event_collector=hook_event_collector,
                     )
                     codex_session.start()
+                    record.runtime["codex_hook_event_collector"] = hook_event_collector
                 except (KeyError, CodexAppServerError) as error:
                     raise RuntimeError(f"CODEX_APP_SERVER_START_FAILED: {error}") from error
                 record.runtime["codex_session"] = codex_session

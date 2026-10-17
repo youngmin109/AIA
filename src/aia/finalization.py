@@ -626,9 +626,13 @@ class SessionFinalizer:
 
     @staticmethod
     def _sensor_health(sensor: Any) -> SensorHealth:
-        health = getattr(sensor, "health", None)
+        health = getattr(sensor, "runtime_health_before_stop", None)
         if callable(health):
             health = health()
+        if not isinstance(health, SensorHealth):
+            health = getattr(sensor, "health", None)
+            if callable(health):
+                health = health()
         if not isinstance(health, SensorHealth):
             status = getattr(sensor, "status", SensorStatus.STOPPED)
             return SensorHealth(getattr(sensor, "source", "FILESYSTEM_WATCHER"), status, _now_utc())
@@ -724,6 +728,11 @@ class SessionFinalizer:
                     for item in value.sensor_statuses
                 ],
                 "stage": _value(value.stage),
+                **(
+                    {"confirmation_basis": dict(value.confirmation_basis)}
+                    if value.confirmation_basis is not None
+                    else {}
+                ),
             }
         return {"type": type(value).__name__, "reason": _safe_reason(getattr(value, "reason", None))}
 

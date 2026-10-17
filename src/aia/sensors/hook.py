@@ -463,6 +463,7 @@ class HookSensor:
             _now_utc(),
             reason="NOT_STARTED",
         )
+        self._runtime_health_before_stop: SensorHealth | None = None
 
     @property
     def status(self) -> SensorStatus:
@@ -470,6 +471,15 @@ class HookSensor:
 
     @property
     def health(self) -> SensorHealth:
+        return self.check_health()
+
+    @property
+    def runtime_health_before_stop(self) -> SensorHealth:
+        """Health at the end of observation, retained after an orderly stop."""
+
+        with self._lock:
+            if self._runtime_health_before_stop is not None:
+                return self._runtime_health_before_stop
         return self.check_health()
 
     @property
@@ -483,6 +493,7 @@ class HookSensor:
                     "Agent Hook Sensor is already running"
                 )
             self._status = SensorStatus.STARTING
+            self._runtime_health_before_stop = None
             self._health = SensorHealth(
                 EvidenceSource.AGENT_HOOK,
                 SensorStatus.STARTING,
@@ -529,9 +540,13 @@ class HookSensor:
     def stop(self) -> HookSensorContext:
         with self._lock:
             if self._status is SensorStatus.STOPPED:
+                if self._runtime_health_before_stop is None:
+                    self._runtime_health_before_stop = self._health
                 return self._context()
             if self._status is SensorStatus.FAILED:
+                self._runtime_health_before_stop = self._health
                 return self._context()
+            self._runtime_health_before_stop = self._health
             try:
                 self._set_health(SensorStatus.STOPPED, "STOPPED", append=True)
                 if self._status is not SensorStatus.STOPPED:
@@ -546,6 +561,7 @@ class HookSensor:
                         self._failure_reason(error, "STOP_FAILED"),
                         append=True,
                     )
+                self._runtime_health_before_stop = self._health
                 if isinstance(error, SensorStopError):
                     raise
                 raise SensorStopError("Agent Hook Sensor failed to stop") from error
