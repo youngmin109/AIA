@@ -26,7 +26,7 @@ const ENGINE_FACTS: Array<{ title: string; items: Array<{ title: string; descrip
     { title: '작업공간 범위', description: '보호 실행 시작 시 지정한 작업공간을 관찰과 복구의 기준으로 사용합니다.', status: '지원' },
     { title: '작업공간 밖 쓰기', description: '권한이 "승인 요청"·"나 대신 승인"이면 Codex 샌드박스가 제한합니다. "전체 권한"에서는 제한하지 않고, AIA는 명령을 실행 전에 검사만 합니다. 작업 폴더 밖 변경은 되돌릴 수 없습니다.', status: '부분 지원' },
     { title: '도구·명령 범위', description: '에이전트가 요청하는 도구와 위험 명령을 실행 전에 평가합니다.', status: '부분 지원' },
-    { title: '사용자 확인', description: '지원 범위 밖 도구는 사용자에게 확인합니다. 정책상 금지된 동작은 허용할 수 없습니다.', status: '부분 지원' },
+    { title: '지원 범위 밖 도구', description: '해석하지 못하는 도구는 승인을 묻지 않고 실행하며 \'보호 범위 밖\'으로 기록합니다. 막는 것은 Hook이 확인한 명확한 정책 위반뿐입니다.', status: '부분 지원' },
   ] },
   { title: '런타임 보호', items: [
     { title: '정책 고정과 작업공간 중복 실행 방지', description: '실행 중 정책 변경과 같은 작업공간의 중복 보호 실행을 막습니다.', status: '지원' },
