@@ -23,11 +23,12 @@ from ..launcher import (
 )
 
 
-# The only extra config a protected launch accepts: each value turns one
-# Codex external tool (MCP server, plugin, or ChatGPT apps) off, nothing else.
+# Protected launches only accept configs that disable external tools or
+# the process launched by Codex notify outside AIA’s Hook boundary.
 _EXTERNAL_TOOL_OFF = re.compile(
     r"(?:mcp_servers\.[A-Za-z0-9_-]{1,100}|plugins\.[A-Za-z0-9_-]{1,100}@[A-Za-z0-9_-]{1,100})\.enabled=false"
     r"|features\.apps=false"
+    r"|notify=\[\]"
 )
 
 _VERSION_CACHE_LOCK = RLock()

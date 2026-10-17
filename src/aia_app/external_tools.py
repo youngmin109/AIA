@@ -185,4 +185,7 @@ class ExternalToolsMixin:
 
     def _external_tool_overrides(self) -> tuple[list[str], list[str]]:
         tools = discover_external_tools()
-        return turn_off_plan(tools or [], read_allowed(self.control_root))
+        overrides, names = turn_off_plan(tools or [], read_allowed(self.control_root))
+        # notify can launch a process outside AIA's Hook boundary.
+        overrides.append("notify=[]")
+        return overrides, names

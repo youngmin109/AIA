@@ -96,6 +96,26 @@ def test_turn_off_plan_keeps_allowed_tools_and_turns_a_plugin_off_as_a_whole() -
     assert turn_off_plan(tools, {"node_repl", "context7", "one", "two", "codex_apps"}) == ([], [])
 
 
+@pytest.mark.parametrize(
+    "config,allowed",
+    [
+        ('[mcp_servers.node_repl]\ncommand = "node"\n', ["node_repl", "codex_apps"]),
+        ("[mcp_servers.node_repl\n", []),
+    ],
+)
+def test_protected_run_always_disables_notify_even_when_no_tools_are_turned_off(
+    tmp_path, monkeypatch, config, allowed
+) -> None:
+    _codex_home(tmp_path, monkeypatch, config)
+    service = RunApplicationService(tmp_path / "control")
+    if allowed:
+        service.set_external_tools(allowed)
+    try:
+        assert service._external_tool_overrides() == (["notify=[]"], [])
+    finally:
+        service.shutdown()
+
+
 def _preflight_service(tmp_path, monkeypatch) -> RunApplicationService:
     monkeypatch.setattr("aia_app.service.CodexAdapter.discover", lambda _adapter: tmp_path / "codex.exe")
     monkeypatch.setattr("aia_app.service.CodexHookInstaller.is_installed", lambda _installer: True)
@@ -141,7 +161,9 @@ def test_settings_list_shows_each_tool_and_whether_protected_runs_keep_it_on(tmp
             "context7": True, "node_repl": False, "codex_apps": False,
         }
         assert service._external_tool_overrides() == (
-            ["mcp_servers.node_repl.enabled=false", "features.apps=false"], ["node_repl", "codex_apps"],
+            ["mcp_servers.node_repl.enabled=false", "features.apps=false", "notify=[]"],
+            ["node_repl", "codex_apps"],
         )
+        assert "notify" not in {tool["name"] for tool in state["tools"]}
     finally:
         service.shutdown()
