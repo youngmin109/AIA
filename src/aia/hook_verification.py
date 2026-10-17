@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 from tempfile import NamedTemporaryFile
 import sys
 import tomllib
@@ -86,6 +87,50 @@ class HookVerificationStore:
             separators=(",", ":"),
         ).encode("utf-8")
         return hashlib.sha256(canonical).hexdigest()
+
+    @classmethod
+    def _codex_config_hashes_and_table_names(
+        cls, path: Path
+    ) -> tuple[dict[str, str], list[str]] | None:
+        try:
+            document = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            return None
+
+        projects = document.get("projects")
+        if isinstance(projects, dict):
+            for project_path, settings in list(projects.items()):
+                if not isinstance(settings, dict):
+                    continue
+                settings.pop("trust_level", None)
+                if not settings:
+                    projects.pop(project_path, None)
+            if not projects:
+                document.pop("projects", None)
+
+        hashes: dict[str, str] = {}
+        table_names: list[str] = []
+        for name, value in document.items():
+            is_table = isinstance(value, (dict, list))
+            if is_table:
+                table_names.append(name)
+            elif not isinstance(value, (str, int, float, bool)):
+                continue
+            canonical = json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            hashes[name] = hashlib.sha256(canonical).hexdigest()
+        return hashes, sorted(table_names)
+
+    @classmethod
+    def _codex_config_tables_sha256(cls, path: Path) -> dict[str, str] | None:
+        """Hash top-level tables and scalar values without retaining their values."""
+
+        metadata = cls._codex_config_hashes_and_table_names(path)
+        return metadata[0] if metadata is not None else None
 
     @classmethod
     def _codex_config_path(cls) -> Path:
@@ -175,6 +220,131 @@ class HookVerificationStore:
             if key != "aia_hook_runtime"
         )
 
+    def stale_reasons(
+        self,
+        installer: CodexHookInstaller,
+        executable: str | Path | None,
+    ) -> list[str]:
+        """Explain stale proof bindings using names only, never their values."""
+
+        proof = self.read()
+        if proof is None:
+            return ["아직 연결 검증을 한 적이 없어요"]
+        if executable is None:
+            return ["Codex 실행 파일을 확인할 수 없어요"]
+
+        fingerprint = self._fingerprint(installer, executable)
+        if fingerprint is None:
+            return ["현재 연결 정보를 확인할 수 없어요"]
+
+        reasons: list[str] = []
+        if not installer.is_installed():
+            reasons.append("AIA Hook이 설치되어 있지 않아요")
+
+        if any(
+            proof.get(key) != fingerprint.get(key)
+            for key in ("hook_path", "hook_sha256")
+        ):
+            reasons.append("Hook 설정 파일(hooks.json)이 바뀌었어요")
+
+        if any(
+            proof.get(key) != fingerprint.get(key)
+            for key in ("hook_executable", "hook_executable_sha256")
+        ):
+            reasons.append("AIA Hook 프로그램(aia-hook.exe)이 바뀌었어요")
+
+        codex_executable_changed = any(
+            proof.get(key) != fingerprint.get(key)
+            for key in (
+                "codex_executable",
+                "codex_executable_sha256",
+                "codex_size",
+                "codex_mtime_ns",
+            )
+        )
+        if codex_executable_changed:
+            version_suffix = ""
+            previous_version = proof.get("codex_version")
+            if isinstance(previous_version, str) and re.fullmatch(
+                r"\d+\.\d+\.\d+", previous_version
+            ):
+                try:
+                    from .adapters.codex import CodexAdapter
+
+                    current_version = CodexAdapter.executable_version(executable)
+                except Exception:
+                    current_version = "unknown"
+                if isinstance(current_version, str) and re.fullmatch(
+                    r"\d+\.\d+\.\d+", current_version
+                ):
+                    version_suffix = f" ({previous_version} → {current_version})"
+            reasons.append(f"Codex 실행 파일이 바뀌었어요{version_suffix}")
+
+        codex_config_changed = any(
+            proof.get(key) != fingerprint.get(key)
+            for key in ("codex_config", "codex_config_sha256")
+        )
+        if codex_config_changed:
+            stored_hashes = proof.get("codex_config_tables_sha256")
+            current_metadata = self._codex_config_hashes_and_table_names(
+                self._codex_config_path()
+            )
+            if not isinstance(stored_hashes, dict) or current_metadata is None:
+                reasons.append(
+                    "Codex 설정 파일이 바뀌었어요(어느 표인지는 다음 검증부터 보여요)"
+                )
+            elif not isinstance(proof.get("codex_config_table_names"), list) or not all(
+                isinstance(name, str)
+                for name in proof["codex_config_table_names"]
+            ):
+                reasons.append(
+                    "Codex 설정 파일이 바뀌었어요(어느 항목인지는 다음 검증부터 보여요)"
+                )
+            else:
+                current_hashes, current_table_names = current_metadata
+                stored_table_names = proof["codex_config_table_names"]
+                changed_names = sorted(
+                    name
+                    for name in set(stored_hashes) | set(current_hashes)
+                    if stored_hashes.get(name) != current_hashes.get(name)
+                    and isinstance(name, str)
+                    and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name)
+                )
+                if changed_names:
+                    table_names = set(stored_table_names) | set(current_table_names)
+                    rendered_names = ", ".join(
+                        f"[{name}] 표" if name in table_names else f"{name} 항목"
+                        for name in changed_names
+                    )
+                    reasons.append(
+                        f"Codex 설정 파일이 바뀌었어요: {rendered_names}"
+                    )
+                else:
+                    reasons.append("Codex 설정 파일이 바뀌었어요")
+
+        runtime_identity_changed = proof.get("aia_hook_runtime") != fingerprint.get(
+            "aia_hook_runtime"
+        )
+        packaged_runtime_matches = bool(
+            getattr(sys, "frozen", False)
+            and proof.get("aia_hook_runtime_sha256")
+            == fingerprint.get("aia_hook_runtime_sha256")
+        )
+        if (
+            runtime_identity_changed
+            and not packaged_runtime_matches
+        ) or proof.get("aia_hook_runtime_sha256") != fingerprint.get(
+            "aia_hook_runtime_sha256"
+        ):
+            reasons.append("AIA 실행 환경이 달라요")
+
+        if proof.get("schema_version") != _SCHEMA_VERSION or proof.get("verified") is not True:
+            if not reasons:
+                reasons.append("저장된 연결 검증 증명을 다시 확인해야 해요")
+        elif not reasons and not self.is_current(installer, executable):
+            reasons.append("저장된 연결 검증 증명을 다시 확인해야 해요")
+        return reasons
+
     def write_verified(
         self,
         *,
@@ -186,6 +356,9 @@ class HookVerificationStore:
         fingerprint = self._fingerprint(installer, executable)
         if fingerprint is None:
             raise OSError("cannot fingerprint the installed Hook and Codex executable")
+        config_metadata = self._codex_config_hashes_and_table_names(
+            self._codex_config_path()
+        )
         document: dict[str, object] = {
             "schema_version": _SCHEMA_VERSION,
             "verified": True,
@@ -193,6 +366,13 @@ class HookVerificationStore:
             "session_id": session_id,
             "hook_event_count": hook_event_count,
             **fingerprint,
+            "codex_version": self._codex_version(executable),
+            "codex_config_tables_sha256": (
+                config_metadata[0] if config_metadata is not None else None
+            ),
+            "codex_config_table_names": (
+                config_metadata[1] if config_metadata is not None else None
+            ),
         }
         self.control_root.mkdir(parents=True, exist_ok=True)
         temporary_path: Path | None = None
@@ -219,6 +399,16 @@ class HookVerificationStore:
                     pass
             raise
         return self.path
+
+    @staticmethod
+    def _codex_version(executable: str | Path) -> str | None:
+        try:
+            from .adapters.codex import CodexAdapter
+
+            version = CodexAdapter.executable_version(executable)
+        except Exception:
+            return None
+        return version if isinstance(version, str) else None
 
 
 __all__ = ["HookVerificationStore"]

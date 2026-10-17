@@ -215,11 +215,17 @@ def _hook_status(args: argparse.Namespace) -> int:
         verification_status = "CURRENT_BUT_UNTRUSTED"
     else:
         verification_status = "CURRENT"
+    verification_stale_reasons = (
+        []
+        if fingerprint_current
+        else verification_store.stale_reasons(installer, executable)
+    )
     payload = {
         "hook_path": str(installer.path),
         "pretool_installed": installer.is_installed(),
         "posttool_installed": installer.is_posttool_installed(),
         "verification_status": verification_status,
+        "verification_stale_reasons": verification_stale_reasons,
         "verification_path": str(verification_store.path),
         "ready": verification_current,
         "trust_status": trust_status,
@@ -258,6 +264,8 @@ def _hook_status(args: argparse.Namespace) -> int:
         else:
             print(f"Codex 실제 Trust: 확인 불가 ({codex_trust.get('reason')})")
         print(f"현재 검증 증명: {payload['verification_status']}")
+        for reason in payload["verification_stale_reasons"]:
+            print(f"검증 만료 이유: {reason}")
         if payload["verification_status"] == "CURRENT_BUT_UNTRUSTED":
             print("주의: 이전 검증 지문은 현재 Codex Trust를 통과하지 못했습니다.")
         if last_verified:
