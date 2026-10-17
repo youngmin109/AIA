@@ -1,7 +1,7 @@
 """Standard-library-only forwarder for the Codex command Hook.
 
-Codex starts ``aia-cli.exe hook runtime`` before and after every tool call.
-That process only forwards the native payload to the per-run AIA broker,
+Codex runs the installed, fixed-path ``aia-hook.exe`` before and after every
+tool call.  That process only forwards the native payload to the per-run AIA broker,
 which makes the policy decision.  Importing the ``aia`` package for this
 forward cost about 0.4 s per call, so this module imports nothing from AIA
 and talks to the loopback broker over a plain socket.

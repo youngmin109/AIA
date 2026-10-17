@@ -31,8 +31,8 @@ AIA_CODEX_TOOL_ALIASES = {
 }
 # Receive every tool that Codex routes through the local PreToolUse/PostToolUse
 # hook path. Semantic support remains explicit in
-# ``AIA_CODEX_SUPPORTED_MATCHERS``; an unknown tool is denied by the bound
-# Protected Run instead of silently bypassing the AIA boundary.
+# ``AIA_CODEX_SUPPORTED_MATCHERS``; an unknown tool is passed through without
+# a policy decision and recorded as outside the protected scope.
 AIA_CODEX_HOOK_MATCHER = "*"
 AIA_HOOK_EXECUTABLE_NAMES = frozenset({"aia-hook.exe", "aia-hook"})
 
