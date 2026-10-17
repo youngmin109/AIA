@@ -14,7 +14,7 @@ import { ProtectionPanel } from './ProtectionPanel'
 import { SessionTabs } from './SessionTabs'
 import { ThreatAlert } from './ThreatAlert'
 import { useRunActions } from '../../hooks/useRunActions'
-import { threatsOf } from '../../api/threats'
+import { missedViolationsOf, threatsOf } from '../../api/threats'
 import { useMemo } from 'react'
 
 const ENDED_STATUSES = new Set(['COMPLETED', 'ABORTED', 'FAILED'])
@@ -34,6 +34,7 @@ export function WorkView() {
   const policyName = profiles.find(profile => profile.value === status?.policy?.profile)?.display_name ?? status?.policy?.profile
   const { data: actions } = useRunActions(activeRunId, live)
   const threats = useMemo(() => threatsOf(actions), [actions])
+  const missedViolations = useMemo(() => actions == null ? null : missedViolationsOf(actions), [actions])
 
   if (!activeRunId) {
     return (
@@ -100,10 +101,10 @@ export function WorkView() {
           <div className="chat-empty"><strong>이 실행은 이전 터미널 방식으로 시작돼 대화를 다시 연결할 수 없어요.</strong><span>끝난 뒤 결과는 기록에서 확인할 수 있어요.</span></div>
         )}
       </section>
-      <ProtectionPanel runId={activeRunId} status={status} live={live} actions={actions} threats={threats} />
+      <ProtectionPanel runId={activeRunId} status={status} live={live} actions={actions} threats={threats} missedViolations={missedViolations ?? []} />
     </div>
     <ThreatAlert key={`alert-${activeRunId}`} threats={threats} fileCount={status?.activity?.unique_file_count ?? null}
-      protectedChanges={status?.activity?.protected_changes} protectedCount={status?.activity?.protected_change_count ?? null} />
+      protectedChanges={status?.activity?.protected_changes} protectedCount={status?.activity?.protected_change_count ?? null} missedViolations={missedViolations} />
     </>
   )
 }
