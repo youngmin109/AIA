@@ -23,7 +23,7 @@ from ..launcher import (
 )
 
 
-# The only extra config a protected app-server accepts: each value turns one
+# The only extra config a protected launch accepts: each value turns one
 # Codex external tool (MCP server, plugin, or ChatGPT apps) off, nothing else.
 _EXTERNAL_TOOL_OFF = re.compile(
     r"(?:mcp_servers\.[A-Za-z0-9_-]{1,100}|plugins\.[A-Za-z0-9_-]{1,100}@[A-Za-z0-9_-]{1,100})\.enabled=false"
@@ -303,8 +303,11 @@ class CodexAdapter:
             if not interactive:
                 raise AdapterError("app_server requires interactive mode")
             return self._build_app_server_launch(request, executable, options)
-        if "disable_external_tools" in options:
-            raise AdapterError("turning off external tools is only supported by app-server")
+        if interactive and "disable_external_tools" in options:
+            raise AdapterError("turning off external tools is not supported in interactive terminal mode")
+        external_tool_config_args = self._external_tool_config_args(
+            options.pop("disable_external_tools", ())
+        )
         if interactive and any(
             key in options for key in ("ignore_rules", "json", "skip_git_repo_check")
         ):
@@ -334,6 +337,7 @@ class CodexAdapter:
         if request.model is not None:
             argv.extend(("--model", request.model))
         self._append_options(argv, options)
+        argv.extend(external_tool_config_args)
         if self.enable_hooks and self.hook_command is None:
             # Product launches use the installed user-level Hook definition.
             # Enable the Codex Hook feature explicitly without changing the
@@ -397,6 +401,19 @@ class CodexAdapter:
             f"hooks.PostToolUse={handler}",
         )
 
+    @staticmethod
+    def _external_tool_config_args(external_tools_off: Any) -> tuple[str, ...]:
+        """Validate and encode config overrides that only disable external tools."""
+
+        if not isinstance(external_tools_off, (list, tuple)) or len(external_tools_off) > 200:
+            raise AdapterError("disable_external_tools must be a list")
+        argv: list[str] = []
+        for item in external_tools_off:
+            if not isinstance(item, str) or not _EXTERNAL_TOOL_OFF.fullmatch(item):
+                raise AdapterError("only turning off Codex external tools is allowed")
+            argv.extend(("-c", item))
+        return tuple(argv)
+
     def _build_app_server_launch(
         self,
         request: ProtectedLaunchRequest,
@@ -438,13 +455,7 @@ class CodexAdapter:
         argv.extend(("-c", f"approval_policy={json.dumps(approval_policy)}"))
         argv.extend(("-c", f"sandbox_mode={json.dumps(sandbox)}"))
         argv.extend(("-c", "features.hooks=true"))
-        external_tools_off = options.get("disable_external_tools", ())
-        if not isinstance(external_tools_off, (list, tuple)) or len(external_tools_off) > 200:
-            raise AdapterError("disable_external_tools must be a list")
-        for item in external_tools_off:
-            if not isinstance(item, str) or not _EXTERNAL_TOOL_OFF.fullmatch(item):
-                raise AdapterError("only turning off Codex external tools is allowed")
-            argv.extend(("-c", item))
+        argv.extend(self._external_tool_config_args(options.get("disable_external_tools", ())))
         return AgentLaunchSpec(
             adapter=self.name,
             executable=executable,

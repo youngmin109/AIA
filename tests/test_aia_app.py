@@ -77,6 +77,14 @@ def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
     )
 
 
+def _set_fake_codex_home(tmp_path, monkeypatch, config: str = "") -> Path:
+    home = tmp_path / "codex-home"
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.toml").write_text(config, encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    return home
+
+
 def capture_service_launcher_factory(
     service, record, monkeypatch, output_handles=None
 ):
@@ -2779,7 +2787,7 @@ def test_interactive_launcher_keeps_protected_adapter_configuration(
     tmp_path, monkeypatch, launch_mode, expected_app_server
 ) -> None:
     # An empty Codex home: only ChatGPT apps are on, and protected runs turn them off.
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    _set_fake_codex_home(tmp_path, monkeypatch)
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
     record.interactive = True
@@ -2806,6 +2814,7 @@ def test_interactive_launcher_keeps_protected_adapter_configuration(
 def test_non_interactive_launcher_keeps_current_adapter_options(
     tmp_path, monkeypatch
 ) -> None:
+    _set_fake_codex_home(tmp_path, monkeypatch)
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
     try:
@@ -2816,7 +2825,9 @@ def test_non_interactive_launcher_keeps_current_adapter_options(
         assert options == {
             "approve_for_me": True,
             "skip_git_repo_check": True,
+            "disable_external_tools": ["features.apps=false"],
         }
+        assert record.runtime["external_tools_off"] == ["codex_apps"]
     finally:
         service.shutdown()
 
@@ -2824,6 +2835,7 @@ def test_non_interactive_launcher_keeps_current_adapter_options(
 def test_non_interactive_full_access_run_launches_codex_without_its_sandbox(
     tmp_path, monkeypatch
 ) -> None:
+    _set_fake_codex_home(tmp_path, monkeypatch)
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
     record.permission_mode = "full_access"
@@ -2836,7 +2848,38 @@ def test_non_interactive_full_access_run_launches_codex_without_its_sandbox(
             "sandbox": "danger-full-access",
             "approval_policy": "never",
             "skip_git_repo_check": True,
+            "disable_external_tools": ["features.apps=false"],
         }
+        assert record.runtime["external_tools_off"] == ["codex_apps"]
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize("permission_mode", ["workspace", "full_access"])
+def test_non_interactive_exec_records_disabled_tools_and_keeps_allowed_tools_on(
+    tmp_path, monkeypatch, permission_mode
+) -> None:
+    _set_fake_codex_home(
+        tmp_path,
+        monkeypatch,
+        '[mcp_servers.node_repl]\ncommand = "node"\n\n'
+        '[mcp_servers.context7]\nurl = "https://example.invalid/mcp"\n',
+    )
+    service = RunApplicationService(tmp_path / "control")
+    record = make_record(tmp_path)
+    record.permission_mode = permission_mode
+    service.set_external_tools(["context7"])
+    try:
+        _launcher, _captured, options = capture_service_launcher_factory(
+            service, record, monkeypatch
+        )
+
+        assert options["disable_external_tools"] == [
+            "mcp_servers.node_repl.enabled=false",
+            "features.apps=false",
+        ]
+        assert "mcp_servers.context7.enabled=false" not in options["disable_external_tools"]
+        assert record.runtime["external_tools_off"] == ["node_repl", "codex_apps"]
     finally:
         service.shutdown()
 
@@ -2860,6 +2903,7 @@ def test_only_the_hook_verification_probe_service_runs_exec_with_full_access(
 def test_non_interactive_launch_failure_closes_temporary_output_handles(
     tmp_path, monkeypatch
 ) -> None:
+    _set_fake_codex_home(tmp_path, monkeypatch)
     service = RunApplicationService(tmp_path / "control")
     record = make_record(tmp_path)
     output_handles = []

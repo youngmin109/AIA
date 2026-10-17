@@ -630,6 +630,12 @@ class ProtectedRunMixin:
             # reported as approval=never on some Windows installations.
             adapter_options["approve_for_me"] = True
             adapter_options["skip_git_repo_check"] = True
+        if not record.interactive:
+            # Exec commands can also invoke external tools outside the Hook.
+            # Apply the same user-aware disable plan as protected app-server runs.
+            overrides, turned_off = self._external_tool_overrides()
+            adapter_options["disable_external_tools"] = overrides
+            record.runtime["external_tools_off"] = turned_off
         return launcher, controller, adapter_options
 
     def _finalize_completed_protected_run(
