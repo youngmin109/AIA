@@ -15,6 +15,7 @@ from aia_desktop.launcher import (
     _EmbeddedLocalServer,
     _ensure_gui_stdio,
     _wait_for_server,
+    _cleanup_stale_webview_storage,
     _webview_storage_path,
     choose_loopback_port,
     run_desktop,
@@ -163,6 +164,38 @@ def test_webview_storage_path_is_per_user_and_isolated_per_run(
     assert first == tmp_path / "AIA" / "WebView2" / "session-first"
     assert second == tmp_path / "AIA" / "WebView2" / "session-second"
     assert first != second
+
+
+def test_webview_storage_cleanup_removes_only_inactive_numeric_sessions(
+    monkeypatch, tmp_path: Path
+) -> None:
+    storage_root = tmp_path / "AIA" / "WebView2"
+    storage_root.mkdir(parents=True)
+    stale = storage_root / "session-111"
+    active = storage_root / "session-222"
+    locked = storage_root / "session-333"
+    malformed = storage_root / "session-not-a-pid"
+    unrelated = storage_root / "profile"
+    for path in (stale, active, locked, malformed, unrelated):
+        path.mkdir()
+
+    original_rmtree = launcher.shutil.rmtree
+
+    def remove_unlocked(path, *args, **kwargs):
+        if Path(path) == locked:
+            raise PermissionError("profile is locked")
+        original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(launcher.psutil, "pid_exists", lambda pid: pid == 222)
+    monkeypatch.setattr(launcher.shutil, "rmtree", remove_unlocked)
+
+    _cleanup_stale_webview_storage(storage_root)
+
+    assert not stale.exists()
+    assert active.is_dir()
+    assert locked.is_dir()
+    assert malformed.is_dir()
+    assert unrelated.is_dir()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="the desktop instance guard uses a Windows named mutex")

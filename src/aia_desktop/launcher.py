@@ -21,6 +21,8 @@ from threading import Thread
 from typing import Any, Callable
 from urllib.parse import urlparse
 
+import psutil
+
 from aia_desktop.webview_recovery import WebViewRecovery, desktop_log
 from aia_desktop.title_bar import apply_title_bar, window_handle
 from aia_desktop import guardian_window
@@ -127,6 +129,37 @@ def _webview_storage_path(session_id: int | str | None = None) -> Path:
     )
     run_id = str(session_id if session_id is not None else os.getpid())
     return root / "AIA" / "WebView2" / f"session-{run_id}"
+
+
+def _cleanup_stale_webview_storage(root: Path | None = None) -> None:
+    """Remove inactive run profiles left behind by a previous desktop launch."""
+
+    storage_root = root if root is not None else _webview_storage_path().parent
+    try:
+        entries = tuple(storage_root.iterdir())
+    except OSError:
+        return
+
+    for path in entries:
+        prefix = "session-"
+        if not path.name.startswith(prefix):
+            continue
+        pid_text = path.name[len(prefix) :]
+        if not pid_text.isascii() or not pid_text.isdecimal():
+            continue
+        try:
+            pid = int(pid_text)
+        except ValueError:
+            continue
+        if pid <= 0:
+            continue
+        try:
+            if not path.is_dir() or psutil.pid_exists(pid):
+                continue
+            shutil.rmtree(path)
+        except (OSError, psutil.Error):
+            # A live process or a locked profile must never disrupt startup.
+            continue
 
 
 def _remove_webview_storage(path: Path) -> None:
@@ -718,6 +751,8 @@ def run_desktop(*, host: str = DEFAULT_HOST, preferred_port: int = DEFAULT_PORT)
                 "보호 실행과 Codex 대화는 그 창에서만 이어갈 수 있습니다.",
             )
         return 0
+
+    _cleanup_stale_webview_storage()
 
     import webview
 
