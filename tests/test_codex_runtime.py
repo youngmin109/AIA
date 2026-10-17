@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from threading import RLock
 import sys
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 import pytest
 import aia.codex_runtime as codex_runtime
@@ -304,6 +306,87 @@ def test_codex_hook_broker_round_trip_is_capability_authenticated(
     finally:
         broker.stop()
     assert broker.is_running is False
+
+
+def _post_broker_capability(
+    tmp_path: Path,
+    capability_header: str | None = "test-capability",
+) -> tuple[int, list[dict[str, object]]]:
+    received: list[dict[str, object]] = []
+
+    def handler(payload):
+        received.append(dict(payload))
+        return {"accepted": True}
+
+    broker = CodexHookBroker(
+        capability_secret="test-capability",
+        session_id="session-1",
+        launch_id="launch-1",
+        control_root=tmp_path / "control",
+        handler=handler,
+    )
+    broker.start()
+    try:
+        endpoint = broker.endpoint
+        assert endpoint is not None
+        headers = {"Content-Type": "application/json"}
+        if capability_header is not None:
+            headers["X-AIA-Capability"] = capability_header
+        request = Request(
+            endpoint,
+            data=b"{}",
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                return response.status, received
+        except HTTPError as error:
+            status = error.code
+            error.close()
+            return status, received
+    finally:
+        broker.stop()
+
+
+def test_codex_hook_broker_accepts_valid_capability_with_200(
+    tmp_path: Path,
+) -> None:
+    status, received = _post_broker_capability(tmp_path)
+
+    assert status == 200
+    assert received == [{}]
+
+
+def test_codex_hook_broker_rejects_wrong_capability_with_403(
+    tmp_path: Path,
+) -> None:
+    status, received = _post_broker_capability(tmp_path, "wrong-capability")
+
+    assert status == 403
+    assert received == []
+
+
+def test_codex_hook_broker_rejects_missing_capability_header_with_403(
+    tmp_path: Path,
+) -> None:
+    status, received = _post_broker_capability(tmp_path, None)
+
+    assert status == 403
+    assert received == []
+
+
+def test_codex_hook_broker_rejects_non_ascii_and_long_capabilities_with_403(
+    tmp_path: Path,
+) -> None:
+    for index, invalid_capability in enumerate(("é", "x" * 4096)):
+        status, received = _post_broker_capability(
+            tmp_path / str(index),
+            invalid_capability,
+        )
+
+        assert status == 403
+        assert received == []
 
 
 def test_codex_hook_broker_does_not_expose_capability_in_wire_response(
