@@ -24,6 +24,7 @@ from aia.cli import (
 )
 from aia.codex_hook_trust import summarize_aia_hooks
 from aia.diagnostics import build_support_bundle
+from aia.hook_verification import HookVerificationStore
 from aia._version import __version__
 from aia_web.__main__ import run as run_console, validate_local_bind
 from tests.test_finalization import _session
@@ -1011,6 +1012,9 @@ def test_hook_status_is_not_ready_when_only_the_definition_is_installed(
     assert exit_code == 1
     assert payload["pretool_installed"] is True
     assert payload["verification_status"] == "MISSING_OR_STALE"
+    assert payload["verification_stale_reasons"] == [
+        "아직 연결 검증을 한 적이 없어요"
+    ]
     assert payload["ready"] is False
 
 
@@ -1051,6 +1055,101 @@ def test_hook_status_human_output_explains_trust_and_verification_steps(
     assert exit_code == 1
     assert "/hooks" in output
     assert "hook verify" in output
+
+
+def test_hook_status_reports_safe_stale_reasons_in_json_and_human_output(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text('[desktop]\ntheme = "private-status-value"\n', encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    hook_path = tmp_path / "hooks.json"
+    control_root = tmp_path / "control"
+    installer = CodexHookInstaller(hook_path)
+    installer.install()
+    executable = tmp_path / "codex.exe"
+    executable.write_bytes(b"codex")
+    monkeypatch.setattr("aia.cli.CodexAdapter.discover", lambda _adapter: executable)
+    monkeypatch.setattr(
+        "aia.adapters.codex.CodexAdapter.executable_version",
+        lambda _executable: "0.162.1",
+    )
+    monkeypatch.setattr(
+        "aia.cli_hook.inspect_codex_hook_trust",
+        lambda *args, **kwargs: type(
+            "Inspection",
+            (),
+            {
+                "to_mapping": lambda self: {
+                    "available": True,
+                    "reason": None,
+                    "hooks": [{"event": "preToolUse", "trust_status": "TRUSTED"}],
+                }
+            },
+        )(),
+    )
+    HookVerificationStore(control_root).write_verified(
+        installer=installer,
+        executable=executable,
+        session_id="session-1",
+        hook_event_count=1,
+    )
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(control_root),
+        ]
+    )
+    current_payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert current_payload["verification_status"] == "CURRENT"
+    assert current_payload["verification_stale_reasons"] == []
+
+    config_path.write_text('[desktop]\ntheme = "private-status-value-after"\n', encoding="utf-8")
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--json",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(control_root),
+        ]
+    )
+    json_output = capsys.readouterr().out
+    payload = json.loads(json_output)
+    assert exit_code == 1
+    assert payload["verification_stale_reasons"] == [
+        "Codex 설정 파일이 바뀌었어요: [desktop] 표"
+    ]
+    assert "private-status-value" not in json_output
+    assert str(config_path) not in json_output
+
+    exit_code = main(
+        [
+            "hook",
+            "status",
+            "--path",
+            str(hook_path),
+            "--control-root",
+            str(control_root),
+        ]
+    )
+    human_output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "검증 만료 이유: Codex 설정 파일이 바뀌었어요: [desktop] 표" in human_output
+    assert "private-status-value" not in human_output
+    assert str(config_path) not in human_output
 
 
 def test_hook_status_does_not_report_ready_when_current_fingerprint_is_untrusted(
