@@ -319,16 +319,12 @@ def _command_pattern_matches(command: str, pattern: str) -> bool:
 
 
 # Shell verbs and inline file calls that signal operations against visible paths.
-# Literal reads need no verb, but wildcard reads do (see command_path_denials).
+# Wildcard reads are classified separately by whether the command only lists paths.
 _COMMAND_FILE_VERBS: Mapping[Operation, re.Pattern[str]] = MappingProxyType(
     {
         Operation.READ: re.compile(
             r"(?<![\w-])(?:get-content|gc|cat|type|more|select-string|sls|"
-            r"copy-item|cpi|copy|cp|rg|grep|findstr|less|head|tail|"
-            r"robocopy|xcopy|tar|7z|zip|compress-archive|certutil|curl|invoke-webrequest|iwr|xargs|"
-            r"import-\w+)(?![\w-])"
-            r"|(?<!\w)readall\w*"
-            r"|(?:^|\s)-exec(?:\s|$)"
+            r"copy-item|cpi|copy|cp|rg|grep|findstr|less|head|tail)(?![\w-])"
             r"|(?<![\w.])open\s*\(|\.open\s*\(|\.read_(?:text|bytes)\("
         ),
         Operation.DELETE: re.compile(
@@ -377,6 +373,14 @@ def _token_names_path(token: str, pattern: str) -> bool:
     return literal and (normalized_pattern == normalized_token or normalized_pattern.endswith("/" + normalized_token))
 
 
+def _is_generic_wildcard_path_component(component: str) -> bool:
+    """Whether a final path component means every name at that level."""
+
+    return component in {"*.*", "?", ".", ".."} or (
+        bool(component) and set(component) == {"*"}
+    )
+
+
 def _wildcard_token_names_path(token: str, pattern: str) -> bool:
     """Whether a non-generic command glob can match a protected path pattern."""
 
@@ -387,14 +391,14 @@ def _wildcard_token_names_path(token: str, pattern: str) -> bool:
         return False
     if not any(char in normalized_token for char in "*?["):
         return False
-    if normalized_token in {"*", "*.*", "?", ".", ".."}:
-        return False
-
     token_parts = normalized_token.lstrip("/").split("/")
     path_parts = normalized_pattern.lstrip("/").split("/")
-    token_suffixes = [
-        "/".join(token_parts[index:]) for index in range(len(token_parts))
-    ]
+    token_suffixes = []
+    for index in range(len(token_parts)):
+        suffix_parts = token_parts[index:]
+        if _is_generic_wildcard_path_component(suffix_parts[-1]):
+            continue
+        token_suffixes.append("/".join(suffix_parts))
     path_suffixes = [
         "/".join(path_parts[index:]) for index in range(len(path_parts))
     ]
@@ -411,8 +415,8 @@ def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[
 
     Lexical, like command patterns: the command must name a path the rule
     protects and use a verb for an operation the rule denies (a redirect
-    counts as modifying its own target only). A rule that denies READ needs no
-    verb for a literal path; a wildcard token requires a recognized read verb.
+    counts as modifying its own target only). Literal protected paths are
+    denied directly; a specific wildcard is denied unless the command only lists paths.
     Only DENY effects are derived, so this can block more but never allows
     anything a rule would not.  A script hidden as ``-EncodedCommand`` is checked too, and
     an ``apply_patch`` text is judged by the files its headers add, update,
@@ -458,6 +462,35 @@ def _patch_file_operations(raw_command: str) -> tuple[tuple[Operation, str], ...
     return tuple(operations)
 
 
+def _command_is_listing_only(raw_command: str) -> bool:
+    """Allow protected-name globs only for path listing and list filters."""
+
+    segments = command_segments(raw_command)
+    candidates = segments[1:] if len(segments) > 1 else segments
+    saw_listing = False
+    for segment in candidates:
+        if re.match(r"^\$[\w:]+\s*=\s*(?:'[^']*'|\"[^\"]*\")$", segment):
+            continue
+        if re.match(r"^(?:ls|dir|gci|get-childitem|tree|test-path|resolve-path)(?:\s|$)", segment):
+            saw_listing = True
+            continue
+        if re.match(r"^git\s+(?:ls-files|check-ignore|status)(?:\s|$)", segment):
+            saw_listing = True
+            continue
+        if re.match(r"^find(?:\s|$)", segment):
+            if re.search(r"(?<!\S)-(?:exec|execdir|delete|ok|okdir)(?:\s|$)", segment):
+                return False
+            saw_listing = True
+            continue
+        if saw_listing and re.match(
+            r"^(?:select-object|measure-object|sort-object|where-object|format-[\w-]+|out-string)(?:\s|$)",
+            segment,
+        ):
+            continue
+        return False
+    return saw_listing
+
+
 def _visible_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[PolicyRule]:
     text = normalize_command(raw_command)
     patched = _patch_file_operations(raw_command)
@@ -478,7 +511,7 @@ def _visible_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list
                 for pattern in rule.path_patterns
             )
             wildcard_read = (
-                _COMMAND_FILE_VERBS[Operation.READ].search(text) is not None
+                not _command_is_listing_only(raw_command)
                 and any(
                     _wildcard_token_names_path(token, pattern)
                     for token in read_tokens
