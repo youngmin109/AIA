@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 from threading import Event, RLock, Thread
+from types import SimpleNamespace
 import time
 from urllib.request import Request, urlopen
 
@@ -27,6 +28,10 @@ from aia import (
 from aia.codex_runtime import CodexHookBroker, CodexPreToolEvent
 from aia_app.codex_app_server import CodexAppServerSession, CodexHookEventCollector
 from aia_app.gui_block_confirmation import confirm_gui_pretool_blocks, parse_hook_run_id
+from aia_app.protected_run import (
+    _filesystem_sensor_healthy_for_confirmation,
+    _gui_run_interrupted,
+)
 from tests.test_enforcement import _gate_input
 
 
@@ -35,6 +40,7 @@ HOOKS_PATH = r"C:\Users\jinhy\.codex\hooks.json"
 TURN_ID = "turn-17"
 DENIED_ID = "exec-12ebf048-e7ad-454a-98d9-f63ff3d1a675"
 ALLOWED_ID = "exec-1d63ce39-8af4-4120-b737-dafacd449234"
+THIRD_ID = "exec-51c38933-c39f-47f4-b540-16917e5c0925"
 
 
 def _hook_run_id(tool_use_id: str, *, path: str = HOOKS_PATH, index: int = 0) -> str:
@@ -196,6 +202,17 @@ def _append_posttool(records: tuple[RawEvidenceRecord, ...], tool_use_id: str):
     ))
 
 
+def _sensor_health_record(status: str) -> RawEvidenceRecord:
+    return RawEvidenceRecord(
+        session_id="session-sensor-health",
+        source=EvidenceSource.FILESYSTEM_WATCHER,
+        record_type=EvidenceRecordType.SENSOR_HEALTH,
+        captured_at=NOW,
+        observation_stage=ObservationStage.POST_ACTION,
+        payload={"status": status, "sensor": "FILESYSTEM_WATCHER"},
+    )
+
+
 def _confirm(controller, records, snapshot, **overrides):
     values = {
         "hook_snapshot": snapshot,
@@ -253,6 +270,8 @@ def test_gui_confirmation_basis_contains_only_counts_and_statuses(tmp_path: Path
     assert basis["posttool_absent"] is True
     assert basis["protected_file_change_count"] == 0
     assert basis["turn_status"] == "completed"
+    assert basis["interrupted"] is False
+    assert basis["process_unexpected_exit"] is False
     from aia.finalization import SessionFinalizer
 
     result_mapping = SessionFinalizer._enforcement_mapping(controller.events[0].gate_result)
@@ -453,6 +472,176 @@ def test_gui_confirmation_rejects_completed_hook_before_started(tmp_path: Path) 
     collector.mark_process_exit(0, unexpected=False)
 
     assert _confirm(controller, records, collector.snapshot()) == (None,)
+
+
+def test_file_sensor_confirmation_uses_runtime_health_after_sensor_stop(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    stopped_sensor = SimpleNamespace(
+        status="STOPPED",
+        health=SimpleNamespace(status="STOPPED"),
+        runtime_health_before_stop=SimpleNamespace(status="HEALTHY"),
+    )
+    history = (*records, _sensor_health_record("STARTING"),
+               _sensor_health_record("HEALTHY"), _sensor_health_record("STOPPED"))
+
+    assert stopped_sensor.status == "STOPPED"
+    file_sensor_healthy = _filesystem_sensor_healthy_for_confirmation(
+        stopped_sensor,
+        history,
+        stopped=True,
+    )
+    assert file_sensor_healthy
+    assert _filesystem_sensor_healthy_for_confirmation(
+        stopped_sensor,
+        records,
+        stopped=True,
+    )
+    assert not _filesystem_sensor_healthy_for_confirmation(
+        stopped_sensor,
+        history,
+        stopped=False,
+    )
+    assert _confirm(
+        controller,
+        history,
+        _snapshot([{"tool_use_id": DENIED_ID}], exit_code=7),
+        file_sensor_healthy=file_sensor_healthy,
+    ) == (True,)
+
+
+@pytest.mark.parametrize("status", ["FAILED", "DEGRADED"])
+def test_file_sensor_confirmation_fails_after_unhealthy_run_history(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    sensor = SimpleNamespace(runtime_health_before_stop=SimpleNamespace(status="HEALTHY"))
+    history = (*records, _sensor_health_record("HEALTHY"), _sensor_health_record(status))
+
+    file_sensor_healthy = _filesystem_sensor_healthy_for_confirmation(
+        sensor,
+        history,
+        stopped=True,
+    )
+    assert not file_sensor_healthy
+    assert _confirm(
+        controller,
+        history,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        file_sensor_healthy=file_sensor_healthy,
+    ) == (None,)
+
+
+def test_gui_confirmation_ignores_nonzero_expected_process_exit(tmp_path: Path) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    snapshot = _snapshot([{"tool_use_id": DENIED_ID}], exit_code=7, unexpected=False)
+
+    assert _confirm(controller, records, snapshot) == (True,)
+    basis = controller.events[0].gate_result.confirmation_basis
+    assert basis["process_status"] == "EXPECTED_EXIT"
+    assert basis["process_unexpected_exit"] is False
+
+
+def test_gui_confirmation_rejects_unexpected_process_exit(tmp_path: Path) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    assert _confirm(
+        controller,
+        records,
+        _snapshot([{"tool_use_id": DENIED_ID}], exit_code=0, unexpected=True),
+    ) == (None,)
+    assert controller.events[0].gate_result.confirmation_basis["process_unexpected_exit"] is True
+
+
+def test_normal_stop_requested_after_completed_turn_is_not_interrupted(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    run_record = SimpleNamespace(stop_requested=True, stop_error=None)
+    snapshot = _snapshot([{"tool_use_id": DENIED_ID}], exit_code=9, unexpected=False)
+    interrupted = _gui_run_interrupted(run_record, snapshot)
+
+    assert interrupted is False
+    assert _confirm(controller, records, snapshot, interrupted=interrupted) == (True,)
+    assert controller.events[0].gate_result.confirmation_basis["interrupted"] is False
+
+
+def test_stop_requested_while_turn_is_in_progress_remains_interrupted(
+    tmp_path: Path,
+) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    run_record = SimpleNamespace(stop_requested=True, stop_error=None)
+    snapshot = _snapshot([{"tool_use_id": DENIED_ID}], turn_status="inProgress")
+    interrupted = _gui_run_interrupted(run_record, snapshot)
+
+    assert interrupted is True
+    assert _confirm(controller, records, snapshot, interrupted=interrupted) == (None,)
+    assert controller.events[0].gate_result.confirmation_basis["interrupted"] is True
+
+
+def test_stop_error_after_completed_turn_remains_interrupted(tmp_path: Path) -> None:
+    controller, records, _ = _make_controller(tmp_path, tool_ids=(DENIED_ID,))
+    run_record = SimpleNamespace(stop_requested=False, stop_error=RuntimeError("stop failed"))
+    snapshot = _snapshot([{"tool_use_id": DENIED_ID}])
+    interrupted = _gui_run_interrupted(run_record, snapshot)
+
+    assert interrupted is True
+    assert _confirm(controller, records, snapshot, interrupted=interrupted) == (None,)
+
+
+def test_actual_trace_shape_confirms_only_deny_after_normal_session_stop(
+    tmp_path: Path,
+) -> None:
+    controller, records, decisions = _make_controller(
+        tmp_path,
+        tool_ids=(DENIED_ID, ALLOWED_ID, THIRD_ID),
+    )
+    snapshot = _snapshot(
+        [
+            {"tool_use_id": DENIED_ID, "status": "blocked"},
+            {"tool_use_id": ALLOWED_ID, "index": 2, "status": "completed"},
+            {"tool_use_id": THIRD_ID, "index": 3, "status": "completed"},
+        ],
+        exit_code=9,
+        unexpected=False,
+    )
+    stopped_sensor = SimpleNamespace(
+        status="STOPPED",
+        health=SimpleNamespace(status="STOPPED"),
+        runtime_health_before_stop=SimpleNamespace(status="HEALTHY"),
+    )
+    evidence = (
+        *records,
+        _sensor_health_record("STARTING"),
+        _sensor_health_record("HEALTHY"),
+        _sensor_health_record("STOPPED"),
+    )
+    run_record = SimpleNamespace(stop_requested=True, stop_error=None)
+    interrupted = _gui_run_interrupted(run_record, snapshot)
+
+    assert decisions[0].gate_result.decision is EnforcementDecision.CONTAIN
+    assert all(item.gate_result.decision is EnforcementDecision.CONTINUE for item in decisions[1:])
+    assert _filesystem_sensor_healthy_for_confirmation(
+        stopped_sensor,
+        evidence,
+        stopped=True,
+    )
+    assert interrupted is False
+    assert _confirm(
+        controller,
+        evidence,
+        snapshot,
+        file_sensor_healthy=_filesystem_sensor_healthy_for_confirmation(
+            stopped_sensor,
+            evidence,
+            stopped=True,
+        ),
+        interrupted=interrupted,
+    ) == (True,)
+    assert controller.events[0].gate_result.action is EnforcementAction.BLOCKED
+    assert controller.events[1].gate_result.action is EnforcementAction.NONE
+    assert controller.events[2].gate_result.action is EnforcementAction.NONE
 
 
 def test_gui_confirmation_normalizes_hooks_path_case_and_separators(tmp_path: Path) -> None:

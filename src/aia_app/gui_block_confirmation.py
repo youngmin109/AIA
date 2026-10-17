@@ -164,6 +164,8 @@ def _basis(
     collection_complete: bool,
     broker_drained: bool,
     process_status: str,
+    interrupted: bool | None,
+    process_unexpected_exit: bool | None,
 ) -> dict[str, Any]:
     return {
         "method": "app_server_call_identity_1_to_1",
@@ -181,6 +183,12 @@ def _basis(
         "collection_status": "COMPLETE" if collection_complete else "INCOMPLETE",
         "broker_barrier_status": "COMPLETE" if broker_drained else "INCOMPLETE",
         "process_status": process_status,
+        "interrupted": interrupted if isinstance(interrupted, bool) else "UNKNOWN",
+        "process_unexpected_exit": (
+            process_unexpected_exit
+            if isinstance(process_unexpected_exit, bool)
+            else "UNKNOWN"
+        ),
     }
 
 
@@ -194,7 +202,7 @@ def confirm_gui_pretool_blocks(
     protected_file_change_count: int | None,
     file_sensor_healthy: bool | None,
     hook_sensor_healthy: bool | None,
-    interrupted: bool = False,
+    interrupted: bool | None = False,
 ) -> tuple[bool | None, ...]:
     """Confirm each GUI deny only when its independent call-level proof is complete."""
 
@@ -209,14 +217,17 @@ def confirm_gui_pretool_blocks(
         and not hook_snapshot.missing
         and hook_snapshot.all_turns_completed
     )
+    process_unexpected_exit = (
+        hook_snapshot.unexpected_exit if hook_snapshot is not None else None
+    )
     process_ok = bool(
         hook_snapshot is not None
-        and hook_snapshot.process_exit_code == 0
-        and hook_snapshot.unexpected_exit is False
+        and hook_snapshot.reader_finished
+        and process_unexpected_exit is False
     )
     process_status = (
-        "EXITED" if process_ok
-        else "FAILED" if hook_snapshot is not None and hook_snapshot.process_exit_code not in {None, 0}
+        "EXPECTED_EXIT" if process_ok
+        else "UNEXPECTED_EXIT" if process_unexpected_exit is True
         else "UNKNOWN"
     )
     results: list[bool | None] = []
@@ -244,6 +255,8 @@ def confirm_gui_pretool_blocks(
                         collection_complete=snapshot_complete,
                         broker_drained=broker_drained,
                         process_status=process_status,
+                        interrupted=interrupted,
+                        process_unexpected_exit=process_unexpected_exit,
                     ),
                 )
             results.append(None)
@@ -350,6 +363,8 @@ def confirm_gui_pretool_blocks(
             collection_complete=snapshot_complete,
             broker_drained=broker_drained,
             process_status=process_status,
+            interrupted=interrupted,
+            process_unexpected_exit=process_unexpected_exit,
         )
         controller.confirm_block(
             tool_use_id,

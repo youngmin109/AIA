@@ -90,6 +90,62 @@ def _sensor_status(sensor: Any) -> str | None:
     return getattr(status, "value", status)
 
 
+def _filesystem_sensor_healthy_for_confirmation(
+    sensor: Any,
+    evidence_records: Any,
+    *,
+    stopped: bool,
+) -> bool:
+    """Require the pre-stop health snapshot and every recorded run status to be healthy."""
+
+    try:
+        if (
+            not stopped
+            or evidence_records is None
+            or _sensor_status(sensor) != "HEALTHY"
+        ):
+            return False
+        allowed_statuses = {"STARTING", "HEALTHY", "STOPPED"}
+        for record in evidence_records:
+            source_value = getattr(record, "source", None)
+            source = getattr(source_value, "value", source_value)
+            record_type_value = getattr(record, "record_type", None)
+            record_type = getattr(record_type_value, "value", record_type_value)
+            if (
+                source != EvidenceSource.FILESYSTEM_WATCHER.value
+                or record_type != EvidenceRecordType.SENSOR_HEALTH.value
+            ):
+                continue
+            payload = getattr(record, "payload", None)
+            if not isinstance(payload, Mapping):
+                return False
+            status_value = payload.get("status")
+            status = getattr(status_value, "value", status_value)
+            if status not in allowed_statuses:
+                return False
+    except Exception:
+        return False
+    return True
+
+
+def _gui_run_interrupted(record: Any, hook_snapshot: Any) -> bool | None:
+    """Treat stop errors or unfinished turns as interruption, not a normal stop request."""
+
+    if getattr(record, "stop_error", None) is not None:
+        return True
+    if hook_snapshot is None:
+        return None
+    if getattr(hook_snapshot, "all_turns_completed", False) is not True:
+        return True
+    turn_statuses = getattr(hook_snapshot, "turn_statuses", None)
+    if not isinstance(turn_statuses, Mapping) or not turn_statuses:
+        return True
+    return any(
+        status != "completed"
+        for status in turn_statuses.values()
+    )
+
+
 def _sensors_runtime_healthy(sensors: Any) -> bool:
     items = tuple(item for item in (sensors or ()) if item is not None)
     return bool(items) and all(_sensor_status(item) == "HEALTHY" for item in items)
@@ -405,17 +461,15 @@ class ProtectedRunMixin:
                     codex_session.close(force=False)
                 except Exception:
                     pass
-            filesystem_healthy = False
+            filesystem_stopped = False
             try:
-                sensor_health = filesystem.check_health()
-                sensor_was_healthy = _sensor_status(sensor_health) == "HEALTHY"
                 stopped_context = filesystem.stop()
                 stopped_status = getattr(
                     stopped_context.status, "value", stopped_context.status
                 )
-                filesystem_healthy = sensor_was_healthy and stopped_status == "STOPPED"
+                filesystem_stopped = stopped_status == "STOPPED"
             except Exception:
-                filesystem_healthy = False
+                filesystem_stopped = False
             evidence_records = None
             integrity_result = None
             try:
@@ -432,6 +486,11 @@ class ProtectedRunMixin:
                 )
             except Exception:
                 integrity_result = None
+            filesystem_healthy = _filesystem_sensor_healthy_for_confirmation(
+                filesystem,
+                evidence_records,
+                stopped=filesystem_stopped,
+            )
             protected_file_change_count = _protected_file_change_count(
                 evidence_records,
                 workspace=session.workspace,
@@ -450,7 +509,7 @@ class ProtectedRunMixin:
                     protected_file_change_count=protected_file_change_count,
                     file_sensor_healthy=filesystem_healthy,
                     hook_sensor_healthy=_sensor_status(hook.check_health()) == "HEALTHY",
-                    interrupted=record.stop_requested or record.stop_error is not None,
+                    interrupted=_gui_run_interrupted(record, hook_snapshot),
                 )
         self._capture_codex_execution_observation(record, codex_output_handles)
         self._confirm_codex_blocks(record)
