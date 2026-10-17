@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+import hmac
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -670,7 +671,11 @@ class CodexHookBroker:
                 if self.path != "/pretool":
                     self.send_error(404)
                     return
-                if self.headers.get("X-AIA-Capability") != broker.capability_secret:
+                supplied_capability = self.headers.get("X-AIA-Capability", "")
+                if not hmac.compare_digest(
+                    supplied_capability.encode("utf-8"),
+                    broker.capability_secret.encode("utf-8"),
+                ):
                     self.send_error(403)
                     return
                 try:
