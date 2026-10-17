@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import hashlib
 import json
+import ntpath
 from pathlib import Path
 from pathlib import PurePosixPath
 import re
@@ -18,6 +19,10 @@ from typing import Any, Callable
 from aia import BundleVerificationStatus, verify_evidence_bundle
 from aia.evidence import RawEvidenceRecord
 from .activity import ActivityIndex, ProtectedChangeJudge
+from .presenters_result_events import (
+    policy_incident_count,
+    unevaluated_observation_views,
+)
 
 
 _SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9-]+$")
@@ -150,12 +155,11 @@ class ResultBundleReader:
         require_valid: bool = True,
         verified_bytes: bytes | None = None,
     ) -> list[dict[str, Any]]:
-        """Read metadata without returning Evidence payload values.
+        """Read metadata plus narrowly selected, safe process display fields.
 
         Completed-result callers keep the default verified-bundle requirement.
         Live-run status may opt out because the bundle does not exist until
-        finalization; that path still returns metadata keys only and never
-        exposes raw payload values.
+        finalization. Raw commands and process paths are never returned.
         """
 
         session_directory = self.session_directory(session_id)
@@ -186,17 +190,30 @@ class ResultBundleReader:
                 items.append({"line": line_number, "status": "MALFORMED"})
                 continue
             payload = record.get("payload")
-            items.append(
-                {
-                    "captured_at": record.get("captured_at"),
-                    "evidence_id": record.get("evidence_id"),
-                    "line": line_number,
-                    "observation_stage": record.get("observation_stage"),
-                    "payload_keys": sorted(payload.keys()) if isinstance(payload, dict) else [],
-                    "record_type": record.get("record_type"),
-                    "source": record.get("source"),
-                }
-            )
+            item = {
+                "captured_at": record.get("captured_at"),
+                "evidence_id": record.get("evidence_id"),
+                "line": line_number,
+                "observation_stage": record.get("observation_stage"),
+                "payload_keys": sorted(payload.keys()) if isinstance(payload, dict) else [],
+                "record_type": record.get("record_type"),
+                "source": record.get("source"),
+            }
+            if (
+                record.get("source") == "PROCESS_RUNTIME"
+                and record.get("record_type") == "PROCESS_OBSERVED"
+                and isinstance(payload, dict)
+            ):
+                name = payload.get("name")
+                if isinstance(name, str) and name.strip():
+                    safe_name = ntpath.basename(name)
+                    safe_name = "".join(char for char in safe_name if char.isprintable())[:120]
+                    if safe_name:
+                        item["process_name"] = safe_name
+                role = payload.get("process_role")
+                if role in {"ROOT", "DESCENDANT"}:
+                    item["process_role"] = role
+            items.append(item)
         with self._parsed_cache_lock:
             cached_items = [
                 {**item, "payload_keys": list(item["payload_keys"])}
@@ -518,6 +535,10 @@ class ResultBundleReader:
                 if item.get("source") == "AGENT_HOOK"
                 and item.get("record_type") == "POSTTOOL_OBSERVED"
             )
+            unevaluated_observations = unevaluated_observation_views(
+                result,
+                evidence_metadata,
+            )
             session_status = result.get("session_status")
             session_end_reason = result.get("session_end_reason")
             protection_downgraded = any(
@@ -560,11 +581,8 @@ class ResultBundleReader:
                     ),
                     "hook_event_count": hook_event_count,
                     "posttool_event_count": posttool_event_count,
-                    "incident_count": sum(
-                        1
-                        for item in result.get("action_outcomes", ())
-                        if item.get("policy_decision") in {"VIOLATION", "INDETERMINATE"}
-                    ),
+                    "incident_count": policy_incident_count(result),
+                    "unevaluated_observation_count": len(unevaluated_observations),
                     "result_url": f"/runs/{candidate.name}/result",
                 }
             )

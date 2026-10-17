@@ -37,6 +37,63 @@ test('threats stopped before they ran read as a protection win, not a review que
   assert.equal(verdict.tone, 'ok')
   assert.ok(verdict.headline.includes('막았'))
 })
+test('blocked policy incidents exclude separate unevaluated observations from the success count', () => {
+  const result = {
+    bundle_status: 'VALID',
+    session_status: 'COMPLETED',
+    protection_state: 'COMPLETED_VERIFIED',
+    incident_count: 1,
+    incidents: [{ enforcement_action: 'BLOCKED', execution_result: 'SUCCEEDED' }],
+    unevaluated_observations: { count: 3, items: [
+      { process_name: 'helper-a.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+      { process_name: 'helper-b.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+      { process_name: 'helper-c.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+    ] },
+  }
+  const verdict = deriveVerdict(result)
+  assert.equal(verdict.branch, 'SUCCESS')
+  assert.equal(verdict.tone, 'ok')
+  assert.ok(verdict.headline.includes('위협 1건'))
+  assert.ok(!verdict.headline.includes('4건'))
+  assert.ok(verdict.detail.includes('그 밖에 명령줄을 읽지 못한 보조 프로세스 3건은 판정하지 못했어요.'))
+})
+
+test('observations alone keep a verified run successful and explain what was not assessed', () => {
+  const verdict = deriveVerdict({
+    bundle_status: 'VALID',
+    session_status: 'COMPLETED',
+    protection_state: 'COMPLETED_VERIFIED',
+    incident_count: 0,
+    incidents: [],
+    unevaluated_observations: { count: 2, items: [
+      { process_name: 'helper.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+      { process_name: 'shell.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+    ] },
+  })
+  assert.equal(verdict.branch, 'SUCCESS')
+  assert.equal(verdict.tone, 'ok')
+  assert.ok(verdict.detail.includes('그 밖에 명령줄을 읽지 못한 보조 프로세스 2건은 판정하지 못했어요.'))
+})
+
+test('an actual unblocked policy incident remains a warning beside unevaluated observations', () => {
+  const verdict = deriveVerdict({
+    bundle_status: 'VALID',
+    session_status: 'COMPLETED',
+    protection_state: 'COMPLETED_VERIFIED',
+    incident_count: 1,
+    incidents: [{ attribution_class: 'PROCESS', enforcement_action: 'NONE', execution_result: 'NOT_ATTEMPTED' }],
+    unevaluated_observations: { count: 3, items: [
+      { process_name: 'helper.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+      { process_name: 'conhost.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+      { process_name: 'hook.exe', process_role: 'DESCENDANT', reason_code: 'VERIFIED_AGENT_PROCESS' },
+    ] },
+  })
+  assert.equal(verdict.branch, 'PROCESS_DETECTED')
+  assert.equal(verdict.tone, 'warn')
+  assert.ok(verdict.headline.includes('1건'))
+  assert.ok(!verdict.headline.includes('4건'))
+})
+
 test('an out-of-scope tool does not turn a verified run into a warning', () => {
   // A tool AIA cannot interpret is recorded (UNSUPPORTED_TOOL_PATH) but is not
   // a protection failure, so a verified bundle still reads as protected.

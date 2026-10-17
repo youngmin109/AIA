@@ -49,6 +49,10 @@ from .presenters import (
     result_view,
 )
 from .readers import ResultBundleReader
+from .presenters_result_events import (
+    policy_incident_count,
+    unevaluated_observation_views,
+)
 from .registry import RunRecord, RunRegistry
 from .codex_app_server import CodexAppServerError, CodexAppServerSession
 from .codex_workbench import CodexWorkbench
@@ -796,10 +800,14 @@ class RunApplicationService(
     def get_result(self, session_id: str) -> dict[str, Any]:
         record = self.registry.snapshot(session_id)
         if record is not None and record.result is not None and record.bundle_status is not None:
-            view = result_view(record.result, record.bundle_status)
             evidence_metadata = self._evidence_metadata(
                 session_id,
                 require_valid=False,
+            )
+            view = result_view(
+                record.result,
+                record.bundle_status,
+                evidence_metadata=evidence_metadata,
             )
             _annotate_execution_observations(
                 view,
@@ -822,10 +830,14 @@ class RunApplicationService(
             return self._apply_manual_recovery_view(view, session_id)
         result = self.reader.read_result(session_id)
         verification = self.reader.verification(session_id)
-        view = result_view(result, verification.status.value if verification else "NOT_FOUND")
         evidence_metadata = self._evidence_metadata(
             session_id,
             require_valid=False,
+        )
+        view = result_view(
+            result,
+            verification.status.value if verification else "NOT_FOUND",
+            evidence_metadata=evidence_metadata,
         )
         _annotate_execution_observations(
             view,
@@ -1703,6 +1715,13 @@ class RunApplicationService(
 
     @staticmethod
     def _runtime_state_mapping(record: RunRecord) -> dict[str, Any]:
+        incident_count = len(record.incidents)
+        unevaluated_observation_count = 0
+        if record.result is not None:
+            incident_count = policy_incident_count(record.result)
+            unevaluated_observation_count = len(
+                unevaluated_observation_views(record.result)
+            )
         launch_context = record.runtime.get("launch_context")
         managed_process = None
         coordinator = None
@@ -1776,7 +1795,8 @@ class RunApplicationService(
             "bundle_status": record.bundle_status or (
                 "PENDING" if record.result_path is None else "UNVERIFIED"
             ),
-            "incident_count": len(record.incidents),
+            "incident_count": incident_count,
+            "unevaluated_observation_count": unevaluated_observation_count,
             "latest_actions": record.actions[-20:],
             "sensor_health": dict(record.sensor_health),
             "stop": {

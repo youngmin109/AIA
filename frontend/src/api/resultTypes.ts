@@ -15,6 +15,17 @@ export interface IncidentView {
   [key: string]: unknown
 }
 
+export interface UnevaluatedObservationView {
+  process_name: string
+  process_role: string
+  reason_code: string
+}
+
+export interface UnevaluatedObservationsView {
+  count: number
+  items: UnevaluatedObservationView[]
+}
+
 export interface ResultView {
   bundle_status?: string
   launch_mode?: string
@@ -31,6 +42,8 @@ export interface ResultView {
   policy_version?: string
   workspace?: string
   incidents?: IncidentView[]
+  incident_count?: number
+  unevaluated_observations?: UnevaluatedObservationsView
   attribution_summary?: {
     counts?: Record<'EXACT' | 'PROCESS' | 'TEMPORAL' | 'UNKNOWN', number>
     automatic_control_happened?: boolean
@@ -40,7 +53,6 @@ export interface ResultView {
     action_id?: string
     stages?: Array<{ stage?: string; label?: string; status?: string; value?: string }>
   }>
-  incident_count?: number
   sensor_summary?: Array<{ sensor?: string; runtime_health_before_stop?: string; final_sensor_state?: string }>
   result_available?: boolean
   protection_state?: string

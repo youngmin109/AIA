@@ -294,12 +294,112 @@ def incident_view(action: Mapping[str, Any]) -> dict[str, Any] | None:
     }
 
 
+_UNEVALUATED_PROCESS_REASON = "Process was observed in the verified Agent Process Tree"
+_UNEVALUATED_PROCESS_REASON_CODE = "VERIFIED_AGENT_PROCESS"
+
+
+def _unevaluated_process_actions(
+    result: Mapping[str, Any],
+) -> list[tuple[Mapping[str, Any], Mapping[str, Any]]]:
+    """Select only command-less, verified process observations for display-only grouping."""
+    attributions = {
+        str(item.get("action_id")): item
+        for item in result.get("attribution_results") or ()
+        if isinstance(item, Mapping) and item.get("action_id") is not None
+    }
+    selected = []
+    for action in result.get("action_outcomes") or ():
+        if not isinstance(action, Mapping):
+            continue
+        if (
+            action.get("attribution_grade") != "PROCESS"
+            or action.get("policy_decision") != "INDETERMINATE"
+        ):
+            continue
+        if action.get("attribution_reason") != _UNEVALUATED_PROCESS_REASON:
+            continue
+        target = action.get("target")
+        if not isinstance(target, Mapping):
+            continue
+        # Finalization stores a fingerprint only when raw_command existed.
+        # A nonempty raw command is also rejected for unsealed presentation inputs.
+        if target.get("command_fingerprint") not in (None, ""):
+            continue
+        raw_command = target.get("raw_command")
+        if isinstance(raw_command, str) and raw_command.strip():
+            continue
+        attribution = attributions.get(str(action.get("action_id")))
+        if not isinstance(attribution, Mapping):
+            continue
+        if (
+            attribution.get("grade") != "PROCESS"
+            or attribution.get("reason_code") != _UNEVALUATED_PROCESS_REASON_CODE
+            or attribution.get("reason") != _UNEVALUATED_PROCESS_REASON
+        ):
+            continue
+        selected.append((action, attribution))
+    return selected
+
+
+def unevaluated_observation_action_ids(result: Mapping[str, Any]) -> set[str]:
+    return {
+        str(action["action_id"])
+        for action, _attribution in _unevaluated_process_actions(result)
+        if action.get("action_id") is not None
+    }
+
+
+def policy_incident_count(result: Mapping[str, Any]) -> int:
+    unevaluated_ids = unevaluated_observation_action_ids(result)
+    return sum(
+        1
+        for action in result.get("action_outcomes") or ()
+        if isinstance(action, Mapping)
+        and action.get("policy_decision") in {"VIOLATION", "INDETERMINATE"}
+        and str(action.get("action_id")) not in unevaluated_ids
+    )
+
+
+def unevaluated_observation_views(
+    result: Mapping[str, Any],
+    evidence_metadata: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...] = (),
+) -> list[dict[str, str]]:
+    """Build a minimal display list without commands, paths, or identifiers."""
+    process_metadata = {
+        str(item.get("evidence_id")): item
+        for item in evidence_metadata
+        if isinstance(item, Mapping)
+        and item.get("source") == "PROCESS_RUNTIME"
+        and item.get("record_type") == "PROCESS_OBSERVED"
+        and item.get("evidence_id") is not None
+    }
+    observations = []
+    for action, _attribution in _unevaluated_process_actions(result):
+        metadata = next(
+            (
+                process_metadata[str(evidence_id)]
+                for evidence_id in action.get("evidence_ids") or ()
+                if str(evidence_id) in process_metadata
+            ),
+            {},
+        )
+        observations.append(
+            {
+                "process_name": str(metadata.get("process_name") or "프로세스"),
+                "process_role": str(metadata.get("process_role") or "UNKNOWN"),
+                "reason_code": _UNEVALUATED_PROCESS_REASON_CODE,
+            }
+        )
+    return observations
+
+
 def incident_views_for_result(result: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Build presentation incidents without changing Core result semantics."""
+    """Build policy incidents without changing Core result semantics."""
+    unevaluated_ids = unevaluated_observation_action_ids(result)
     incidents = [
         item
         for item in (incident_view(action) for action in result.get("action_outcomes", []))
-        if item
+        if item and str(item.get("action_id")) not in unevaluated_ids
     ]
     recovery = result.get("recovery_result") or {}
     integrity = result.get("integrity_result") or {}
