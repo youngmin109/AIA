@@ -98,6 +98,59 @@ def test_any_command_that_names_a_read_denied_secret_file_is_blocked(command) ->
     assert decision is PolicyDecision.VIOLATION and rules == ("protected-secret-files",)
 
 
+@pytest.mark.parametrize("command", [
+    "Get-ChildItem -Force -Filter *.env* | Get-Content",
+    "Get-ChildItem -Include .env* -Recurse | cat",
+    "gci -Recurse | ? Name -like '*.env*' | gc",
+    "Get-Content .env*",
+    "Get-Content ./*.env",
+    "cat .e*",
+    "type *.env*",
+    "Select-String -Path *.env* -Pattern x",
+    "Copy-Item *.env* $env:TEMP",
+    "Get-ChildItem -Filter *.env* | ForEach-Object { Get-Content $_.FullName }",
+    "Get-Content .env.*",
+    "Select-String -Path .ENV.LOCAL* -Pattern x",
+    "Copy-Item **/.env* $env:TEMP",
+    "python -c \"import glob; [open(p).read() for p in glob.glob('*.env*')]\"",
+    "python -c \"from pathlib import Path; [Path(p).read_text() for p in glob('*.env*')]\"",
+])
+def test_wildcard_read_commands_matching_protected_secret_paths_are_blocked(command) -> None:
+    decision, _rules = _decision(PROTECTED, command)
+    assert decision is PolicyDecision.VIOLATION
+
+
+@pytest.mark.parametrize("command", [
+    "Get-ChildItem *",
+    "Get-ChildItem -Recurse src",
+    "ls",
+    "dir *.json",
+    "Get-ChildItem -Filter *.py",
+    "Get-Content README.md",
+    "Get-Content src/*.py",
+    "Select-String -Path *.py -Pattern TODO",
+    "type *.txt",
+    "cat docs/*.md",
+    "git status",
+    "Get-ChildItem -Recurse -Filter *.md",
+    "Get-ChildItem -Filter *.env*",
+    "Get-ChildItem -Include .env* -Recurse",
+])
+def test_unrelated_wildcard_commands_stay_allowed(command) -> None:
+    assert _decision(PROTECTED, command)[0] is PolicyDecision.COMPLIANT
+
+
+@pytest.mark.parametrize("command", [
+    "Get-Content *",
+    "cat *",
+    "Get-Content *.*",
+    "Get-Content ?",
+    "cat *.*",
+])
+def test_wildcard_only_read_patterns_remain_allowed(command) -> None:
+    assert _decision(PROTECTED, command)[0] is PolicyDecision.COMPLIANT
+
+
 @pytest.mark.parametrize("command", ["rg DATABASE_URL src", "Get-Content README.md", "python -m pytest -q"])
 def test_commands_that_do_not_name_a_secret_file_stay_allowed(command) -> None:
     assert _decision(PROTECTED, command)[0] is PolicyDecision.COMPLIANT

@@ -318,12 +318,15 @@ def _command_pattern_matches(command: str, pattern: str) -> bool:
     return False
 
 
-# Shell verbs and inline Python file calls that visibly delete, move, rename or
-# overwrite a path the same command names.  Reading needs no verb: any command
-# that names a read-denied path can print, copy or send it (see
-# command_path_denials).
+# Shell verbs and inline file calls that signal operations against visible paths.
+# Literal reads need no verb, but wildcard reads do (see command_path_denials).
 _COMMAND_FILE_VERBS: Mapping[Operation, re.Pattern[str]] = MappingProxyType(
     {
+        Operation.READ: re.compile(
+            r"(?<![\w-])(?:get-content|gc|cat|type|more|select-string|sls|"
+            r"copy-item|cpi|copy|cp|rg|grep|findstr|less|head|tail)(?![\w-])"
+            r"|(?<![\w.])open\s*\(|\.open\s*\(|\.read_(?:text|bytes)\("
+        ),
         Operation.DELETE: re.compile(
             r"(?<![\w-])(?:remove-item|ri|rm|del|erase|rd|rmdir|unlink|shred)(?![\w-])"
             r"|::delete\(|\.delete\("
@@ -370,16 +373,44 @@ def _token_names_path(token: str, pattern: str) -> bool:
     return literal and (normalized_pattern == normalized_token or normalized_pattern.endswith("/" + normalized_token))
 
 
+def _wildcard_token_names_path(token: str, pattern: str) -> bool:
+    """Whether a non-generic command glob can match a protected path pattern."""
+
+    try:
+        normalized_token = normalize_path(token)
+        normalized_pattern = normalize_path(pattern)
+    except PolicyEvaluationError:
+        return False
+    if not any(char in normalized_token for char in "*?"):
+        return False
+    if not any(char not in "*/?\\." for char in normalized_token):
+        return False
+
+    token_parts = normalized_token.lstrip("/").split("/")
+    path_parts = normalized_pattern.lstrip("/").split("/")
+    token_suffixes = [
+        "/".join(token_parts[index:]) for index in range(len(token_parts))
+    ]
+    path_suffixes = [
+        "/".join(path_parts[index:]) for index in range(len(path_parts))
+    ]
+    return any(
+        fnmatchcase(path_suffix, token_suffix)
+        or fnmatchcase(token_suffix, path_suffix)
+        for token_suffix in token_suffixes
+        for path_suffix in path_suffixes
+    )
+
+
 def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[PolicyRule]:
     """File rules that DENY what a shell command visibly does to a path it names.
 
     Lexical, like command patterns: the command must name a path the rule
     protects and use a verb for an operation the rule denies (a redirect
-    counts as modifying its own target only).  A rule that denies READ needs
-    no verb: naming the path is enough, because ``gc``, ``rg``, ``Copy-Item``,
-    ``python -c "open(...)"`` or ``curl -d @.env`` all read it.  Only DENY
-    effects are derived, so this can block more but never allows anything a
-    rule would not.  A script hidden as ``-EncodedCommand`` is checked too, and
+    counts as modifying its own target only). A rule that denies READ needs no
+    verb for a literal path; a wildcard token requires a recognized read verb.
+    Only DENY effects are derived, so this can block more but never allows
+    anything a rule would not.  A script hidden as ``-EncodedCommand`` is checked too, and
     an ``apply_patch`` text is judged by the files its headers add, update,
     move or delete.
     """
@@ -436,11 +467,23 @@ def _visible_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list
     for rule in rules:
         if not rule.path_patterns:
             continue
-        if rule.operation_effects.get(Operation.READ) is PolicyEffect.DENY and any(
-            _token_names_path(token, pattern) for token in read_tokens for pattern in rule.path_patterns
-        ):
-            denied.append(rule)
-            continue
+        if rule.operation_effects.get(Operation.READ) is PolicyEffect.DENY:
+            named_path = any(
+                _token_names_path(token, pattern)
+                for token in read_tokens
+                for pattern in rule.path_patterns
+            )
+            wildcard_read = (
+                _COMMAND_FILE_VERBS[Operation.READ].search(text) is not None
+                and any(
+                    _wildcard_token_names_path(token, pattern)
+                    for token in read_tokens
+                    for pattern in rule.path_patterns
+                )
+            )
+            if named_path or wildcard_read:
+                denied.append(rule)
+                continue
         if any(
             rule.operation_effects.get(operation) is PolicyEffect.DENY
             and any(_token_names_path(path, pattern) for pattern in rule.path_patterns)
