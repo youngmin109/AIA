@@ -77,6 +77,45 @@ def make_record(tmp_path, session_id: str = "session-1") -> RunRecord:
     )
 
 
+@pytest.mark.parametrize("decision", ("CONTAIN", "REFUSE"))
+def test_runtime_action_view_includes_enforcement_reasons_for_contain_and_refuse(decision: str) -> None:
+    action = SimpleNamespace(
+        action_id="action-1",
+        observed_at=None,
+        operation=SimpleNamespace(value="WRITE"),
+        evidence_ids=("evidence-1",),
+        canonical_path="workspace/data.csv",
+        target_kind=SimpleNamespace(value="FILE"),
+    )
+    policy_result = SimpleNamespace(
+        policy_decision=SimpleNamespace(value="VIOLATION"),
+        operation_effect=None,
+        matched_rule_ids=(),
+        asset_type=None,
+    )
+    attribution_result = SimpleNamespace(
+        grade=SimpleNamespace(value="EXACT"),
+        reason="verified",
+    )
+    gate_result = SimpleNamespace(
+        action=SimpleNamespace(value="NONE"),
+        decision=SimpleNamespace(value=decision),
+        execution_result=SimpleNamespace(value="NOT_ATTEMPTED"),
+        route=SimpleNamespace(value="HOOK"),
+        failure_reasons=("SENSOR_UNHEALTHY", "WORKSPACE_LEASE_INVALID"),
+    )
+
+    view = protected_run_module._runtime_action_view(
+        action,
+        policy_result,
+        attribution_result,
+        gate_result,
+    )
+
+    assert view["enforcement_decision"] == decision
+    assert view["enforcement_reasons"] == ["SENSOR_UNHEALTHY", "WORKSPACE_LEASE_INVALID"]
+
+
 def capture_service_launcher_factory(
     service, record, monkeypatch, output_handles=None
 ):
@@ -938,6 +977,7 @@ def test_live_refresh_exposes_redacted_hook_action_before_run_finishes(tmp_path)
             decision=EnforcementDecision.CONTAIN,
             execution_result=EnforcementExecutionResult.NOT_ATTEMPTED,
             route=EnforcementRoute.PRETOOL_BLOCK,
+            failure_reasons=(),
         ),
     )
     record.runtime["codex_controller"] = SimpleNamespace(
@@ -1094,6 +1134,7 @@ def test_running_state_degrades_when_product_process_sensor_is_missing(tmp_path)
                 decision=EnforcementDecision.CONTINUE,
                 execution_result=EnforcementExecutionResult.NOT_ATTEMPTED,
                 route=EnforcementRoute.NONE,
+                failure_reasons=(),
             ),
         ),),
         errors=(),

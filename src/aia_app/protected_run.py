@@ -111,6 +111,7 @@ def _runtime_action_view(
         "attribution_reason": attribution_result.reason,
         "enforcement_action": gate_result.action.value,
         "enforcement_decision": gate_result.decision.value,
+        "enforcement_reasons": [str(code) for code in gate_result.failure_reasons],
         "execution_result": gate_result.execution_result.value,
         "execution_observed": execution_observed,
         "tool_name": safe_tool_name(tool_name),

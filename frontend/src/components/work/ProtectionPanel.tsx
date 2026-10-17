@@ -6,7 +6,7 @@ import { TIMELINE_LIMIT, activityStrip } from '../../api/chartMath'
 import { displayStatus, statusTone } from '../../api/display'
 import type { RunStatus } from '../../api/types'
 import { blockDecisionCount, type RunAction } from '../../hooks/useRunActions'
-import { changeLabel, type Threat } from '../../api/threats'
+import { changeLabel, type MissedViolation, type Threat } from '../../api/threats'
 import { useNow } from '../../hooks/useElapsed'
 import { useCodexConnectors } from '../../hooks/useCodexConnectors'
 import { connectorsOnFirst, connectorSummary } from '../../api/connectorView'
@@ -28,7 +28,7 @@ function processDepths(processes: Process[]): Array<{ process: Process; depth: n
 }
 
 /** ⑤ Right-hand protection panel of the work view. Observation only; never an authority. */
-export function ProtectionPanel({ runId, status, live, actions, threats }: { runId: string; status: RunStatus | null; live: boolean; actions: RunAction[] | null; threats: Threat[] }) {
+export function ProtectionPanel({ runId, status, live, actions, threats, missedViolations }: { runId: string; status: RunStatus | null; live: boolean; actions: RunAction[] | null; threats: Threat[]; missedViolations: MissedViolation[] }) {
   const blocks = blockDecisionCount(actions)
   const summary = status?.evidence_summary
   const activity = status?.activity
@@ -72,6 +72,22 @@ export function ProtectionPanel({ runId, status, live, actions, threats }: { run
                 <span className="badge is-bad">{threat.tactic}</span>
                 <strong>{threat.title}</strong>
                 {threat.target && <small className="mono">{threat.target}</small>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {missedViolations.length > 0 && (
+        <section className="work-panel-section">
+          <h3>정책 위반 막지 못함 {missedViolations.length}건</h3>
+          <ul className="work-threats">
+            {missedViolations.slice(-4).reverse().map(violation => (
+              <li key={violation.id}>
+                <span className="badge is-bad">감지</span>
+                <strong>{violation.title}</strong>
+                <small>{violation.reason}</small>
+                {violation.target && <small className="mono">{violation.target}</small>}
               </li>
             ))}
           </ul>
