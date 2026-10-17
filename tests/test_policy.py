@@ -753,6 +753,45 @@ def test_inline_python_file_calls_count_as_file_operations(command: str, decisio
     assert result.policy_decision is decision
 
 
+def _patch(*lines: str) -> str:
+    return "\n".join(("*** Begin Patch", *lines, "*** End Patch")) + "\n"
+
+
+@pytest.mark.parametrize(
+    ("patch", "decision"),
+    [
+        (_patch("*** Update File: data/customer-ledger.csv", "@@", "-1,kim,1200", "+1,kim,0"), PolicyDecision.VIOLATION),
+        (_patch("*** Delete File: data/customer-ledger.csv"), PolicyDecision.VIOLATION),
+        (_patch("*** Add File: data/customer-ledger.csv", "+id,name"), PolicyDecision.VIOLATION),
+        # Moving the file away, or another file onto its path.
+        (_patch("*** Update File: data/customer-ledger.csv", "*** Move to: archive/old.csv", "@@", "-a", "+a"), PolicyDecision.VIOLATION),
+        (_patch("*** Update File: data/new.csv", "*** Move to: data/customer-ledger.csv", "@@", "-a", "+a"), PolicyDecision.VIOLATION),
+        (_patch("*** Update File: C:\\work\\shop\\data\\customer-ledger.csv", "@@", "-a", "+b"), PolicyDecision.VIOLATION),
+        # Other files, and the path only appearing inside the content.
+        (_patch("*** Update File: src/refund.py", "@@", "-x", "+y"), PolicyDecision.COMPLIANT),
+        (_patch("*** Add File: docs/ledger.md", "+data/customer-ledger.csv holds the customers"), PolicyDecision.COMPLIANT),
+        # Not a patch: header-like lines alone declare nothing.
+        ("echo '*** Delete File: data/customer-ledger.csv'", PolicyDecision.COMPLIANT),
+    ],
+)
+def test_an_apply_patch_text_is_judged_by_the_files_in_its_headers(patch: str, decision: PolicyDecision) -> None:
+    result = _ledger_policy().evaluate_target(operation=Operation.EXECUTE, raw_command=patch)
+
+    assert result.policy_decision is decision
+
+
+def test_protected_profile_applies_file_rules_to_patches() -> None:
+    policy = resolve_profile(PolicyProfile.PROTECTED_DEVELOPMENT).policy
+
+    def decision(patch: str) -> PolicyDecision:
+        return policy.evaluate_target(operation=Operation.EXECUTE, raw_command=patch).policy_decision
+
+    assert decision(_patch("*** Delete File: pyproject.toml")) is PolicyDecision.VIOLATION
+    # Dependency files may be edited (audited), only not deleted.
+    assert decision(_patch("*** Update File: pyproject.toml", "@@", "-a", "+b")) is PolicyDecision.COMPLIANT
+    assert decision(_patch("*** Add File: .env", "+KEY=1")) is PolicyDecision.VIOLATION
+
+
 @pytest.mark.parametrize(
     ("command", "decision"),
     [

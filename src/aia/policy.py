@@ -379,7 +379,9 @@ def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[
     no verb: naming the path is enough, because ``gc``, ``rg``, ``Copy-Item``,
     ``python -c "open(...)"`` or ``curl -d @.env`` all read it.  Only DENY
     effects are derived, so this can block more but never allows anything a
-    rule would not.  A script hidden as ``-EncodedCommand`` is checked too.
+    rule would not.  A script hidden as ``-EncodedCommand`` is checked too, and
+    an ``apply_patch`` text is judged by the files its headers add, update,
+    move or delete.
     """
 
     denied: list[PolicyRule] = []
@@ -390,8 +392,40 @@ def command_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[
     return denied
 
 
+# Codex's apply_patch tool names every file it touches in a header line.
+_PATCH_HEADER = re.compile(
+    r"^\*\*\* (Add|Update|Delete) File: (.+?)\s*$|^\*\*\* Move to: (.+?)\s*$",
+    re.MULTILINE,
+)
+_PATCH_OPERATIONS = MappingProxyType(
+    {"Add": Operation.CREATE, "Update": Operation.MODIFY, "Delete": Operation.DELETE}
+)
+
+
+def _patch_file_operations(raw_command: str) -> tuple[tuple[Operation, str], ...]:
+    """The file operations an ``apply_patch`` text declares in its headers.
+
+    ``*** Update File: a`` followed by ``*** Move to: b`` modifies and moves
+    ``a`` and creates ``b``.  Anything that is not a patch declares nothing.
+    """
+
+    if "*** Begin Patch" not in raw_command:
+        return ()
+    operations: list[tuple[Operation, str]] = []
+    for match in _PATCH_HEADER.finditer(raw_command):
+        destination = match.group(3)
+        if destination is None:
+            operations.append((_PATCH_OPERATIONS[match.group(1)], match.group(2)))
+            continue
+        if operations and operations[-1][0] is Operation.MODIFY:
+            operations.append((Operation.MOVE, operations[-1][1]))
+        operations.append((Operation.CREATE, destination))
+    return tuple(operations)
+
+
 def _visible_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list[PolicyRule]:
     text = normalize_command(raw_command)
+    patched = _patch_file_operations(raw_command)
     tokens = _command_path_tokens(raw_command)
     # curl and similar tools read a file given as @path.
     read_tokens = tokens + tuple(
@@ -404,6 +438,13 @@ def _visible_path_denials(rules: Sequence[PolicyRule], raw_command: str) -> list
             continue
         if rule.operation_effects.get(Operation.READ) is PolicyEffect.DENY and any(
             _token_names_path(token, pattern) for token in read_tokens for pattern in rule.path_patterns
+        ):
+            denied.append(rule)
+            continue
+        if any(
+            rule.operation_effects.get(operation) is PolicyEffect.DENY
+            and any(_token_names_path(path, pattern) for pattern in rule.path_patterns)
+            for operation, path in patched
         ):
             denied.append(rule)
             continue

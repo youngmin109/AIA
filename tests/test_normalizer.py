@@ -350,6 +350,49 @@ def test_command_maps_to_one_pre_action_execute_with_lineage_and_no_semantic_inf
     assert result.non_action_count == 0
 
 
+def test_an_apply_patch_request_is_judged_by_the_files_its_headers_touch(tmp_path: Path) -> None:
+    from aia import PolicyDecision, load_policy_document
+
+    workspace = make_workspace(tmp_path)
+    patch = (
+        "*** Begin Patch\n"
+        "*** Update File: data/customer-ledger.csv\n"
+        "@@\n-1,kim,1200\n+1,kim,0\n"
+        "*** End Patch\n"
+    )
+    parent = raw(
+        EvidenceRecordType.PRETOOL_REQUEST,
+        pretool_payload(tool_name="apply_patch", path=None, command_observed=True),
+        evidence_id="P1",
+    )
+    command = raw(
+        EvidenceRecordType.COMMAND_OBSERVED,
+        command_payload(raw_command=patch),
+        evidence_id="C1",
+        captured_at=BASE_TIME + timedelta(seconds=1),
+    )
+    action = Normalizer(SESSION, workspace).normalize([parent, command]).actions[0]
+    # The Hook carries the patch as the command; the policy reads its headers.
+    assert (action.operation, action.raw_command) == (Operation.EXECUTE, patch)
+    keep_ledger = load_policy_document(
+        {
+            "profile": "CUSTOM", "policy_name": "ledger", "policy_id": "ledger", "policy_version": "1",
+            "schema_version": "1", "default_effect": "AUDIT",
+            "rules": [{
+                "rule_id": "keep-ledger", "priority": 2001, "asset_type": "WORKSPACE",
+                "path_patterns": ["data/customer-ledger.csv"],
+                "operation_effects": {"CREATE": "DENY", "MODIFY": "DENY", "DELETE": "DENY", "MOVE": "DENY", "RENAME": "DENY"},
+            }],
+        },
+        source="<test>",
+    )
+
+    result = keep_ledger.evaluate_target(operation=action.operation, raw_command=action.raw_command)
+
+    assert result.policy_decision is PolicyDecision.VIOLATION
+    assert result.matched_rule_ids == ("keep-ledger",)
+
+
 def test_pretool_command_parent_does_not_create_duplicate_execute_action(tmp_path: Path) -> None:
     workspace = make_workspace(tmp_path)
     parent = raw(
