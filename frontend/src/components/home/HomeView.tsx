@@ -7,6 +7,7 @@ import { MiniBars } from '../common/Charts'
 import { GuardianFigure } from '../common/GuardianAvatar'
 import { GUARDIAN_ALT } from '../common/guardianImages'
 import { displayStatus, isSessionRunning, readinessNextStep } from '../../api/display'
+import { observedCountLabel } from '../../api/activityDisplay'
 import { TIMELINE_LIMIT, activityBuckets } from '../../api/chartMath'
 import { blockingPillar, recoveryPillar } from '../../api/homeStatus'
 import { readDefaultPolicyProfile } from '../policy/policyStorage'
@@ -148,8 +149,8 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
 
   const rows: Array<{ key: string; icon: Parameters<typeof GlossyIcon>[0]['icon']; tone: Parameters<typeof GlossyIcon>[0]['tone']; label: string; value: string; state: 'done' | 'live' | 'alert' }> = [
     { key: 'pretool', icon: 'shieldPlain', tone: 'hook', label: '실행 전 검사', value: `${summary?.pretool_events ?? 0}건`, state: 'done' },
-    { key: 'process', icon: 'pulse', tone: 'process', label: '프로세스 감시', value: `${activity?.process_identity_count ?? 0}개`, state: 'live' },
-    { key: 'file', icon: 'file', tone: 'file', label: '파일 변경 기록', value: `${activity?.unique_file_count ?? 0}개`, state: 'live' },
+    { key: 'process', icon: 'pulse', tone: 'process', label: '프로세스 감시', value: observedCountLabel(activity?.available, activity?.process_identity_count), state: 'live' },
+    { key: 'file', icon: 'file', tone: 'file', label: '파일 변경 기록', value: observedCountLabel(activity?.available, activity?.unique_file_count), state: 'live' },
   ]
   if (blocks > 0) rows.push({ key: 'block', icon: 'block', tone: 'danger', label: '위험 요청 차단 판정', value: `${blocks}건`, state: 'alert' })
 
@@ -204,7 +205,7 @@ function HomeLive({ status, stale }: { status: RunStatus; stale: boolean }) {
       <section className="home-live-tiles" aria-label="실시간 숫자">
         <StatTile label="차단 판정" value={blocks} tone={blocks > 0 ? 'danger' : undefined} note="실행 전 정책 판정" />
         <StatTile label={activity?.current_alive_count == null ? '누적 관찰 프로세스' : '현재 실행 프로세스'} value={processes ?? '—'} note={activity?.current_alive_count == null ? '세션 전체 관찰 수' : '지금 살아 있는 수'} />
-        <StatTile label="파일 변경" value={activity?.unique_file_count ?? 0} note="관찰된 경로 수" />
+        <StatTile label="파일 변경" value={observedCountLabel(activity?.available, activity?.unique_file_count)} note={activity?.available === true ? '관찰된 경로 수' : '관찰 기록을 확인할 수 없어요'} />
         <div className="glass-card stat-tile">
           <span className="stat-label">최근 5분 활동</span>
           <MiniBars values={recentActivity.counts} showValues label={`1분 단위 실행 요청·프로세스·파일 변화 ${recentActivity.counts.join(', ')}건`} />

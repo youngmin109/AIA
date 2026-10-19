@@ -54,6 +54,32 @@ def test_live_activity_comes_from_same_audit_stream(tmp_path):
     assert reader.read_activity('session-1', workspace, live=True)['unique_file_count'] == 1
 
 
+def test_live_activity_waits_for_a_complete_evidence_line(tmp_path):
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    store = RawEvidenceStore.for_session(tmp_path / 'control', 'session-1')
+    record = RawEvidenceRecord(
+        session_id='session-1', source='FILESYSTEM_WATCHER', record_type='FILESYSTEM_EVENT',
+        observation_stage='POST_ACTION', captured_at=datetime.now(timezone.utc),
+        payload={'event_type': 'created', 'src_path': str(workspace / 'actual.txt'), 'is_directory': False},
+    )
+    line = (json.dumps(record.to_mapping(), ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n').encode('utf-8')
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    split = len(line) - 5
+    store.path.write_bytes(line[:split])
+    reader = ResultBundleReader(tmp_path / 'control')
+
+    assert reader.read_live_evidence_snapshot('session-1')[0] == []
+
+    with store.path.open('ab') as stream:
+        stream.write(line[split:])
+    view = reader.read_activity('session-1', workspace, live=True)
+
+    assert view['available'] is True
+    assert view['unique_file_count'] == 1
+    assert view['files'][0]['path'] == 'actual.txt'
+
+
 def test_a_protected_change_is_reported_even_behind_a_mass_change(tmp_path):
     index = ActivityIndex()
     index.observe('FILESYSTEM_WATCHER', 'FILESYSTEM_EVENT', {'event_type': 'deleted', 'src_path': str(tmp_path / 'keep.csv'), 'is_directory': False}, '000', 'e-keep')

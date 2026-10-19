@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from threading import Event, get_ident
 
 import pytest
 
@@ -119,6 +120,75 @@ def test_store_appends_valid_jsonl_records_concurrently(tmp_path: Path) -> None:
     values = [json.loads(line) for line in lines]
     assert len({value["evidence_id"] for value in values}) == 100
     assert all(value["session_id"] == "session-1" for value in values)
+
+
+def test_raw_evidence_store_serializes_distinct_instances_for_same_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "raw-evidence.jsonl"
+    first_store = RawEvidenceStore(path, session_id="session-1")
+    second_store = RawEvidenceStore(path, session_id="session-1")
+    first_write_started = Event()
+    release_first_write = Event()
+    second_write_started = Event()
+    first_thread_id: int | None = None
+    original_open = Path.open
+
+    class PausingStream:
+        def __init__(self, stream) -> None:
+            self.stream = stream
+
+        def __enter__(self):
+            self.stream.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.stream.__exit__(*args)
+
+        def write(self, value: str) -> int:
+            if get_ident() == first_thread_id and not first_write_started.is_set():
+                split = max(1, len(value) // 2)
+                written = self.stream.write(value[:split])
+                self.stream.flush()
+                first_write_started.set()
+                if not release_first_write.wait(5):
+                    raise AssertionError("first evidence append was not released")
+                return written + self.stream.write(value[split:])
+            second_write_started.set()
+            return self.stream.write(value)
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+    def patched_open(target: Path, *args, **kwargs):
+        stream = original_open(target, *args, **kwargs)
+        if target == path and args and args[0] == "a":
+            return PausingStream(stream)
+        return stream
+
+    monkeypatch.setattr(Path, "open", patched_open)
+
+    def append_first() -> None:
+        nonlocal first_thread_id
+        first_thread_id = get_ident()
+        first_store.append(make_record(index=1))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(append_first)
+        try:
+            assert first_write_started.wait(5)
+            second = executor.submit(second_store.append, make_record(index=2))
+            second_entered_while_first_was_partial = second_write_started.wait(0.2)
+        finally:
+            release_first_write.set()
+        first.result(timeout=5)
+        second.result(timeout=5)
+
+    assert not second_entered_while_first_was_partial
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert all(json.loads(line)["session_id"] == "session-1" for line in lines)
 
 
 def test_raw_evidence_payload_preserves_raw_path_without_content() -> None:

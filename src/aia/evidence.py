@@ -14,6 +14,7 @@ from threading import Lock
 from types import MappingProxyType
 from typing import Any
 from uuid import uuid4
+from weakref import WeakValueDictionary
 
 
 class EvidenceError(ValueError):
@@ -199,6 +200,21 @@ class EvidenceIndex:
         }
 
 
+_RAW_EVIDENCE_LOCKS_GUARD = Lock()
+_RAW_EVIDENCE_LOCKS: WeakValueDictionary[Path, Any] = WeakValueDictionary()
+
+
+def _raw_evidence_lock(path: Path) -> Any:
+    """Share synchronization between stores that append to the same JSONL."""
+
+    with _RAW_EVIDENCE_LOCKS_GUARD:
+        lock = _RAW_EVIDENCE_LOCKS.get(path)
+        if lock is None:
+            lock = Lock()
+            _RAW_EVIDENCE_LOCKS[path] = lock
+        return lock
+
+
 class RawEvidenceStore:
     """Thread-safe append-only JSONL storage for one AIA Session."""
 
@@ -214,7 +230,7 @@ class RawEvidenceStore:
         )
         self.seal_path = self.path.parent / "raw-evidence.seal.json"
         self.index_path = self.path.parent / "evidence-index.json"
-        self._lock = Lock()
+        self._lock = _raw_evidence_lock(self.path)
 
     @classmethod
     def for_session(

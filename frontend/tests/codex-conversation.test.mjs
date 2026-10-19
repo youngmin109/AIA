@@ -151,8 +151,17 @@ test('security notes never claim a block was confirmed and never show raw comman
   assert.equal(JSON.stringify(why).includes('rm -rf'), false)
   assert.match(why.footnote, /실제로 막혔다는 확인과 달라요/)
   assert.equal(reportNote({ pretool: 3, blocks: 1, files: 2, grants: 0, sensorsHealthy: true }).lines[0], '실행 전 검사 3건 · 차단 판정 1건')
+  assert.equal(reportNote({ blocks: 0, files: null, grants: 0 }).lines[1], '파일 변경 확인 불가')
   assert.match(restoreNote(false).lines[0], /실행이 끝난 뒤/)
   assert.equal(policyNote(null, null).lines[0], '정책 정보를 아직 받지 못했어요.')
+})
+
+test('unavailable activity counts are not displayed as zero', async () => {
+  const { observedCountLabel } = await import('../src/api/activityDisplay.ts')
+  assert.equal(observedCountLabel(false, 0), '확인 불가')
+  assert.equal(observedCountLabel(undefined, undefined), '확인 불가')
+  assert.equal(observedCountLabel(true, 80), '80개')
+  assert.equal(observedCountLabel(true, 0), '0개')
 })
 
 test('connectors read as status, login and tool count', async () => {

@@ -49,7 +49,7 @@ export function reportNote(input: {
     title: '보안 요약',
     lines: [
       `실행 전 검사 ${input.pretool ?? 0}건 · 차단 판정 ${input.blocks}건`,
-      `파일 변경 ${input.files ?? 0}개`,
+      input.files == null ? '파일 변경 확인 불가' : `파일 변경 ${input.files}개`,
       input.grants ? `사용자가 넓혀 준 권한 ${input.grants}건` : '넓혀 준 권한 없음',
       input.sensorsHealthy === false ? '감시 장치 중 확인이 필요한 것이 있어요' : input.sensorsHealthy ? '감시 장치 모두 정상' : '감시 장치 상태 확인 중',
     ],

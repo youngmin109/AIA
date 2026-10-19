@@ -297,34 +297,9 @@ class ResultBundleReader:
             captured_at = dict(cached.captured_at)
             observations_valid = cached.observations_valid
 
-            if cached.pending:
-                pending_cache = _LiveEvidenceCache(
-                    identity=cached.identity,
-                    modified_ns=cached.modified_ns,
-                    metadata=[],
-                    posttool_ids=set(cached.posttool_ids),
-                    pretool_evidence_ids={
-                        key: list(value)
-                        for key, value in cached.pretool_evidence_ids.items()
-                    },
-                    observed_evidence_ids=observed_evidence_ids,
-                    captured_at=captured_at,
-                    observations_valid=observations_valid,
-                )
-                try:
-                    self._append_live_evidence_line(
-                        pending_cache,
-                        cached.pending,
-                        line_number=len(cached.metadata) + 1,
-                        session_id=session_id,
-                    )
-                except UnicodeDecodeError:
-                    return [], set(), {}
-                metadata.extend(pending_cache.metadata)
-                observed_evidence_ids = pending_cache.observed_evidence_ids
-                captured_at = pending_cache.captured_at
-                observations_valid = pending_cache.observations_valid
-
+            # The trailing bytes have no newline yet, so a sensor may still be
+            # writing this JSON record. Keep them pending until the next poll
+            # supplies the record terminator instead of marking the stream bad.
             if not observations_valid:
                 return metadata, set(), {}
             return metadata, observed_evidence_ids, captured_at
