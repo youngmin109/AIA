@@ -291,13 +291,17 @@ def _protected_file_change_count(
     *,
     workspace: Path,
     integrity_result: Any,
+    judge: Any,
 ) -> int | None:
-    """Count distinct changed Workspace files without retaining paths in the basis."""
+    """Count distinct changed paths that the run policy protects."""
 
-    if records is None or integrity_result is None:
+    if records is None or integrity_result is None or not callable(judge):
         return None
-    errors = set(getattr(integrity_result, "verification_errors", ()))
-    integrity_status = getattr(integrity_result, "integrity_status", None)
+    try:
+        errors = set(getattr(integrity_result, "verification_errors", ()))
+        integrity_status = getattr(integrity_result, "integrity_status", None)
+    except Exception:
+        return None
     known_differences = {"MISSING_PATHS", "UNEXPECTED_PATHS", "TYPE_MISMATCH", "SHA256_MISMATCH"}
     if (
         integrity_status not in {IntegrityStatus.VERIFIED, IntegrityStatus.FAILED}
@@ -305,14 +309,36 @@ def _protected_file_change_count(
         or (integrity_status is IntegrityStatus.FAILED and not errors)
     ):
         return None
-    changed_paths: set[str] = set()
+
+    protected_paths: set[str] = set()
+
+    def judge_path(raw_path: Any, event_type: str) -> bool:
+        if not isinstance(raw_path, str):
+            return False
+        try:
+            canonical = canonicalize_workspace_path(raw_path, workspace).canonical_path
+            if canonical is None:
+                return False
+            matched_rule_ids = judge(canonical, event_type)
+        except Exception:
+            return False
+        if not isinstance(matched_rule_ids, tuple) or any(
+            not isinstance(rule_id, str) for rule_id in matched_rule_ids
+        ):
+            return False
+        if matched_rule_ids:
+            protected_paths.add(canonical.casefold())
+        return True
+
     for record in records:
         if (
             getattr(record, "source", None) is not EvidenceSource.FILESYSTEM_WATCHER
             or getattr(record, "record_type", None) is not EvidenceRecordType.FILESYSTEM_EVENT
         ):
             continue
-        payload = getattr(record, "payload", {})
+        payload = getattr(record, "payload", None)
+        if not isinstance(payload, Mapping):
+            return None
         if payload.get("is_directory") is True:
             continue
         event_type = payload.get("event_type")
@@ -324,21 +350,22 @@ def _protected_file_change_count(
         if event_type == "moved":
             raw_paths.append(payload.get("dest_path"))
         for raw_path in raw_paths:
-            if not isinstance(raw_path, str):
+            if not judge_path(raw_path, event_type):
                 return None
-            canonical = canonicalize_workspace_path(raw_path, workspace).canonical_path
-            if canonical is None:
-                return None
-            changed_paths.add(canonical.casefold())
-    for path in (
-        *getattr(integrity_result, "missing_paths", ()),
-        *getattr(integrity_result, "unexpected_paths", ()),
-        *getattr(integrity_result, "type_mismatches", ()),
-        *getattr(integrity_result, "changed_paths", ()),
-    ):
-        if isinstance(path, str) and path:
-            changed_paths.add(path.replace("\\", "/").casefold())
-    return len(changed_paths)
+
+    try:
+        integrity_paths = (
+            *getattr(integrity_result, "missing_paths", ()),
+            *getattr(integrity_result, "unexpected_paths", ()),
+            *getattr(integrity_result, "type_mismatches", ()),
+            *getattr(integrity_result, "changed_paths", ()),
+        )
+    except Exception:
+        return None
+    for path in integrity_paths:
+        if not judge_path(path, "modified"):
+            return None
+    return len(protected_paths)
 
 
 def _posttool_use_ids(control_root: Path, session_id: str) -> set[str]:
@@ -569,10 +596,17 @@ class ProtectedRunMixin:
                 stopped=hook_sensor_stopped,
                 broker_healthy_before_stop=hook_broker_healthy_before_stop,
             )
+            judge = record.runtime.get("protected_change_judge")
+            if judge is None:
+                try:
+                    judge = self._protected_change_judge(record.session_id)
+                except Exception:
+                    judge = None
             protected_file_change_count = _protected_file_change_count(
                 evidence_records,
                 workspace=session.workspace,
                 integrity_result=integrity_result,
+                judge=judge,
             )
             collector = record.runtime.get("codex_hook_event_collector")
             hook_snapshot = collector.snapshot() if collector is not None else None

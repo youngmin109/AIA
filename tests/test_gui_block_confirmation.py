@@ -26,12 +26,14 @@ from aia import (
     ObservationStage,
 )
 from aia.codex_runtime import CodexHookBroker, CodexPreToolEvent
+from aia.integrity import IntegrityStatus
 from aia_app.codex_app_server import CodexAppServerSession, CodexHookEventCollector
 from aia_app.gui_block_confirmation import confirm_gui_pretool_blocks, parse_hook_run_id
 from aia_app.protected_run import (
     _filesystem_sensor_healthy_for_confirmation,
     _gui_run_interrupted,
     _hook_sensor_healthy_for_confirmation,
+    _protected_file_change_count,
 )
 from tests.test_enforcement import _gate_input
 
@@ -993,3 +995,228 @@ def test_gui_hook_broker_end_barrier_waits_for_in_flight_request() -> None:
     assert not stopper.is_alive()
     assert stop_result == [True]
     assert broker.in_flight_requests == 0
+
+
+def _filesystem_change_record(
+    session_id: str,
+    event_type: str,
+    src_path: str,
+    *,
+    dest_path: str | None = None,
+) -> RawEvidenceRecord:
+    payload = {
+        "event_type": event_type,
+        "src_path": src_path,
+        "is_directory": False,
+    }
+    if event_type == "moved":
+        payload["dest_path"] = dest_path
+    return RawEvidenceRecord(
+        session_id=session_id,
+        source=EvidenceSource.FILESYSTEM_WATCHER,
+        record_type=EvidenceRecordType.FILESYSTEM_EVENT,
+        captured_at=NOW,
+        observation_stage=ObservationStage.POST_ACTION,
+        payload=payload,
+    )
+
+
+def _integrity_result(
+    *,
+    status: IntegrityStatus = IntegrityStatus.VERIFIED,
+    errors: tuple[str, ...] = (),
+    paths: tuple[str, ...] = (),
+):
+    return SimpleNamespace(
+        integrity_status=status,
+        verification_errors=errors,
+        missing_paths=(),
+        unexpected_paths=(),
+        type_mismatches=(),
+        changed_paths=paths,
+    )
+
+
+def test_unprotected_batch_changes_do_not_cancel_gui_block_confirmation(
+    tmp_path: Path,
+) -> None:
+    controller, pretool_records, _ = _make_controller(
+        tmp_path, tool_ids=(DENIED_ID,)
+    )
+    workspace = tmp_path / "workspace"
+    changed_paths = tuple(f"orders/order-{index:02}.json" for index in range(80))
+    filesystem_records = tuple(
+        _filesystem_change_record(
+            pretool_records[0].session_id,
+            "modified",
+            path,
+        )
+        for path in changed_paths
+    )
+    all_records = (*pretool_records, *filesystem_records)
+    integrity_result = _integrity_result(
+        status=IntegrityStatus.FAILED,
+        errors=("SHA256_MISMATCH",),
+        paths=changed_paths,
+    )
+
+    def judge(path: str, event_type: str) -> tuple[str, ...]:
+        assert event_type == "modified"
+        return ("protected-rule",) if path == "protected.txt" else ()
+
+    count = _protected_file_change_count(
+        all_records,
+        workspace=workspace,
+        integrity_result=integrity_result,
+        judge=judge,
+    )
+
+    assert count == 0
+    assert _confirm(
+        controller,
+        all_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        protected_file_change_count=count,
+    ) == (True,)
+    assert controller.events[0].gate_result.action is EnforcementAction.BLOCKED
+
+
+def test_protected_file_change_still_fails_closed(tmp_path: Path) -> None:
+    controller, pretool_records, _ = _make_controller(
+        tmp_path, tool_ids=(DENIED_ID,)
+    )
+    workspace = tmp_path / "workspace"
+    changed = _filesystem_change_record(
+        pretool_records[0].session_id,
+        "modified",
+        "protected.txt",
+    )
+    all_records = (*pretool_records, changed)
+    integrity_result = _integrity_result(
+        status=IntegrityStatus.FAILED,
+        errors=("SHA256_MISMATCH",),
+        paths=("protected.txt",),
+    )
+    judged_events = []
+
+    def judge(path: str, event_type: str) -> tuple[str, ...]:
+        judged_events.append((path, event_type))
+        return ("protected-rule",) if path == "protected.txt" else ()
+
+    count = _protected_file_change_count(
+        all_records,
+        workspace=workspace,
+        integrity_result=integrity_result,
+        judge=judge,
+    )
+
+    assert count == 1
+    assert judged_events == [
+        ("protected.txt", "modified"),
+        ("protected.txt", "modified"),
+    ]
+    assert _confirm(
+        controller,
+        all_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        protected_file_change_count=count,
+    ) == (None,)
+    assert controller.events[0].gate_result.action is EnforcementAction.NONE
+
+
+@pytest.mark.parametrize(
+    ("source", "destination"),
+    [
+        ("protected.txt", "renamed.txt"),
+        ("orders/source.json", "protected.txt"),
+    ],
+    ids=["protected-source-renamed", "protected-destination"],
+)
+def test_protected_move_is_counted_when_either_endpoint_matches_policy(
+    tmp_path: Path,
+    source: str,
+    destination: str,
+) -> None:
+    controller, pretool_records, _ = _make_controller(
+        tmp_path, tool_ids=(DENIED_ID,)
+    )
+    workspace = tmp_path / "workspace"
+    moved = _filesystem_change_record(
+        pretool_records[0].session_id,
+        "moved",
+        source,
+        dest_path=destination,
+    )
+    all_records = (*pretool_records, moved)
+    integrity_result = _integrity_result(
+        status=IntegrityStatus.FAILED,
+        errors=("UNEXPECTED_PATHS",),
+        paths=(source, destination),
+    )
+    judged_events = []
+
+    def judge(path: str, event_type: str) -> tuple[str, ...]:
+        judged_events.append((path, event_type))
+        return ("protected-rule",) if path == "protected.txt" else ()
+
+    count = _protected_file_change_count(
+        all_records,
+        workspace=workspace,
+        integrity_result=integrity_result,
+        judge=judge,
+    )
+
+    assert count == 1
+    assert (source.casefold(), "moved") in judged_events
+    assert (destination.casefold(), "moved") in judged_events
+    assert _confirm(
+        controller,
+        all_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        protected_file_change_count=count,
+    ) == (None,)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["missing-judge", "judge-exception", "outside-workspace-path"],
+)
+def test_protected_change_count_is_unknown_when_judgment_is_unavailable(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    controller, pretool_records, _ = _make_controller(
+        tmp_path, tool_ids=(DENIED_ID,)
+    )
+    workspace = tmp_path / "workspace"
+    raw_path = "protected.txt"
+    judge = lambda _path, _event_type: ()
+    if failure == "missing-judge":
+        judge = None
+    elif failure == "judge-exception":
+        def judge(_path, _event_type):
+            raise RuntimeError("policy judge unavailable")
+    elif failure == "outside-workspace-path":
+        raw_path = "../outside.txt"
+    changed = _filesystem_change_record(
+        pretool_records[0].session_id,
+        "modified",
+        raw_path,
+    )
+    all_records = (*pretool_records, changed)
+
+    count = _protected_file_change_count(
+        all_records,
+        workspace=workspace,
+        integrity_result=_integrity_result(),
+        judge=judge,
+    )
+
+    assert count is None
+    assert _confirm(
+        controller,
+        all_records,
+        _snapshot([{"tool_use_id": DENIED_ID}]),
+        protected_file_change_count=count,
+    ) == (None,)
+    assert controller.events[0].gate_result.action is EnforcementAction.NONE
