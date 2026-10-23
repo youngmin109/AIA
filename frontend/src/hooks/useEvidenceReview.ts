@@ -1,36 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useRunStatus } from './useRunStatus'
-import type { SecurityEvent } from '../api/types'
+import { isSessionRunning } from '../api/display'
 import { queueUiPreferenceWrite, UI_PREFERENCE_RESTORED_EVENT } from '../api/preferenceSync'
+import { ackKeys, latestAcked, pendingReviews, type AckedMap, type AckMark } from '../api/evidenceReview'
 
 const STORAGE_KEY = 'aia.ackedIncidents'
 
-// severity/category (set server-side, see presenters.py's format_run_events)
-// are what actually flag a policy-relevant event -- decision/display_decision
-// carry an enforcement-decision-first vocabulary (CONTAIN/REFUSE/BLOCKED/
-// TERMINATED, or OBSERVED for sensors that don't evaluate policy), not a
-// plain VIOLATION/INDETERMINATE string. SENSOR-category pseudo-events (Hook/
-// File/Process health blips) are excluded -- they aren't policy decisions.
-function isFlagged(event: SecurityEvent): boolean {
-  return event.category !== 'SENSOR' && event.severity !== undefined && event.severity !== 'INFO'
-}
+export type { AckMark }
 
-export type AckMark = 'problem' | 'reviewed'
-
-function latestAcked(value: Record<string, AckMark>): Record<string, AckMark> {
-  let entries = Object.entries(value).slice(-500)
-  while (entries.length) {
-    const latest = Object.fromEntries(entries) as Record<string, AckMark>
-    if (new TextEncoder().encode(JSON.stringify(latest)).byteLength <= 8 * 1024) return latest
-    entries = entries.slice(1)
-  }
-  return {}
-}
-
-function readAcked(): Record<string, AckMark> {
+function readAcked(): AckedMap {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) as Record<string, AckMark> : {}
+    const parsed = raw ? JSON.parse(raw) as AckedMap : {}
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? latestAcked(parsed)
       : {}
@@ -39,7 +20,7 @@ function readAcked(): Record<string, AckMark> {
   }
 }
 
-function writeAcked(value: Record<string, AckMark>): Record<string, AckMark> {
+function writeAcked(value: AckedMap): AckedMap {
   const latest = latestAcked(value)
   const serialized = JSON.stringify(latest)
   try {
@@ -51,17 +32,14 @@ function writeAcked(value: Record<string, AckMark>): Record<string, AckMark> {
   return latest
 }
 
-function eventKey(runId: string, event: SecurityEvent, index: number): string {
-  return `${runId}:${event.event_id ?? event.chain_action_id ?? `idx${index}`}`
-}
-
-/** Surfaces the oldest not-yet-acknowledged VIOLATION/INDETERMINATE event
- * for the active run, one at a time, so EvidenceReviewModal can prompt the
- * user to mark it reviewed. Purely a local read/annotate layer over data
+/** Surfaces the oldest not-yet-acknowledged flagged event of a RUNNING run,
+ * one at a time, so EvidenceReviewModal can prompt the user to mark it
+ * reviewed. `remaining` counts how many are waiting (this one included) and
+ * `ackAll` clears them in one step. Purely a local read/annotate layer over data
  * useRunStatus already polls -- it never blocks or alters execution. */
 export function useEvidenceReview(runId: string | null) {
   const { data: status } = useRunStatus(runId, { enabled: Boolean(runId) })
-  const [acked, setAcked] = useState<Record<string, AckMark>>(() => readAcked())
+  const [acked, setAcked] = useState<AckedMap>(() => readAcked())
 
   useEffect(() => {
     let current = true
@@ -82,21 +60,19 @@ export function useEvidenceReview(runId: string | null) {
   }, [])
 
   const events = status?.events ?? []
-  const pendingIndex = runId
-    ? events.findIndex((event, index) => isFlagged(event) && !(eventKey(runId, event, index) in acked))
-    : -1
-
-  const pending = pendingIndex >= 0 ? events[pendingIndex] : null
+  const live = status ? isSessionRunning(status.session?.status, status.runtime_reconciliation?.orphaned) : false
+  const waiting = pendingReviews(runId, events, acked, live)
+  const pending = waiting.length ? events[waiting[0].index] : null
 
   function ack(mark: AckMark) {
-    if (!runId || pendingIndex < 0) return
-    const key = eventKey(runId, events[pendingIndex], pendingIndex)
-    const next = { ...acked }
-    delete next[key]
-    next[key] = mark
-    const saved = writeAcked(next)
-    setAcked(saved)
+    if (!waiting.length) return
+    setAcked(writeAcked(ackKeys(acked, [waiting[0].key], mark)))
   }
 
-  return { pending, ack }
+  function ackAll(mark: AckMark = 'reviewed') {
+    if (!waiting.length) return
+    setAcked(writeAcked(ackKeys(acked, waiting.map(item => item.key), mark)))
+  }
+
+  return { pending, remaining: waiting.length, ack, ackAll }
 }
