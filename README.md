@@ -26,8 +26,9 @@ and connects three independent sensors to one policy:
 | **File sensor** | Changes in the work folder are recorded. After the run you can restore the folder to its baseline and check the result with SHA-256 hashes. |
 | **Policy** | Four built-in profiles and a custom editor decide which files and commands are allowed, allowed with a record, or forbidden. You can also mark files that must never be touched for a single run. |
 
-Every observation, decision and restore is written to a hash-chained record, so
-later changes to the record can be detected.
+Every observation, decision and restore is kept in the result record. When a run
+ends, AIA writes a SHA-256 hash list of the record files and recomputes it when
+the record is checked later, so changes to a file can be detected.
 
 ## Features
 
@@ -107,7 +108,8 @@ AIA states its limits instead of claiming full protection. In short:
 - External tools you turn on yourself are outside the protection boundary.
 - Process evidence narrows down where an action came from; it does not prove
   which process wrote a file.
-- The record is tamper-evident, not tamper-proof.
+- The record is tamper-evident, not tamper-proof. It is not signed, so rewriting
+  the files together with the hash list goes unnoticed.
 - Only Windows 11 and Codex are supported today.
 
 See [LIMITATIONS.md](docs/LIMITATIONS.md) and the
